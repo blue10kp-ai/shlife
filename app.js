@@ -509,13 +509,15 @@
   }
 
   // PDF는 OneDrive 웹 대신 휴대폰의 PDF 보기 앱/브라우저로 열기 (임시 다운로드 주소 사용)
+  //   PDF 내용을 받아 브라우저 PDF 보기로 엶 (안드로이드는 'PDF 앱으로 열기' 선택 창)
   async function openFileDirect(id) {
     const w = window.open("", "_blank"); // 팝업 차단을 피하려고 먼저 창을 엶
+    if (w) w.document.write('<p style="font-family:sans-serif;padding:24px">PDF를 여는 중…</p>');
     try {
-      const it = await graph(itemPath(id) + "?select=id,name,@microsoft.graph.downloadUrl");
-      const url = it["@microsoft.graph.downloadUrl"];
-      if (!url) throw new Error("다운로드 주소를 받지 못했습니다.");
+      const buf = await graph(itemPath(id) + "/content", true);
+      const url = URL.createObjectURL(new Blob([buf], { type: "application/pdf" }));
       if (w) w.location.href = url; else location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
     } catch (e) {
       if (w) w.close();
       handleError(e);
