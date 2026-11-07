@@ -268,12 +268,19 @@
   function regionFromAddress(addr) {
     const t = String(addr || "").trim().split(/\s+/);
     if (!t[0]) return "";
-    if (/광주/.test(t[0]) && /특별시|광역시|통합/.test(t[0])) return "광주"; // 광주광역시, 전남광주통합특별시
+    const cityOf = (s) => (s || "").match(/^(\S+?)(특례시|시|군)$/);
+    // 전남광주통합특별시: 구(서구·북구…)는 광주, 시·군(영광군…)은 전남 ○○
+    if (/전남광주통합/.test(t[0])) { const c = cityOf(t[1]); return c ? "전남 " + c[1] : "광주"; }
+    if (/^광주/.test(t[0])) return "광주";
     const metro = METRO.find((m) => t[0].startsWith(m));
     if (metro) return metro;
     const prov = PROVINCE.find(([re]) => re.test(t[0]));
     if (!prov) return "";
-    const city = (t[1] || "").replace(/(특례)?시$|군$/, "");
+    // 띄어쓰기 없는 주소: "전남무안군삼향면" → 전남 무안
+    const glued = t[0].replace(/^(전라남도|전라북도|경상남도|경상북도|충청남도|충청북도|경기도|강원특별자치도|강원도|전북특별자치도|제주특별자치도|전남|전북|경남|경북|충남|충북|경기|강원|제주)/, "");
+    const g = glued && glued.match(/^(\S+?)(시|군)/);
+    const c = g ? [null, g[1]] : cityOf(t[1]);
+    const city = c ? c[1] : "";
     return city && city !== prov[1] ? prov[1] + " " + city : prov[1];
   }
   function regionOf(c) {
