@@ -1,6 +1,6 @@
 {
-  "name": "고객 찾기",
-  "short_name": "고객찾기",
+  "name": "FC 활동지원",
+  "short_name": "FC 활동지원",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

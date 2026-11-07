@@ -84,13 +84,17 @@
 
   // ---------- 화면 전환 ----------
   const views = ["loginView", "scheduleView", "searchView", "customerView", "adminView"];
-  const TITLES = { scheduleView: "일정", searchView: "고객 찾기", customerView: "고객 정보", adminView: "관리자" };
+  const APP_NAME = "FC 활동지원";
+  const TITLES = { scheduleView: "일정", searchView: APP_NAME, customerView: "고객 정보", adminView: "관리자" };
   const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", adminView: "admin" };
   function show(view) {
     views.forEach((v) => ($(v).hidden = v !== view));
+    // 고객 정보 화면: "‹ 고객 정보" 전체가 뒤로 가기 버튼
     $("backBtn").hidden = view !== "customerView";
+    $("title").hidden = view === "customerView";
     $("logoutBtn").hidden = view === "loginView";
-    $("title").textContent = TITLES[view] || "고객 찾기";
+    $("topSearch").hidden = view === "loginView"; // 상단 검색창은 로그인 후 항상
+    $("title").textContent = TITLES[view] || APP_NAME;
     $("mainNav").hidden = view === "loginView";
     $("navAdmin").hidden = !isAdmin();
     $("mainNav").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.section === SECTION[view]));
@@ -257,6 +261,29 @@
   const norm = (s) => String(s).replace(/\s+/g, "").toLowerCase();
   const custPart = (n) => n.split(" - ")[0]; // 폴더명 "고객명 - 담당자명"
 
+  // 주소 → 지역 약칭: "광주광역시 서구…" → 광주, "전라남도 영광군…" → 전남 영광
+  const METRO = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종"];
+  const PROVINCE = [[/^경기/, "경기"], [/^강원/, "강원"], [/^(충청북|충북)/, "충북"], [/^(충청남|충남)/, "충남"],
+    [/^(전라북|전북)/, "전북"], [/^(전라남|전남)/, "전남"], [/^(경상북|경북)/, "경북"], [/^(경상남|경남)/, "경남"], [/^제주/, "제주"]];
+  function regionFromAddress(addr) {
+    const t = String(addr || "").trim().split(/\s+/);
+    if (!t[0]) return "";
+    if (/광주/.test(t[0]) && /특별시|광역시|통합/.test(t[0])) return "광주"; // 광주광역시, 전남광주통합특별시
+    const metro = METRO.find((m) => t[0].startsWith(m));
+    if (metro) return metro;
+    const prov = PROVINCE.find(([re]) => re.test(t[0]));
+    if (!prov) return "";
+    const city = (t[1] || "").replace(/(특례)?시$|군$/, "");
+    return city && city !== prov[1] ? prov[1] + " " + city : prov[1];
+  }
+  function regionOf(c) {
+    for (const e of c.entries) {
+      const a = e.fields.find(([k]) => k.trim() === "주소");
+      if (a && a[1]) return regionFromAddress(a[1]);
+    }
+    return "";
+  }
+
   async function search(q) {
     q = q.trim();
     const status = $("searchStatus");
@@ -292,7 +319,7 @@
         const types = [...new Set(c.entries.map((e) => e.type))];
         const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
         return `<li><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
-          <span class="r-name">${esc(c.name)}<span class="r-sub">${esc([c.birth, fcs.join(", ")].filter(Boolean).join(" · "))}</span></span>
+          <span class="r-name"><span>${esc(c.name)}${regionOf(c) ? ` <span class="region">(${esc(regionOf(c))})</span>` : ""}</span><span class="r-sub">${esc([c.birth, fcs.join(", ")].filter(Boolean).join(" · "))}</span></span>
           ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button></li>`;
       }).join("");
       list.querySelectorAll("button").forEach((b) =>
@@ -531,11 +558,13 @@
     show("customerView");
     $("custName").textContent = cust.name;
     $("avatar").textContent = cust.name[0];
+    $("avatar").style.backgroundImage = "";
+    $("avatar").classList.remove("has-photo");
     $("custSub").textContent = [cust.birth, ...new Set(cust.entries.map((e) => e.type))].filter(Boolean).join(" · ");
     $("tabBody").innerHTML = '<p class="hint pad">고객 폴더를 찾는 중…</p>';
     $("tabs").innerHTML = "";
     history.pushState({ v: "customer" }, "");
-    current = { cust, folders: [], files: [], phones: null, contracts: [], fc: "", extra: { values: {} } };
+    current = { cust, folders: [], files: [], phones: null, contracts: [], fc: "", extra: { values: {} }, profilePhoto: null, photoUrl: null };
     try {
       const byName = (await loadCustomerFolders()).filter((f) => norm(custPart(f.name)) === norm(cust.name));
       // 같은 이름이 여러 FC에 있으면 이 고객의 담당 FC 폴더만
@@ -546,6 +575,8 @@
       for (const f of folders) files = files.concat(await collectFiles(f.id, folders.length > 1 ? f.name + "/" : "", 0));
       current.folders = folders;
       current.files = files;
+      current.profilePhoto = findProfilePhoto(files);
+      if (current.profilePhoto) loadProfilePhoto(); // 머리 부분 동그라미에 사진 표시
       current.fc = fcs[0] || (folders[0] && folders[0].fc) || "";
       const [contracts, extra] = await Promise.all([
         loadContracts().catch((e) => { console.error(e); return []; }),
@@ -707,19 +738,25 @@
     };
     const prim = (x.fields || []).filter((k) => EXTRA.primary.includes(k));
     const more = (x.fields || []).filter((k) => !EXTRA.primary.includes(k));
-    const moreFilled = more.filter((k) => (ev[k] || "").trim()).length;
+    const moreFilled = more.filter((k) => (ev[k] || "").trim()).length + (current.profilePhoto ? 1 : 0);
+    const photoField = `<div class="fld photo-fld"><span>프로필 사진</span>
+        <div class="photo-row">
+          <div class="photo-thumb" id="photoThumb">${current.photoUrl ? `<img src="${current.photoUrl}" alt="프로필 사진">` : "사진 없음"}</div>
+          <label class="secondary photo-pick">📷 촬영 / 앨범에서 선택<input type="file" id="photoInput" accept="image/*" hidden></label>
+        </div>
+        ${current.folders.length ? "" : '<p class="hint">이 고객의 폴더가 없어 사진을 저장할 수 없습니다.</p>'}
+      </div>`;
     const extraCard = `<div class="card">
         <h3 class="sec-title">추가 정보</h3>
         ${x.missing ? `<p class="hint">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p>` :
           x.error ? '<p class="hint">추가 정보 엑셀을 읽지 못했습니다.</p>' : `
           ${prim.map(field).join("")}
-          ${more.length ? `
             <button type="button" class="more-btn" id="exMore" aria-expanded="${extraOpen}">
               <span>${extraOpen ? "추가 항목 접기" : "추가 항목 펼치기"}</span>
-              <span class="hint">${esc(more.join(" · "))}${moreFilled ? ` (${moreFilled}개 입력됨)` : ""}</span>
+              <span class="hint">${esc(more.concat("프로필 사진").join(" · "))}${moreFilled ? ` (${moreFilled}개 입력됨)` : ""}</span>
               <span class="chev">${extraOpen ? "▴" : "▾"}</span>
             </button>
-            <div id="exMoreBox" ${extraOpen ? "" : "hidden"}>${more.map(field).join("")}</div>` : ""}
+            <div id="exMoreBox" ${extraOpen ? "" : "hidden"}>${more.map(field).join("")}${photoField}</div>
           <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
           <div class="file-actions"><button class="primary" id="exSave" disabled>저장</button></div>`}
       </div>`;
@@ -750,17 +787,38 @@
     const inputs = [...$("tabBody").querySelectorAll("[data-ex]")];
     const vals = () => Object.fromEntries(inputs.map((i) => [i.dataset.ex, i.value.trim()]));
     const orig = { ...(current.extra.values || {}) };
-    const dirty = () => inputs.some((i) => i.value.trim() !== (orig[i.dataset.ex] || ""));
+    let pendingPhoto = null; // 선택한 사진 (저장 전)
+    const valuesDirty = () => inputs.some((i) => i.value.trim() !== (orig[i.dataset.ex] || ""));
+    const dirty = () => valuesDirty() || !!pendingPhoto;
     inputs.forEach((i) => i.addEventListener("input", () => { btn.disabled = !dirty(); }));
+    // 사진: 카메라 촬영 또는 갤러리 선택 → 미리보기 (휴대폰 사진은 줄여서 저장)
+    const photoInput = $("photoInput");
+    if (photoInput) photoInput.addEventListener("change", async () => {
+      const file = photoInput.files && photoInput.files[0];
+      if (!file) return;
+      try {
+        pendingPhoto = await shrinkImage(file, 1600, 0.85);
+        $("photoThumb").innerHTML = `<img src="${URL.createObjectURL(pendingPhoto)}" alt="선택한 사진">`;
+        btn.disabled = !dirty();
+      } catch (e) { toast("사진을 읽지 못했습니다."); }
+    });
+    if (current.profilePhoto && !current.photoUrl) loadProfilePhoto();
     btn.addEventListener("click", async () => {
       btn.disabled = true;
       btn.textContent = "저장 중…";
       const v = vals();
       try {
-        await saveExtraFor(current.fc, current.cust.name, v, orig);
-        current.extra = { ...current.extra, found: true, values: v };
-        current.phones = null; // 연락하기 탭 다시 계산
-        toast("추가 정보를 엑셀에 저장했습니다.");
+        if (pendingPhoto && !current.folders.length) throw new Error("NO_CUSTOMER_FOLDER");
+        if (valuesDirty()) {
+          await saveExtraFor(current.fc, current.cust.name, v, orig);
+          current.extra = { ...current.extra, found: true, values: v };
+          current.phones = null; // 연락하기 탭 다시 계산
+        }
+        if (pendingPhoto) {
+          await uploadProfilePhoto(pendingPhoto);
+          pendingPhoto = null;
+        }
+        toast("저장했습니다.");
         selectTab("basic"); // 통신사·차량 정보 반영해서 다시 표시
       } catch (e) {
         btn.disabled = false;
@@ -770,8 +828,68 @@
     });
   }
 
+  // ---------- 프로필 사진 ----------
+  // 사진 줄이기: 긴 쪽 maxSide 픽셀, JPEG
+  function shrinkImage(file, maxSide, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(img.naturalWidth * scale);
+        cv.height = Math.round(img.naturalHeight * scale);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(url);
+        cv.toBlob((b) => (b ? resolve(b) : reject(new Error("이미지 변환 실패"))), "image/jpeg", quality);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("이미지를 열 수 없음")); };
+      img.src = url;
+    });
+  }
+
+  // 고객 폴더에 "날짜 - FC명 - 고객명 - 프로필사진.jpg"로 저장 (같은 날 다시 올리면 덮어씀)
+  async function uploadProfilePhoto(blob) {
+    const folder = current.folders[0];
+    const d = new Date();
+    const ymd = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+    const fc = current.fc || folder.fc || "";
+    const name = `${ymd} - ${fc} - ${current.cust.name} - 프로필사진.jpg`.replace(/[\\/:*?"<>|]/g, "");
+    const item = await gx("PUT", itemPath(folder.id) + ":/" + encodeURIComponent(name) + ":/content",
+      await blob.arrayBuffer(), "image/jpeg");
+    current.files = current.files.filter((f) => f.id !== item.id).concat({ ...item, path: item.name });
+    current.profilePhoto = item;
+    if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
+    current.photoUrl = URL.createObjectURL(blob);
+    setAvatarPhoto();
+  }
+
+  function findProfilePhoto(files) {
+    return files.filter((f) => /프로필사진/.test(f.name) && /\.(jpe?g|png|heic|webp)$/i.test(f.name))
+      .sort((a, b) => (b.name > a.name ? 1 : -1) || (new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime)))[0] || null;
+  }
+
+  async function loadProfilePhoto() {
+    const c = current;
+    if (!c.profilePhoto) return;
+    try {
+      const buf = await graph(itemPath(c.profilePhoto.id) + "/content", true);
+      if (c !== current) return; // 다른 고객으로 넘어감
+      c.photoUrl = URL.createObjectURL(new Blob([buf], { type: "image/jpeg" }));
+      setAvatarPhoto();
+      const t = $("photoThumb");
+      if (t && !t.querySelector("img")) t.innerHTML = `<img src="${c.photoUrl}" alt="프로필 사진">`;
+    } catch (e) { console.error(e); }
+  }
+
+  function setAvatarPhoto() {
+    const a = $("avatar");
+    if (current.photoUrl) { a.style.backgroundImage = `url("${current.photoUrl}")`; a.classList.add("has-photo"); a.textContent = ""; }
+  }
+
   function saveError(e) {
     const m = String(e && e.message);
+    if (m === "NO_CUSTOMER_FOLDER") return toast("이 고객의 폴더가 없어 사진을 저장할 수 없습니다.");
     if (/423|locked/i.test(m)) return toast("엑셀 파일이 다른 곳에서 열려 있어 저장하지 못했습니다. 닫고 다시 시도하세요.");
     if (/403/.test(m)) return toast("이 아이디는 엑셀을 수정할 권한이 없습니다.");
     handleError(e);
@@ -784,7 +902,7 @@
     const list = x.consults || [];
     return `<div class="card">
         <h3 class="sec-title">상담기록</h3>
-        ${list.length ? `<ul class="consult-list">${list.map((c) => `<li><b>${esc(c.date)}</b>: ${esc(c.text).replace(/\n/g, "<br>")}</li>`).join("")}</ul>`
+        ${list.length ? `<ul class="consult-list">${list.map((c) => `<li><b>${esc(c.date)}</b> ${esc(c.text).replace(/\n/g, "<br>")}</li>`).join("")}</ul>`
           : '<p class="hint">아직 상담기록이 없습니다.</p>'}
       </div>
       <div class="card">
@@ -848,6 +966,9 @@
     ? `<div class="file-actions"><button class="secondary" data-open="${esc(f.id)}">📄 계약 열기</button></div>`
     : "";
 
+  // 상품명에서 '무배당'이 들어간 괄호 삭제: "신한통합건강보험 원(ONE)(무배당, 해약환급금 미지급형)" → "신한통합건강보험 원(ONE)"
+  const productName = (s) => String(s || "").replace(/\s*[(（][^()（）]*무배당[^()（）]*[)）]/g, "").replace(/\s{2,}/g, " ").trim();
+
   function contractHtml() {
     const list = current.contracts;
     if (!list.length) {
@@ -855,7 +976,7 @@
         e.fields.filter(([k]) => k.includes("상품명")).flatMap(([, v]) => v.split(/\n/)).map((s) => s.trim()).filter(Boolean)))];
       return lines.length ? lines.map((l) => {
           const product = l.replace(/\s*-\s*[\d,]+원\s*$/, "");
-          return `<div class="card"><div class="contract-title">${esc(l)}</div>${pdfButton(findContractPdf("", product))}</div>`;
+          return `<div class="card"><div class="contract-title">${esc(productName(l))}</div>${pdfButton(findContractPdf("", product))}</div>`;
         }).join("") + '<p class="hint pad">계약리스트·이관리스트에서 이 고객의 계약을 찾지 못해 고객리스트의 상품 정보를 표시합니다.</p>'
         : '<p class="hint pad">계약리스트·이관리스트에서 이 고객의 계약을 찾지 못했습니다.</p>';
     }
@@ -868,7 +989,7 @@
         <div class="entry-head"><span class="tag t-${esc(c.type)}">${esc(c.type)}</span>
           ${status ? `<span class="tag">${esc(status)}</span>` : ""}
           <span class="hint">${esc([c.fc, c.type === "이관" ? c.sheet : ""].filter(Boolean).join(" · "))}</span></div>
-        <div class="contract-title">${esc(c.row["상품명"] || "(상품명 없음)")}</div>
+        <div class="contract-title">${esc(productName(c.row["상품명"]) || "(상품명 없음)")}</div>
         <dl class="kv">${shown.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
         ${pdfButton(pdf)}
       </div>`;
@@ -1005,13 +1126,14 @@
         <h3 class="sec-title">현재 매칭 현황</h3>
         <p class="hint">체크박스로 바로 바꾸고 '변경 저장'을 누르세요.</p>
         <div class="table-wrap"><table class="matrix">
-          <tr><th>아이디</th><th>전체</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}</tr>
+          <tr><th>아이디</th><th>전체</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}<th>삭제</th></tr>
           ${(CFG.admins || []).map((a) => `<tr class="admin-row"><td>${esc(a)} <span class="tag">관리자</span></td>
-            <td class="ok">●</td>${fcs.map(() => `<td class="ok">●</td>`).join("")}</tr>`).join("")}
+            <td class="ok">●</td>${fcs.map(() => `<td class="ok">●</td>`).join("")}<td></td></tr>`).join("")}
           ${users.map((em) => `<tr class="perm-row" data-em="${esc(em)}">
             <td>${esc(em)}${shared(em) ? "" : ' <span class="warn-dot" title="OneDrive에서 고객 폴더 공유가 확인되지 않음">⚠️</span>'}</td>
             <td><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"></td>
             ${fcs.map((fc) => `<td><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"></td>`).join("")}
+            <td><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></td>
           </tr>`).join("")}
         </table></div>
         ${users.length ? "" : '<p class="hint">아직 권한을 준 사용자가 없습니다. 아래에서 이메일을 추가하세요.</p>'}
@@ -1077,6 +1199,7 @@
     });
     refresh();
     $("resetPerms").addEventListener("click", () => renderAdmin());
+    $("adminBody").querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => deleteUser(b.dataset.del)));
     $("savePerms").addEventListener("click", () => savePerms(changed().map((r) => [r.dataset.em, sel(r)])));
 
     // 사용자 추가 시 저장 전 체크 상태 보존용
@@ -1091,6 +1214,22 @@
         all.dispatchEvent(new Event("change"));
         if (!all.checked) row.querySelectorAll("input[data-fc]").forEach((b) => b.dispatchEvent(new Event("change")));
       });
+    }
+  }
+
+  // 등록된 아이디 삭제 (권한 파일에서 바로 제거)
+  async function deleteUser(em) {
+    if (!confirm(`${em} 아이디를 삭제할까요?\n삭제하면 이 아이디는 앱에서 고객을 검색할 수 없습니다.`)) return;
+    try {
+      const perms = await readPerms();
+      delete perms.users[em];
+      extraUsers.delete(em);
+      await gx("PUT", permPath(), perms);
+      adminState.perms = perms;
+      toast(`${em} 아이디를 삭제했습니다.`);
+      renderAdmin();
+    } catch (e) {
+      handleError(e);
     }
   }
 
@@ -1133,7 +1272,16 @@
   // ---------- 시작 ----------
   $("loginBtn").addEventListener("click", () => msal.loginRedirect({ scopes: SCOPES }));
   $("logoutBtn").addEventListener("click", () => msal.logoutRedirect());
-  $("searchForm").addEventListener("submit", (ev) => { ev.preventDefault(); $("q").blur(); search($("q").value); });
+  // 상단 검색창: 어느 화면에서든 검색 → 고객 검색 결과 화면으로
+  $("topSearch").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    $("q").blur();
+    if ($("searchView").hidden) {
+      if (!$("customerView").hidden) history.back(); // 고객 화면에서 검색하면 기록 정리
+      show("searchView");
+    }
+    search($("q").value);
+  });
   $("backBtn").addEventListener("click", () => history.back());
   // PDF 열기 버튼 (계약 열기, 보장분석 등): 휴대폰 PDF 앱/브라우저로
   $("tabBody").addEventListener("click", (ev) => {

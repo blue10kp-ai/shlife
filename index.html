@@ -5,17 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1f4e8c">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="고객찾기">
-  <title>고객 찾기</title>
+  <meta name="apple-mobile-web-app-title" content="FC 활동지원">
+  <title>FC 활동지원</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
   <header class="topbar">
-    <button id="backBtn" class="icon-btn" hidden aria-label="뒤로">‹</button>
-    <h1 id="title">고객 찾기</h1>
+    <button id="backBtn" class="back-btn" hidden aria-label="뒤로 가기"><span class="chev-l">‹</span><span id="backLabel">고객 정보</span></button>
+    <h1 id="title">FC 활동지원</h1>
+    <form id="topSearch" class="top-search" hidden role="search">
+      <input id="q" type="search" placeholder="고객명 검색" autocomplete="off" enterkeyhint="search" aria-label="고객명 검색">
+    </form>
     <button id="logoutBtn" class="text-btn" hidden>로그아웃</button>
   </header>
 
@@ -23,7 +26,7 @@
     <!-- 로그인 화면 -->
     <section id="loginView" class="view" hidden>
       <div class="card center">
-        <p class="lead">OneDrive의 <b>고객</b> 폴더에서<br>고객 정보를 찾아 보여줍니다.</p>
+        <p class="lead"><b>FC 활동지원</b><br>OneDrive의 고객 정보를 찾아 보여줍니다.</p>
         <button id="loginBtn" class="primary big">Microsoft 계정으로 로그인</button>
         <p class="hint">고객 정보는 OneDrive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.</p>
       </div>
@@ -39,10 +42,7 @@
 
     <!-- 고객 검색 화면 -->
     <section id="searchView" class="view" hidden>
-      <form id="searchForm" class="search">
-        <input id="q" type="search" placeholder="고객명 입력" autocomplete="off" enterkeyhint="search">
-        <button class="primary" type="submit">검색</button>
-      </form>
+
       <div id="modes" class="modes" role="group" aria-label="검색 범위"></div>
       <p id="scopeHint" class="hint"></p>
       <p id="searchStatus" class="hint"></p>
@@ -81,7 +81,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=19"></script>
-  <script src="app.js?v=19"></script>
+  <script src="config.js?v=20"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>
