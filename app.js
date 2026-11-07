@@ -61,7 +61,7 @@
   const isAdmin = () => !!account() &&
     (CFG.admins || []).map((a) => a.toLowerCase()).includes(String(account().username).toLowerCase());
 
-  async function gx(method, path, body) {
+  async function gx(method, path, body, contentType) {
     const acc = account();
     let token;
     try {
@@ -71,10 +71,12 @@
       await msal.acquireTokenRedirect({ scopes: ADMIN_SCOPES, account: acc });
       throw e;
     }
+    const raw = body instanceof ArrayBuffer || ArrayBuffer.isView(body);
     const res = await fetch(GRAPH + path, {
       method,
-      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined
+      headers: { Authorization: "Bearer " + token, "Content-Type": contentType || "application/json" },
+      body: body == null ? undefined : raw ? body : JSON.stringify(body),
+      cache: "no-store"
     });
     if (!res.ok) throw new Error("Graph " + res.status + ": " + (await res.text()).slice(0, 200));
     return res.status === 204 ? null : res.json();
@@ -301,8 +303,96 @@
     }
   }
 
+  // ---------- 계약 상세 (계약리스트 / 이관리스트) ----------
+  const CONTRACT_NAME_COLS = ["계약자", "주피보험자", "피보", "피보험자"];
+  let contractCache = null;
+  function loadContracts() {
+    if (contractCache) return contractCache;
+    contractCache = (async () => {
+      const { files } = await scanBase();
+      const sources = (CFG.contractLists || []).flatMap((l) =>
+        files.filter((f) => f.name.includes(l.fileKeyword)).map((f) => ({ ...l, file: f })));
+      const out = [];
+      await Promise.all(sources.map(async (s) => {
+        const wb = await readBook(s.file.id);
+        const fc = s.file.fc || (s.file.name.split(" - ")[1] || "").trim();
+        wb.SheetNames.forEach((sheet) => {
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: "", raw: false });
+          const h = rows.findIndex((r) => r.some((c) => String(c).trim() === "계약자"));
+          if (h < 0) return;
+          const head = rows[h].map((c) => String(c).trim());
+          rows.slice(h + 1).forEach((r) => {
+            const fields = head.map((k, i) => [k, String(r[i] ?? "").trim()]).filter(([k, v]) => k && v);
+            if (!fields.length) return;
+            const row = Object.fromEntries(fields);
+            const names = CONTRACT_NAME_COLS.map((c) => row[c]).filter(Boolean).map(norm);
+            if (names.length) out.push({ type: s.label, fc, sheet, row, fields, names });
+          });
+        });
+      }));
+      return out;
+    })();
+    contractCache.catch(() => { contractCache = null; });
+    return contractCache;
+  }
+
+  // ---------- 고객 추가 정보 (미팅장소 / 메모) ----------
+  const EXTRA = CFG.extraInfo || { fileKeyword: "고객 추가 정보", fcCol: "담당 FC", nameCol: "고객명", fields: ["미팅장소", "메모"] };
+
+  async function readExtra() {
+    await resolveBase();
+    const items = await listChildren(itemPath(base.id) + "/children");
+    const file = items.find((i) => i.file && i.name.includes(EXTRA.fileKeyword));
+    if (!file) return null;
+    const wb = XLSX.read(await graph(itemPath(file.id) + "/content", true), { type: "array" });
+    const sheetName = wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: true });
+    const head = (rows[0] || []).map((c) => String(c).trim());
+    return { file, wb, ws, rows, head };
+  }
+
+  // (담당 FC, 고객명)이 같은 줄 찾기. 엑셀에 FC가 비어 있으면 이름만으로 매칭
+  function extraRowIndex(x, fc, name) {
+    const ci = x.head.indexOf(EXTRA.fcCol), ni = x.head.indexOf(EXTRA.nameCol);
+    if (ni < 0) return -1;
+    for (let r = 1; r < x.rows.length; r++) {
+      const row = x.rows[r];
+      const rowFc = ci < 0 ? "" : String(row[ci] ?? "").trim();
+      if (norm(row[ni] ?? "") === norm(name) && (!fc || !rowFc || norm(rowFc) === norm(fc))) return r;
+    }
+    return -1;
+  }
+
+  async function loadExtraFor(fc, name) {
+    const x = await readExtra();
+    if (!x) return { missing: true, values: {} };
+    const r = extraRowIndex(x, fc, name);
+    const values = {};
+    EXTRA.fields.forEach((k) => { const c = x.head.indexOf(k); values[k] = r > 0 && c >= 0 ? String(x.rows[r][c] ?? "") : ""; });
+    return { found: r > 0, values, fileName: x.file.name };
+  }
+
+  async function saveExtraFor(fc, name, values) {
+    const x = await readExtra(); // 저장 직전 최신 파일을 다시 읽어 이 고객 줄만 바꿈
+    if (!x) throw new Error("NO_EXTRA_FILE");
+    let r = extraRowIndex(x, fc, name);
+    if (r < 0) r = Math.max(x.rows.length, 1); // 없으면 맨 아래에 새 줄
+    const put = (col, v) => {
+      const c = x.head.indexOf(col);
+      if (c >= 0) XLSX.utils.sheet_add_aoa(x.ws, [[v]], { origin: { r, c } });
+    };
+    put(EXTRA.fcCol, fc);
+    put(EXTRA.nameCol, name);
+    EXTRA.fields.forEach((k) => put(k, values[k] ?? ""));
+    const out = XLSX.write(x.wb, { type: "array", bookType: "xlsx" });
+    await gx("PUT", itemPath(x.file.id) + "/content", out,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[x.file.id];
+  }
+
   // ---------- 고객 화면 ----------
-  let current = null; // { cust, folders, files, phones }
+  let current = null; // { cust, folders, files, phones, contracts, fc, extra }
 
   async function openCustomer(cust) {
     show("customerView");
@@ -313,7 +403,7 @@
     $("tabBody").innerHTML = '<p class="hint pad">고객 폴더를 찾는 중…</p>';
     $("tabs").innerHTML = "";
     history.pushState({ v: "customer" }, "");
-    current = { cust, folders: [], files: [], phones: null };
+    current = { cust, folders: [], files: [], phones: null, contracts: [], fc: "", extra: { values: {} } };
     try {
       const byName = (await loadCustomerFolders()).filter((f) => norm(custPart(f.name)) === norm(cust.name));
       // 같은 이름이 여러 FC에 있으면 이 고객의 담당 FC 폴더만
@@ -325,6 +415,13 @@
       current.folders = folders;
       current.files = files;
       if (folders[0]) { $("folderLink").href = folders[0].webUrl; $("folderLink").hidden = false; }
+      current.fc = fcs[0] || (folders[0] && folders[0].fc) || "";
+      const [contracts, extra] = await Promise.all([
+        loadContracts().catch((e) => { console.error(e); return []; }),
+        loadExtraFor(current.fc, cust.name).catch((e) => { console.error(e); return { error: true, values: {} }; })
+      ]);
+      current.contracts = contracts.filter((c) => c.names.includes(norm(cust.name)) && (!fcs.length || fcs.includes(c.fc)));
+      current.extra = extra;
     } catch (e) {
       handleError(e);
     }
@@ -354,8 +451,8 @@
 
   function renderTabs() {
     $("tabs").innerHTML = CFG.tabs.map((t) => {
-      const n = t.id === "contact" || t.id === "all" ? "" :
-        filesForTab(t).length + (t.id === "basic" ? current.cust.entries.length : 0);
+      const n = t.id === "contact" || t.id === "all" || t.id === "basic" ? "" :
+        filesForTab(t).length + (t.id === "contract" ? current.contracts.length : 0);
       return `<button data-tab="${t.id}">${esc(t.label)}${n !== "" ? `<small>${n}</small>` : ""}</button>`;
     }).join("");
     $("tabs").querySelectorAll("button").forEach((b) =>
@@ -380,16 +477,12 @@
     if (id === "contact") return renderContact();
 
     const files = filesForTab(tab);
-    // 기본정보: 고객리스트 엑셀에서 찾은 내용을 먼저 보여줌
-    const listHtml = id === "basic" ? current.cust.entries.map((e) => `<div class="card">
-        <div class="entry-head"><span class="tag t-${esc(e.type)}">${esc(e.type)}</span>
-          <span class="hint">${esc([e.fc, e.sheet].filter(Boolean).join(" · "))}</span></div>
-        <dl class="kv">${e.fields.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
-      </div>`).join("") : "";
+    const listHtml = id === "basic" ? basicHtml() : id === "contract" ? contractHtml() : "";
     const noFolder = !current.folders.length ? '<p class="hint pad">이 고객 이름의 폴더를 찾지 못했습니다.</p>' : "";
     if (!files.length) {
-      body.innerHTML = listHtml + (noFolder || (id === "basic" && listHtml ? "" :
+      body.innerHTML = listHtml + (noFolder || (listHtml ? "" :
         `<p class="hint pad">이름에 ${tab.keywords.map((k) => "'" + esc(k) + "'").join(", ")}이(가) 들어간 파일이 없습니다.<br>'전체파일'에서 찾아보세요.</p>`));
+      if (id === "basic") bindExtra();
       return;
     }
     body.innerHTML = listHtml + files.map((f, i) => {
@@ -414,6 +507,90 @@
     // 엑셀이 하나뿐이면 바로 펼치기
     const excels = body.querySelectorAll('[data-act="view"]');
     if (excels.length === 1) excels[0].click();
+    if (id === "basic") bindExtra();
+  }
+
+  // 기본정보: 고객리스트의 인적 정보만 (계약·이관 내용, 상품명 제외)
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC"];
+  function basicHtml() {
+    const c = current.cust;
+    const merged = new Map();
+    c.entries.forEach((e) => e.fields.forEach(([k, v]) => {
+      if (BASIC_EXCLUDE.includes(k.trim())) return;
+      if (!merged.has(k)) merged.set(k, []);
+      if (!merged.get(k).includes(v)) merged.get(k).push(v);
+    }));
+    const types = [...new Set(c.entries.map((e) => e.type))];
+    const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
+    const infoCard = `<div class="card">
+        <div class="entry-head">${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}
+          <span class="hint">${esc(fcs.length ? "담당 FC: " + fcs.join(", ") : "")}</span></div>
+        ${merged.size ? `<dl class="kv">${[...merged].map(([k, vs]) => `<dt>${esc(k)}</dt><dd>${vs.map(esc).join("<br>")}</dd>`).join("")}</dl>`
+          : '<p class="hint">고객리스트에 기본정보가 없습니다.</p>'}
+      </div>`;
+    const x = current.extra || { values: {} };
+    const extraCard = `<div class="card">
+        <h3 class="sec-title">추가 정보</h3>
+        ${x.missing ? `<p class="hint">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다. '${esc(CFG.baseFolder)}' 폴더에 넣어 주세요.</p>` :
+          x.error ? '<p class="hint">추가 정보 엑셀을 읽지 못했습니다.</p>' : `
+          ${EXTRA.fields.map((k) => `<label class="fld"><span>${esc(k)}</span>${/메모/.test(k)
+            ? `<textarea data-ex="${esc(k)}" rows="4">${esc(x.values[k] || "")}</textarea>`
+            : `<input data-ex="${esc(k)}" value="${esc(x.values[k] || "")}" autocomplete="off">`}</label>`).join("")}
+          <div class="file-actions"><button class="primary" id="exSave" disabled>저장</button></div>
+          <p class="hint">${x.found ? "" : "아직 이 고객의 줄이 없습니다. 저장하면 새 줄이 추가됩니다. "}저장하면 '${esc(x.fileName || EXTRA.fileKeyword)}'의 ${esc(EXTRA.fcCol)}(${esc(current.fc || "-")}) · ${esc(EXTRA.nameCol)}(${esc(c.name)}) 줄에 기록됩니다.</p>`}
+      </div>`;
+    return infoCard + extraCard;
+  }
+
+  function bindExtra() {
+    const btn = $("exSave");
+    if (!btn) return;
+    const inputs = [...$("tabBody").querySelectorAll("[data-ex]")];
+    const vals = () => Object.fromEntries(inputs.map((i) => [i.dataset.ex, i.value]));
+    const orig = current.extra.values || {};
+    const dirty = () => inputs.some((i) => i.value !== (orig[i.dataset.ex] || ""));
+    inputs.forEach((i) => i.addEventListener("input", () => { btn.disabled = !dirty(); }));
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "저장 중…";
+      const v = vals();
+      try {
+        await saveExtraFor(current.fc, current.cust.name, v);
+        current.extra = { ...current.extra, found: true, values: v };
+        toast("추가 정보를 엑셀에 저장했습니다.");
+        btn.textContent = "저장";
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "저장";
+        const m = String(e && e.message);
+        if (/423|locked/i.test(m)) return toast("엑셀 파일이 다른 곳에서 열려 있어 저장하지 못했습니다. 닫고 다시 시도하세요.");
+        if (/403/.test(m)) return toast("이 아이디는 엑셀을 수정할 권한이 없습니다.");
+        handleError(e);
+      }
+    });
+  }
+
+  // 계약현황: 계약리스트·이관리스트에서 이 고객(계약자/피보험자)의 계약
+  const CONTRACT_HIDE = ["상품명", "순번", "No", "메모"];
+  function contractHtml() {
+    const list = current.contracts;
+    if (!list.length) {
+      const lines = [...new Set(current.cust.entries.flatMap((e) =>
+        e.fields.filter(([k]) => k.includes("상품명")).flatMap(([, v]) => v.split(/\n/)).map((s) => s.trim()).filter(Boolean)))];
+      return lines.length ? `<div class="card"><h3 class="sec-title">가입 상품</h3><ul class="plain">${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>
+          <p class="hint">계약리스트·이관리스트에서 이 고객의 계약을 찾지 못해 고객리스트의 상품 정보를 표시합니다.</p></div>`
+        : '<p class="hint pad">계약리스트·이관리스트에서 이 고객의 계약을 찾지 못했습니다.</p>';
+    }
+    return list.map((c) => {
+      const status = c.row["계약상태"] || c.row["상태"] || "";
+      return `<div class="card">
+        <div class="entry-head"><span class="tag t-${esc(c.type)}">${esc(c.type)}</span>
+          ${status ? `<span class="tag">${esc(status)}</span>` : ""}
+          <span class="hint">${esc([c.fc, c.type === "이관" ? c.sheet : ""].filter(Boolean).join(" · "))}</span></div>
+        <div class="contract-title">${esc(c.row["상품명"] || "(상품명 없음)")}</div>
+        <dl class="kv">${c.fields.filter(([k]) => !CONTRACT_HIDE.includes(k)).map(([k, v]) => `<dt>${esc(k.trim())}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+      </div>`;
+    }).join("");
   }
 
   const readWorkbook = (f) => readBook(f.id);

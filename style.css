@@ -104,6 +104,12 @@ button:disabled { opacity: .5; }
   .tag.t-계약 { background: #1f3a2b; color: #6fd39a; }
   .tag.t-이관 { background: #3d2c18; color: #f0b26b; }
 }
+.fld { display: block; margin-bottom: 12px; }
+.fld span { display: block; font-size: 14px; color: var(--muted); margin-bottom: 4px; }
+.fld input, .fld textarea { width: 100%; padding: 10px 12px; font: inherit; font-size: 16px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.fld textarea { resize: vertical; min-height: 96px; }
+.contract-title { font-weight: 700; margin: 4px 0 6px; word-break: break-all; }
 .entry-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .tag { flex: none; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
   background: var(--brand-weak); color: var(--brand); }

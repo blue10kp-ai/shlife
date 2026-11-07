@@ -25,6 +25,15 @@ window.APP_CONFIG = {
     { id: "progress", label: "진행", folderGroup: "진행" }
   ],
 
+  // 계약현황 탭에 보여줄 계약 상세 엑셀 (FC 폴더 안, 이름에 키워드 포함). '계약자'·'주피보험자'·'피보'로 고객 매칭
+  contractLists: [
+    { label: "계약", fileKeyword: "계약리스트" },
+    { label: "이관", fileKeyword: "이관리스트" }
+  ],
+
+  // 기본정보 탭의 추가 정보 (고객 폴더 바로 안 엑셀). 담당 FC + 고객명으로 줄을 찾아 읽고/저장
+  extraInfo: { fileKeyword: "고객 추가 정보", fcCol: "담당 FC", nameCol: "고객명", fields: ["미팅장소", "메모"] },
+
   // 세부항목 버튼: 파일/폴더 이름에 키워드가 들어 있으면 그 탭에 표시됩니다.
   tabs: [
     { id: "basic",    label: "기본정보", keywords: ["기본", "정보", "인적", "고객정보"] },
