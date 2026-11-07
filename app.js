@@ -182,7 +182,10 @@
       // 같은 이름 + 같은 생년월일은 한 고객으로 묶기
       const map = new Map();
       hits.forEach((r) => {
-        const key = norm(r.name) + "|" + String(r.birth).replace(/\D/g, "").slice(-6);
+        // 생년월일 형식 통일: "1980-10-21" → 801021, "851002-1" → 851002
+        const d = String(r.birth).replace(/\D/g, "");
+        const ymd = /^(19|20)\d{6}/.test(d) ? d.slice(2, 8) : d.slice(0, 6);
+        const key = norm(r.name) + "|" + ymd;
         if (!map.has(key)) map.set(key, { name: r.name, birth: r.birth, entries: [] });
         map.get(key).entries.push(r);
       });
