@@ -543,13 +543,23 @@
     $("adminBody").innerHTML = `
       <div class="card">
         <h3 class="sec-title">현재 매칭 현황</h3>
+        <p class="hint">체크박스로 바로 바꾸고 '변경 저장'을 누르세요.</p>
         <div class="table-wrap"><table class="matrix">
-          <tr><th>아이디</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}</tr>
-          ${(CFG.admins || []).map((a) => `<tr><td>${esc(a)} <span class="tag">관리자</span></td>${fcs.map(() => `<td class="ok">●</td>`).join("")}</tr>`).join("")}
-          ${Object.keys(perms.users).sort().map((em) => `<tr><td>${esc(em)}${isAll(em) ? ' <span class="tag">전체</span>' : ""}</td>${fcs.map((fc) =>
-            `<td class="${has(em, fc) ? "ok" : "no"}">${has(em, fc) ? "●" : "–"}</td>`).join("")}</tr>`).join("")}
+          <tr><th>아이디</th><th>전체</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}</tr>
+          ${(CFG.admins || []).map((a) => `<tr class="admin-row"><td>${esc(a)} <span class="tag">관리자</span></td>
+            <td class="ok">●</td>${fcs.map(() => `<td class="ok">●</td>`).join("")}</tr>`).join("")}
+          ${users.map((em) => `<tr class="perm-row" data-em="${esc(em)}">
+            <td>${esc(em)}${shared(em) ? "" : ' <span class="warn-dot" title="OneDrive에서 고객 폴더 공유가 확인되지 않음">⚠️</span>'}</td>
+            <td><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"></td>
+            ${fcs.map((fc) => `<td><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"></td>`).join("")}
+          </tr>`).join("")}
         </table></div>
-        <p class="hint">● 검색 가능 · – 검색 불가 · '전체'는 나중에 생기는 FC 폴더도 포함</p>
+        ${users.length ? "" : '<p class="hint">아직 권한을 준 사용자가 없습니다. 아래에서 이메일을 추가하세요.</p>'}
+        <div class="file-actions">
+          <button class="secondary" id="resetPerms" disabled>되돌리기</button>
+          <button class="primary" id="savePerms" disabled>변경 저장</button>
+        </div>
+        <p class="hint">'전체'는 나중에 생기는 FC 폴더도 포함 · 모두 체크 해제 후 저장하면 그 아이디는 목록에서 빠집니다 · ⚠️ OneDrive '고객' 폴더 공유가 확인되지 않은 아이디</p>
       </div>
 
       <div class="card">
@@ -558,23 +568,14 @@
           <input id="newUser" type="email" placeholder="Microsoft 계정 이메일" autocomplete="off" required>
           <button class="primary" type="submit">추가</button>
         </form>
+        <p class="hint">추가하면 위 표에 줄이 생깁니다. 권한을 체크하고 '변경 저장'을 누르세요.</p>
       </div>
-
-      <h3 class="sec-title pad-x">아이디별 FC 폴더 권한</h3>
-      ${users.length ? users.map((em) => `<div class="card user-card" data-em="${esc(em)}">
-          <div class="user-head"><span class="avatar sm">${esc(em[0].toUpperCase())}</span><span class="r-name">${esc(em)}
-            <span class="r-sub">${shared(em) ? "OneDrive '고객' 폴더 공유됨" : "⚠️ OneDrive에서 '고객' 폴더 공유가 확인되지 않음"}</span></span></div>
-          <label class="chk all"><input type="checkbox" data-all ${isAll(em) ? "checked" : ""}> 전체</label>
-          <div class="chk-grid">${fcs.map((fc) =>
-            `<label class="chk"><input type="checkbox" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""}> ${esc(fc)}</label>`).join("")}</div>
-          <div class="file-actions"><button class="primary" data-save disabled>저장</button></div>
-        </div>`).join("") : '<p class="hint pad">아직 권한을 준 사용자가 없습니다. 위에서 이메일을 추가하세요.</p>'}
 
       <div class="card">
         <h3 class="sec-title">OneDrive '고객' 폴더 공유 현황 (참고)</h3>
         ${shares.length ? `<ul class="plain">${shares.map((s) => `<li>${esc(s.email || s.name || "(알 수 없음)")}${s.link ? " · 링크 공유" : ""}${s.inherited ? " · 상위 폴더에서 공유" : ""}</li>`).join("")}</ul>`
           : '<p class="hint">아직 아무와도 공유되지 않았습니다.</p>'}
-        <p class="hint">다른 사용자가 앱을 쓰려면 OneDrive에서 '${esc(CFG.baseFolder)}' 폴더를 그 아이디와 한 번 공유(보기 가능)해야 합니다. 어떤 FC를 보여줄지는 위의 앱 권한으로 정합니다.</p>
+        <p class="hint">다른 사용자가 앱을 쓰려면 OneDrive에서 '${esc(CFG.baseFolder)}' 폴더를 그 아이디와 한 번 공유(보기 가능)해야 합니다. 어떤 FC를 보여줄지는 위 표의 앱 권한으로 정합니다.</p>
       </div>`;
 
     $("addUserForm").addEventListener("submit", (ev) => {
@@ -582,47 +583,75 @@
       const em = $("newUser").value.trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return toast("이메일 형식을 확인해 주세요.");
       if ((CFG.admins || []).map((a) => a.toLowerCase()).includes(em)) return toast("관리자는 이미 모든 폴더를 볼 수 있습니다.");
+      const pending = collectRows(); // 표에서 아직 저장 안 한 체크 상태 유지
       extraUsers.add(em);
       renderAdmin();
+      applyRows(pending);
     });
 
-    $("adminBody").querySelectorAll(".user-card").forEach((card) => {
-      const em = card.dataset.em;
-      const boxes = [...card.querySelectorAll("input[data-fc]")];
-      const all = card.querySelector("input[data-all]");
-      const save = card.querySelector("[data-save]");
-      const sel = () => all.checked ? ["*"] : boxes.filter((b) => b.checked).map((b) => b.dataset.fc);
-      const same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
-      const sync = () => {
-        all.indeterminate = !all.checked && boxes.some((b) => b.checked);
-        save.disabled = same(sel(), listOf(em));
-      };
-      all.addEventListener("change", () => { boxes.forEach((b) => (b.checked = all.checked)); sync(); });
+    const rows = [...$("adminBody").querySelectorAll(".perm-row")];
+    const same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+    const sel = (row) => {
+      const all = row.querySelector("input[data-all]");
+      return all.checked ? ["*"] : [...row.querySelectorAll("input[data-fc]")].filter((b) => b.checked).map((b) => b.dataset.fc);
+    };
+    const changed = () => rows.filter((r) => !same(sel(r), listOf(r.dataset.em)));
+    const refresh = () => {
+      rows.forEach((r) => r.classList.toggle("changed", !same(sel(r), listOf(r.dataset.em))));
+      const n = changed().length;
+      $("savePerms").disabled = !n;
+      $("resetPerms").disabled = !n;
+      $("savePerms").textContent = n ? `변경 저장 (${n})` : "변경 저장";
+    };
+    rows.forEach((row) => {
+      const all = row.querySelector("input[data-all]");
+      const boxes = [...row.querySelectorAll("input[data-fc]")];
+      const syncAll = () => { all.indeterminate = !all.checked && boxes.some((b) => b.checked); };
+      all.addEventListener("change", () => { boxes.forEach((b) => (b.checked = all.checked)); syncAll(); refresh(); });
       boxes.forEach((b) => b.addEventListener("change", () => {
         if (!b.checked) all.checked = false;
         else if (boxes.every((x) => x.checked)) all.checked = true;
-        sync();
+        syncAll(); refresh();
       }));
-      sync();
-      save.addEventListener("click", () => saveUser(em, sel(), save));
+      syncAll();
     });
+    refresh();
+    $("resetPerms").addEventListener("click", () => renderAdmin());
+    $("savePerms").addEventListener("click", () => savePerms(changed().map((r) => [r.dataset.em, sel(r)])));
+
+    // 사용자 추가 시 저장 전 체크 상태 보존용
+    function collectRows() { return rows.map((r) => [r.dataset.em, sel(r)]); }
+    function applyRows(pending) {
+      pending.forEach(([em, list]) => {
+        const row = $("adminBody").querySelector(`.perm-row[data-em="${CSS.escape(em)}"]`);
+        if (!row) return;
+        const all = row.querySelector("input[data-all]");
+        all.checked = list.includes("*");
+        row.querySelectorAll("input[data-fc]").forEach((b) => (b.checked = all.checked || list.includes(b.dataset.fc)));
+        all.dispatchEvent(new Event("change"));
+        if (!all.checked) row.querySelectorAll("input[data-fc]").forEach((b) => b.dispatchEvent(new Event("change")));
+      });
+    }
   }
 
-  async function saveUser(em, list, btn) {
+  async function savePerms(changes) {
+    if (!changes.length) return;
+    const btn = $("savePerms");
     btn.disabled = true;
     btn.textContent = "저장 중…";
     try {
-      // 저장 직전에 최신 파일을 다시 읽고 이 아이디만 바꿔서 저장 (다른 아이디 설정 보존)
+      // 저장 직전에 최신 파일을 다시 읽고, 바뀐 아이디만 반영 (다른 설정 보존)
       const perms = await readPerms();
-      if (list.length) perms.users[em] = list; else delete perms.users[em];
+      changes.forEach(([em, list]) => {
+        if (list.length) perms.users[em] = list; else { delete perms.users[em]; extraUsers.delete(em); }
+      });
       await gx("PUT", permPath(), perms);
-      if (!list.length) extraUsers.delete(em);
-      toast("저장했습니다.");
-      adminState.perms = perms; // 방금 저장한 내용으로 바로 화면 갱신
+      toast(`저장했습니다 (${changes.length}개 아이디).`);
+      adminState.perms = perms;
       renderAdmin();
     } catch (e) {
       btn.disabled = false;
-      btn.textContent = "저장";
+      btn.textContent = "변경 저장";
       handleError(e);
     }
   }

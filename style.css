@@ -47,6 +47,11 @@ main { padding: 12px 16px calc(96px + env(safe-area-inset-bottom)); max-width: 6
 .matrix td:first-child, .matrix th:first-child { text-align: left; }
 .matrix td.ok { color: var(--brand); font-weight: 700; }
 .matrix td.no { color: var(--muted); }
+.matrix td:first-child { white-space: normal; word-break: break-all; min-width: 140px; font-size: 13px; }
+.matrix .cb { width: 22px; height: 22px; accent-color: var(--brand); vertical-align: middle; }
+.matrix tr.changed td { background: #fff7e0; }
+@media (prefers-color-scheme: dark) { .matrix tr.changed td { background: #3a3220; } }
+.warn-dot { font-size: 12px; }
 .chk { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px;
   border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-weight: 600; }
 .chk input { width: 20px; height: 20px; accent-color: var(--brand); }
