@@ -38,7 +38,8 @@ window.APP_CONFIG = {
   tabs: [
     { id: "basic",    label: "기본정보", keywords: ["기본", "정보", "인적", "고객정보"] },
     { id: "contract", label: "계약현황", keywords: ["계약", "증권", "청약"] },
-    { id: "analysis", label: "보장분석", keywords: ["보장", "분석", "covan"] },
+    // 고객 계약 PDF("날짜 - 고객 - FC - 상품명 - 금액원.pdf")는 보장분석에서 제외
+    { id: "analysis", label: "보장분석", keywords: ["보장", "분석", "covan"], exclude: "\\d[\\d,]*원\\.pdf$" },
     { id: "consult",  label: "상담기록", keywords: ["상담", "메모", "기록", "통화"] },
     { id: "contact",  label: "연락하기", keywords: [] },
     { id: "all",      label: "전체파일", keywords: [] }

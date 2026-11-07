@@ -109,6 +109,13 @@ button:disabled { opacity: .5; }
 .fld input, .fld textarea { width: 100%; padding: 10px 12px; font: inherit; font-size: 16px; color: var(--text);
   background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
 .fld textarea { resize: vertical; min-height: 96px; }
+.more-btn { width: 100%; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; text-align: left;
+  min-height: 48px; padding: 8px 12px; margin: 0 0 12px; border: 1px dashed var(--line); border-radius: 10px;
+  background: var(--bg); color: var(--brand); font-weight: 600; }
+.more-btn .hint { flex: 1 1 100%; order: 3; margin: 0; font-weight: 400; }
+.more-btn .chev { margin-left: auto; }
+#exMoreBox { border-left: 3px solid var(--brand-weak); padding-left: 10px; margin-bottom: 4px; }
+.carrier { font-size: 14px; font-weight: 700; color: var(--brand); background: var(--brand-weak); padding: 2px 8px; border-radius: 6px; vertical-align: middle; }
 .contract-title { font-weight: 700; margin: 4px 0 6px; word-break: break-all; }
 .entry-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .tag { flex: none; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
