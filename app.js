@@ -384,9 +384,11 @@
 
   // 날짜처럼 보이는 값(2026-12-01, 2026.12.1, 2026/12/01)은 엑셀 날짜로 저장
   function toCell(col, v) {
-    const m = /일$|날짜|date/i.test(col) && String(v).trim().match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})$/);
+    // 2026-12-01 / 26-12-01 / 2026.12.1 형식 모두 날짜로
+    const m = /일$|날짜|date/i.test(col) && String(v).trim().match(/^(\d{4}|\d{2})[-./](\d{1,2})[-./](\d{1,2})$/);
     if (m) {
-      const serial = (Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(1899, 11, 30)) / 86400000;
+      const y = m[1].length === 2 ? 2000 + +m[1] : +m[1];
+      const serial = (Date.UTC(y, +m[2] - 1, +m[3]) - Date.UTC(1899, 11, 30)) / 86400000;
       return { t: "n", v: serial, z: "yyyy-mm-dd" };
     }
     return v === "" ? null : { t: "s", v: String(v) };
@@ -576,8 +578,8 @@
       const v = esc(ev[k] || "");
       let input;
       if (/메모/.test(k)) input = `<textarea data-ex="${esc(k)}" rows="4">${v}</textarea>`;
-      else if (k === EXTRA.carrierCol) input = `<input data-ex="${esc(k)}" value="${v}" list="carrierList" autocomplete="off" placeholder="예: SKT, KT, LG U+, 알뜰폰">`;
-      else if (/일$|날짜/.test(k)) input = `<input data-ex="${esc(k)}" value="${v}" inputmode="numeric" autocomplete="off" placeholder="예: 2026-12-01">`;
+      else if (k === EXTRA.carrierCol) input = `<input data-ex="${esc(k)}" value="${v}" list="carrierList" autocomplete="off" placeholder="SKT">`;
+      else if (/일$|날짜/.test(k)) input = `<input data-ex="${esc(k)}" value="${v}" inputmode="numeric" autocomplete="off" placeholder="26-12-01">`;
       else input = `<input data-ex="${esc(k)}" value="${v}" autocomplete="off">`;
       return `<label class="fld"><span>${esc(k)}</span>${input}</label>`;
     };
