@@ -98,21 +98,36 @@
   }
   const itemPath = (id) => "/drives/" + base.driveId + "/items/" + id;
 
-  let folderCache = null;
-  async function loadCustomerFolders() {
-    if (folderCache) return folderCache;
-    await resolveBase();
-    const items = (await listChildren(itemPath(base.id) + "/children")).filter((i) => i.folder);
-    // "_계약", "_이관", "_진행"처럼 _로 시작하는 폴더는 분류 폴더 → 그 안의 폴더가 고객
-    const groups = items.filter((i) => i.name.startsWith("_"));
-    const direct = items.filter((i) => !i.name.startsWith("_")).map((f) => ({ ...f, group: "" }));
-    const nested = await Promise.all(groups.map(async (g) =>
-      (await listChildren(itemPath(g.id) + "/children"))
-        .filter((i) => i.folder)
-        .map((f) => ({ ...f, group: g.name.slice(1) }))));
-    folderCache = direct.concat(...nested);
-    return folderCache;
+  // 고객 폴더 구조 읽기
+  //   고객/김현성/_계약/<고객폴더>, 고객/김현성/계약고객리스트.xlsx   ← FC별 폴더 (현재 구조)
+  //   고객/_계약/<고객폴더>, 고객/계약고객리스트.xlsx               ← FC 폴더 없이 (예전 구조)
+  // "_"로 시작하는 폴더 = 분류(계약/이관/진행), 그 안의 폴더 = 고객 폴더
+  let scanCache = null; // Promise<{ folders: [...], files: [...] }>
+  function scanBase() {
+    if (scanCache) return scanCache;
+    scanCache = (async () => {
+      await resolveBase();
+      const folders = [], files = [];
+      async function scan(id, fc) {
+        const items = await listChildren(itemPath(id) + "/children");
+        items.filter((i) => i.file).forEach((f) => files.push({ ...f, fc }));
+        await Promise.all(items.filter((i) => i.folder).map(async (d) => {
+          if (d.name.startsWith("_")) {
+            (await listChildren(itemPath(d.id) + "/children"))
+              .filter((i) => i.folder)
+              .forEach((f) => folders.push({ ...f, group: d.name.slice(1), fc }));
+          } else if (!fc) {
+            await scan(d.id, d.name); // FC 폴더
+          }
+        }));
+      }
+      await scan(base.id, "");
+      return { folders, files };
+    })();
+    scanCache.catch(() => { scanCache = null; });
+    return scanCache;
   }
+  const loadCustomerFolders = async () => (await scanBase()).folders;
 
   // ---------- 고객 리스트 엑셀 (계약고객리스트 / 이관고객리스트) ----------
   const bookCache = {};
@@ -131,14 +146,14 @@
   let listCache = null; // [{ type, name, birth, phone, fc, sheet, fields }]
   async function loadLists() {
     if (listCache) return listCache;
-    await resolveBase();
-    const files = (await listChildren(itemPath(base.id) + "/children")).filter((f) => f.file);
+    const { files } = await scanBase();
     const sources = CFG.lists.flatMap((l) =>
       files.filter((f) => f.name.includes(l.fileKeyword)).map((f) => ({ ...l, file: f })));
     const out = [];
     await Promise.all(sources.map(async (s) => {
       const wb = await readBook(s.file.id);
-      const fc = (s.file.name.split(" - ")[1] || "").trim();
+      // FC 이름: FC 폴더 이름 → 없으면 파일명 "날짜 - FC - ..." 가운데 부분
+      const fc = s.file.fc || (s.file.name.split(" - ")[1] || "").trim();
       wb.SheetNames.forEach((sheet) => {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: "", raw: false });
         // 제목 줄이 있을 수 있으니 '이름/계약자' 칸이 있는 줄을 머리글로 사용
@@ -222,7 +237,11 @@
     history.pushState({ v: "customer" }, "");
     current = { cust, folders: [], files: [], phones: null };
     try {
-      const folders = (await loadCustomerFolders()).filter((f) => norm(custPart(f.name)) === norm(cust.name));
+      const byName = (await loadCustomerFolders()).filter((f) => norm(custPart(f.name)) === norm(cust.name));
+      // 같은 이름이 여러 FC에 있으면 이 고객의 담당 FC 폴더만
+      const fcs = cust.entries.map((e) => e.fc).filter(Boolean);
+      const sameFc = byName.filter((f) => f.fc && fcs.includes(f.fc));
+      const folders = sameFc.length ? sameFc : byName;
       let files = [];
       for (const f of folders) files = files.concat(await collectFiles(f.id, folders.length > 1 ? f.name + "/" : "", 0));
       current.folders = folders;
