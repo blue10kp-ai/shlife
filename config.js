@@ -42,7 +42,8 @@ window.APP_CONFIG = {
 
   // 세부항목 버튼: 파일/폴더 이름에 키워드가 들어 있으면 그 탭에 표시됩니다.
   tabs: [
-    { id: "basic",    label: "기본정보", keywords: ["기본", "정보", "인적", "고객정보"] },
+    // 기본정보에는 첨부파일을 붙이지 않음 (상품명의 '기본형' 등에 걸려 PDF가 붙던 문제)
+    { id: "basic",    label: "기본정보", keywords: [] },
     { id: "contract", label: "계약현황", keywords: ["계약", "증권", "청약"] },
     // 고객 계약 PDF("날짜 - 고객 - FC - 상품명 - 금액원.pdf")는 보장분석에서 제외
     { id: "analysis", label: "보장분석", keywords: ["보장", "분석", "covan"], exclude: "\\d[\\d,]*원\\.pdf$" },

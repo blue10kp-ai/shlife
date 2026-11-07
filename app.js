@@ -85,7 +85,7 @@
   // ---------- 화면 전환 ----------
   const views = ["loginView", "scheduleView", "searchView", "customerView", "adminView"];
   const APP_NAME = "FC 활동지원";
-  const TITLES = { scheduleView: "일정", searchView: APP_NAME, customerView: "고객 정보", adminView: "관리자" };
+  const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", adminView: "관리자" };
   const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", adminView: "admin" };
   function show(view) {
     views.forEach((v) => ($(v).hidden = v !== view));
@@ -512,10 +512,11 @@
     await uploadExtra(x);
   }
 
-  // 상담기록 시트 맨 아래에 [고객명, 담당 FC, 저장날짜(YYYYMMDD), 내용] 추가
-  async function addConsult(fc, name, text) {
+  // 상담기록 저장: ① ✕로 표시한 기록의 줄을 시트에서 삭제(아래 줄은 위로 당김) ② 새 내용이 있으면 맨 아래 줄에 추가
+  //   새 줄: [고객명, 담당 FC, 저장날짜(YYYYMMDD), 내용]
+  async function saveConsults(fc, name, text, dels) {
     const C = EXTRA.consult;
-    const x = await readExtra();
+    const x = await readExtra(); // 저장 직전 최신 파일을 다시 읽음
     if (!x) throw new Error("NO_EXTRA_FILE");
     let ws = x.wb.Sheets[C.sheet];
     if (!ws) {
@@ -523,20 +524,54 @@
       XLSX.utils.book_append_sheet(x.wb, ws, C.sheet);
     }
     const rg = XLSX.utils.decode_range(ws["!ref"] || "A1:D1");
+    const enc = (r, c) => XLSX.utils.encode_cell({ r, c });
     const head = [];
-    for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[XLSX.utils.encode_cell({ r: rg.s.r, c })]; head[c] = cell ? String(cell.v).trim() : ""; }
-    // 마지막으로 내용이 있는 줄 다음
-    let last = rg.s.r;
-    for (let r = rg.s.r + 1; r <= rg.e.r; r++) for (let c = rg.s.c; c <= rg.e.c; c++) if (ws[XLSX.utils.encode_cell({ r, c })]) last = r;
-    const r = last + 1;
-    const now = new Date();
-    const ymd = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-    const put = (h, cell) => { const c = head.indexOf(h); if (c >= 0) ws[XLSX.utils.encode_cell({ r, c })] = cell; };
-    put(C.nameCol, { t: "s", v: name });
-    put(C.fcCol, { t: "s", v: fc });
-    put(C.dateCol, { t: "n", v: ymd });
-    put(C.textCol, { t: "s", v: text });
-    rg.e.r = Math.max(rg.e.r, r);
+    for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[enc(rg.s.r, c)]; head[c] = cell ? String(cell.v).trim() : ""; }
+    const [ni, fi, di, ti] = [C.nameCol, C.fcCol, C.dateCol, C.textCol].map((h) => head.indexOf(h));
+
+    // ① 삭제: 같은 고객·FC·날짜·내용인 줄을 찾아 지움 (최신 파일 기준으로 다시 찾기 때문에 줄 번호가 바뀌어도 안전)
+    if (dels.length) {
+      const toDel = new Set();
+      dels.forEach((d) => {
+        for (let r = rg.s.r + 1; r <= rg.e.r; r++) {
+          if (toDel.has(r)) continue;
+          const nm = ws[enc(r, ni)], tx = ws[enc(r, ti)];
+          if (!nm || !tx || norm(nm.v) !== norm(name) || String(tx.v) !== d.text) continue;
+          if (!sameFc(fi >= 0 && ws[enc(r, fi)] ? ws[enc(r, fi)].v : "", fc)) continue;
+          if (consultDate(di >= 0 ? ws[enc(r, di)] : null).key !== d.key) continue;
+          toDel.add(r);
+          break;
+        }
+      });
+      if (toDel.size) {
+        const moved = {};
+        let out = rg.s.r + 1;
+        for (let r = rg.s.r + 1; r <= rg.e.r; r++) {
+          if (!toDel.has(r)) {
+            for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[enc(r, c)]; if (cell) moved[enc(out, c)] = cell; }
+            out++;
+          }
+          for (let c = rg.s.c; c <= rg.e.c; c++) delete ws[enc(r, c)];
+        }
+        Object.assign(ws, moved);
+        rg.e.r = Math.max(rg.s.r, out - 1);
+      }
+    }
+
+    // ② 추가
+    if (text) {
+      let last = rg.s.r;
+      for (let r = rg.s.r + 1; r <= rg.e.r; r++) for (let c = rg.s.c; c <= rg.e.c; c++) if (ws[enc(r, c)]) last = r;
+      const r = last + 1;
+      const now = new Date();
+      const ymd = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+      const put = (c, cell) => { if (c >= 0) ws[enc(r, c)] = cell; };
+      put(ni, { t: "s", v: name });
+      put(fi, { t: "s", v: fc });
+      put(di, { t: "n", v: ymd });
+      put(ti, { t: "s", v: text });
+      rg.e.r = Math.max(rg.e.r, r);
+    }
     ws["!ref"] = XLSX.utils.encode_range(rg);
     await uploadExtra(x);
     return readConsults(x.wb, fc, name);
@@ -566,6 +601,7 @@
     $("custName").textContent = cust.name;
     $("avatar").textContent = cust.name[0];
     $("avatar").style.backgroundImage = "";
+    extraOpen = false; // 추가 항목은 처음엔 접힌 상태
     $("avatar").classList.remove("has-photo");
     $("custSub").textContent = [cust.birth, ...new Set(cust.entries.map((e) => e.type))].filter(Boolean).join(" · ");
     $("tabBody").innerHTML = '<p class="hint pad">고객 폴더를 찾는 중…</p>';
@@ -639,6 +675,13 @@
   }
   const KIND_LABEL = { excel: "엑셀", pdf: "PDF", word: "워드", other: "파일" };
 
+  // 파일 표시 이름: 계약 PDF("날짜 - 고객 - FC - 상품명 - 보험료원.pdf")는 "상품명 - 보험료원"만
+  function fileLabel(f) {
+    const m = f.name.match(/^\d{8} - .+? - .+? - (.+) - ([\d,]+원)\.pdf$/i);
+    if (m) return esc(productName(m[1]) + " - " + m[2]);
+    return `${esc(f.path)}<div class="hint">${new Date(f.lastModifiedDateTime).toLocaleDateString("ko-KR")}</div>`;
+  }
+
   async function selectTab(id) {
     $("tabs").querySelectorAll("button").forEach((b) =>
       b.classList.toggle("on", b.dataset.tab === id));
@@ -660,7 +703,7 @@
       return `<div class="card file" data-i="${i}">
         <div class="file-row">
           <span class="badge ${k}">${KIND_LABEL[k]}</span>
-          <div class="file-name">${esc(f.path)}<div class="hint">${new Date(f.lastModifiedDateTime).toLocaleDateString("ko-KR")}</div></div>
+          <div class="file-name">${fileLabel(f)}</div>
         </div>
         <div class="file-actions">
           ${k === "excel" ? `<button class="secondary" data-act="view">내용 보기</button>` : ""}
@@ -902,14 +945,17 @@
     handleError(e);
   }
 
-  // 상담기록: '상담기록' 시트에서 이 고객(고객명+담당 FC) 기록, 최근 날짜가 위로 + 새 기록 입력
+  // 상담기록: '상담기록' 시트에서 이 고객(고객명+담당 FC) 기록, 최근 날짜가 위로
+  //   각 기록 끝 ✕ → 삭제 표시(다시 누르면 취소), 새 기록 입력, 저장 버튼으로 한 번에 엑셀 반영
   function consultHtml() {
     const x = current.extra || {};
     if (x.missing) return `<p class="hint pad">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p>`;
     const list = x.consults || [];
     return `<div class="card">
         <h3 class="sec-title">상담기록</h3>
-        ${list.length ? `<ul class="consult-list">${list.map((c) => `<li><b>${esc(c.date)}</b> ${esc(c.text).replace(/\n/g, "<br>")}</li>`).join("")}</ul>`
+        ${list.length ? `<ul class="consult-list">${list.map((c, i) => `<li data-ci="${i}">
+            <span class="c-body"><b>${esc(c.date)}</b> ${esc(c.text).replace(/\n/g, "<br>")}</span>
+            <button type="button" class="x-btn" data-delc="${i}" aria-label="이 상담기록 삭제">✕</button></li>`).join("")}</ul>`
           : '<p class="hint">아직 상담기록이 없습니다.</p>'}
       </div>
       <div class="card">
@@ -922,19 +968,33 @@
   function bindConsult() {
     const ta = $("consultNew"), btn = $("consultSave");
     if (!ta) return;
-    ta.addEventListener("input", () => { btn.disabled = !ta.value.trim(); });
+    const list = (current.extra && current.extra.consults) || [];
+    const dels = new Set(); // 삭제 표시한 기록 번호
+    const refresh = () => {
+      btn.disabled = !ta.value.trim() && !dels.size;
+      btn.textContent = dels.size ? `저장 (삭제 ${dels.size}건${ta.value.trim() ? " · 새 기록 1건" : ""})` : "저장";
+    };
+    $("tabBody").querySelectorAll("[data-delc]").forEach((x) => x.addEventListener("click", () => {
+      const i = +x.dataset.delc;
+      const li = x.closest("li");
+      if (dels.has(i)) { dels.delete(i); li.classList.remove("to-delete"); x.textContent = "✕"; x.setAttribute("aria-label", "이 상담기록 삭제"); }
+      else { dels.add(i); li.classList.add("to-delete"); x.textContent = "↺"; x.setAttribute("aria-label", "삭제 취소"); }
+      refresh();
+    }));
+    ta.addEventListener("input", refresh);
     btn.addEventListener("click", async () => {
+      if (dels.size && !confirm(`상담기록 ${dels.size}건을 엑셀에서 삭제할까요?`)) return;
       btn.disabled = true;
       btn.textContent = "저장 중…";
       try {
-        const list = await addConsult(current.fc, current.cust.name, ta.value.trim());
-        current.extra = { ...current.extra, consults: list };
-        toast("상담기록을 엑셀에 저장했습니다.");
+        const newList = await saveConsults(current.fc, current.cust.name, ta.value.trim(),
+          [...dels].map((i) => ({ key: list[i].key, text: list[i].text })));
+        current.extra = { ...current.extra, consults: newList };
+        toast(dels.size ? `상담기록을 저장했습니다 (삭제 ${dels.size}건).` : "상담기록을 엑셀에 저장했습니다.");
         renderTabs();
         selectTab("consult");
       } catch (e) {
-        btn.disabled = false;
-        btn.textContent = "저장";
+        refresh();
         saveError(e);
       }
     });
@@ -1130,10 +1190,10 @@
 
     $("adminBody").innerHTML = `
       <div class="card">
-        <h3 class="sec-title">현재 매칭 현황</h3>
+        <h3 class="sec-title">사용 FC 현황</h3>
         <p class="hint">체크박스로 바로 바꾸고 '변경 저장'을 누르세요.</p>
         <div class="table-wrap"><table class="matrix">
-          <tr><th>아이디</th><th>전체</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}<th>삭제</th></tr>
+          <tr><th>아이디</th><th>전체</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}<th></th></tr>
           ${(CFG.admins || []).map((a) => `<tr class="admin-row"><td>${esc(a)} <span class="tag">관리자</span></td>
             <td class="ok">●</td>${fcs.map(() => `<td class="ok">●</td>`).join("")}<td></td></tr>`).join("")}
           ${users.map((em) => `<tr class="perm-row" data-em="${esc(em)}">
@@ -1148,7 +1208,6 @@
           <button class="secondary" id="resetPerms" disabled>되돌리기</button>
           <button class="primary" id="savePerms" disabled>변경 저장</button>
         </div>
-        <p class="hint">'전체'는 나중에 생기는 FC 폴더도 포함 · 모두 체크 해제 후 저장하면 그 아이디는 목록에서 빠집니다 · ⚠️ OneDrive '고객' 폴더 공유가 확인되지 않은 아이디</p>
       </div>
 
       <div class="card">
@@ -1280,14 +1339,41 @@
   $("loginBtn").addEventListener("click", () => msal.loginRedirect({ scopes: SCOPES }));
   $("logoutBtn").addEventListener("click", () => msal.logoutRedirect());
   // 상단 검색창: 어느 화면에서든 검색 → 고객 검색 결과 화면으로
-  $("topSearch").addEventListener("submit", (ev) => {
-    ev.preventDefault();
+  function runTopSearch(q) {
+    $("q").value = q;
     $("q").blur();
+    $("recentList").hidden = true;
+    if (!q.trim()) return;
+    addRecent(q.trim());
     if ($("searchView").hidden) {
       if (!$("customerView").hidden) history.back(); // 고객 화면에서 검색하면 기록 정리
       show("searchView");
     }
-    search($("q").value);
+    search(q);
+  }
+  $("topSearch").addEventListener("submit", (ev) => { ev.preventDefault(); runTopSearch($("q").value); });
+
+  // 최근 검색어: 검색창을 누르면 아래로 펼쳐짐 (이 휴대폰에만 저장)
+  const RECENT_KEY = "shlife.recentSearches";
+  const getRecent = () => { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch (e) { return []; } };
+  function addRecent(q) {
+    const list = [q, ...getRecent().filter((x) => x !== q)].slice(0, 10);
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) { /* 저장 못 해도 검색은 계속 */ }
+  }
+  function showRecent() {
+    const list = getRecent();
+    const box = $("recentList");
+    if (!list.length) { box.hidden = true; return; }
+    box.innerHTML = `<li class="recent-head">최근 검색</li>` +
+      list.map((q) => `<li><button type="button" data-q="${esc(q)}">🕘 ${esc(q)}</button></li>`).join("");
+    box.hidden = false;
+  }
+  $("q").addEventListener("focus", showRecent);
+  $("q").addEventListener("blur", () => setTimeout(() => { $("recentList").hidden = true; }, 200));
+  // 버튼을 누르는 순간 입력창 blur가 먼저 일어나므로 pointerdown에서 처리
+  $("recentList").addEventListener("pointerdown", (ev) => {
+    const b = ev.target.closest("[data-q]");
+    if (b) { ev.preventDefault(); runTopSearch(b.dataset.q); }
   });
   $("backBtn").addEventListener("click", () => history.back());
   // PDF 열기 버튼 (계약 열기, 보장분석 등): 휴대폰 PDF 앱/브라우저로
@@ -1313,15 +1399,8 @@
   }));
   window.addEventListener("popstate", () => { if (!$("customerView").hidden) show("searchView"); });
 
-  // 검색 화면에 "검색 가능한 FC" 표시
-  async function showScope() {
-    try {
-      const { fcs } = await scanBase();
-      $("scopeHint").textContent = fcs.length
-        ? "검색 가능한 FC: " + fcs.join(", ") + ((await scanBase()).all ? " (전체)" : "")
-        : "검색 가능한 FC 폴더가 없습니다. 관리자에게 권한을 요청하세요.";
-    } catch (e) { /* handleError에서 처리 */ }
-  }
+  // (검색 가능한 FC 문구는 표시하지 않음)
+  function showScope() { $("scopeHint").textContent = ""; }
 
   (async function init() {
     if (CFG.clientId === "YOUR-CLIENT-ID") {
