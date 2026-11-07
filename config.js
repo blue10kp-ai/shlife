@@ -9,6 +9,12 @@ window.APP_CONFIG = {
   // 다른 사용자가 공유받은 폴더를 못 찾을 때만 채웁니다 (보통은 비워 둠).
   sharedFolder: { driveId: "", itemId: "" },
 
+  // 고객 검색에 쓰는 리스트 엑셀 (baseFolder 바로 안에 있는 파일, 이름에 키워드가 들어간 파일 모두)
+  lists: [
+    { id: "contract", label: "계약", fileKeyword: "계약고객리스트" },
+    { id: "transfer", label: "이관", fileKeyword: "이관고객리스트" }
+  ],
+
   // 세부항목 버튼: 파일/폴더 이름에 키워드가 들어 있으면 그 탭에 표시됩니다.
   tabs: [
     { id: "basic",    label: "기본정보", keywords: ["기본", "정보", "인적", "고객정보"] },

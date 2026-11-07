@@ -114,6 +114,60 @@
     return folderCache;
   }
 
+  // ---------- 고객 리스트 엑셀 (계약고객리스트 / 이관고객리스트) ----------
+  const bookCache = {};
+  async function readBook(id) {
+    if (!bookCache[id]) {
+      bookCache[id] = graph(itemPath(id) + "/content", true).then((buf) => XLSX.read(buf, { type: "array" }));
+    }
+    return bookCache[id];
+  }
+
+  const pick = (row, names) => { for (const n of names) if (row[n] != null && String(row[n]).trim()) return String(row[n]).trim(); return ""; };
+  const NAME_COLS = ["이름", "계약자", "고객명"];
+  const BIRTH_COLS = ["생년월일", "생일"];
+  const PHONE_COLS = ["연락처", "휴대폰", "핸드폰", "전화번호"];
+
+  let listCache = null; // [{ type, name, birth, phone, fc, sheet, fields }]
+  async function loadLists() {
+    if (listCache) return listCache;
+    await resolveBase();
+    const files = (await listChildren(itemPath(base.id) + "/children")).filter((f) => f.file);
+    const sources = CFG.lists.flatMap((l) =>
+      files.filter((f) => f.name.includes(l.fileKeyword)).map((f) => ({ ...l, file: f })));
+    const out = [];
+    await Promise.all(sources.map(async (s) => {
+      const wb = await readBook(s.file.id);
+      const fc = (s.file.name.split(" - ")[1] || "").trim();
+      wb.SheetNames.forEach((sheet) => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: "", raw: false });
+        // 제목 줄이 있을 수 있으니 '이름/계약자' 칸이 있는 줄을 머리글로 사용
+        const h = rows.findIndex((r) => r.some((c) => NAME_COLS.includes(String(c).trim())));
+        if (h < 0) return;
+        const head = rows[h].map((c) => String(c).trim());
+        rows.slice(h + 1).forEach((r) => {
+          const row = {};
+          head.forEach((k, i) => { if (k) row[k] = r[i]; });
+          const name = pick(row, NAME_COLS);
+          if (!name) return;
+          out.push({
+            type: s.label, name, fc, sheet,
+            birth: pick(row, BIRTH_COLS),
+            phone: pick(row, PHONE_COLS),
+            fields: head.map((k, i) => [k, String(r[i] ?? "").trim()]).filter(([k, v]) => k && v)
+          });
+        });
+      });
+    }));
+    listCache = out;
+    return out;
+  }
+
+  // ---------- 검색 ----------
+  let mode = "all";
+  const norm = (s) => String(s).replace(/\s+/g, "").toLowerCase();
+  const custPart = (n) => n.split(" - ")[0]; // 폴더명 "고객명 - 담당자명"
+
   async function search(q) {
     q = q.trim();
     const status = $("searchStatus");
@@ -122,18 +176,29 @@
     if (!q) { status.textContent = ""; return; }
     status.textContent = "찾는 중…";
     try {
-      const folders = await loadCustomerFolders();
-      const norm = (s) => s.replace(/\s+/g, "").toLowerCase();
-      // 폴더명 "고객명 - 담당자명"에서 고객명 부분만 검색
-      const custPart = (n) => n.split(" - ")[0];
-      const hits = folders.filter((f) => norm(custPart(f.name)).includes(norm(q)));
-      status.textContent = hits.length ? hits.length + "건 찾음" : "'" + q + "' 고객 폴더가 없습니다.";
-      if (hits.length === 1) return openCustomer(hits[0]);
-      list.innerHTML = hits.map((f, i) =>
-        `<li><button data-i="${i}"><span class="avatar sm">${esc(f.name[0])}</span><span class="r-name">${esc(f.name)}</span>${f.group ? `<span class="tag">${esc(f.group)}</span>` : ""}<span class="chev">›</span></button></li>`
-      ).join("");
+      const records = await loadLists();
+      const want = CFG.lists.find((l) => l.id === mode);
+      const hits = records.filter((r) => (!want || r.type === want.label) && norm(r.name).includes(norm(q)));
+      // 같은 이름 + 같은 생년월일은 한 고객으로 묶기
+      const map = new Map();
+      hits.forEach((r) => {
+        const key = norm(r.name) + "|" + String(r.birth).replace(/\D/g, "").slice(-6);
+        if (!map.has(key)) map.set(key, { name: r.name, birth: r.birth, entries: [] });
+        map.get(key).entries.push(r);
+      });
+      const custs = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ko"));
+      const label = want ? want.label + " " : "";
+      status.textContent = custs.length ? label + custs.length + "명 찾음" : "'" + q + "' " + label + "고객이 없습니다.";
+      if (custs.length === 1) return openCustomer(custs[0]);
+      list.innerHTML = custs.map((c, i) => {
+        const types = [...new Set(c.entries.map((e) => e.type))];
+        const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
+        return `<li><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
+          <span class="r-name">${esc(c.name)}<span class="r-sub">${esc([c.birth, fcs.join(", ")].filter(Boolean).join(" · "))}</span></span>
+          ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button></li>`;
+      }).join("");
       list.querySelectorAll("button").forEach((b) =>
-        b.addEventListener("click", () => openCustomer(hits[+b.dataset.i])));
+        b.addEventListener("click", () => openCustomer(custs[+b.dataset.i])));
     } catch (e) {
       status.textContent = "";
       handleError(e);
@@ -141,24 +206,30 @@
   }
 
   // ---------- 고객 화면 ----------
-  let current = null; // { folder, files, phones }
+  let current = null; // { cust, folders, files, phones }
 
-  async function openCustomer(folder) {
+  async function openCustomer(cust) {
     show("customerView");
-    $("custName").textContent = folder.name;
-    $("avatar").textContent = folder.name[0];
-    $("folderLink").href = folder.webUrl;
-    $("tabBody").innerHTML = '<p class="hint pad">파일을 불러오는 중…</p>';
+    $("custName").textContent = cust.name;
+    $("avatar").textContent = cust.name[0];
+    $("custSub").textContent = [cust.birth, ...new Set(cust.entries.map((e) => e.type))].filter(Boolean).join(" · ");
+    $("folderLink").hidden = true;
+    $("tabBody").innerHTML = '<p class="hint pad">고객 폴더를 찾는 중…</p>';
     $("tabs").innerHTML = "";
     history.pushState({ v: "customer" }, "");
+    current = { cust, folders: [], files: [], phones: null };
     try {
-      const files = await collectFiles(folder.id, "", 0);
-      current = { folder, files, phones: null, sheetCache: {} };
-      renderTabs();
-      selectTab("basic");
+      const folders = (await loadCustomerFolders()).filter((f) => norm(custPart(f.name)) === norm(cust.name));
+      let files = [];
+      for (const f of folders) files = files.concat(await collectFiles(f.id, folders.length > 1 ? f.name + "/" : "", 0));
+      current.folders = folders;
+      current.files = files;
+      if (folders[0]) { $("folderLink").href = folders[0].webUrl; $("folderLink").hidden = false; }
     } catch (e) {
       handleError(e);
     }
+    renderTabs();
+    selectTab("basic");
   }
 
   // 고객 폴더 안 파일 (하위 폴더 2단계까지)
@@ -183,7 +254,8 @@
 
   function renderTabs() {
     $("tabs").innerHTML = CFG.tabs.map((t) => {
-      const n = t.id === "contact" || t.id === "all" ? "" : filesForTab(t).length;
+      const n = t.id === "contact" || t.id === "all" ? "" :
+        filesForTab(t).length + (t.id === "basic" ? current.cust.entries.length : 0);
       return `<button data-tab="${t.id}">${esc(t.label)}${n !== "" ? `<small>${n}</small>` : ""}</button>`;
     }).join("");
     $("tabs").querySelectorAll("button").forEach((b) =>
@@ -208,11 +280,19 @@
     if (id === "contact") return renderContact();
 
     const files = filesForTab(tab);
+    // 기본정보: 고객리스트 엑셀에서 찾은 내용을 먼저 보여줌
+    const listHtml = id === "basic" ? current.cust.entries.map((e) => `<div class="card">
+        <div class="entry-head"><span class="tag t-${esc(e.type)}">${esc(e.type)}</span>
+          <span class="hint">${esc([e.fc, e.sheet].filter(Boolean).join(" · "))}</span></div>
+        <dl class="kv">${e.fields.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+      </div>`).join("") : "";
+    const noFolder = !current.folders.length ? '<p class="hint pad">이 고객 이름의 폴더를 찾지 못했습니다.</p>' : "";
     if (!files.length) {
-      body.innerHTML = `<p class="hint pad">이름에 ${tab.keywords.map((k) => "'" + esc(k) + "'").join(", ")}이(가) 들어간 파일이 없습니다.<br>'전체파일'에서 찾아보세요.</p>`;
+      body.innerHTML = listHtml + (noFolder || (id === "basic" && listHtml ? "" :
+        `<p class="hint pad">이름에 ${tab.keywords.map((k) => "'" + esc(k) + "'").join(", ")}이(가) 들어간 파일이 없습니다.<br>'전체파일'에서 찾아보세요.</p>`));
       return;
     }
-    body.innerHTML = files.map((f, i) => {
+    body.innerHTML = listHtml + files.map((f, i) => {
       const k = kind(f.name);
       return `<div class="card file" data-i="${i}">
         <div class="file-row">
@@ -236,13 +316,7 @@
     if (excels.length === 1) excels[0].click();
   }
 
-  async function readWorkbook(f) {
-    if (current.sheetCache[f.id]) return current.sheetCache[f.id];
-    const buf = await graph(itemPath(f.id) + "/content", true);
-    const wb = XLSX.read(buf, { type: "array" });
-    current.sheetCache[f.id] = wb;
-    return wb;
-  }
+  const readWorkbook = (f) => readBook(f.id);
 
   async function toggleSheet(card, f, btn) {
     const box = card.querySelector(".sheet");
@@ -287,6 +361,7 @@
     if (!current.phones) {
       const phones = new Set();
       const re = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/g;
+      current.cust.entries.forEach((e) => (e.phone.match(re) || []).forEach((p) => phones.add(p.replace(/\D/g, ""))));
       for (const f of current.files.filter((x) => kind(x.name) === "excel")) {
         try {
           const wb = await readWorkbook(f);
@@ -328,6 +403,11 @@
   $("logoutBtn").addEventListener("click", () => msal.logoutRedirect());
   $("searchForm").addEventListener("submit", (ev) => { ev.preventDefault(); $("q").blur(); search($("q").value); });
   $("backBtn").addEventListener("click", () => history.back());
+  $("modes").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    mode = b.dataset.mode;
+    $("modes").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
+    if ($("q").value.trim()) search($("q").value);
+  }));
   window.addEventListener("popstate", () => { if (!$("customerView").hidden) show("searchView"); });
 
   (async function init() {
@@ -342,7 +422,7 @@
     if (msal.getAllAccounts().length) {
       show("searchView");
       $("q").focus();
-      loadCustomerFolders().catch(handleError); // 미리 불러오기
+      loadLists().then(() => loadCustomerFolders()).catch(handleError); // 미리 불러오기
     } else {
       show("loginView");
     }

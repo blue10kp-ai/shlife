@@ -45,7 +45,20 @@ button:disabled { opacity: .5; }
 .list button { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
   background: var(--card); color: var(--text); border: 0; border-radius: 12px; padding: 12px 14px;
   margin-bottom: 8px; font-size: 17px; }
-.r-name { min-width: 0; word-break: break-all; }
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 10px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
+.modes button { min-height: 40px; border: 0; border-radius: 9px; background: none; color: var(--muted); font-weight: 600; }
+.modes button.on { background: var(--brand); color: #fff; }
+.r-name { min-width: 0; word-break: break-all; display: flex; flex-direction: column; }
+.r-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.list button .tag + .tag { margin-left: -6px; }
+.tag.t-계약 { background: #e3f4ea; color: #1d7a46; }
+.tag.t-이관 { background: #fdf0e1; color: #b0641a; }
+@media (prefers-color-scheme: dark) {
+  .tag.t-계약 { background: #1f3a2b; color: #6fd39a; }
+  .tag.t-이관 { background: #3d2c18; color: #f0b26b; }
+}
+.entry-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .tag { flex: none; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
   background: var(--brand-weak); color: var(--brand); }
 .chev { margin-left: auto; color: var(--muted); font-size: 22px; }
