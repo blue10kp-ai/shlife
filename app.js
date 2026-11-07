@@ -336,22 +336,26 @@
     return contractCache;
   }
 
-  // ---------- 고객 추가 정보 (고객 폴더 안 '고객 추가 정보' 엑셀) ----------
-  //   담당 FC + 고객명으로 줄을 찾음. 나머지 모든 열을 읽고/수정/저장
+  // ---------- 고객 추가 정보 (고객 폴더 안 '고객추가정보' 엑셀) ----------
+  //   '기본' 시트: 담당 FC + 고객명으로 줄을 찾음. 나머지 모든 열을 읽고/수정/저장
+  //   '상담기록' 시트: 고객명 + 담당 FC로 기록을 찾고, 새 기록은 맨 아래 줄에 추가
   const EXTRA = Object.assign({
-    fileKeyword: "고객 추가 정보", fcCol: "담당 FC", nameCol: "고객명",
-    primary: ["미팅장소", "메모"],           // 항상 보이는 항목
-    carrierCol: "통신사",                    // 연락처 앞에 표시
-    afterAddress: ["차량번호", "자동차보험갱신일"] // 기본정보 주소 밑에 표시
+    fileKeyword: "고객추가정보", sheet: "기본", fcCol: "담당 FC", nameCol: "고객명",
+    primary: ["미팅장소", "메모"],             // 항상 보이는 항목
+    carrierCol: "통신사",                      // 연락처 앞에 표시
+    afterAddress: ["차량번호", "자동차보험갱신일"], // 기본정보 주소 밑에 표시
+    monthDayCols: ["자동차보험갱신일"],          // 월/일을 골라서 'MMDD'로 저장
+    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: "저장날짜", textCol: "내용" }
   }, CFG.extraInfo || {});
+  const nospace = (s) => String(s || "").replace(/\s+/g, "");
 
   async function readExtra() {
     await resolveBase();
     const items = await listChildren(itemPath(base.id) + "/children");
-    const file = items.find((i) => i.file && i.name.includes(EXTRA.fileKeyword));
+    const file = items.find((i) => i.file && /\.xlsx$/i.test(i.name) && nospace(i.name).includes(nospace(EXTRA.fileKeyword)));
     if (!file) return null;
     const wb = XLSX.read(await graph(itemPath(file.id) + "/content", true), { type: "array" });
-    const sheetName = wb.SheetNames[0];
+    const sheetName = wb.SheetNames.includes(EXTRA.sheet) ? EXTRA.sheet : wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: true });
     const head = (rows[0] || []).map((c) => String(c).trim());
@@ -359,6 +363,7 @@
   }
 
   const extraCols = (x) => x.head.filter((h) => h && h !== EXTRA.fcCol && h !== EXTRA.nameCol);
+  const sameFc = (rowFc, fc) => !fc || !String(rowFc || "").trim() || norm(rowFc) === norm(fc);
 
   // (담당 FC, 고객명)이 같은 줄 찾기. 엑셀에 FC가 비어 있으면 이름만으로 매칭
   function extraRowIndex(x, fc, name) {
@@ -366,32 +371,87 @@
     if (ni < 0) return -1;
     for (let r = 1; r < x.rows.length; r++) {
       const row = x.rows[r];
-      const rowFc = ci < 0 ? "" : String(row[ci] ?? "").trim();
-      if (norm(row[ni] ?? "") === norm(name) && (!fc || !rowFc || norm(rowFc) === norm(fc))) return r;
+      if (norm(row[ni] ?? "") === norm(name) && sameFc(ci < 0 ? "" : row[ci], fc)) return r;
     }
     return -1;
   }
 
+  // 월일 값 해석: "0326", "3/26", "03-26", "3월 26일", "2026-03-26", 20260326 → [3, 26]
+  function parseMonthDay(v) {
+    const s = String(v ?? "").trim();
+    if (!s) return null;
+    let m = s.match(/(\d{1,2})\s*월\s*(\d{1,2})/);
+    if (!m) m = s.match(/^\d{4}[-./](\d{1,2})[-./](\d{1,2})$/);
+    if (!m) m = s.match(/^(\d{1,2})[-./](\d{1,2})$/);
+    if (!m) { const d = s.replace(/\D/g, ""); if (d.length === 8) m = [0, d.slice(4, 6), d.slice(6, 8)]; else if (d.length === 4 || d.length === 3) m = [0, d.slice(0, d.length - 2), d.slice(-2)]; }
+    if (!m) return null;
+    const mm = +m[1], dd = +m[2];
+    return mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 ? [mm, dd] : null;
+  }
+  const monthDayText = (v) => { const p = parseMonthDay(v); return p ? `${p[0]}월 ${p[1]}일` : String(v || ""); };
+  const pad2 = (n) => String(n).padStart(2, "0");
+
+  // 상담기록: 날짜 값 → "2026.11.08"
+  function consultDate(cell) {
+    if (!cell) return { key: 0, text: "" };
+    const v = cell.v;
+    let y, m, d;
+    if (typeof v === "number" && v > 19000000) { y = Math.floor(v / 10000); m = Math.floor(v / 100) % 100; d = v % 100; }
+    else if (typeof v === "number") { const t = new Date(Date.UTC(1899, 11, 30) + v * 86400000); y = t.getUTCFullYear(); m = t.getUTCMonth() + 1; d = t.getUTCDate(); }
+    else { const s = String(v).replace(/\D/g, ""); if (s.length >= 8) { y = +s.slice(0, 4); m = +s.slice(4, 6); d = +s.slice(6, 8); } else return { key: 0, text: String(v) }; }
+    return { key: y * 10000 + m * 100 + d, text: `${y}.${pad2(m)}.${pad2(d)}` };
+  }
+
+  function readConsults(wb, fc, name) {
+    const C = EXTRA.consult;
+    const ws = wb.Sheets[C.sheet];
+    if (!ws || !ws["!ref"]) return [];
+    const rg = XLSX.utils.decode_range(ws["!ref"]);
+    const head = [];
+    for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[XLSX.utils.encode_cell({ r: rg.s.r, c })]; head[c] = cell ? String(cell.v).trim() : ""; }
+    const col = (h) => head.indexOf(h);
+    const [ni, fi, di, ti] = [col(C.nameCol), col(C.fcCol), col(C.dateCol), col(C.textCol)];
+    if (ni < 0 || ti < 0) return [];
+    const at = (r, c) => c < 0 ? null : ws[XLSX.utils.encode_cell({ r, c })];
+    const out = [];
+    for (let r = rg.s.r + 1; r <= rg.e.r; r++) {
+      const nm = at(r, ni), tx = at(r, ti);
+      if (!nm || !tx || norm(nm.v) !== norm(name)) continue;
+      if (!sameFc(at(r, fi) ? at(r, fi).v : "", fc)) continue;
+      const d = consultDate(at(r, di));
+      out.push({ row: r, date: d.text, key: d.key, text: String(tx.v) });
+    }
+    return out.sort((a, b) => b.key - a.key || b.row - a.row); // 최근 날짜가 위로
+  }
+
   async function loadExtraFor(fc, name) {
     const x = await readExtra();
-    if (!x) return { missing: true, fields: [], values: {} };
+    if (!x) return { missing: true, fields: [], values: {}, consults: [] };
     const r = extraRowIndex(x, fc, name);
     const fields = extraCols(x);
     const values = {};
     fields.forEach((k) => { const c = x.head.indexOf(k); values[k] = r > 0 ? String(x.rows[r][c] ?? "").trim() : ""; });
-    return { found: r > 0, fields, values, fileName: x.file.name };
+    return { found: r > 0, fields, values, fileName: x.file.name, consults: readConsults(x.wb, fc, name) };
   }
 
-  // 날짜처럼 보이는 값(2026-12-01, 2026.12.1, 2026/12/01)은 엑셀 날짜로 저장
+  // 날짜처럼 보이는 값(2026-12-01, 26-12-01)은 엑셀 날짜로 저장 (월일 열은 'MMDD' 글자 그대로)
   function toCell(col, v) {
-    // 2026-12-01 / 26-12-01 / 2026.12.1 형식 모두 날짜로
+    if (v === "" || v == null) return null;
+    if (EXTRA.monthDayCols.includes(col)) return { t: "s", v: String(v) };
     const m = /일$|날짜|date/i.test(col) && String(v).trim().match(/^(\d{4}|\d{2})[-./](\d{1,2})[-./](\d{1,2})$/);
     if (m) {
       const y = m[1].length === 2 ? 2000 + +m[1] : +m[1];
       const serial = (Date.UTC(y, +m[2] - 1, +m[3]) - Date.UTC(1899, 11, 30)) / 86400000;
       return { t: "n", v: serial, z: "yyyy-mm-dd" };
     }
-    return v === "" ? null : { t: "s", v: String(v) };
+    return { t: "s", v: String(v) };
+  }
+
+  async function uploadExtra(x) {
+    const out = XLSX.write(x.wb, { type: "array", bookType: "xlsx" });
+    await gx("PUT", itemPath(x.file.id) + "/content", out,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[x.file.id];
   }
 
   async function saveExtraFor(fc, name, values, before) {
@@ -411,15 +471,55 @@
     Object.keys(values).forEach((k) => {
       if (isNew || (values[k] ?? "") !== (before[k] ?? "")) setCell(k, values[k] ?? "");
     });
-    // 표 범위 갱신
     const range = XLSX.utils.decode_range(x.ws["!ref"] || "A1");
     range.e.r = Math.max(range.e.r, r);
     range.e.c = Math.max(range.e.c, x.head.length - 1);
     x.ws["!ref"] = XLSX.utils.encode_range(range);
-    const out = XLSX.write(x.wb, { type: "array", bookType: "xlsx" });
-    await gx("PUT", itemPath(x.file.id) + "/content", out,
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-    delete bookCache[x.file.id];
+    await uploadExtra(x);
+  }
+
+  // 상담기록 시트 맨 아래에 [고객명, 담당 FC, 저장날짜(YYYYMMDD), 내용] 추가
+  async function addConsult(fc, name, text) {
+    const C = EXTRA.consult;
+    const x = await readExtra();
+    if (!x) throw new Error("NO_EXTRA_FILE");
+    let ws = x.wb.Sheets[C.sheet];
+    if (!ws) {
+      ws = XLSX.utils.aoa_to_sheet([[C.nameCol, C.fcCol, C.dateCol, C.textCol]]);
+      XLSX.utils.book_append_sheet(x.wb, ws, C.sheet);
+    }
+    const rg = XLSX.utils.decode_range(ws["!ref"] || "A1:D1");
+    const head = [];
+    for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[XLSX.utils.encode_cell({ r: rg.s.r, c })]; head[c] = cell ? String(cell.v).trim() : ""; }
+    // 마지막으로 내용이 있는 줄 다음
+    let last = rg.s.r;
+    for (let r = rg.s.r + 1; r <= rg.e.r; r++) for (let c = rg.s.c; c <= rg.e.c; c++) if (ws[XLSX.utils.encode_cell({ r, c })]) last = r;
+    const r = last + 1;
+    const now = new Date();
+    const ymd = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+    const put = (h, cell) => { const c = head.indexOf(h); if (c >= 0) ws[XLSX.utils.encode_cell({ r, c })] = cell; };
+    put(C.nameCol, { t: "s", v: name });
+    put(C.fcCol, { t: "s", v: fc });
+    put(C.dateCol, { t: "n", v: ymd });
+    put(C.textCol, { t: "s", v: text });
+    rg.e.r = Math.max(rg.e.r, r);
+    ws["!ref"] = XLSX.utils.encode_range(rg);
+    await uploadExtra(x);
+    return readConsults(x.wb, fc, name);
+  }
+
+  // PDF는 OneDrive 웹 대신 휴대폰의 PDF 보기 앱/브라우저로 열기 (임시 다운로드 주소 사용)
+  async function openFileDirect(id) {
+    const w = window.open("", "_blank"); // 팝업 차단을 피하려고 먼저 창을 엶
+    try {
+      const it = await graph(itemPath(id) + "?select=id,name,@microsoft.graph.downloadUrl");
+      const url = it["@microsoft.graph.downloadUrl"];
+      if (!url) throw new Error("다운로드 주소를 받지 못했습니다.");
+      if (w) w.location.href = url; else location.href = url;
+    } catch (e) {
+      if (w) w.close();
+      handleError(e);
+    }
   }
 
   // ---------- 고객 화면 ----------
@@ -482,6 +582,7 @@
   function renderTabs() {
     $("tabs").innerHTML = CFG.tabs.map((t) => {
       const n = t.id === "contact" || t.id === "all" || t.id === "basic" ? "" :
+        t.id === "consult" ? ((current.extra && current.extra.consults) || []).length :
         filesForTab(t).length + (t.id === "contract" ? current.contracts.length : 0);
       return `<button data-tab="${t.id}">${esc(t.label)}${n !== "" ? `<small>${n}</small>` : ""}</button>`;
     }).join("");
@@ -505,13 +606,12 @@
     const body = $("tabBody");
 
     if (id === "contact") return renderContact();
+    if (id === "consult") { body.innerHTML = consultHtml(); bindConsult(); return; }
 
     const files = filesForTab(tab);
     const listHtml = id === "basic" ? basicHtml() : id === "contract" ? contractHtml() : "";
-    const noFolder = !current.folders.length ? '<p class="hint pad">이 고객 이름의 폴더를 찾지 못했습니다.</p>' : "";
     if (!files.length) {
-      body.innerHTML = listHtml + (noFolder || (listHtml ? "" :
-        `<p class="hint pad">이름에 ${tab.keywords.map((k) => "'" + esc(k) + "'").join(", ")}이(가) 들어간 파일이 없습니다.<br>'전체파일'에서 찾아보세요.</p>`));
+      body.innerHTML = listHtml; // 파일이 없으면 안내 문구 없이 비워 둠
       if (id === "basic") bindExtra();
       return;
     }
@@ -524,7 +624,8 @@
         </div>
         <div class="file-actions">
           ${k === "excel" ? `<button class="secondary" data-act="view">내용 보기</button>` : ""}
-          <a class="secondary" href="${esc(f.webUrl)}" target="_blank" rel="noopener">열기</a>
+          ${k === "pdf" ? `<button class="secondary" data-open="${esc(f.id)}">열기</button>`
+            : `<a class="secondary" href="${esc(f.webUrl)}" target="_blank" rel="noopener">열기</a>`}
         </div>
         <div class="sheet" hidden></div>
       </div>`;
@@ -540,26 +641,39 @@
     if (id === "basic") bindExtra();
   }
 
-  // 기본정보: 고객리스트의 인적 정보만 (계약·이관 내용, 상품명 제외)
+  // 기본정보: 고객리스트의 인적 정보만 (계약·이관 내용, 상품명, 우편번호, 성별 제외 → 성별은 생년월일 뒤에)
   //   + 추가 정보 엑셀의 통신사(연락처 앞), 차량번호·자동차보험갱신일(주소 밑)
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC"];
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별"];
+  const BIRTH_KEYS = ["생년월일", "생일"];
   let extraOpen = false;
+
+  function genderMark(v) {
+    const s = String(v || "").trim();
+    if (/^(남|남자|M|male)$/i.test(s)) return "남";
+    if (/^(여|여자|F|female)$/i.test(s)) return "여";
+    return s;
+  }
 
   function basicHtml() {
     const c = current.cust;
     const x = current.extra || { values: {}, fields: [] };
     const ev = x.values || {};
     const merged = new Map();
+    let gender = "";
     c.entries.forEach((e) => e.fields.forEach(([k, v]) => {
+      if (k.trim() === "성별" && !gender) gender = genderMark(v);
       if (BASIC_EXCLUDE.includes(k.trim())) return;
       if (!merged.has(k)) merged.set(k, []);
       if (!merged.get(k).includes(v)) merged.get(k).push(v);
     }));
+    // 성별을 생년월일 뒤에: 1980-10-21 (남)
+    if (gender) BIRTH_KEYS.forEach((k) => { if (merged.has(k)) merged.set(k, merged.get(k).map((v) => `${v} (${gender})`)); });
     // 통신사를 연락처 앞에
     const carrier = (ev[EXTRA.carrierCol] || "").trim();
     if (carrier) PHONE_COLS.forEach((k) => { if (merged.has(k)) merged.set(k, merged.get(k).map((v) => carrier + " " + v)); });
-    // 차량번호·자동차보험갱신일을 주소 밑에
-    const car = EXTRA.afterAddress.filter((k) => (ev[k] || "").trim()).map((k) => [k, [ev[k]]]);
+    // 차량번호·자동차보험갱신일을 주소 밑에 (갱신일은 "3월 26일")
+    const car = EXTRA.afterAddress.filter((k) => (ev[k] || "").trim())
+      .map((k) => [k, [EXTRA.monthDayCols.includes(k) ? monthDayText(ev[k]) : ev[k]]]);
     let rows = [...merged];
     if (car.length) {
       const ai = rows.findIndex(([k]) => k === "주소");
@@ -577,18 +691,24 @@
     const field = (k) => {
       const v = esc(ev[k] || "");
       let input;
-      if (/메모/.test(k)) input = `<textarea data-ex="${esc(k)}" rows="4">${v}</textarea>`;
+      if (EXTRA.monthDayCols.includes(k)) {
+        const p = parseMonthDay(ev[k]) || [0, 0];
+        input = `<div class="mmdd">
+            <select data-mm aria-label="${esc(k)} 월"><option value="">월</option>${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}" ${p[0] === i + 1 ? "selected" : ""}>${i + 1}월</option>`).join("")}</select>
+            <select data-dd aria-label="${esc(k)} 일"><option value="">일</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${p[1] === i + 1 ? "selected" : ""}>${i + 1}일</option>`).join("")}</select>
+            <input type="hidden" data-ex="${esc(k)}" value="${p[0] ? pad2(p[0]) + pad2(p[1]) : v}">
+          </div>`;
+      } else if (/메모/.test(k)) input = `<textarea data-ex="${esc(k)}" rows="4">${v}</textarea>`;
       else if (k === EXTRA.carrierCol) input = `<input data-ex="${esc(k)}" value="${v}" list="carrierList" autocomplete="off" placeholder="SKT">`;
-      else if (/일$|날짜/.test(k)) input = `<input data-ex="${esc(k)}" value="${v}" inputmode="numeric" autocomplete="off" placeholder="26-12-01">`;
       else input = `<input data-ex="${esc(k)}" value="${v}" autocomplete="off">`;
-      return `<label class="fld"><span>${esc(k)}</span>${input}</label>`;
+      return `<label class="fld ${EXTRA.monthDayCols.includes(k) ? "fld-md" : ""}"><span>${esc(k)}</span>${input}</label>`;
     };
     const prim = (x.fields || []).filter((k) => EXTRA.primary.includes(k));
     const more = (x.fields || []).filter((k) => !EXTRA.primary.includes(k));
     const moreFilled = more.filter((k) => (ev[k] || "").trim()).length;
     const extraCard = `<div class="card">
         <h3 class="sec-title">추가 정보</h3>
-        ${x.missing ? `<p class="hint">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다. '${esc(CFG.baseFolder)}' 폴더에 넣어 주세요.</p>` :
+        ${x.missing ? `<p class="hint">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p>` :
           x.error ? '<p class="hint">추가 정보 엑셀을 읽지 못했습니다.</p>' : `
           ${prim.map(field).join("")}
           ${more.length ? `
@@ -599,8 +719,7 @@
             </button>
             <div id="exMoreBox" ${extraOpen ? "" : "hidden"}>${more.map(field).join("")}</div>` : ""}
           <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
-          <div class="file-actions"><button class="primary" id="exSave" disabled>저장</button></div>
-          <p class="hint">${x.found ? "" : "아직 이 고객의 줄이 없습니다. 저장하면 새 줄이 추가됩니다. "}저장하면 '${esc(x.fileName || EXTRA.fileKeyword)}'의 ${esc(EXTRA.fcCol)}(${esc(current.fc || "-")}) · ${esc(EXTRA.nameCol)}(${esc(c.name)}) 줄에 기록됩니다.</p>`}
+          <div class="file-actions"><button class="primary" id="exSave" disabled>저장</button></div>`}
       </div>`;
     return infoCard + extraCard;
   }
@@ -615,6 +734,16 @@
       more.setAttribute("aria-expanded", extraOpen);
       more.querySelector("span").textContent = extraOpen ? "추가 항목 접기" : "추가 항목 펼치기";
       more.querySelector(".chev").textContent = extraOpen ? "▴" : "▾";
+    });
+    // 월/일 선택 → 'MMDD'
+    $("tabBody").querySelectorAll(".mmdd").forEach((box) => {
+      const mm = box.querySelector("[data-mm]"), dd = box.querySelector("[data-dd]"), hid = box.querySelector("[data-ex]");
+      const upd = () => {
+        hid.value = mm.value && dd.value ? pad2(mm.value) + pad2(dd.value) : (!mm.value && !dd.value ? "" : hid.value);
+        hid.dispatchEvent(new Event("input"));
+      };
+      mm.addEventListener("change", upd);
+      dd.addEventListener("change", upd);
     });
     const inputs = [...$("tabBody").querySelectorAll("[data-ex]")];
     const vals = () => Object.fromEntries(inputs.map((i) => [i.dataset.ex, i.value.trim()]));
@@ -634,10 +763,52 @@
       } catch (e) {
         btn.disabled = false;
         btn.textContent = "저장";
-        const m = String(e && e.message);
-        if (/423|locked/i.test(m)) return toast("엑셀 파일이 다른 곳에서 열려 있어 저장하지 못했습니다. 닫고 다시 시도하세요.");
-        if (/403/.test(m)) return toast("이 아이디는 엑셀을 수정할 권한이 없습니다.");
-        handleError(e);
+        saveError(e);
+      }
+    });
+  }
+
+  function saveError(e) {
+    const m = String(e && e.message);
+    if (/423|locked/i.test(m)) return toast("엑셀 파일이 다른 곳에서 열려 있어 저장하지 못했습니다. 닫고 다시 시도하세요.");
+    if (/403/.test(m)) return toast("이 아이디는 엑셀을 수정할 권한이 없습니다.");
+    handleError(e);
+  }
+
+  // 상담기록: '상담기록' 시트에서 이 고객(고객명+담당 FC) 기록, 최근 날짜가 위로 + 새 기록 입력
+  function consultHtml() {
+    const x = current.extra || {};
+    if (x.missing) return `<p class="hint pad">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p>`;
+    const list = x.consults || [];
+    return `<div class="card">
+        <h3 class="sec-title">상담기록</h3>
+        ${list.length ? `<ul class="consult-list">${list.map((c) => `<li><b>${esc(c.date)}</b>: ${esc(c.text).replace(/\n/g, "<br>")}</li>`).join("")}</ul>`
+          : '<p class="hint">아직 상담기록이 없습니다.</p>'}
+      </div>
+      <div class="card">
+        <h3 class="sec-title">새 상담기록</h3>
+        <label class="fld"><textarea id="consultNew" rows="4" placeholder="상담 내용을 입력하세요"></textarea></label>
+        <div class="file-actions"><button class="primary" id="consultSave" disabled>저장</button></div>
+      </div>`;
+  }
+
+  function bindConsult() {
+    const ta = $("consultNew"), btn = $("consultSave");
+    if (!ta) return;
+    ta.addEventListener("input", () => { btn.disabled = !ta.value.trim(); });
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "저장 중…";
+      try {
+        const list = await addConsult(current.fc, current.cust.name, ta.value.trim());
+        current.extra = { ...current.extra, consults: list };
+        toast("상담기록을 엑셀에 저장했습니다.");
+        renderTabs();
+        selectTab("consult");
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = "저장";
+        saveError(e);
       }
     });
   }
@@ -672,8 +843,8 @@
     return best;
   }
   const pdfButton = (f) => f
-    ? `<div class="file-actions"><a class="secondary" href="${esc(f.webUrl)}" target="_blank" rel="noopener">📄 계약 PDF 열기</a></div>`
-    : '<p class="hint">이 계약의 PDF를 고객 폴더에서 찾지 못했습니다.</p>';
+    ? `<div class="file-actions"><button class="secondary" data-open="${esc(f.id)}">📄 계약 열기</button></div>`
+    : "";
 
   function contractHtml() {
     const list = current.contracts;
@@ -962,6 +1133,11 @@
   $("logoutBtn").addEventListener("click", () => msal.logoutRedirect());
   $("searchForm").addEventListener("submit", (ev) => { ev.preventDefault(); $("q").blur(); search($("q").value); });
   $("backBtn").addEventListener("click", () => history.back());
+  // PDF 열기 버튼 (계약 열기, 보장분석 등): 휴대폰 PDF 앱/브라우저로
+  $("tabBody").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-open]");
+    if (b) { ev.preventDefault(); openFileDirect(b.dataset.open); }
+  });
   // 검색 범위 버튼: 전체 + config.lists 순서대로
   $("modes").innerHTML = `<button type="button" data-mode="all" class="on">전체</button>` +
     CFG.lists.map((l) => `<button type="button" data-mode="${esc(l.id)}">${esc(l.label)}</button>`).join("");

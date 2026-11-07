@@ -32,7 +32,13 @@ window.APP_CONFIG = {
   ],
 
   // 기본정보 탭의 추가 정보 (고객 폴더 바로 안 엑셀). 담당 FC + 고객명으로 줄을 찾아 읽고/저장
-  extraInfo: { fileKeyword: "고객 추가 정보", fcCol: "담당 FC", nameCol: "고객명", fields: ["미팅장소", "메모"] },
+  //   '기본' 시트: 담당 FC·고객명으로 줄을 찾음 / '상담기록' 시트: 고객명·담당 FC·저장날짜·내용
+  extraInfo: {
+    fileKeyword: "고객추가정보", sheet: "기본", fcCol: "담당 FC", nameCol: "고객명",
+    primary: ["미팅장소", "메모"], carrierCol: "통신사",
+    afterAddress: ["차량번호", "자동차보험갱신일"], monthDayCols: ["자동차보험갱신일"],
+    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: "저장날짜", textCol: "내용" }
+  },
 
   // 세부항목 버튼: 파일/폴더 이름에 키워드가 들어 있으면 그 탭에 표시됩니다.
   tabs: [
@@ -41,7 +47,6 @@ window.APP_CONFIG = {
     // 고객 계약 PDF("날짜 - 고객 - FC - 상품명 - 금액원.pdf")는 보장분석에서 제외
     { id: "analysis", label: "보장분석", keywords: ["보장", "분석", "covan"], exclude: "\\d[\\d,]*원\\.pdf$" },
     { id: "consult",  label: "상담기록", keywords: ["상담", "메모", "기록", "통화"] },
-    { id: "contact",  label: "연락하기", keywords: [] },
-    { id: "all",      label: "전체파일", keywords: [] }
+    { id: "contact",  label: "연락하기", keywords: [] }
   ]
 };

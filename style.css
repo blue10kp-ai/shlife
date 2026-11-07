@@ -123,6 +123,13 @@ button:disabled { opacity: .5; }
 #exMoreBox .fld textarea { font-size: 14px; }
 #exMoreBox .fld:has(textarea) { grid-column: 1 / -1; }
 .carrier { font-size: 14px; font-weight: 700; color: var(--brand); background: var(--brand-weak); padding: 2px 8px; border-radius: 6px; vertical-align: middle; }
+.mmdd { display: flex; gap: 4px; }
+.mmdd select { flex: 1; min-width: 0; padding: 7px 4px; font: inherit; font-size: 14px; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.consult-list { list-style: none; margin: 0; padding: 0; }
+.consult-list li { padding: 8px 0; border-bottom: 1px solid var(--line); line-height: 1.5; word-break: break-all; }
+.consult-list li:last-child { border-bottom: 0; }
+.consult-list b { color: var(--brand); font-weight: 700; }
 .contract-title { font-weight: 700; margin: 4px 0 6px; word-break: break-all; }
 .entry-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .tag { flex: none; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
