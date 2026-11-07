@@ -102,8 +102,15 @@
   async function loadCustomerFolders() {
     if (folderCache) return folderCache;
     await resolveBase();
-    const items = await listChildren(itemPath(base.id) + "/children");
-    folderCache = items.filter((i) => i.folder);
+    const items = (await listChildren(itemPath(base.id) + "/children")).filter((i) => i.folder);
+    // "_계약", "_이관", "_진행"처럼 _로 시작하는 폴더는 분류 폴더 → 그 안의 폴더가 고객
+    const groups = items.filter((i) => i.name.startsWith("_"));
+    const direct = items.filter((i) => !i.name.startsWith("_")).map((f) => ({ ...f, group: "" }));
+    const nested = await Promise.all(groups.map(async (g) =>
+      (await listChildren(itemPath(g.id) + "/children"))
+        .filter((i) => i.folder)
+        .map((f) => ({ ...f, group: g.name.slice(1) }))));
+    folderCache = direct.concat(...nested);
     return folderCache;
   }
 
@@ -118,10 +125,10 @@
       const folders = await loadCustomerFolders();
       const norm = (s) => s.replace(/\s+/g, "").toLowerCase();
       const hits = folders.filter((f) => norm(f.name).includes(norm(q)));
-      status.textContent = hits.length ? hits.length + "명 찾음" : "'" + q + "' 고객 폴더가 없습니다.";
+      status.textContent = hits.length ? hits.length + "건 찾음" : "'" + q + "' 고객 폴더가 없습니다.";
       if (hits.length === 1) return openCustomer(hits[0]);
       list.innerHTML = hits.map((f, i) =>
-        `<li><button data-i="${i}"><span class="avatar sm">${esc(f.name[0])}</span>${esc(f.name)}<span class="chev">›</span></button></li>`
+        `<li><button data-i="${i}"><span class="avatar sm">${esc(f.name[0])}</span><span class="r-name">${esc(f.name)}</span>${f.group ? `<span class="tag">${esc(f.group)}</span>` : ""}<span class="chev">›</span></button></li>`
       ).join("");
       list.querySelectorAll("button").forEach((b) =>
         b.addEventListener("click", () => openCustomer(hits[+b.dataset.i])));
