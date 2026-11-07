@@ -1345,10 +1345,13 @@
     $("recentList").hidden = true;
     if (!q.trim()) return;
     addRecent(q.trim());
-    if ($("searchView").hidden) {
-      if (!$("customerView").hidden) history.back(); // 고객 화면에서 검색하면 기록 정리
-      show("searchView");
+    if (!$("customerView").hidden) {
+      // 고객 화면에서 검색: 뒤로 가기(검색 화면)가 끝난 뒤에 검색해야 결과가 1명일 때 바로 열린 고객 화면이 덮이지 않음
+      window.addEventListener("popstate", () => { show("searchView"); search(q); }, { once: true });
+      history.back();
+      return;
     }
+    if ($("searchView").hidden) show("searchView");
     search(q);
   }
   $("topSearch").addEventListener("submit", (ev) => { ev.preventDefault(); runTopSearch($("q").value); });
