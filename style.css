@@ -114,7 +114,14 @@ button:disabled { opacity: .5; }
   background: var(--bg); color: var(--brand); font-weight: 600; }
 .more-btn .hint { flex: 1 1 100%; order: 3; margin: 0; font-weight: 400; }
 .more-btn .chev { margin-left: auto; }
-#exMoreBox { border-left: 3px solid var(--brand-weak); padding-left: 10px; margin-bottom: 4px; }
+/* 추가 항목: 한 줄에 작게 (항목이 많으면 다음 줄로) */
+#exMoreBox { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 12px; }
+#exMoreBox[hidden] { display: none; }
+#exMoreBox .fld { margin: 0; }
+#exMoreBox .fld span { font-size: 12px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#exMoreBox .fld input { padding: 7px 8px; font-size: 14px; border-radius: 8px; min-width: 0; }
+#exMoreBox .fld textarea { font-size: 14px; }
+#exMoreBox .fld:has(textarea) { grid-column: 1 / -1; }
 .carrier { font-size: 14px; font-weight: 700; color: var(--brand); background: var(--brand-weak); padding: 2px 8px; border-radius: 6px; vertical-align: middle; }
 .contract-title { font-weight: 700; margin: 4px 0 6px; word-break: break-all; }
 .entry-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }

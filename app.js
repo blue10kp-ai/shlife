@@ -641,24 +641,61 @@
   }
 
   // 계약현황: 계약리스트·이관리스트에서 이 고객(계약자/피보험자)의 계약
-  const CONTRACT_HIDE = ["상품명", "순번", "No", "메모"];
+  //   표시 항목: [표시 이름, 엑셀 열 이름 후보] (이관리스트는 피보/계약일/보험료)
+  const CONTRACT_SHOW = [
+    ["증권번호", ["증권번호"]],
+    ["계약자", ["계약자"]],
+    ["주피보험자", ["주피보험자", "피보", "피보험자"]],
+    ["최초계약일", ["최초계약일", "계약일"]],
+    ["납입기간", ["납입기간"]],
+    ["합계보험료", ["합계보험료", "보험료"]],
+    ["이체일", ["이체일"]]
+  ];
+
+  // 고객 폴더의 계약 PDF: "날짜 - 고객 - FC - 상품명 - 금액원.pdf"
+  const CONTRACT_PDF = /^(\d{8}) - .+? - .+? - (.+) - [\d,]+원\.pdf$/i;
+  const normP = (s) => String(s || "").replace(/무배당|[\s()（）\[\]·,.\-_*]/g, "").toLowerCase();
+  function findContractPdf(date, product) {
+    const d = String(date || "").replace(/\D/g, "").slice(0, 8);
+    const p = normP(product);
+    let best = null, bestScore = 0;
+    current.files.forEach((f) => {
+      const m = f.name.match(CONTRACT_PDF);
+      if (!m) return;
+      const fp = normP(m[2]);
+      const prodOk = p && fp && (fp.startsWith(p.slice(0, 8)) || p.startsWith(fp.slice(0, 8)));
+      const score = (d && m[1] === d ? 2 : 0) + (prodOk ? 1 : 0);
+      if (score > bestScore) { best = f; bestScore = score; }
+    });
+    return best;
+  }
+  const pdfButton = (f) => f
+    ? `<div class="file-actions"><a class="secondary" href="${esc(f.webUrl)}" target="_blank" rel="noopener">📄 계약 PDF 열기</a></div>`
+    : '<p class="hint">이 계약의 PDF를 고객 폴더에서 찾지 못했습니다.</p>';
+
   function contractHtml() {
     const list = current.contracts;
     if (!list.length) {
       const lines = [...new Set(current.cust.entries.flatMap((e) =>
         e.fields.filter(([k]) => k.includes("상품명")).flatMap(([, v]) => v.split(/\n/)).map((s) => s.trim()).filter(Boolean)))];
-      return lines.length ? `<div class="card"><h3 class="sec-title">가입 상품</h3><ul class="plain">${lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>
-          <p class="hint">계약리스트·이관리스트에서 이 고객의 계약을 찾지 못해 고객리스트의 상품 정보를 표시합니다.</p></div>`
+      return lines.length ? lines.map((l) => {
+          const product = l.replace(/\s*-\s*[\d,]+원\s*$/, "");
+          return `<div class="card"><div class="contract-title">${esc(l)}</div>${pdfButton(findContractPdf("", product))}</div>`;
+        }).join("") + '<p class="hint pad">계약리스트·이관리스트에서 이 고객의 계약을 찾지 못해 고객리스트의 상품 정보를 표시합니다.</p>'
         : '<p class="hint pad">계약리스트·이관리스트에서 이 고객의 계약을 찾지 못했습니다.</p>';
     }
     return list.map((c) => {
       const status = c.row["계약상태"] || c.row["상태"] || "";
+      const val = (cols) => { for (const k of cols) if (c.row[k]) return c.row[k]; return ""; };
+      const shown = CONTRACT_SHOW.map(([label, cols]) => [label, val(cols)]).filter(([, v]) => v);
+      const pdf = findContractPdf(val(["최초계약일", "계약일"]), c.row["상품명"]);
       return `<div class="card">
         <div class="entry-head"><span class="tag t-${esc(c.type)}">${esc(c.type)}</span>
           ${status ? `<span class="tag">${esc(status)}</span>` : ""}
           <span class="hint">${esc([c.fc, c.type === "이관" ? c.sheet : ""].filter(Boolean).join(" · "))}</span></div>
         <div class="contract-title">${esc(c.row["상품명"] || "(상품명 없음)")}</div>
-        <dl class="kv">${c.fields.filter(([k]) => !CONTRACT_HIDE.includes(k)).map(([k, v]) => `<dt>${esc(k.trim())}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+        <dl class="kv">${shown.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+        ${pdfButton(pdf)}
       </div>`;
     }).join("");
   }
