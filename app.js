@@ -124,7 +124,9 @@
     try {
       const folders = await loadCustomerFolders();
       const norm = (s) => s.replace(/\s+/g, "").toLowerCase();
-      const hits = folders.filter((f) => norm(f.name).includes(norm(q)));
+      // 폴더명 "고객명 - 담당자명"에서 고객명 부분만 검색
+      const custPart = (n) => n.split(" - ")[0];
+      const hits = folders.filter((f) => norm(custPart(f.name)).includes(norm(q)));
       status.textContent = hits.length ? hits.length + "건 찾음" : "'" + q + "' 고객 폴더가 없습니다.";
       if (hits.length === 1) return openCustomer(hits[0]);
       list.innerHTML = hits.map((f, i) =>
