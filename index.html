@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <header class="topbar">
@@ -23,28 +23,33 @@
     <!-- 로그인 화면 -->
     <section id="loginView" class="view" hidden>
       <div class="card center">
-        <p class="lead">내 OneDrive의 <b>Claude/고객</b> 폴더에서<br>고객 정보를 찾아 보여줍니다.</p>
+        <p class="lead">OneDrive의 <b>고객</b> 폴더에서<br>고객 정보를 찾아 보여줍니다.</p>
         <button id="loginBtn" class="primary big">Microsoft 계정으로 로그인</button>
         <p class="hint">고객 정보는 OneDrive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.</p>
       </div>
     </section>
 
-    <!-- 검색 화면 -->
+    <!-- 일정 화면 -->
+    <section id="scheduleView" class="view" hidden>
+      <div class="card center">
+        <p class="lead">일정 메뉴는 준비 중입니다.</p>
+        <p class="hint">어떤 일정을 보여줄지 정해지면 이곳에 추가됩니다.</p>
+      </div>
+    </section>
+
+    <!-- 고객 검색 화면 -->
     <section id="searchView" class="view" hidden>
       <form id="searchForm" class="search">
         <input id="q" type="search" placeholder="고객명 입력" autocomplete="off" enterkeyhint="search">
         <button class="primary" type="submit">검색</button>
       </form>
-      <div id="modes" class="modes" role="group" aria-label="검색 범위">
-        <button type="button" data-mode="all" class="on">전체</button>
-        <button type="button" data-mode="contract">계약</button>
-        <button type="button" data-mode="transfer">이관</button>
-      </div>
+      <div id="modes" class="modes" role="group" aria-label="검색 범위"></div>
+      <p id="scopeHint" class="hint"></p>
       <p id="searchStatus" class="hint"></p>
       <ul id="results" class="list"></ul>
     </section>
 
-    <!-- 고객 화면 -->
+    <!-- 고객 상세 화면 -->
     <section id="customerView" class="view" hidden>
       <div class="card">
         <div class="cust-head">
@@ -59,13 +64,25 @@
       <nav id="tabs" class="tabs"></nav>
       <div id="tabBody"></div>
     </section>
+
+    <!-- 관리자 화면 (관리자 아이디만) -->
+    <section id="adminView" class="view" hidden>
+      <div id="adminBody"></div>
+    </section>
   </main>
+
+  <!-- 큰 메뉴 -->
+  <nav id="mainNav" class="mainnav" hidden>
+    <button type="button" data-section="schedule"><span class="ni">📅</span>일정</button>
+    <button type="button" data-section="customer"><span class="ni">👤</span>고객</button>
+    <button type="button" data-section="admin" id="navAdmin" hidden><span class="ni">⚙️</span>관리자</button>
+  </nav>
 
   <div id="toast" class="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=6"></script>
-  <script src="app.js?v=6"></script>
+  <script src="config.js?v=7"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

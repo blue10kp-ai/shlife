@@ -53,13 +53,44 @@
     return out;
   }
 
+  // ---------- 관리자 ----------
+  // 관리자: 공유 권한을 바꾸려면 쓰기 권한이 필요 (관리자만 요청)
+  const ADMIN_SCOPES = ["Files.ReadWrite.All", "User.Read"];
+  const account = () => msal.getAllAccounts()[0];
+  const isAdmin = () => !!account() &&
+    (CFG.admins || []).map((a) => a.toLowerCase()).includes(String(account().username).toLowerCase());
+
+  async function gx(method, path, body) {
+    const acc = account();
+    let token;
+    try {
+      token = (await msal.acquireTokenSilent({ scopes: ADMIN_SCOPES, account: acc })).accessToken;
+    } catch (e) {
+      sessionStorage.setItem("openAdmin", "1");
+      await msal.acquireTokenRedirect({ scopes: ADMIN_SCOPES, account: acc });
+      throw e;
+    }
+    const res = await fetch(GRAPH + path, {
+      method,
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!res.ok) throw new Error("Graph " + res.status + ": " + (await res.text()).slice(0, 200));
+    return res.status === 204 ? null : res.json();
+  }
+
   // ---------- 화면 전환 ----------
-  const views = ["loginView", "searchView", "customerView"];
+  const views = ["loginView", "scheduleView", "searchView", "customerView", "adminView"];
+  const TITLES = { scheduleView: "일정", searchView: "고객 찾기", customerView: "고객 정보", adminView: "관리자" };
+  const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", adminView: "admin" };
   function show(view) {
     views.forEach((v) => ($(v).hidden = v !== view));
     $("backBtn").hidden = view !== "customerView";
     $("logoutBtn").hidden = view === "loginView";
-    $("title").textContent = view === "customerView" ? "고객 정보" : "고객 찾기";
+    $("title").textContent = TITLES[view] || "고객 찾기";
+    $("mainNav").hidden = view === "loginView";
+    $("navAdmin").hidden = !isAdmin();
+    $("mainNav").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.section === SECTION[view]));
     window.scrollTo(0, 0);
   }
 
@@ -77,26 +108,35 @@
   }
 
   // ---------- 검색 ----------
-  // 고객 폴더 위치 찾기: ① config의 공유 폴더 → ② 내 OneDrive 경로 → ③ 나에게 공유된 폴더
-  let base = null; // { driveId, id }
+  // 고객 폴더 위치 찾기
+  //   소유자(관리자): 내 OneDrive의 Claude/고객 → 전체 검색
+  //   다른 사용자: 소유자의 고객 폴더 중 "나에게 공유된 FC 폴더"만 검색
+  let base = null; // { driveId, id, owner }
   async function resolveBase() {
     if (base) return base;
-    const sf = CFG.sharedFolder || {};
-    if (sf.driveId && sf.itemId) return (base = { driveId: sf.driveId, id: sf.itemId });
     try {
       const path = "/me/drive/root:/" + CFG.baseFolder.split("/").map(encodeURIComponent).join("/");
       const it = await graph(path + "?$select=id,parentReference");
-      return (base = { driveId: it.parentReference.driveId, id: it.id });
+      return (base = { driveId: it.parentReference.driveId, id: it.id, owner: true });
     } catch (e) {
       if (!String(e.message).includes("404")) throw e;
     }
-    const leaf = CFG.baseFolder.split("/").pop();
-    const shared = await graph("/me/drive/sharedWithMe");
-    const hit = (shared.value || []).find((s) => s.remoteItem && s.remoteItem.folder && s.name === leaf);
-    if (!hit) throw new Error("Graph 404: base folder not found");
-    return (base = { driveId: hit.remoteItem.parentReference.driveId, id: hit.remoteItem.id });
+    return (base = { driveId: CFG.owner.driveId, id: CFG.owner.baseId, owner: false });
   }
   const itemPath = (id) => "/drives/" + base.driveId + "/items/" + id;
+
+  // 다른 사용자가 접근할 수 있는 FC 폴더 후보 (config 목록 + 나에게 공유된 폴더)
+  async function sharedFcCandidates() {
+    const cands = new Map((CFG.fcFolders || []).map((f) => [f.itemId, f.name]));
+    try {
+      const shared = await graph("/me/drive/sharedWithMe");
+      (shared.value || []).forEach((s) => {
+        const r = s.remoteItem;
+        if (r && r.folder && r.parentReference && r.parentReference.id === base.id) cands.set(r.id, r.name);
+      });
+    } catch (e) { /* 목록을 못 읽어도 config 목록으로 진행 */ }
+    return [...cands];
+  }
 
   // 고객 폴더 구조 읽기
   //   고객/김현성/_계약/<고객폴더>, 고객/김현성/계약고객리스트.xlsx   ← FC별 폴더 (현재 구조)
@@ -121,8 +161,20 @@
           }
         }));
       }
-      await scan(base.id, "");
-      return { folders, files };
+      const fcs = [];
+      if (base.owner) {
+        await scan(base.id, "");
+      } else {
+        // 고객 폴더 전체를 공유받았으면 전체, 아니면 공유받은 FC 폴더만 (권한 없는 폴더는 OneDrive가 거부)
+        let whole = false;
+        try { await graph(itemPath(base.id) + "?$select=id"); whole = true; } catch (e) { /* 전체 공유 아님 */ }
+        if (whole) await scan(base.id, "");
+        else await Promise.all((await sharedFcCandidates()).map(([id, name]) =>
+          scan(id, name).then(() => fcs.push(name)).catch(() => {})));
+      }
+      folders.forEach((f) => f.fc && !fcs.includes(f.fc) && fcs.push(f.fc));
+      files.forEach((f) => f.fc && !fcs.includes(f.fc) && fcs.push(f.fc));
+      return { folders, files, fcs: fcs.sort((a, b) => a.localeCompare(b, "ko")) };
     })();
     scanCache.catch(() => { scanCache = null; });
     return scanCache;
@@ -193,6 +245,10 @@
     try {
       const records = await loadLists();
       const want = CFG.lists.find((l) => l.id === mode);
+      if (want && !records.some((r) => r.type === want.label)) {
+        status.textContent = `'${want.label}' 엑셀 파일이 없습니다. FC 폴더에 이름에 '${want.fileKeyword}'가 들어간 엑셀을 넣어 주세요.`;
+        return;
+      }
       const hits = records.filter((r) => (!want || r.type === want.label) && norm(r.name).includes(norm(q)));
       // 같은 이름 + 같은 생년월일은 한 고객으로 묶기
       const map = new Map();
@@ -411,12 +467,140 @@
     }).join("");
   }
 
+  // ---------- 관리자 페이지: 아이디별 FC 폴더 공유 ----------
+  const emailOf = (p) => String(
+    (p.invitation && p.invitation.email) ||
+    (p.grantedToV2 && p.grantedToV2.user && p.grantedToV2.user.email) ||
+    (p.grantedTo && p.grantedTo.user && p.grantedTo.user.email) ||
+    (p.grantedToIdentitiesV2 && p.grantedToIdentitiesV2[0] && p.grantedToIdentitiesV2[0].user && p.grantedToIdentitiesV2[0].user.email) ||
+    (p.grantedToV2 && p.grantedToV2.user && p.grantedToV2.user.displayName) || ""
+  ).toLowerCase();
+
+  let adminState = null; // { fcs: [{id,name}], users: Map(email → { [fcId]: perm }), warnings: [] }
+  const extraUsers = new Set();
+
+  async function loadAdminState() {
+    await resolveBase();
+    const me = String(account().username).toLowerCase();
+    const items = await listChildren(itemPath(base.id) + "/children");
+    const fcs = items.filter((i) => i.folder && !i.name.startsWith("_")).map((f) => ({ id: f.id, name: f.name }));
+    const users = new Map();
+    const warnings = [];
+    // 상위 폴더(Claude, 고객)가 공유되어 있으면 FC 제한이 소용없으므로 경고
+    const baseItem = await graph(itemPath(base.id) + "?$select=id,name,parentReference");
+    const parents = [{ id: base.id, name: CFG.baseFolder }];
+    if (baseItem.parentReference && baseItem.parentReference.id) parents.push({ id: baseItem.parentReference.id, name: CFG.baseFolder.split("/")[0] });
+    for (const p of parents) {
+      const perms = (await gx("GET", itemPath(p.id) + "/permissions")).value || [];
+      perms.filter((x) => !(x.roles || []).includes("owner")).forEach((x) =>
+        warnings.push(`'${p.name}' 폴더 전체가 ${x.link ? "링크로" : (emailOf(x) || "다른 사용자") + "에게"} 공유되어 있습니다.`));
+    }
+    await Promise.all(fcs.map(async (fc) => {
+      const perms = (await gx("GET", itemPath(fc.id) + "/permissions")).value || [];
+      perms.forEach((p) => {
+        if ((p.roles || []).includes("owner")) return;
+        if (p.link) { warnings.push(`'${fc.name}' 폴더가 링크로 공유되어 있습니다(링크를 가진 사람 모두 접근).`); return; }
+        const em = emailOf(p);
+        if (!em || em === me) return;
+        if (!users.has(em)) users.set(em, {});
+        users.get(em)[fc.id] = p;
+      });
+    }));
+    extraUsers.forEach((em) => { if (!users.has(em)) users.set(em, {}); });
+    adminState = { fcs, users, warnings };
+  }
+
+  async function openAdmin() {
+    if (!isAdmin()) return show("searchView");
+    show("adminView");
+    $("adminBody").innerHTML = '<p class="hint pad">공유 상태를 불러오는 중…</p>';
+    try {
+      await loadAdminState();
+      renderAdmin();
+    } catch (e) {
+      $("adminBody").innerHTML = "";
+      handleError(e);
+    }
+  }
+
+  function renderAdmin() {
+    const { fcs, users, warnings } = adminState;
+    const rows = [...users.keys()].sort();
+    $("adminBody").innerHTML = `
+      <div class="card">
+        <h3 class="sec-title">관리자</h3>
+        <p class="hint">${esc((CFG.admins || []).join(", "))} · 모든 FC 폴더 검색 가능</p>
+      </div>
+      ${warnings.length ? `<div class="card warn">${warnings.map((w) => `<p>⚠️ ${esc(w)}</p>`).join("")}
+        <p class="hint">상위 폴더 공유가 있으면 아래 FC별 제한이 적용되지 않습니다. OneDrive에서 해당 공유를 해제해 주세요.</p></div>` : ""}
+      <div class="card">
+        <h3 class="sec-title">사용자 추가</h3>
+        <form id="addUserForm" class="search">
+          <input id="newUser" type="email" placeholder="Microsoft 계정 이메일" autocomplete="off" required>
+          <button class="primary" type="submit">추가</button>
+        </form>
+        <p class="hint">추가한 뒤 아래에서 검색할 수 있는 FC 폴더를 켜 주세요. 켜는 순간 OneDrive에서 그 폴더가 해당 계정과 읽기 전용으로 공유됩니다.</p>
+      </div>
+      ${rows.length ? rows.map((em) => `<div class="card">
+          <div class="user-head"><span class="avatar sm">${esc(em[0].toUpperCase())}</span><span class="r-name">${esc(em)}</span></div>
+          <div class="fc-grid">${fcs.map((fc) => {
+            const p = users.get(em)[fc.id];
+            const inherited = p && p.inheritedFrom;
+            return `<button class="fc-chip ${p ? "on" : ""}" data-em="${esc(em)}" data-fc="${esc(fc.id)}" ${inherited ? "disabled" : ""}>
+              <span class="dot"></span>${esc(fc.name)}${inherited ? " (상위 공유)" : ""}</button>`;
+          }).join("")}</div>
+        </div>`).join("") : '<p class="hint pad">아직 공유한 사용자가 없습니다.</p>'}
+      <p class="hint pad">해제하면 OneDrive 공유도 바로 해제됩니다. 상대방 휴대폰에는 앱을 새로고침한 뒤 반영됩니다.</p>`;
+
+    $("addUserForm").addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      const em = $("newUser").value.trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return toast("이메일 형식을 확인해 주세요.");
+      if (em === String(account().username).toLowerCase()) return toast("관리자는 이미 모든 폴더를 볼 수 있습니다.");
+      extraUsers.add(em);
+      if (!users.has(em)) users.set(em, {});
+      renderAdmin();
+    });
+    $("adminBody").querySelectorAll(".fc-chip").forEach((b) => b.addEventListener("click", () => toggleShare(b)));
+  }
+
+  async function toggleShare(btn) {
+    const em = btn.dataset.em, fcId = btn.dataset.fc;
+    const fc = adminState.fcs.find((f) => f.id === fcId);
+    const perm = adminState.users.get(em)[fcId];
+    btn.disabled = true;
+    try {
+      if (perm) {
+        if (!confirm(`${em} 의 '${fc.name}' 폴더 공유를 해제할까요?`)) { btn.disabled = false; return; }
+        await gx("DELETE", itemPath(fcId) + "/permissions/" + perm.id);
+        toast(`'${fc.name}' 공유를 해제했습니다.`);
+      } else {
+        if (!confirm(`${em} 에게 '${fc.name}' 폴더를 읽기 전용으로 공유할까요?\n(OneDrive가 상대방에게 공유 알림 메일을 보냅니다)`)) { btn.disabled = false; return; }
+        await gx("POST", itemPath(fcId) + "/invite", {
+          recipients: [{ email: em }],
+          roles: ["read"],
+          requireSignIn: true,
+          sendInvitation: true,
+          message: "고객찾기 앱(shlife)에서 '" + fc.name + "' 고객 폴더를 검색할 수 있도록 공유합니다."
+        });
+        toast(`'${fc.name}' 폴더를 공유했습니다.`);
+      }
+      extraUsers.add(em);
+      await loadAdminState();
+      renderAdmin();
+    } catch (e) {
+      btn.disabled = false;
+      handleError(e);
+    }
+  }
+
   // ---------- 오류 처리 ----------
   function handleError(e) {
     console.error(e);
     const m = String(e && e.message);
     if (m === "NOT_SIGNED_IN") return show("loginView");
     if (m.includes("404")) return toast("OneDrive에서 '" + CFG.baseFolder + "' 폴더를 찾을 수 없습니다.");
+    if (m.includes("403")) return toast("권한이 없습니다. 관리자에게 요청하세요.");
     toast("오류: " + m.slice(0, 120));
   }
 
@@ -425,12 +609,33 @@
   $("logoutBtn").addEventListener("click", () => msal.logoutRedirect());
   $("searchForm").addEventListener("submit", (ev) => { ev.preventDefault(); $("q").blur(); search($("q").value); });
   $("backBtn").addEventListener("click", () => history.back());
+  // 검색 범위 버튼: 전체 + config.lists 순서대로
+  $("modes").innerHTML = `<button type="button" data-mode="all" class="on">전체</button>` +
+    CFG.lists.map((l) => `<button type="button" data-mode="${esc(l.id)}">${esc(l.label)}</button>`).join("");
+  $("modes").style.gridTemplateColumns = `repeat(${CFG.lists.length + 1}, 1fr)`;
   $("modes").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     mode = b.dataset.mode;
     $("modes").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
     if ($("q").value.trim()) search($("q").value);
   }));
+  // 큰 메뉴: 일정 / 고객 / 관리자
+  $("mainNav").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    const s = b.dataset.section;
+    if (s === "schedule") show("scheduleView");
+    else if (s === "admin") openAdmin();
+    else show("searchView");
+  }));
   window.addEventListener("popstate", () => { if (!$("customerView").hidden) show("searchView"); });
+
+  // 검색 화면에 "검색 가능한 FC" 표시
+  async function showScope() {
+    try {
+      const { fcs } = await scanBase();
+      $("scopeHint").textContent = fcs.length
+        ? "검색 가능한 FC: " + fcs.join(", ") + (base.owner ? " (전체)" : "")
+        : "검색 가능한 FC 폴더가 없습니다. 관리자에게 권한을 요청하세요.";
+    } catch (e) { /* handleError에서 처리 */ }
+  }
 
   (async function init() {
     if (CFG.clientId === "YOUR-CLIENT-ID") {
@@ -442,9 +647,13 @@
     await msal.initialize();
     try { await msal.handleRedirectPromise(); } catch (e) { handleError(e); }
     if (msal.getAllAccounts().length) {
-      show("searchView");
-      $("q").focus();
-      loadLists().then(() => loadCustomerFolders()).catch(handleError); // 미리 불러오기
+      if (sessionStorage.getItem("openAdmin") && isAdmin()) {
+        sessionStorage.removeItem("openAdmin");
+        openAdmin();
+      } else {
+        show("searchView");
+      }
+      loadLists().then(showScope).catch(handleError); // 미리 불러오기
     } else {
       show("loginView");
     }

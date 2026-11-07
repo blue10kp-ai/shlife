@@ -6,13 +6,22 @@ window.APP_CONFIG = {
   // 고객 폴더들이 들어 있는 OneDrive 폴더 (OneDrive 최상위 기준)
   baseFolder: "Claude/고객",
 
-  // 다른 사용자가 공유받은 폴더를 못 찾을 때만 채웁니다 (보통은 비워 둠).
-  sharedFolder: { driveId: "", itemId: "" },
+  // 관리자 아이디 (이 계정으로 로그인하면 '관리자' 메뉴가 보임)
+  admins: ["blue10kp@gmail.com"],
 
-  // 고객 검색에 쓰는 리스트 엑셀 (baseFolder 바로 안에 있는 파일, 이름에 키워드가 들어간 파일 모두)
+  // 고객 폴더 소유자(관리자)의 OneDrive 정보 — 다른 사용자가 공유받은 FC 폴더를 찾을 때 사용
+  owner: { driveId: "1C9CB085D01137F9", baseId: "1C9CB085D01137F9!sf69cb45e11a746d390c1d72f1911c277" },
+  fcFolders: [
+    { name: "김현성", itemId: "1C9CB085D01137F9!s5571de35f9d2448fae3444c47773fc6f" },
+    { name: "최수진", itemId: "1C9CB085D01137F9!s6378d4ccafbb4ccebb3c7fe4aeae9309" }
+  ],
+
+  // 고객 검색 범위 버튼 (전체 + 아래 순서). FC 폴더 안에서 이름에 키워드가 들어간 엑셀을 모두 읽음
   lists: [
     { id: "contract", label: "계약", fileKeyword: "계약고객리스트" },
-    { id: "transfer", label: "이관", fileKeyword: "이관고객리스트" }
+    { id: "transfer", label: "이관", fileKeyword: "이관고객리스트" },
+    { id: "ddahaeng", label: "따행", fileKeyword: "따뜻한행복" },
+    { id: "db",       label: "DB",   fileKeyword: "DB" }
   ],
 
   // 세부항목 버튼: 파일/폴더 이름에 키워드가 들어 있으면 그 탭에 표시됩니다.
