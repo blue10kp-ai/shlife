@@ -41,6 +41,8 @@ main { padding: 12px 16px calc(96px + env(safe-area-inset-bottom)); max-width: 6
 .fc-chip.on { background: var(--brand-weak); color: var(--brand); border-color: var(--brand); }
 .fc-chip.on .dot { background: var(--brand); border-color: var(--brand); }
 .pad-x { padding: 8px 4px 4px; }
+.plain { margin: 0 0 8px; padding-left: 18px; }
+.plain li { padding: 3px 0; word-break: break-all; }
 .matrix td, .matrix th { text-align: center; }
 .matrix td:first-child, .matrix th:first-child { text-align: left; }
 .matrix td.ok { color: var(--brand); font-weight: 700; }
