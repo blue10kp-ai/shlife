@@ -32,7 +32,8 @@
   async function graph(path, asBuffer) {
     const token = await getToken();
     const res = await fetch(path.startsWith("http") ? path : GRAPH + path, {
-      headers: { Authorization: "Bearer " + token }
+      headers: { Authorization: "Bearer " + token },
+      cache: "no-store" // OneDrive 파일이 바뀌면 바로 반영 (브라우저 캐시 사용 안 함)
     });
     if (!res.ok) {
       const t = await res.text();
@@ -617,7 +618,7 @@
       await gx("PUT", permPath(), perms);
       if (!list.length) extraUsers.delete(em);
       toast("저장했습니다.");
-      await loadAdminState();
+      adminState.perms = perms; // 방금 저장한 내용으로 바로 화면 갱신
       renderAdmin();
     } catch (e) {
       btn.disabled = false;
