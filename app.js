@@ -534,72 +534,101 @@
   function renderAdmin() {
     const { fcs, users, warnings } = adminState;
     const rows = [...users.keys()].sort();
+    const has = (em, fc) => !!users.get(em)[fc.id];
+    const allOf = (em) => fcs.length > 0 && fcs.every((fc) => has(em, fc));
+
     $("adminBody").innerHTML = `
-      <div class="card">
-        <h3 class="sec-title">관리자</h3>
-        <p class="hint">${esc((CFG.admins || []).join(", "))} · 모든 FC 폴더 검색 가능</p>
-      </div>
       ${warnings.length ? `<div class="card warn">${warnings.map((w) => `<p>⚠️ ${esc(w)}</p>`).join("")}
-        <p class="hint">상위 폴더 공유가 있으면 아래 FC별 제한이 적용되지 않습니다. OneDrive에서 해당 공유를 해제해 주세요.</p></div>` : ""}
+        <p class="hint">상위 폴더 공유가 있으면 FC별 제한이 적용되지 않습니다. OneDrive에서 해당 공유를 해제해 주세요.</p></div>` : ""}
+
+      <div class="card">
+        <h3 class="sec-title">현재 매칭 현황</h3>
+        <div class="table-wrap"><table class="matrix">
+          <tr><th>아이디</th>${fcs.map((fc) => `<th>${esc(fc.name)}</th>`).join("")}</tr>
+          ${(CFG.admins || []).map((a) => `<tr><td>${esc(a)} <span class="tag">관리자</span></td>${fcs.map(() => `<td class="ok">●</td>`).join("")}</tr>`).join("")}
+          ${rows.filter((em) => fcs.some((fc) => has(em, fc))).map((em) => `<tr><td>${esc(em)}</td>${fcs.map((fc) =>
+            `<td class="${has(em, fc) ? "ok" : "no"}">${has(em, fc) ? "●" : "–"}</td>`).join("")}</tr>`).join("")}
+        </table></div>
+        <p class="hint">● 검색 가능 · – 접근 불가 · 관리자는 항상 전체</p>
+      </div>
+
       <div class="card">
         <h3 class="sec-title">사용자 추가</h3>
         <form id="addUserForm" class="search">
           <input id="newUser" type="email" placeholder="Microsoft 계정 이메일" autocomplete="off" required>
           <button class="primary" type="submit">추가</button>
         </form>
-        <p class="hint">추가한 뒤 아래에서 검색할 수 있는 FC 폴더를 켜 주세요. 켜는 순간 OneDrive에서 그 폴더가 해당 계정과 읽기 전용으로 공유됩니다.</p>
       </div>
-      ${rows.length ? rows.map((em) => `<div class="card">
+
+      <h3 class="sec-title pad-x">아이디별 FC 폴더 권한</h3>
+      ${rows.length ? rows.map((em) => `<div class="card user-card" data-em="${esc(em)}">
           <div class="user-head"><span class="avatar sm">${esc(em[0].toUpperCase())}</span><span class="r-name">${esc(em)}</span></div>
-          <div class="fc-grid">${fcs.map((fc) => {
+          <label class="chk all"><input type="checkbox" data-all ${allOf(em) ? "checked" : ""}> 전체</label>
+          <div class="chk-grid">${fcs.map((fc) => {
             const p = users.get(em)[fc.id];
             const inherited = p && p.inheritedFrom;
-            return `<button class="fc-chip ${p ? "on" : ""}" data-em="${esc(em)}" data-fc="${esc(fc.id)}" ${inherited ? "disabled" : ""}>
-              <span class="dot"></span>${esc(fc.name)}${inherited ? " (상위 공유)" : ""}</button>`;
+            return `<label class="chk"><input type="checkbox" data-fc="${esc(fc.id)}" ${p ? "checked" : ""} ${inherited ? "disabled" : ""}> ${esc(fc.name)}${inherited ? " (상위 공유)" : ""}</label>`;
           }).join("")}</div>
-        </div>`).join("") : '<p class="hint pad">아직 공유한 사용자가 없습니다.</p>'}
-      <p class="hint pad">해제하면 OneDrive 공유도 바로 해제됩니다. 상대방 휴대폰에는 앱을 새로고침한 뒤 반영됩니다.</p>`;
+          <div class="file-actions"><button class="primary" data-save disabled>저장</button></div>
+        </div>`).join("") : '<p class="hint pad">아직 권한을 준 사용자가 없습니다. 위에서 이메일을 추가하세요.</p>'}
+      <p class="hint pad">저장하면 체크한 FC 폴더가 OneDrive에서 해당 아이디와 읽기 전용으로 공유되고, 체크를 뺀 폴더는 공유가 해제됩니다. 새로 공유하면 OneDrive가 상대방에게 알림 메일을 보냅니다. '전체'는 지금 있는 FC 폴더 모두를 체크합니다.</p>`;
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
       const em = $("newUser").value.trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return toast("이메일 형식을 확인해 주세요.");
-      if (em === String(account().username).toLowerCase()) return toast("관리자는 이미 모든 폴더를 볼 수 있습니다.");
+      if ((CFG.admins || []).map((a) => a.toLowerCase()).includes(em)) return toast("관리자는 이미 모든 폴더를 볼 수 있습니다.");
       extraUsers.add(em);
       if (!users.has(em)) users.set(em, {});
       renderAdmin();
     });
-    $("adminBody").querySelectorAll(".fc-chip").forEach((b) => b.addEventListener("click", () => toggleShare(b)));
+
+    $("adminBody").querySelectorAll(".user-card").forEach((card) => {
+      const em = card.dataset.em;
+      const boxes = [...card.querySelectorAll("input[data-fc]")];
+      const all = card.querySelector("input[data-all]");
+      const save = card.querySelector("[data-save]");
+      const dirty = () => boxes.some((b) => b.checked !== !!users.get(em)[b.dataset.fc]);
+      const sync = () => {
+        all.checked = boxes.every((b) => b.checked);
+        all.indeterminate = !all.checked && boxes.some((b) => b.checked);
+        save.disabled = !dirty();
+      };
+      all.addEventListener("change", () => { boxes.forEach((b) => { if (!b.disabled) b.checked = all.checked; }); sync(); });
+      boxes.forEach((b) => b.addEventListener("change", sync));
+      sync();
+      save.addEventListener("click", () => saveUser(em, boxes, save));
+    });
   }
 
-  async function toggleShare(btn) {
-    const em = btn.dataset.em, fcId = btn.dataset.fc;
-    const fc = adminState.fcs.find((f) => f.id === fcId);
-    const perm = adminState.users.get(em)[fcId];
+  async function saveUser(em, boxes, btn) {
+    const perms = adminState.users.get(em);
+    const name = (id) => adminState.fcs.find((f) => f.id === id).name;
+    const add = boxes.filter((b) => b.checked && !perms[b.dataset.fc]).map((b) => b.dataset.fc);
+    const del = boxes.filter((b) => !b.checked && perms[b.dataset.fc] && !perms[b.dataset.fc].inheritedFrom).map((b) => b.dataset.fc);
+    if (!add.length && !del.length) return;
+    const msg = [`${em} 권한을 변경할까요?`,
+      add.length ? "공유 추가: " + add.map(name).join(", ") + "\n(OneDrive가 상대방에게 알림 메일을 보냅니다)" : "",
+      del.length ? "공유 해제: " + del.map(name).join(", ") : ""].filter(Boolean).join("\n");
+    if (!confirm(msg)) return;
     btn.disabled = true;
-    try {
-      if (perm) {
-        if (!confirm(`${em} 의 '${fc.name}' 폴더 공유를 해제할까요?`)) { btn.disabled = false; return; }
-        await gx("DELETE", itemPath(fcId) + "/permissions/" + perm.id);
-        toast(`'${fc.name}' 공유를 해제했습니다.`);
-      } else {
-        if (!confirm(`${em} 에게 '${fc.name}' 폴더를 읽기 전용으로 공유할까요?\n(OneDrive가 상대방에게 공유 알림 메일을 보냅니다)`)) { btn.disabled = false; return; }
-        await gx("POST", itemPath(fcId) + "/invite", {
-          recipients: [{ email: em }],
-          roles: ["read"],
-          requireSignIn: true,
-          sendInvitation: true,
-          message: "고객찾기 앱(shlife)에서 '" + fc.name + "' 고객 폴더를 검색할 수 있도록 공유합니다."
+    btn.textContent = "저장 중…";
+    const failed = [];
+    for (const id of add) {
+      try {
+        await gx("POST", itemPath(id) + "/invite", {
+          recipients: [{ email: em }], roles: ["read"], requireSignIn: true, sendInvitation: true,
+          message: "고객찾기 앱(shlife)에서 '" + name(id) + "' 고객 폴더를 검색할 수 있도록 공유합니다."
         });
-        toast(`'${fc.name}' 폴더를 공유했습니다.`);
-      }
-      extraUsers.add(em);
-      await loadAdminState();
-      renderAdmin();
-    } catch (e) {
-      btn.disabled = false;
-      handleError(e);
+      } catch (e) { console.error(e); failed.push(name(id) + " 추가"); }
     }
+    for (const id of del) {
+      try { await gx("DELETE", itemPath(id) + "/permissions/" + perms[id].id); }
+      catch (e) { console.error(e); failed.push(name(id) + " 해제"); }
+    }
+    extraUsers.add(em);
+    toast(failed.length ? "일부 실패: " + failed.join(", ") : "저장했습니다.");
+    try { await loadAdminState(); renderAdmin(); } catch (e) { handleError(e); }
   }
 
   // ---------- 오류 처리 ----------
