@@ -81,6 +81,8 @@ button:disabled { opacity: .5; }
 .tag.t-이관 { background: #fdf0e1; color: #b0641a; }
 .tag.t-따행 { background: #fbe7ef; color: #b23a6b; }
 .tag.t-DB { background: #ebe8fb; color: #5b47c4; }
+.tag.t-진행 { background: #e2f1f8; color: #1f6f95; }
+.modes button { padding: 0 2px; font-size: 14px; }
 @media (prefers-color-scheme: dark) {
   .tag.t-계약 { background: #1f3a2b; color: #6fd39a; }
   .tag.t-이관 { background: #3d2c18; color: #f0b26b; }

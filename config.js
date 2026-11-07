@@ -21,7 +21,9 @@ window.APP_CONFIG = {
     { id: "contract", label: "계약", fileKeyword: "계약고객리스트" },
     { id: "transfer", label: "이관", fileKeyword: "이관고객리스트" },
     { id: "ddahaeng", label: "따행", fileKeyword: "따뜻한행복" },
-    { id: "db",       label: "DB",   fileKeyword: "DB" }
+    { id: "db",       label: "DB",   fileKeyword: "DB" },
+    // 진행: 엑셀 대신 FC 폴더 안 "_진행" 폴더의 고객 폴더 이름으로 검색
+    { id: "progress", label: "진행", folderGroup: "진행" }
   ],
 
   // 세부항목 버튼: 파일/폴더 이름에 키워드가 들어 있으면 그 탭에 표시됩니다.

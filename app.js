@@ -198,10 +198,16 @@
   let listCache = null; // [{ type, name, birth, phone, fc, sheet, fields }]
   async function loadLists() {
     if (listCache) return listCache;
-    const { files } = await scanBase();
-    const sources = CFG.lists.flatMap((l) =>
+    const { files, folders } = await scanBase();
+    const sources = CFG.lists.filter((l) => l.fileKeyword).flatMap((l) =>
       files.filter((f) => f.name.includes(l.fileKeyword)).map((f) => ({ ...l, file: f })));
     const out = [];
+    // 폴더 기반 범위 (예: 진행 = "_진행" 폴더 안 고객 폴더)
+    CFG.lists.filter((l) => l.folderGroup).forEach((l) =>
+      folders.filter((f) => f.group === l.folderGroup).forEach((f) => out.push({
+        type: l.label, name: custPart(f.name), fc: f.fc, sheet: "", birth: "", phone: "",
+        fields: [["고객 폴더", f.name], ["분류", l.folderGroup]].concat(f.fc ? [["담당 FC", f.fc]] : [])
+      })));
     await Promise.all(sources.map(async (s) => {
       const wb = await readBook(s.file.id);
       // FC 이름: FC 폴더 이름 → 없으면 파일명 "날짜 - FC - ..." 가운데 부분
@@ -246,7 +252,9 @@
       const records = await loadLists();
       const want = CFG.lists.find((l) => l.id === mode);
       if (want && !records.some((r) => r.type === want.label)) {
-        status.textContent = `'${want.label}' 엑셀 파일이 없습니다. FC 폴더에 이름에 '${want.fileKeyword}'가 들어간 엑셀을 넣어 주세요.`;
+        status.textContent = want.folderGroup
+          ? `'_${want.folderGroup}' 폴더에 고객 폴더가 없습니다.`
+          : `'${want.label}' 엑셀 파일이 없습니다. FC 폴더에 이름에 '${want.fileKeyword}'가 들어간 엑셀을 넣어 주세요.`;
         return;
       }
       const hits = records.filter((r) => (!want || r.type === want.label) && norm(r.name).includes(norm(q)));
