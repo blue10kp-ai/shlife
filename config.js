@@ -23,7 +23,7 @@ window.APP_CONFIG = {
     { id: "contract", label: "계약", fileRegex: " - (리스트|계약)\\.xlsx$", sheet: "계약고객" },
     { id: "transfer", label: "이관", fileRegex: " - (리스트|계약)\\.xlsx$", sheet: "이관고객" },
     { id: "ddahaeng", label: "따행", fileKeyword: "따뜻한행복" },
-    { id: "db",       label: "DB",   fileKeyword: "DB" },
+    { id: "db",       label: "DB",   fileRegex: " - 리스트\\.xlsx$", sheet: "DB고객" },
     { id: "progress", label: "진행", fileRegex: " - (리스트|기타)\\.xlsx$", sheet: "진행고객" }
   ],
 

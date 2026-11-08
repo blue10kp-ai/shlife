@@ -439,6 +439,7 @@
       if (want && !records.some((r) => r.type === want.label)) {
         status.textContent = want.folderGroup
           ? `'_${want.folderGroup}' 폴더에 고객 폴더가 없습니다.`
+          : want.sheet ? `'${want.sheet}' 시트에 아직 고객이 없습니다.`
           : `'${want.label}' 엑셀 파일이 없습니다. FC 폴더에 이름에 '${want.fileKeyword}'가 들어간 엑셀을 넣어 주세요.`;
         return;
       }
@@ -947,7 +948,7 @@
   //   보기: 연락처 · (이메일) · 주소 · 통신사/차량번호/자동차보험갱신일 · (그 밖의 고객리스트 항목) / 미팅장소 · 메모
   //   수정(맨 위 '수정' 버튼): 같은 항목을 한 화면에서 고치고 저장
   //     연락처·주소·이메일 → 고객리스트 엑셀 + '우선' 1 / 나머지 → 고객추가정보 엑셀
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선"];
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선"];
   const BIRTH_KEYS = ["생년월일", "생일"];
   const EMAIL_COLS = ["이메일", "e-mail", "Email"];
   let editMode = false;
@@ -1992,7 +1993,7 @@
     if (/^(19|20)\d{4}$/.test(d)) return d + "00";
     return "";
   };
-  const RECENT_COLS = ["최초계약일", "계약일", "이관일자", "이관월", "최근 보장분석"];
+  const RECENT_COLS = ["최초계약일", "계약일", "이관일자", "이관일", "이관월", "최근 보장분석"];
   function recencyOf(g, contracts) {
     let best = "";
     const take = (v) => { const k = dateKey(v); if (k > best) best = k; };
