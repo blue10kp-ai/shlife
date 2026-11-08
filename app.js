@@ -603,66 +603,6 @@
     return readConsults(x.wb, fc, name);
   }
 
-  // 큰 파일 업로드 (4MB 넘는 음성파일): 업로드 세션으로 나눠 올림
-  async function uploadLargeFile(parentId, fileName, blob) {
-    const s = await gx("POST", itemPath(parentId) + ":/" + encodeURIComponent(fileName) + ":/createUploadSession",
-      { item: { "@microsoft.graph.conflictBehavior": "rename" } });
-    const CHUNK = 320 * 1024 * 12; // 3.75MB (320KB 배수)
-    let item = null;
-    for (let start = 0; start < blob.size; start += CHUNK) {
-      const end = Math.min(start + CHUNK, blob.size);
-      const res = await fetch(s.uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Range": `bytes ${start}-${end - 1}/${blob.size}` },
-        body: blob.slice(start, end)
-      });
-      if (!res.ok && res.status !== 202) throw new Error("업로드 실패 " + res.status);
-      if (res.status === 200 || res.status === 201) item = await res.json();
-    }
-    return item;
-  }
-
-  // 음성파일 이름에서 녹음 날짜·시간 찾기 (예: 통화 녹음 홍길동_261108_153012, Recording 20261108 153012, 2026-11-08 15.30)
-  function voiceDateFromName(name) {
-    const n = String(name);
-    let m = n.match(/(20\d{2})[-._ ]?(\d{2})[-._ ]?(\d{2})[-._ T]+(\d{2})[-._:]?(\d{2})/);
-    if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
-    m = n.match(/(?:^|\D)(\d{2})(\d{2})(\d{2})[-._ ](\d{2})(\d{2})(\d{2})?(?:\D|$)/);
-    if (m && +m[2] >= 1 && +m[2] <= 12 && +m[3] >= 1 && +m[3] <= 31) return new Date(2000 + +m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
-    return null;
-  }
-
-  // 음성파일 → 고객 폴더에 "YYYYMMDD HHmm - 담당 FC - 고객명.확장자"로 저장 + 상담기록에 '음성기록' 줄 추가
-  async function uploadVoice(file) {
-    const folder = current.folders[0];
-    if (!folder) throw new Error("NO_CUSTOMER_FOLDER");
-    const when = voiceDateFromName(file.name) || new Date(file.lastModified || Date.now());
-    const ext = (file.name.match(/\.([a-z0-9]{2,5})$/i) || [, "m4a"])[1].toLowerCase();
-    const stamp = `${when.getFullYear()}${pad2(when.getMonth() + 1)}${pad2(when.getDate())} ${pad2(when.getHours())}${pad2(when.getMinutes())}`;
-    const fc = current.fc || folder.fc || "";
-    const fileName = `${stamp} - ${fc} - ${current.cust.name}.${ext}`.replace(/[\\/:*?"<>|]/g, "");
-    const item = file.size <= 4 * 1024 * 1024
-      ? await gx("PUT", itemPath(folder.id) + ":/" + encodeURIComponent(fileName) + ":/content", await file.arrayBuffer(), file.type || "application/octet-stream")
-      : await uploadLargeFile(folder.id, fileName, file);
-    current.files = current.files.filter((f) => f.id !== item.id).concat({ ...item, path: item.name });
-    const list = await saveConsults(fc, current.cust.name, [{ text: EXTRA.consult.voiceText, when, voice: item.name }], []);
-    return { list, item, when };
-  }
-
-  // 음성기록 재생: 고객 폴더에서 파일을 찾아 앱 안에서 재생 (다른 앱으로 열기 버튼도)
-  async function voiceBlobUrl(fileName) {
-    const f = current.files.find((x) => x.name === fileName);
-    if (!f) throw new Error("NO_VOICE_FILE");
-    if (!current.voiceUrls) current.voiceUrls = {};
-    if (!current.voiceUrls[fileName]) {
-      const buf = await graph(itemPath(f.id) + "/content", true);
-      const ext = fileName.split(".").pop().toLowerCase();
-      const type = { m4a: "audio/mp4", mp4: "audio/mp4", aac: "audio/aac", mp3: "audio/mpeg", wav: "audio/wav", amr: "audio/amr", "3gp": "audio/3gpp", ogg: "audio/ogg", webm: "audio/webm" }[ext] || "audio/*";
-      current.voiceUrls[fileName] = URL.createObjectURL(new Blob([buf], { type }));
-    }
-    return current.voiceUrls[fileName];
-  }
-
   // PDF는 OneDrive 웹 대신 휴대폰의 PDF 보기 앱/브라우저로 열기 (임시 다운로드 주소 사용)
   //   PDF 내용을 받아 브라우저 PDF 보기로 엶 (안드로이드는 'PDF 앱으로 열기' 선택 창)
   async function openFileDirect(id) {
@@ -1122,7 +1062,6 @@
 
   // 상담: '상담기록' 시트에서 이 고객(고객명+담당 FC) 기록, 최근 날짜·시간이 위로
   //   처음엔 최근 10건, '더보기'로 전부 / 각 기록 끝 ✕ → 삭제 표시, 저장 버튼으로 한 번에 엑셀 반영
-  //   음성기록: ▶ 누르면 앱 안에서 재생 / 음성파일 올리기
   let consultShowAll = false;
   function consultHtml() {
     const x = current.extra || {};
@@ -1133,10 +1072,7 @@
     return `<div class="card">
         <h3 class="sec-title">상담기록</h3>
         ${list.length ? `<ul class="consult-list">${shown.map((c, i) => `<li data-ci="${i}">
-            <span class="c-body"><b>${esc(c.date)}</b> ${c.voice
-              ? `<span class="voice-tag">${esc(c.text)}</span><button type="button" class="play-btn" data-play="${i}" aria-label="음성 재생">▶</button>`
-              : esc(c.text).replace(/\n/g, "<br>")}
-              <span class="voice-box" hidden></span></span>
+            <span class="c-body"><b>${esc(c.date)}</b> ${esc(c.text).replace(/\n/g, "<br>")}</span>
             <button type="button" class="x-btn" data-delc="${i}" aria-label="이 상담기록 삭제">✕</button></li>`).join("")}</ul>
             ${list.length > N && !consultShowAll ? `<button type="button" class="more-btn center" id="consultMore">더보기 (${list.length - N}건 더)</button>` : ""}`
           : '<p class="hint">아직 상담기록이 없습니다.</p>'}
@@ -1145,11 +1081,6 @@
         <h3 class="sec-title">새 상담기록</h3>
         <label class="fld"><textarea id="consultNew" rows="4" placeholder="상담 내용을 입력하세요"></textarea></label>
         <div class="file-actions"><button class="primary" id="consultSave" disabled>저장</button></div>
-      </div>
-      <div class="card">
-        <h3 class="sec-title">음성파일 올리기</h3>
-        <label class="secondary photo-pick">🎙️ 음성파일 선택<input type="file" id="voiceInput" accept="audio/*,.m4a,.mp3,.wav,.amr,.3gp,.aac" hidden></label>
-        <p class="hint" id="voiceStatus"></p>
       </div>`;
   }
 
@@ -1171,22 +1102,6 @@
       else { dels.add(i); li.classList.add("to-delete"); x.textContent = "↺"; x.setAttribute("aria-label", "삭제 취소"); }
       refresh();
     }));
-    // ▶ 음성 재생 (앱 안 플레이어 + 다른 앱으로 열기)
-    $("tabBody").querySelectorAll("[data-play]").forEach((p) => p.addEventListener("click", async () => {
-      const c = list[+p.dataset.play];
-      const box = p.closest("li").querySelector(".voice-box");
-      if (!box.hidden) { box.hidden = true; const a = box.querySelector("audio"); if (a) a.pause(); return; }
-      p.disabled = true; p.textContent = "…";
-      try {
-        const url = await voiceBlobUrl(c.voice);
-        box.innerHTML = `<audio controls autoplay src="${url}"></audio>
-          <a class="act-btn" href="${url}" target="_blank" rel="noopener" download="${esc(c.voice)}">다른 앱으로 열기</a>`;
-        box.hidden = false;
-      } catch (e) {
-        toast(String(e.message) === "NO_VOICE_FILE" ? "고객 폴더에서 음성파일을 찾지 못했습니다." : "음성파일을 열지 못했습니다.");
-      }
-      p.disabled = false; p.textContent = "▶";
-    }));
     ta.addEventListener("input", refresh);
     btn.addEventListener("click", async () => {
       if (dels.size && !confirm(`상담기록 ${dels.size}건을 엑셀에서 삭제할까요?`)) return;
@@ -1202,25 +1117,6 @@
         selectTab("consult");
       } catch (e) {
         refresh();
-        saveError(e);
-      }
-    });
-    // 음성파일 올리기
-    const vin = $("voiceInput");
-    vin.addEventListener("change", async () => {
-      const file = vin.files && vin.files[0];
-      vin.value = "";
-      if (!file) return;
-      if (!/^audio\//.test(file.type) && !/\.(m4a|mp3|wav|amr|3gp|aac|ogg|webm)$/i.test(file.name)) return toast("음성파일만 올릴 수 있습니다.");
-      $("voiceStatus").textContent = "올리는 중… " + file.name;
-      try {
-        const { list: newList, item } = await uploadVoice(file);
-        current.extra = { ...current.extra, consults: newList };
-        toast("음성파일을 고객 폴더에 저장했습니다: " + item.name);
-        renderTabs();
-        selectTab("consult");
-      } catch (e) {
-        $("voiceStatus").textContent = "";
         saveError(e);
       }
     });

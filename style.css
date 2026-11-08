@@ -147,8 +147,8 @@ button:disabled { opacity: .5; }
 .back-btn[hidden] { display: none; }
 .back-btn .chev-l { font-size: 28px; line-height: 1; font-weight: 400; }
 .topbar h1 { flex: 1; }
-.top-search { flex: 0 1 46%; min-width: 0; margin-left: auto; position: relative; }
-.recent { position: absolute; top: calc(100% + 6px); left: 0; right: 0; margin: 0; padding: 4px 0; list-style: none; z-index: 30;
+.top-search { flex: 0 1 23%; min-width: 84px; margin-left: auto; position: relative; }
+.recent { position: absolute; top: calc(100% + 6px); right: 0; margin: 0; padding: 4px 0; list-style: none; z-index: 30;
   background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 18px rgba(0,0,0,.18);
   min-width: 180px; max-height: 60vh; overflow-y: auto; }
 .recent[hidden] { display: none; }
@@ -156,7 +156,7 @@ button:disabled { opacity: .5; }
 .recent button { width: 100%; text-align: left; border: 0; background: none; color: var(--text); padding: 10px 12px; font-size: 15px; }
 .recent button:active { background: var(--brand-weak); }
 .top-search[hidden] { display: none; }
-.top-search input { width: 100%; height: 36px; padding: 0 12px; border: 0; border-radius: 18px; font-size: 15px;
+.top-search input { width: 100%; height: 32px; padding: 0 10px; border: 0; border-radius: 18px; font-size: 15px;
   background: rgba(255,255,255,.18); color: #fff; }
 .top-search input::placeholder { color: rgba(255,255,255,.75); }
 .top-search input:focus { outline: none; background: #fff; color: #1b2430; }
@@ -235,14 +235,7 @@ th { background: var(--brand-weak); }
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom));
   background: #222; color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 14px; z-index: 20; }
 
-/* 상담: 더보기, 음성기록 ▶ */
+/* 상담: 더보기 */
 .more-btn.center { justify-content: center; margin: 10px 0 0; }
-.voice-tag { font-weight: 600; }
-.play-btn { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-left: 6px; vertical-align: middle;
-  border: 0; border-radius: 50%; background: var(--brand); color: #fff; font-size: 13px; cursor: pointer; }
-.voice-box { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-.voice-box[hidden] { display: none; }
-.voice-box audio { width: 100%; }
-.voice-box .act-btn { align-self: flex-start; }
 .val-row .val.nowrap { white-space: nowrap; word-break: normal; }
 .kv { grid-template-columns: minmax(64px, 26%) 1fr; }
