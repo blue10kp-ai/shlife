@@ -216,11 +216,23 @@
   const PHONE_COLS = ["연락처", "휴대폰", "핸드폰", "전화번호"];
 
   let listCache = null; // [{ type, name, birth, phone, fc, sheet, fields }]
+  // 설정의 파일 조건(fileRegex 또는 fileKeyword)에 맞는 엑셀 중 FC 폴더마다 가장 최근 것 하나만
+  //   (예: "20261108 - 최수진 - 계약.xlsx"와 나중의 "20261115 - 최수진 - 계약.xlsx"가 있으면 20261115만)
+  function pickSourceFiles(files, spec) {
+    const re = spec.fileRegex ? new RegExp(spec.fileRegex, "i") : null;
+    const hit = files.filter((f) => /\.xlsx?$/i.test(f.name) && (re ? re.test(f.name) : spec.fileKeyword && f.name.includes(spec.fileKeyword)));
+    const byFc = new Map();
+    hit.forEach((f) => { const k = f.fc || ""; if (!byFc.has(k) || f.name > byFc.get(k).name) byFc.set(k, f); });
+    return [...byFc.values()];
+  }
+  // 읽을 시트: 설정에 sheet가 있으면 그 시트만, 없으면 전부
+  const sheetsOf = (wb, spec) => (spec.sheet ? wb.SheetNames.filter((n) => n.trim() === spec.sheet) : wb.SheetNames);
+
   async function loadLists() {
     if (listCache) return listCache;
     const { files, folders } = await scanBase();
-    const sources = CFG.lists.filter((l) => l.fileKeyword).flatMap((l) =>
-      files.filter((f) => f.name.includes(l.fileKeyword)).map((f) => ({ ...l, file: f })));
+    const sources = CFG.lists.filter((l) => l.fileRegex || l.fileKeyword).flatMap((l) =>
+      pickSourceFiles(files, l).map((f) => ({ ...l, file: f })));
     const out = [];
     // 폴더 기반 범위 (예: 진행 = "_진행" 폴더 안 고객 폴더)
     CFG.lists.filter((l) => l.folderGroup).forEach((l) =>
@@ -232,7 +244,7 @@
       const wb = await readBook(s.file.id);
       // FC 이름: FC 폴더 이름 → 없으면 파일명 "날짜 - FC - ..." 가운데 부분
       const fc = s.file.fc || (s.file.name.split(" - ")[1] || "").trim();
-      wb.SheetNames.forEach((sheet) => {
+      sheetsOf(wb, s).forEach((sheet) => {
         const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: "", raw: false });
         // 제목 줄이 있을 수 있으니 '이름/계약자' 칸이 있는 줄을 머리글로 사용
         const h = rows.findIndex((r) => r.some((c) => NAME_COLS.includes(String(c).trim())));
@@ -345,12 +357,12 @@
     contractCache = (async () => {
       const { files } = await scanBase();
       const sources = (CFG.contractLists || []).flatMap((l) =>
-        files.filter((f) => f.name.includes(l.fileKeyword)).map((f) => ({ ...l, file: f })));
+        pickSourceFiles(files, l).map((f) => ({ ...l, file: f })));
       const out = [];
       await Promise.all(sources.map(async (s) => {
         const wb = await readBook(s.file.id);
         const fc = s.file.fc || (s.file.name.split(" - ")[1] || "").trim();
-        wb.SheetNames.forEach((sheet) => {
+        sheetsOf(wb, s).forEach((sheet) => {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: "", raw: false });
           const h = rows.findIndex((r) => r.some((c) => String(c).trim() === "계약자"));
           if (h < 0) return;
@@ -753,7 +765,7 @@
 
   // 기본정보: 고객리스트의 인적 정보만 (계약·이관 내용, 상품명, 우편번호, 성별 제외 → 성별은 생년월일 뒤에)
   //   + 추가 정보 엑셀의 통신사(연락처 앞), 차량번호·자동차보험갱신일(주소 밑)
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별"];
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더"];
   const BIRTH_KEYS = ["생년월일", "생일"];
   let extraOpen = false;
 
@@ -1178,7 +1190,7 @@
       return `<div class="card">
         <div class="entry-head"><span class="tag t-${esc(c.type)}">${esc(c.type)}</span>
           ${status ? `<span class="tag">${esc(status)}</span>` : ""}
-          <span class="hint">${esc([c.fc, c.type === "이관" ? c.sheet : ""].filter(Boolean).join(" · "))}</span></div>
+          <span class="hint">${esc([c.fc, c.row["이관일자"] ? "이관 " + c.row["이관일자"] : ""].filter(Boolean).join(" · "))}</span></div>
         <div class="contract-title">${esc(productName(c.row["상품명"]) || "(상품명 없음)")}</div>
         <dl class="kv">${shown.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
         ${pdfButton(pdf)}

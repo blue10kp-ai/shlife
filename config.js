@@ -15,20 +15,20 @@ window.APP_CONFIG = {
   // 아이디별 FC 권한을 저장하는 파일 (고객 폴더 안). 관리자 페이지에서 편집
   permFile: "shlife-권한.json",
 
-  // 고객 검색 범위 버튼 (전체 + 아래 순서). FC 폴더 안에서 이름에 키워드가 들어간 엑셀을 모두 읽음
+  // 고객 검색 범위 버튼 (전체 + 아래 순서)
+  //   FC 폴더 안 "날짜 - FC - 계약.xlsx" / "날짜 - FC - 기타.xlsx"의 시트를 읽음 (FC마다 가장 최근 날짜 파일 하나)
   lists: [
-    { id: "contract", label: "계약", fileKeyword: "계약고객리스트" },
-    { id: "transfer", label: "이관", fileKeyword: "이관고객리스트" },
+    { id: "contract", label: "계약", fileRegex: " - 계약\\.xlsx$", sheet: "계약고객" },
+    { id: "transfer", label: "이관", fileRegex: " - 계약\\.xlsx$", sheet: "이관고객" },
     { id: "ddahaeng", label: "따행", fileKeyword: "따뜻한행복" },
     { id: "db",       label: "DB",   fileKeyword: "DB" },
-    // 진행: 엑셀 대신 FC 폴더 안 "_진행" 폴더의 고객 폴더 이름으로 검색
-    { id: "progress", label: "진행", folderGroup: "진행" }
+    { id: "progress", label: "진행", fileRegex: " - 기타\\.xlsx$", sheet: "진행고객" }
   ],
 
-  // 계약현황 탭에 보여줄 계약 상세 엑셀 (FC 폴더 안, 이름에 키워드 포함). '계약자'·'주피보험자'·'피보'로 고객 매칭
+  // 계약 탭에 보여줄 계약 상세 ('계약자'·'주피보험자'·'피보'로 고객 매칭)
   contractLists: [
-    { label: "계약", fileKeyword: "계약리스트" },
-    { label: "이관", fileKeyword: "이관리스트" }
+    { label: "계약", fileRegex: " - 계약\\.xlsx$", sheet: "계약" },
+    { label: "이관", fileRegex: " - 계약\\.xlsx$", sheet: "이관" }
   ],
 
   // 기본정보 탭의 추가 정보 (고객 폴더 바로 안 엑셀). 담당 FC + 고객명으로 줄을 찾아 읽고/저장
