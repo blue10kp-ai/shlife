@@ -478,7 +478,7 @@
       const voice = at(r, vi) ? String(at(r, vi).v).trim() : "";
       out.push({ row: r, date: d.text, key: d.key, text: String(tx.v), voice });
     }
-    return out.sort((a, b) => b.key - a.key || b.row - a.row); // 최근 날짜·시간이 위로
+    return out.sort((a, b) => b.key - a.key || a.row - b.row); // 최근 날짜·시간이 위로 (같으면 엑셀 순서)
   }
 
   async function loadExtraFor(fc, name) {
