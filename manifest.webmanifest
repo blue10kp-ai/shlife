@@ -1,6 +1,6 @@
 {
-  "name": "FC 활동지원",
-  "short_name": "FC 활동지원",
+  "name": "신한FC",
+  "short_name": "신한FC",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

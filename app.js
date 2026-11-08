@@ -84,7 +84,7 @@
 
   // ---------- 화면 전환 ----------
   const views = ["loginView", "scheduleView", "searchView", "customerView", "adminView"];
-  const APP_NAME = "FC 활동지원";
+  const APP_NAME = "신한FC";
   const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", adminView: "관리자" };
   const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", adminView: "admin" };
   function show(view) {
@@ -379,7 +379,7 @@
     carrierCol: "통신사",                      // 연락처 앞에 표시
     afterAddress: ["차량번호", "자동차보험갱신일"], // 기본정보 주소 밑에 표시
     monthDayCols: ["자동차보험갱신일"],          // 월/일을 골라서 'MMDD'로 저장
-    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: "저장날짜", textCol: "내용" }
+    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: "저장날짜", textCol: "내용", voiceCol: "음성파일", voiceText: "음성기록" }
   }, CFG.extraInfo || {});
   const nospace = (s) => String(s || "").replace(/\s+/g, "");
 
@@ -425,26 +425,47 @@
   const monthDayText = (v) => { const p = parseMonthDay(v); return p ? `${p[0]}월 ${p[1]}일` : String(v || ""); };
   const pad2 = (n) => String(n).padStart(2, "0");
 
-  // 상담기록: 날짜 값 → "2026.11.08"
+  // 상담기록: 날짜(시간) 값 → { key: 정렬용 YYYYMMDDHHmm, text: "2026.11.08 15:30" }
+  //   20261108(숫자) · 엑셀 날짜/시간 · "2026-11-08 15:30" 글자 모두 읽음
   function consultDate(cell) {
     if (!cell) return { key: 0, text: "" };
     const v = cell.v;
-    let y, m, d;
-    if (typeof v === "number" && v > 19000000) { y = Math.floor(v / 10000); m = Math.floor(v / 100) % 100; d = v % 100; }
-    else if (typeof v === "number") { const t = new Date(Date.UTC(1899, 11, 30) + v * 86400000); y = t.getUTCFullYear(); m = t.getUTCMonth() + 1; d = t.getUTCDate(); }
-    else { const s = String(v).replace(/\D/g, ""); if (s.length >= 8) { y = +s.slice(0, 4); m = +s.slice(4, 6); d = +s.slice(6, 8); } else return { key: 0, text: String(v) }; }
-    return { key: y * 10000 + m * 100 + d, text: `${y}.${pad2(m)}.${pad2(d)}` };
+    let y, m, d, hh = null, mi = null;
+    if (typeof v === "number" && v > 190000000000) { // 202611081530
+      y = Math.floor(v / 1e8); m = Math.floor(v / 1e6) % 100; d = Math.floor(v / 1e4) % 100; hh = Math.floor(v / 100) % 100; mi = v % 100;
+    } else if (typeof v === "number" && v > 19000000) { // 20261108
+      y = Math.floor(v / 10000); m = Math.floor(v / 100) % 100; d = v % 100;
+    } else if (typeof v === "number") { // 엑셀 날짜(시간) 일련번호
+      const t = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400) * 1000);
+      y = t.getUTCFullYear(); m = t.getUTCMonth() + 1; d = t.getUTCDate();
+      if (v % 1) { hh = t.getUTCHours(); mi = t.getUTCMinutes(); }
+    } else {
+      const s = String(v).match(/(\d{4})\D?(\d{1,2})\D?(\d{1,2})(?:\D+(\d{1,2})\D?(\d{2}))?/);
+      if (!s) return { key: 0, text: String(v) };
+      [y, m, d] = [+s[1], +s[2], +s[3]];
+      if (s[4] != null) { hh = +s[4]; mi = +s[5]; }
+    }
+    const key = (y * 10000 + m * 100 + d) * 10000 + (hh == null ? 0 : hh * 100 + mi);
+    return { key, text: `${y}.${pad2(m)}.${pad2(d)}` + (hh == null ? "" : ` ${pad2(hh)}:${pad2(mi)}`) };
   }
 
-  function readConsults(wb, fc, name) {
+  // Date → 엑셀 날짜·시간 일련번호 (휴대폰 시간 그대로)
+  const toExcelDateTime = (dt) =>
+    (Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), dt.getMinutes()) - Date.UTC(1899, 11, 30)) / 86400000;
+
+  function consultSheetInfo(ws) {
     const C = EXTRA.consult;
-    const ws = wb.Sheets[C.sheet];
-    if (!ws || !ws["!ref"]) return [];
-    const rg = XLSX.utils.decode_range(ws["!ref"]);
+    const rg = XLSX.utils.decode_range(ws["!ref"] || "A1:D1");
     const head = [];
     for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[XLSX.utils.encode_cell({ r: rg.s.r, c })]; head[c] = cell ? String(cell.v).trim() : ""; }
     const col = (h) => head.indexOf(h);
-    const [ni, fi, di, ti] = [col(C.nameCol), col(C.fcCol), col(C.dateCol), col(C.textCol)];
+    return { rg, head, ni: col(C.nameCol), fi: col(C.fcCol), di: col(C.dateCol), ti: col(C.textCol), vi: col(C.voiceCol) };
+  }
+
+  function readConsults(wb, fc, name) {
+    const ws = wb.Sheets[EXTRA.consult.sheet];
+    if (!ws || !ws["!ref"]) return [];
+    const { rg, ni, fi, di, ti, vi } = consultSheetInfo(ws);
     if (ni < 0 || ti < 0) return [];
     const at = (r, c) => c < 0 ? null : ws[XLSX.utils.encode_cell({ r, c })];
     const out = [];
@@ -453,9 +474,10 @@
       if (!nm || !tx || norm(nm.v) !== norm(name)) continue;
       if (!sameFc(at(r, fi) ? at(r, fi).v : "", fc)) continue;
       const d = consultDate(at(r, di));
-      out.push({ row: r, date: d.text, key: d.key, text: String(tx.v) });
+      const voice = at(r, vi) ? String(at(r, vi).v).trim() : "";
+      out.push({ row: r, date: d.text, key: d.key, text: String(tx.v), voice });
     }
-    return out.sort((a, b) => b.key - a.key || b.row - a.row); // 최근 날짜가 위로
+    return out.sort((a, b) => b.key - a.key || b.row - a.row); // 최근 날짜·시간이 위로
   }
 
   async function loadExtraFor(fc, name) {
@@ -512,69 +534,132 @@
     await uploadExtra(x);
   }
 
-  // 상담기록 저장: ① ✕로 표시한 기록의 줄을 시트에서 삭제(아래 줄은 위로 당김) ② 새 내용이 있으면 맨 아래 줄에 추가
-  //   새 줄: [고객명, 담당 FC, 저장날짜(YYYYMMDD), 내용]
-  async function saveConsults(fc, name, text, dels) {
+  // 상담기록 저장: ① ✕로 표시한 기록 삭제 ② 새 기록 추가(날짜·시간) ③ 시트 전체를 날짜·시간 최신순으로 정렬
+  //   adds: [{ text, when: Date, voice: "파일명" }]
+  async function saveConsults(fc, name, adds, dels) {
     const C = EXTRA.consult;
     const x = await readExtra(); // 저장 직전 최신 파일을 다시 읽음
     if (!x) throw new Error("NO_EXTRA_FILE");
     let ws = x.wb.Sheets[C.sheet];
     if (!ws) {
-      ws = XLSX.utils.aoa_to_sheet([[C.nameCol, C.fcCol, C.dateCol, C.textCol]]);
+      ws = XLSX.utils.aoa_to_sheet([[C.nameCol, C.fcCol, C.dateCol, C.textCol, C.voiceCol]]);
       XLSX.utils.book_append_sheet(x.wb, ws, C.sheet);
     }
-    const rg = XLSX.utils.decode_range(ws["!ref"] || "A1:D1");
     const enc = (r, c) => XLSX.utils.encode_cell({ r, c });
-    const head = [];
-    for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[enc(rg.s.r, c)]; head[c] = cell ? String(cell.v).trim() : ""; }
-    const [ni, fi, di, ti] = [C.nameCol, C.fcCol, C.dateCol, C.textCol].map((h) => head.indexOf(h));
-
-    // ① 삭제: 같은 고객·FC·날짜·내용인 줄을 찾아 지움 (최신 파일 기준으로 다시 찾기 때문에 줄 번호가 바뀌어도 안전)
-    if (dels.length) {
-      const toDel = new Set();
-      dels.forEach((d) => {
-        for (let r = rg.s.r + 1; r <= rg.e.r; r++) {
-          if (toDel.has(r)) continue;
-          const nm = ws[enc(r, ni)], tx = ws[enc(r, ti)];
-          if (!nm || !tx || norm(nm.v) !== norm(name) || String(tx.v) !== d.text) continue;
-          if (!sameFc(fi >= 0 && ws[enc(r, fi)] ? ws[enc(r, fi)].v : "", fc)) continue;
-          if (consultDate(di >= 0 ? ws[enc(r, di)] : null).key !== d.key) continue;
-          toDel.add(r);
-          break;
-        }
-      });
-      if (toDel.size) {
-        const moved = {};
-        let out = rg.s.r + 1;
-        for (let r = rg.s.r + 1; r <= rg.e.r; r++) {
-          if (!toDel.has(r)) {
-            for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[enc(r, c)]; if (cell) moved[enc(out, c)] = cell; }
-            out++;
-          }
-          for (let c = rg.s.c; c <= rg.e.c; c++) delete ws[enc(r, c)];
-        }
-        Object.assign(ws, moved);
-        rg.e.r = Math.max(rg.s.r, out - 1);
-      }
+    let info = consultSheetInfo(ws);
+    // 음성파일 열이 없으면 머리글에 추가
+    if (adds.some((a) => a.voice) && info.vi < 0) {
+      const c = info.rg.e.c + 1;
+      ws[enc(info.rg.s.r, c)] = { t: "s", v: C.voiceCol };
+      info.rg.e.c = c;
+      ws["!ref"] = XLSX.utils.encode_range(info.rg);
+      info = consultSheetInfo(ws);
     }
+    const { rg, ni, fi, di, ti, vi } = info;
+    const width = rg.e.c - rg.s.c + 1;
+
+    // 본문 줄을 [셀...] 배열로 꺼냄
+    let rows = [];
+    for (let r = rg.s.r + 1; r <= rg.e.r; r++) {
+      const cells = [];
+      let any = false;
+      for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[enc(r, c)]; cells.push(cell || null); if (cell) any = true; }
+      if (any) rows.push(cells);
+    }
+    const cellOf = (row, c) => (c < 0 ? null : row[c - rg.s.c]);
+
+    // ① 삭제: 같은 고객·FC·날짜·내용인 줄
+    dels.forEach((d) => {
+      const i = rows.findIndex((row) => {
+        const nm = cellOf(row, ni), tx = cellOf(row, ti), f = cellOf(row, fi);
+        return nm && tx && norm(nm.v) === norm(name) && String(tx.v) === d.text &&
+          sameFc(f ? f.v : "", fc) && consultDate(cellOf(row, di)).key === d.key;
+      });
+      if (i >= 0) rows.splice(i, 1);
+    });
 
     // ② 추가
-    if (text) {
-      let last = rg.s.r;
-      for (let r = rg.s.r + 1; r <= rg.e.r; r++) for (let c = rg.s.c; c <= rg.e.c; c++) if (ws[enc(r, c)]) last = r;
-      const r = last + 1;
-      const now = new Date();
-      const ymd = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
-      const put = (c, cell) => { if (c >= 0) ws[enc(r, c)] = cell; };
+    adds.forEach((a) => {
+      const row = new Array(width).fill(null);
+      const put = (c, cell) => { if (c >= 0) row[c - rg.s.c] = cell; };
       put(ni, { t: "s", v: name });
       put(fi, { t: "s", v: fc });
-      put(di, { t: "n", v: ymd });
-      put(ti, { t: "s", v: text });
-      rg.e.r = Math.max(rg.e.r, r);
-    }
+      put(di, { t: "n", v: toExcelDateTime(a.when || new Date()), z: "yyyy-mm-dd hh:mm" });
+      put(ti, { t: "s", v: a.text });
+      if (a.voice) put(vi, { t: "s", v: a.voice });
+      rows.push(row);
+    });
+
+    // ③ 최신 날짜·시간이 위로 (같으면 기존 순서 유지)
+    rows = rows.map((row, i) => ({ row, i, key: consultDate(cellOf(row, di)).key }))
+      .sort((a, b) => b.key - a.key || a.i - b.i).map((o) => o.row);
+
+    for (let r = rg.s.r + 1; r <= rg.e.r; r++) for (let c = rg.s.c; c <= rg.e.c; c++) delete ws[enc(r, c)];
+    rows.forEach((row, i) => row.forEach((cell, j) => { if (cell) ws[enc(rg.s.r + 1 + i, rg.s.c + j)] = cell; }));
+    rg.e.r = rg.s.r + rows.length;
     ws["!ref"] = XLSX.utils.encode_range(rg);
     await uploadExtra(x);
     return readConsults(x.wb, fc, name);
+  }
+
+  // 큰 파일 업로드 (4MB 넘는 음성파일): 업로드 세션으로 나눠 올림
+  async function uploadLargeFile(parentId, fileName, blob) {
+    const s = await gx("POST", itemPath(parentId) + ":/" + encodeURIComponent(fileName) + ":/createUploadSession",
+      { item: { "@microsoft.graph.conflictBehavior": "rename" } });
+    const CHUNK = 320 * 1024 * 12; // 3.75MB (320KB 배수)
+    let item = null;
+    for (let start = 0; start < blob.size; start += CHUNK) {
+      const end = Math.min(start + CHUNK, blob.size);
+      const res = await fetch(s.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Range": `bytes ${start}-${end - 1}/${blob.size}` },
+        body: blob.slice(start, end)
+      });
+      if (!res.ok && res.status !== 202) throw new Error("업로드 실패 " + res.status);
+      if (res.status === 200 || res.status === 201) item = await res.json();
+    }
+    return item;
+  }
+
+  // 음성파일 이름에서 녹음 날짜·시간 찾기 (예: 통화 녹음 홍길동_261108_153012, Recording 20261108 153012, 2026-11-08 15.30)
+  function voiceDateFromName(name) {
+    const n = String(name);
+    let m = n.match(/(20\d{2})[-._ ]?(\d{2})[-._ ]?(\d{2})[-._ T]+(\d{2})[-._:]?(\d{2})/);
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+    m = n.match(/(?:^|\D)(\d{2})(\d{2})(\d{2})[-._ ](\d{2})(\d{2})(\d{2})?(?:\D|$)/);
+    if (m && +m[2] >= 1 && +m[2] <= 12 && +m[3] >= 1 && +m[3] <= 31) return new Date(2000 + +m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+    return null;
+  }
+
+  // 음성파일 → 고객 폴더에 "YYYYMMDD HHmm - 담당 FC - 고객명.확장자"로 저장 + 상담기록에 '음성기록' 줄 추가
+  async function uploadVoice(file) {
+    const folder = current.folders[0];
+    if (!folder) throw new Error("NO_CUSTOMER_FOLDER");
+    const when = voiceDateFromName(file.name) || new Date(file.lastModified || Date.now());
+    const ext = (file.name.match(/\.([a-z0-9]{2,5})$/i) || [, "m4a"])[1].toLowerCase();
+    const stamp = `${when.getFullYear()}${pad2(when.getMonth() + 1)}${pad2(when.getDate())} ${pad2(when.getHours())}${pad2(when.getMinutes())}`;
+    const fc = current.fc || folder.fc || "";
+    const fileName = `${stamp} - ${fc} - ${current.cust.name}.${ext}`.replace(/[\\/:*?"<>|]/g, "");
+    const item = file.size <= 4 * 1024 * 1024
+      ? await gx("PUT", itemPath(folder.id) + ":/" + encodeURIComponent(fileName) + ":/content", await file.arrayBuffer(), file.type || "application/octet-stream")
+      : await uploadLargeFile(folder.id, fileName, file);
+    current.files = current.files.filter((f) => f.id !== item.id).concat({ ...item, path: item.name });
+    const list = await saveConsults(fc, current.cust.name, [{ text: EXTRA.consult.voiceText, when, voice: item.name }], []);
+    return { list, item, when };
+  }
+
+  // 음성기록 재생: 고객 폴더에서 파일을 찾아 앱 안에서 재생 (다른 앱으로 열기 버튼도)
+  async function voiceBlobUrl(fileName) {
+    const f = current.files.find((x) => x.name === fileName);
+    if (!f) throw new Error("NO_VOICE_FILE");
+    if (!current.voiceUrls) current.voiceUrls = {};
+    if (!current.voiceUrls[fileName]) {
+      const buf = await graph(itemPath(f.id) + "/content", true);
+      const ext = fileName.split(".").pop().toLowerCase();
+      const type = { m4a: "audio/mp4", mp4: "audio/mp4", aac: "audio/aac", mp3: "audio/mpeg", wav: "audio/wav", amr: "audio/amr", "3gp": "audio/3gpp", ogg: "audio/ogg", webm: "audio/webm" }[ext] || "audio/*";
+      current.voiceUrls[fileName] = URL.createObjectURL(new Blob([buf], { type }));
+    }
+    return current.voiceUrls[fileName];
   }
 
   // PDF는 OneDrive 웹 대신 휴대폰의 PDF 보기 앱/브라우저로 열기 (임시 다운로드 주소 사용)
@@ -602,9 +687,10 @@
     $("avatar").textContent = cust.name[0];
     $("avatar").style.backgroundImage = "";
     extraOpen = false; // 추가 항목은 처음엔 접힌 상태
+    consultShowAll = false; // 상담기록은 처음엔 최근 10건
     $("avatar").classList.remove("has-photo");
     $("custSub").textContent = [cust.birth, ...new Set(cust.entries.map((e) => e.type))].filter(Boolean).join(" · ");
-    $("tabBody").innerHTML = '<p class="hint pad">고객 폴더를 찾는 중…</p>';
+    $("tabBody").innerHTML = '<p class="hint pad">고객 정보를 불러오는 중…</p>';
     $("tabs").innerHTML = "";
     history.pushState({ v: "customer" }, "");
     current = { cust, folders: [], files: [], phones: null, contracts: [], fc: "", extra: { values: {} }, profilePhoto: null, photoUrl: null };
@@ -737,6 +823,22 @@
     return s;
   }
 
+  // 연락처(휴대폰): 📞 Call · 💬 SMS / 이메일: ✉️ @ — 오른쪽 끝 정렬 버튼
+  const MOBILE_RE = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/;
+  function valueWithActions(k, v) {
+    let btns = "";
+    const m = PHONE_COLS.includes(k.trim()) && String(v).match(MOBILE_RE);
+    if (m) {
+      const num = m[0].replace(/\D/g, "");
+      btns = `<a class="act-btn" href="tel:${num}" aria-label="전화 걸기">📞<span>Call</span></a>
+        <a class="act-btn" href="sms:${num}" aria-label="문자 보내기">💬<span>SMS</span></a>`;
+    } else if (/이메일|e-?mail/i.test(k) && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v).trim())) {
+      btns = `<a class="act-btn" href="mailto:${esc(String(v).trim())}" aria-label="메일 보내기">✉️<span>@</span></a>`;
+    }
+    return btns ? `<div class="val-row"><span class="val">${esc(v)}</span><span class="acts">${btns}</span></div>`
+      : `<div>${esc(v)}</div>`;
+  }
+
   function basicHtml() {
     const c = current.cust;
     const x = current.extra || { values: {}, fields: [] };
@@ -754,20 +856,14 @@
     // 통신사를 연락처 앞에
     const carrier = (ev[EXTRA.carrierCol] || "").trim();
     if (carrier) PHONE_COLS.forEach((k) => { if (merged.has(k)) merged.set(k, merged.get(k).map((v) => carrier + " " + v)); });
-    // 차량번호·자동차보험갱신일을 주소 밑에 (갱신일은 "3월 26일")
-    const car = EXTRA.afterAddress.filter((k) => (ev[k] || "").trim())
-      .map((k) => [k, [EXTRA.monthDayCols.includes(k) ? monthDayText(ev[k]) : ev[k]]]);
-    let rows = [...merged];
-    if (car.length) {
-      const ai = rows.findIndex(([k]) => k === "주소");
-      rows = ai >= 0 ? [...rows.slice(0, ai + 1), ...car, ...rows.slice(ai + 1)] : rows.concat(car);
-    }
+    // (차량번호·자동차보험갱신일은 기본 표에 표시하지 않음 — 추가 항목에서만 보고 수정)
+    const rows = [...merged];
     const types = [...new Set(c.entries.map((e) => e.type))];
     const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
     const infoCard = `<div class="card">
         <div class="entry-head">${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}
           <span class="hint">${esc(fcs.length ? "담당 FC: " + fcs.join(", ") : "")}</span></div>
-        ${rows.length ? `<dl class="kv">${rows.map(([k, vs]) => `<dt>${esc(k)}</dt><dd>${vs.map(esc).join("<br>")}</dd>`).join("")}</dl>`
+        ${rows.length ? `<dl class="kv">${rows.map(([k, vs]) => `<dt>${esc(k)}</dt><dd>${vs.map((v) => valueWithActions(k, v)).join("")}</dd>`).join("")}</dl>`
           : '<p class="hint">고객리스트에 기본정보가 없습니다.</p>'}
       </div>`;
 
@@ -797,7 +893,6 @@
         ${current.folders.length ? "" : '<p class="hint">이 고객의 폴더가 없어 사진을 저장할 수 없습니다.</p>'}
       </div>`;
     const extraCard = `<div class="card">
-        <h3 class="sec-title">추가 정보</h3>
         ${x.missing ? `<p class="hint">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p>` :
           x.error ? '<p class="hint">추가 정보 엑셀을 읽지 못했습니다.</p>' : `
           ${prim.map(field).join("")}
@@ -846,11 +941,14 @@
     if (photoInput) photoInput.addEventListener("change", async () => {
       const file = photoInput.files && photoInput.files[0];
       if (!file) return;
+      photoInput.value = ""; // 같은 사진을 다시 골라도 change가 일어나게
       try {
-        pendingPhoto = await shrinkImage(file, 1600, 0.85);
+        const cropped = await cropToCircle(file); // 원 안에 맞추기 (취소하면 null)
+        if (!cropped) return;
+        pendingPhoto = cropped;
         $("photoThumb").innerHTML = `<img src="${URL.createObjectURL(pendingPhoto)}" alt="선택한 사진">`;
         btn.disabled = !dirty();
-      } catch (e) { toast("사진을 읽지 못했습니다."); }
+      } catch (e) { console.error(e); toast("사진을 읽지 못했습니다."); }
     });
     if (current.profilePhoto && !current.photoUrl) loadProfilePhoto();
     btn.addEventListener("click", async () => {
@@ -879,6 +977,82 @@
   }
 
   // ---------- 프로필 사진 ----------
+  // 원형 자르기: 끌어서 위치 이동, 막대/두 손가락으로 크기 조절 → 정사각형 800px JPEG (원 안 영역)
+  function cropToCircle(file) {
+    return new Promise((resolve, reject) => {
+      const modal = $("cropModal"), view = $("cropView"), img = $("cropImg"), zoom = $("cropZoom");
+      const url = URL.createObjectURL(file);
+      let V = 0, base = 1, z = 1, tx = 0, ty = 0, w = 0, h = 0;
+      const pointers = new Map();
+      let pinchStart = null;
+
+      const s = () => base * z;
+      const clamp = () => {
+        tx = Math.min(0, Math.max(V - w * s(), tx));
+        ty = Math.min(0, Math.max(V - h * s(), ty));
+      };
+      const draw = () => {
+        clamp();
+        img.style.width = w * s() + "px";
+        img.style.transform = `translate(${tx}px, ${ty}px)`;
+      };
+      const setZoom = (nz) => {
+        nz = Math.min(4, Math.max(1, nz));
+        const cx = (V / 2 - tx) / s(), cy = (V / 2 - ty) / s(); // 가운데 기준으로 확대/축소
+        z = nz;
+        tx = V / 2 - cx * s(); ty = V / 2 - cy * s();
+        zoom.value = z;
+        draw();
+      };
+      const onDown = (e) => { view.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); pinchStart = null; };
+      const onMove = (e) => {
+        if (!pointers.has(e.pointerId)) return;
+        const prev = pointers.get(e.pointerId);
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pointers.size === 1) { tx += e.clientX - prev.x; ty += e.clientY - prev.y; draw(); }
+        else if (pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (!pinchStart) pinchStart = { d, z };
+          else setZoom(pinchStart.z * d / pinchStart.d);
+        }
+      };
+      const onUp = (e) => { pointers.delete(e.pointerId); pinchStart = null; };
+      const onZoom = () => setZoom(+zoom.value);
+      const onWheel = (e) => { e.preventDefault(); setZoom(z * (e.deltaY < 0 ? 1.08 : 0.93)); };
+      const cleanup = () => {
+        modal.hidden = true;
+        view.removeEventListener("pointerdown", onDown); view.removeEventListener("pointermove", onMove);
+        view.removeEventListener("pointerup", onUp); view.removeEventListener("pointercancel", onUp);
+        view.removeEventListener("wheel", onWheel); zoom.removeEventListener("input", onZoom);
+        $("cropOk").onclick = $("cropCancel").onclick = null;
+        URL.revokeObjectURL(url);
+      };
+      img.onload = () => {
+        modal.hidden = false;
+        V = view.clientWidth;
+        w = img.naturalWidth; h = img.naturalHeight;
+        base = V / Math.min(w, h); // 원을 꽉 채우는 크기
+        z = 1; zoom.value = 1;
+        tx = (V - w * base) / 2; ty = (V - h * base) / 2; // 가운데
+        draw();
+        view.addEventListener("pointerdown", onDown); view.addEventListener("pointermove", onMove);
+        view.addEventListener("pointerup", onUp); view.addEventListener("pointercancel", onUp);
+        view.addEventListener("wheel", onWheel, { passive: false }); zoom.addEventListener("input", onZoom);
+        $("cropCancel").onclick = () => { cleanup(); resolve(null); };
+        $("cropOk").onclick = () => {
+          const OUT = 800, cv = document.createElement("canvas");
+          cv.width = cv.height = OUT;
+          cv.getContext("2d").drawImage(img, -tx / s(), -ty / s(), V / s(), V / s(), 0, 0, OUT, OUT);
+          cleanup();
+          cv.toBlob((b) => (b ? resolve(b) : reject(new Error("이미지 변환 실패"))), "image/jpeg", 0.88);
+        };
+      };
+      img.onerror = () => { cleanup(); reject(new Error("이미지를 열 수 없음")); };
+      img.src = url;
+    });
+  }
+
   // 사진 줄이기: 긴 쪽 maxSide 픽셀, JPEG
   function shrinkImage(file, maxSide, quality) {
     return new Promise((resolve, reject) => {
@@ -945,23 +1119,36 @@
     handleError(e);
   }
 
-  // 상담기록: '상담기록' 시트에서 이 고객(고객명+담당 FC) 기록, 최근 날짜가 위로
-  //   각 기록 끝 ✕ → 삭제 표시(다시 누르면 취소), 새 기록 입력, 저장 버튼으로 한 번에 엑셀 반영
+  // 상담: '상담기록' 시트에서 이 고객(고객명+담당 FC) 기록, 최근 날짜·시간이 위로
+  //   처음엔 최근 10건, '더보기'로 전부 / 각 기록 끝 ✕ → 삭제 표시, 저장 버튼으로 한 번에 엑셀 반영
+  //   음성기록: ▶ 누르면 앱 안에서 재생 / 음성파일 올리기
+  let consultShowAll = false;
   function consultHtml() {
     const x = current.extra || {};
     if (x.missing) return `<p class="hint pad">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p>`;
     const list = x.consults || [];
+    const N = CFG.consultPageSize || 10;
+    const shown = consultShowAll ? list : list.slice(0, N);
     return `<div class="card">
         <h3 class="sec-title">상담기록</h3>
-        ${list.length ? `<ul class="consult-list">${list.map((c, i) => `<li data-ci="${i}">
-            <span class="c-body"><b>${esc(c.date)}</b> ${esc(c.text).replace(/\n/g, "<br>")}</span>
-            <button type="button" class="x-btn" data-delc="${i}" aria-label="이 상담기록 삭제">✕</button></li>`).join("")}</ul>`
+        ${list.length ? `<ul class="consult-list">${shown.map((c, i) => `<li data-ci="${i}">
+            <span class="c-body"><b>${esc(c.date)}</b> ${c.voice
+              ? `<span class="voice-tag">${esc(c.text)}</span><button type="button" class="play-btn" data-play="${i}" aria-label="음성 재생">▶</button>`
+              : esc(c.text).replace(/\n/g, "<br>")}
+              <span class="voice-box" hidden></span></span>
+            <button type="button" class="x-btn" data-delc="${i}" aria-label="이 상담기록 삭제">✕</button></li>`).join("")}</ul>
+            ${list.length > N && !consultShowAll ? `<button type="button" class="more-btn center" id="consultMore">더보기 (${list.length - N}건 더)</button>` : ""}`
           : '<p class="hint">아직 상담기록이 없습니다.</p>'}
       </div>
       <div class="card">
         <h3 class="sec-title">새 상담기록</h3>
         <label class="fld"><textarea id="consultNew" rows="4" placeholder="상담 내용을 입력하세요"></textarea></label>
         <div class="file-actions"><button class="primary" id="consultSave" disabled>저장</button></div>
+      </div>
+      <div class="card">
+        <h3 class="sec-title">음성파일 올리기</h3>
+        <label class="secondary photo-pick">🎙️ 음성파일 선택<input type="file" id="voiceInput" accept="audio/*,.m4a,.mp3,.wav,.amr,.3gp,.aac" hidden></label>
+        <p class="hint" id="voiceStatus"></p>
       </div>`;
   }
 
@@ -974,6 +1161,8 @@
       btn.disabled = !ta.value.trim() && !dels.size;
       btn.textContent = dels.size ? `저장 (삭제 ${dels.size}건${ta.value.trim() ? " · 새 기록 1건" : ""})` : "저장";
     };
+    const more = $("consultMore");
+    if (more) more.addEventListener("click", () => { consultShowAll = true; selectTab("consult"); });
     $("tabBody").querySelectorAll("[data-delc]").forEach((x) => x.addEventListener("click", () => {
       const i = +x.dataset.delc;
       const li = x.closest("li");
@@ -981,13 +1170,30 @@
       else { dels.add(i); li.classList.add("to-delete"); x.textContent = "↺"; x.setAttribute("aria-label", "삭제 취소"); }
       refresh();
     }));
+    // ▶ 음성 재생 (앱 안 플레이어 + 다른 앱으로 열기)
+    $("tabBody").querySelectorAll("[data-play]").forEach((p) => p.addEventListener("click", async () => {
+      const c = list[+p.dataset.play];
+      const box = p.closest("li").querySelector(".voice-box");
+      if (!box.hidden) { box.hidden = true; const a = box.querySelector("audio"); if (a) a.pause(); return; }
+      p.disabled = true; p.textContent = "…";
+      try {
+        const url = await voiceBlobUrl(c.voice);
+        box.innerHTML = `<audio controls autoplay src="${url}"></audio>
+          <a class="act-btn" href="${url}" target="_blank" rel="noopener" download="${esc(c.voice)}">다른 앱으로 열기</a>`;
+        box.hidden = false;
+      } catch (e) {
+        toast(String(e.message) === "NO_VOICE_FILE" ? "고객 폴더에서 음성파일을 찾지 못했습니다." : "음성파일을 열지 못했습니다.");
+      }
+      p.disabled = false; p.textContent = "▶";
+    }));
     ta.addEventListener("input", refresh);
     btn.addEventListener("click", async () => {
       if (dels.size && !confirm(`상담기록 ${dels.size}건을 엑셀에서 삭제할까요?`)) return;
       btn.disabled = true;
       btn.textContent = "저장 중…";
       try {
-        const newList = await saveConsults(current.fc, current.cust.name, ta.value.trim(),
+        const text = ta.value.trim();
+        const newList = await saveConsults(current.fc, current.cust.name, text ? [{ text, when: new Date() }] : [],
           [...dels].map((i) => ({ key: list[i].key, text: list[i].text })));
         current.extra = { ...current.extra, consults: newList };
         toast(dels.size ? `상담기록을 저장했습니다 (삭제 ${dels.size}건).` : "상담기록을 엑셀에 저장했습니다.");
@@ -995,6 +1201,25 @@
         selectTab("consult");
       } catch (e) {
         refresh();
+        saveError(e);
+      }
+    });
+    // 음성파일 올리기
+    const vin = $("voiceInput");
+    vin.addEventListener("change", async () => {
+      const file = vin.files && vin.files[0];
+      vin.value = "";
+      if (!file) return;
+      if (!/^audio\//.test(file.type) && !/\.(m4a|mp3|wav|amr|3gp|aac|ogg|webm)$/i.test(file.name)) return toast("음성파일만 올릴 수 있습니다.");
+      $("voiceStatus").textContent = "올리는 중… " + file.name;
+      try {
+        const { list: newList, item } = await uploadVoice(file);
+        current.extra = { ...current.extra, consults: newList };
+        toast("음성파일을 고객 폴더에 저장했습니다: " + item.name);
+        renderTabs();
+        selectTab("consult");
+      } catch (e) {
+        $("voiceStatus").textContent = "";
         saveError(e);
       }
     });
@@ -1050,7 +1275,8 @@
     return list.map((c) => {
       const status = c.row["계약상태"] || c.row["상태"] || "";
       const val = (cols) => { for (const k of cols) if (c.row[k]) return c.row[k]; return ""; };
-      const shown = CONTRACT_SHOW.map(([label, cols]) => [label, val(cols)]).filter(([, v]) => v);
+      const shown = CONTRACT_SHOW.map(([label, cols]) => [label, val(cols)]).filter(([, v]) => v)
+        .map(([k, v]) => [k, k === "합계보험료" && !/원\s*$/.test(v) ? v.trim() + "원" : v]); // 79,644 → 79,644원
       const pdf = findContractPdf(val(["최초계약일", "계약일"]), c.row["상품명"]);
       return `<div class="card">
         <div class="entry-head"><span class="tag t-${esc(c.type)}">${esc(c.type)}</span>
@@ -1379,6 +1605,13 @@
     if (b) { ev.preventDefault(); runTopSearch(b.dataset.q); }
   });
   $("backBtn").addEventListener("click", () => history.back());
+  // 고객 사진을 누르면 크게 보기, 다시 누르면 닫기
+  $("avatar").addEventListener("click", () => {
+    if (!current || !current.photoUrl) return;
+    $("photoViewerImg").src = current.photoUrl;
+    $("photoViewer").hidden = false;
+  });
+  $("photoViewer").addEventListener("click", () => { $("photoViewer").hidden = true; });
   // PDF 열기 버튼 (계약 열기, 보장분석 등): 휴대폰 PDF 앱/브라우저로
   $("tabBody").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-open]");

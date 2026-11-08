@@ -170,7 +170,28 @@ button:disabled { opacity: .5; }
   border: 1px solid var(--line); display: grid; place-items: center; font-size: 12px; color: var(--muted); }
 .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .photo-pick { flex: 1; cursor: pointer; font-size: 14px; }
-.avatar.has-photo { background-size: cover; background-position: center; }
+.avatar.has-photo { background-size: cover; background-position: center; cursor: zoom-in; }
+.photo-thumb { border-radius: 50%; }
+
+/* 연락처 Call/SMS, 이메일 @ 버튼 (오른쪽 끝) */
+.val-row { display: flex; align-items: center; gap: 6px; }
+.val-row .val { flex: 1; min-width: 0; word-break: break-all; }
+.acts { display: flex; gap: 4px; flex: none; margin-left: auto; }
+.act-btn { display: inline-flex; align-items: center; gap: 2px; padding: 4px 7px; border-radius: 8px; text-decoration: none;
+  background: var(--brand-weak); color: var(--brand); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.act-btn span { font-size: 11px; }
+
+/* 사진 자르기 / 크게 보기 */
+.modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55); display: grid; place-items: center; padding: 16px; }
+.modal[hidden] { display: none; }
+.modal-box { background: var(--card); border-radius: 16px; padding: 16px; width: min(360px, 100%); }
+.crop-view { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 50%; background: #111;
+  touch-action: none; cursor: grab; margin: 10px 0; box-shadow: 0 0 0 3px var(--brand) inset; }
+.crop-view img { position: absolute; left: 0; top: 0; max-width: none; user-select: none; -webkit-user-drag: none; transform-origin: 0 0; }
+#cropZoom { width: 100%; accent-color: var(--brand); }
+.viewer { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.9); display: grid; place-items: center; cursor: zoom-out; }
+.viewer[hidden] { display: none; }
+.viewer img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .contract-title { font-weight: 700; margin: 4px 0 6px; word-break: break-all; }
 .entry-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .tag { flex: none; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
@@ -184,7 +205,7 @@ button:disabled { opacity: .5; }
 .cust-head h2 { margin: 0 0 4px; font-size: 22px; }
 .cust-head a { color: var(--brand); text-decoration: none; }
 
-.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
 .tabs button { min-height: 52px; border-radius: 12px; border: 1px solid var(--line);
   background: var(--card); color: var(--text); font-weight: 600; font-size: 15px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
@@ -213,3 +234,13 @@ th { background: var(--brand-weak); }
 
 .toast { position: fixed; left: 16px; right: 16px; bottom: calc(20px + env(safe-area-inset-bottom));
   background: #222; color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 14px; z-index: 20; }
+
+/* 상담: 더보기, 음성기록 ▶ */
+.more-btn.center { justify-content: center; margin: 10px 0 0; }
+.voice-tag { font-weight: 600; }
+.play-btn { display: inline-grid; place-items: center; width: 30px; height: 30px; margin-left: 6px; vertical-align: middle;
+  border: 0; border-radius: 50%; background: var(--brand); color: #fff; font-size: 13px; cursor: pointer; }
+.voice-box { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.voice-box[hidden] { display: none; }
+.voice-box audio { width: 100%; }
+.voice-box .act-btn { align-self: flex-start; }

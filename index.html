@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1f4e8c">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="FC 활동지원">
-  <title>FC 활동지원</title>
+  <meta name="apple-mobile-web-app-title" content="신한FC">
+  <title>신한FC</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icon.svg">
-  <link rel="stylesheet" href="style.css?v=24">
+  <link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
   <header class="topbar">
@@ -27,7 +27,7 @@
     <!-- 로그인 화면 -->
     <section id="loginView" class="view" hidden>
       <div class="card center">
-        <p class="lead"><b>FC 활동지원</b><br>OneDrive의 고객 정보를 찾아 보여줍니다.</p>
+        <p class="lead"><b>신한FC</b><br>OneDrive의 고객 정보를 찾아 보여줍니다.</p>
         <button id="loginBtn" class="primary big">Microsoft 계정으로 로그인</button>
         <p class="hint">고객 정보는 OneDrive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.</p>
       </div>
@@ -78,11 +78,28 @@
     <button type="button" data-section="admin" id="navAdmin" hidden><span class="ni">⚙️</span>관리자</button>
   </nav>
 
+  <!-- 프로필 사진 자르기 (원 안에 맞추기) -->
+  <div id="cropModal" class="modal" hidden>
+    <div class="modal-box">
+      <h3 class="sec-title">사진 위치·크기 맞추기</h3>
+      <p class="hint">사진을 끌어서 옮기고, 아래 막대(또는 두 손가락)로 크기를 조절하세요.</p>
+      <div id="cropView" class="crop-view"><img id="cropImg" alt="" draggable="false"></div>
+      <input id="cropZoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="사진 크기">
+      <div class="file-actions">
+        <button type="button" class="secondary" id="cropCancel">취소</button>
+        <button type="button" class="primary" id="cropOk">적용</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 사진 크게 보기 -->
+  <div id="photoViewer" class="viewer" hidden><img id="photoViewerImg" alt="고객 사진"></div>
+
   <div id="toast" class="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="config.js?v=24"></script>
-  <script src="app.js?v=24"></script>
+  <script src="config.js?v=26"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>

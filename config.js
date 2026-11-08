@@ -37,17 +37,19 @@ window.APP_CONFIG = {
     fileKeyword: "고객추가정보", sheet: "기본", fcCol: "담당 FC", nameCol: "고객명",
     primary: ["미팅장소", "메모"], carrierCol: "통신사",
     afterAddress: ["차량번호", "자동차보험갱신일"], monthDayCols: ["자동차보험갱신일"],
-    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: "저장날짜", textCol: "내용" }
+    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: "저장날짜", textCol: "내용", voiceCol: "음성파일", voiceText: "음성기록" }
   },
 
   // 세부항목 버튼: 파일/폴더 이름에 키워드가 들어 있으면 그 탭에 표시됩니다.
   tabs: [
     // 기본정보에는 첨부파일을 붙이지 않음 (상품명의 '기본형' 등에 걸려 PDF가 붙던 문제)
-    { id: "basic",    label: "기본정보", keywords: [] },
-    { id: "contract", label: "계약현황", keywords: ["계약", "증권", "청약"] },
+    { id: "basic",    label: "정보", keywords: [] },
+    { id: "contract", label: "계약", keywords: ["계약", "증권", "청약"] },
     // 고객 계약 PDF("날짜 - 고객 - FC - 상품명 - 금액원.pdf")는 보장분석에서 제외
-    { id: "analysis", label: "보장분석", keywords: ["보장", "분석", "covan"], exclude: "\\d[\\d,]*원\\.pdf$" },
-    { id: "consult",  label: "상담기록", keywords: ["상담", "메모", "기록", "통화"] },
-    { id: "contact",  label: "연락하기", keywords: [] }
-  ]
+    { id: "analysis", label: "분석", keywords: ["보장", "분석", "covan"], exclude: "\\d[\\d,]*원\\.pdf$" },
+    { id: "consult",  label: "상담", keywords: ["상담", "메모", "기록", "통화"] }
+  ],
+
+  // 상담 탭: 처음에 보여줄 상담기록 수 (나머지는 '더보기')
+  consultPageSize: 10
 };
