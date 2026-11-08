@@ -51,5 +51,10 @@ window.APP_CONFIG = {
   ],
 
   // 상담 탭: 처음에 보여줄 상담기록 수 (나머지는 '더보기')
-  consultPageSize: 10
+  consultPageSize: 10,
+  // 일정: 구글 캘린더 (읽기 전용). 관리자 설정에서 고른 캘린더가 없으면 아래 이름의 캘린더를 사용
+  google: {
+    clientId: "482206908404-5sdbvetcrc8j7ctrhe6aa23ccmd3d05d.apps.googleusercontent.com",
+    calendars: ["1팀", "김현성", "최수진"]
+  }
 };

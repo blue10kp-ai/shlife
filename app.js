@@ -742,7 +742,9 @@
   // ---------- 고객 화면 ----------
   let current = null; // { cust, folders, files, phones, contracts, fc, extra }
 
+  let returnView = "searchView"; // 고객 정보에서 뒤로 가면 돌아갈 화면 (일정 / 고객 검색)
   async function openCustomer(cust) {
+    returnView = $("scheduleView").hidden ? "searchView" : "scheduleView";
     show("customerView");
     $("custName").textContent = cust.name;
     renderGrade(cust);
@@ -1441,18 +1443,26 @@
         <h3 class="sec-title">설정</h3>
         <label class="fld"><span>회사 주소 (일정 이동시간 계산의 출발·도착 기준)</span>
           <input id="setCompany" value="${esc(s.companyAddress || "")}" placeholder="예: 광주광역시 서구 상무중앙로 98" autocomplete="off"></label>
+        <label class="fld"><span>카카오 REST API 키 (이동 거리·시간 계산용)</span>
+          <input id="setKakao" value="${esc(s.kakaoRestKey || "")}" placeholder="developers.kakao.com › 앱 › 플랫폼 키" autocomplete="off" spellcheck="false"></label>
         <label class="chk-line"><input type="checkbox" id="setSaver" ${s.dataSaver ? "checked" : ""}>
           <span><b>데이터 절약 모드</b><br><span class="hint">켜면 고객 사진을 불러오지 않습니다.</span></span></label>
-        <div class="fld"><span>일정에 연결할 구글 계정 · 캘린더</span>
-          <p class="hint">${s.google && s.google.account ? "연결된 계정: " + esc(s.google.account) : "구글 캘린더 연결은 구글 클라우드 설정 후 사용할 수 있습니다."}</p></div>
+        <div class="fld"><span>일정에 보여줄 구글 캘린더</span>
+          <div id="gCalBox"></div></div>
         <div class="file-actions"><button type="button" class="primary" id="setSave" disabled>설정 저장</button></div>
       </div>`;
   }
   function bindSettings() {
     const btn = $("setSave");
     if (!btn) return;
-    const read = () => ({ ...appSettings, companyAddress: $("setCompany").value.trim(), dataSaver: $("setSaver").checked });
-    const dirty = () => { const v = read(); return v.companyAddress !== (appSettings.companyAddress || "") || v.dataSaver !== !!appSettings.dataSaver; };
+    const read = () => {
+      const g = readCalendarChoices();
+      return { ...appSettings, companyAddress: $("setCompany").value.trim(), dataSaver: $("setSaver").checked,
+        kakaoRestKey: $("setKakao").value.trim(),
+        google: g ? { ...(appSettings.google || {}), ...g } : appSettings.google };
+    };
+    const calKey = (g) => JSON.stringify(((g || {}).calendars || []).map((c) => c.id).sort());
+    const dirty = () => { const v = read(); return v.companyAddress !== (appSettings.companyAddress || "") || v.kakaoRestKey !== (appSettings.kakaoRestKey || "") || v.dataSaver !== !!appSettings.dataSaver || calKey(v.google) !== calKey(appSettings.google); };
     ["input", "change"].forEach((ev) => $("settingsCard").addEventListener(ev, () => { btn.disabled = !dirty(); }));
     btn.addEventListener("click", async () => {
       btn.disabled = true; btn.textContent = "저장 중…";
@@ -1463,6 +1473,7 @@
       btn.textContent = "설정 저장";
       btn.disabled = !dirty();
     });
+    loadCalendarChoices();
   }
 
   // ---------- 관리자 페이지: 아이디별 FC 폴더 권한 (앱 자체 권한 파일) ----------
@@ -1729,14 +1740,453 @@
     $("modes").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
     if ($("q").value.trim()) search($("q").value);
   }));
+  // ---------- 구글 캘린더 (일정) ----------
+  const GCFG = CFG.google || {};
+  const GCAL = "https://www.googleapis.com/calendar/v3";
+  const GTOKEN_KEY = "shlife.gtoken";
+  function storedGToken() {
+    try {
+      const t = JSON.parse(localStorage.getItem(GTOKEN_KEY) || "null");
+      return t && t.exp > Date.now() + 60000 ? t.token : null;
+    } catch (e) { return null; }
+  }
+  // 구글 로그인 창(팝업) → 캘린더 읽기 권한 토큰 (1시간 유효, 버튼을 눌렀을 때만 호출)
+  function requestGToken(prompt) {
+    return new Promise((resolve, reject) => {
+      const g = window.google && window.google.accounts && window.google.accounts.oauth2;
+      if (!g) return reject(new Error("구글 로그인 모듈을 불러오지 못했습니다. 잠시 후 다시 시도하세요."));
+      const client = g.initTokenClient({
+        client_id: GCFG.clientId,
+        scope: "https://www.googleapis.com/auth/calendar.readonly",
+        hint: (appSettings.google && appSettings.google.account) || undefined,
+        callback: (r) => {
+          if (r.error) return reject(new Error("구글 연결 실패: " + r.error));
+          try { localStorage.setItem(GTOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000 })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ }
+          gTokenMem = r.access_token;
+          resolve(r.access_token);
+        },
+        error_callback: (e) => reject(new Error(e && e.type === "popup_closed" ? "구글 로그인 창이 닫혔습니다." : "구글 로그인 창을 열 수 없습니다. 팝업 차단을 확인하세요."))
+      });
+      client.requestAccessToken({ prompt: prompt == null ? "" : prompt });
+    });
+  }
+  let gTokenMem = null;
+  async function gcal(path) {
+    const t = storedGToken() || gTokenMem;
+    if (!t) throw new Error("GOOGLE_AUTH");
+    const res = await fetch(GCAL + path, { headers: { Authorization: "Bearer " + t } });
+    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
+    return res.json();
+  }
+  const calName = (c) => String(c.summaryOverride || c.summary || "").trim();
+  async function calendarList() {
+    return ((await gcal("/users/me/calendarList?minAccessRole=reader&maxResults=250")).items || [])
+      .map((c) => ({ id: c.id, name: calName(c), color: c.backgroundColor, primary: !!c.primary }));
+  }
+  // 관리자 설정에서 고른 캘린더 (없으면 config의 기본 이름: 1팀, 김현성, 최수진)
+  async function scheduleCalendars() {
+    const saved = ((appSettings.google || {}).calendars || []).filter((c) => c && c.id);
+    if (saved.length) return saved;
+    const want = GCFG.calendars || [];
+    return (await calendarList()).filter((c) => want.includes(c.name));
+  }
+  async function fetchEvents(from, to) {
+    const cals = await scheduleCalendars();
+    if (!cals.length) throw new Error("NO_CALENDAR");
+    const q = `?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(from.toISOString())}&timeMax=${encodeURIComponent(to.toISOString())}`;
+    const lists = await Promise.all(cals.map(async (c) => {
+      const d = await gcal("/calendars/" + encodeURIComponent(c.id) + "/events" + q);
+      return (d.items || []).filter((e) => e.status !== "cancelled").map((e) => ({
+        id: c.id + "|" + e.id, cal: c,
+        title: String(e.summary || "(제목 없음)").trim(),
+        location: String(e.location || "").trim(),
+        allDay: !!e.start.date,
+        start: e.start.dateTime ? new Date(e.start.dateTime) : ymdToDate(e.start.date),
+        end: e.end.dateTime ? new Date(e.end.dateTime) : ymdToDate(e.end.date)
+      }));
+    }));
+    return lists.flat().sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start) || a.cal.name.localeCompare(b.cal.name, "ko"));
+  }
+
+  // ---------- 날짜 도우미 ----------
+  const ymdToDate = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const hm = (d) => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  const WD = ["일", "월", "화", "수", "목", "금", "토"];
+  const dayLabel = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})`;
+  const weekStart = (d) => addDays(dayStart(d), -((d.getDay() + 6) % 7)); // 월요일 시작
+  const timeText = (e) => (e.allDay ? "종일" : `${hm(e.start)} ~ ${hm(e.end)}`);
+  const onDay = (e, d) => e.start < addDays(dayStart(d), 1) && e.end > dayStart(d) || (e.allDay && sameDay(e.start, d));
+
+  // ---------- 일정 제목 → 고객 찾기 ----------
+  // 지역이 없으면 광주(광주광역시/전남광주통합특별시의 구)로 판단
+  const COUNTIES = ["담양", "곡성", "구례", "고흥", "보성", "화순", "장흥", "강진", "해남", "영암", "무안", "함평", "영광", "장성", "완도", "진도", "신안"];
+  const CITIES = ["목포", "여수", "순천", "나주", "광양", ...COUNTIES, "서울", "부산", "대구", "인천", "대전", "울산", "세종", "전주", "익산", "군산", "정읍", "남원", "김제", "제주"];
+  const titleRegion = (t) => CITIES.find((c) => t.includes(c)) || "";
+  const custRegionCity = (region) => { const m = String(region || "").match(/(\S+)$/); return region === "광주" || !region ? "" : (m ? m[1] : ""); };
+  const LIST_PRIORITY = ["진행", "DB", "이관", "계약"]; // 같은 이름이 여러 리스트에 있으면 이 순서로
+  const prio = (type) => { const i = LIST_PRIORITY.indexOf(type); return i < 0 ? 99 : i; };
+  const entryAddr = (e) => { const a = e.fields.find(([k]) => k.trim() === "주소"); return a ? a[1] : ""; };
+
+  function matchCustomer(title, records) {
+    const nt = norm(title);
+    const fcs = new Set(records.map((r) => norm(r.fc)).filter(Boolean));
+    const names = [...new Set(records.map((r) => r.name))].filter((n) => norm(n).length >= 2 && nt.includes(norm(n)));
+    if (!names.length) return null;
+    // FC 이름이 아닌 것, 긴 이름 우선
+    names.sort((a, b) => (fcs.has(norm(a)) - fcs.has(norm(b))) || norm(b).length - norm(a).length);
+    const name = names[0];
+    const city = titleRegion(title);
+    const recs = records.filter((r) => norm(r.name) === norm(name));
+    // 지역이 맞는 고객 우선 (주소가 없는 고객은 중립)
+    const score = (r) => {
+      const a = entryAddr(r);
+      if (!a) return 1;
+      const rc = custRegionCity(regionFromAddress(a));
+      return rc === city ? 0 : 2;
+    };
+    // 같은 사람(이름+생년월일)으로 묶은 뒤 지역 → 리스트 우선순위로 선택
+    const groups = new Map();
+    recs.forEach((r) => {
+      const d = String(r.birth).replace(/\D/g, "");
+      const key = /^(19|20)\d{6}/.test(d) ? d.slice(2, 8) : d.slice(0, 6);
+      if (!groups.has(key)) groups.set(key, { name: r.name, birth: r.birth, entries: [] });
+      groups.get(key).entries.push(r);
+    });
+    const best = (g) => Math.min(...g.entries.map((e) => score(e) * 100 + prio(e.type)));
+    const g = [...groups.values()].sort((a, b) => best(a) - best(b))[0];
+    g.entries.sort((a, b) => score(a) - score(b) || prio(a.type) - prio(b.type));
+    g.city = city;
+    return g;
+  }
+
+  // ---------- 카카오: 주소 → 좌표, 길찾기 ----------
+  // 카카오 REST API 키는 공개 저장소(config.js)가 아니라 OneDrive 설정 파일(관리자 › 설정)에 보관
+  const KAKAO = { get restKey() { return appSettings.kakaoRestKey || ""; } };
+  const kakaoH = () => ({ Authorization: "KakaoAK " + KAKAO.restKey });
+  const GEO_KEY = "shlife.geo";
+  let geoCache = {};
+  try { geoCache = JSON.parse(localStorage.getItem(GEO_KEY) || "{}"); } catch (e) { geoCache = {}; }
+  async function geocode(q) {
+    q = String(q || "").trim();
+    if (!q || !KAKAO.restKey) return null;
+    if (geoCache[q] !== undefined) return geoCache[q];
+    let hit = null;
+    try {
+      const a = await (await fetch("https://dapi.kakao.com/v2/local/search/address.json?query=" + encodeURIComponent(q), { headers: kakaoH() })).json();
+      const d = (a.documents || [])[0];
+      if (d) hit = { x: +d.x, y: +d.y };
+      if (!hit) {
+        const k = await (await fetch("https://dapi.kakao.com/v2/local/search/keyword.json?query=" + encodeURIComponent(q), { headers: kakaoH() })).json();
+        const p = (k.documents || [])[0];
+        if (p) hit = { x: +p.x, y: +p.y };
+      }
+    } catch (e) { return null; }
+    geoCache[q] = hit;
+    try { localStorage.setItem(GEO_KEY, JSON.stringify(geoCache)); } catch (e) {}
+    return hit;
+  }
+  const cityHall = (city) => (!city ? "광주광역시청" : COUNTIES.includes(city) ? city + "군청" : ["서울", "부산", "대구", "인천", "대전", "울산", "세종"].includes(city) ? city + "시청" : city + "시청");
+  async function route(a, b) {
+    if (!a || !b) return null;
+    if (Math.abs(a.x - b.x) < 1e-5 && Math.abs(a.y - b.y) < 1e-5) return { km: 0, min: 0 };
+    try {
+      const r = await (await fetch(`https://apis-navi.kakaomobility.com/v1/directions?origin=${a.x},${a.y}&destination=${b.x},${b.y}`, { headers: kakaoH() })).json();
+      const s = r.routes && r.routes[0] && r.routes[0].summary;
+      return s ? { km: s.distance / 1000, min: Math.round(s.duration / 60) } : null;
+    } catch (e) { return null; }
+  }
+
+  // ---------- 일정 화면 ----------
+  let schedMode = "day";
+  let schedDate = dayStart(new Date());
+  let schedReq = 0;
+  const schedCustCache = new Map(); // 일정 id → { cust, extra }
+
+  function scheduleShell() {
+    return `<div class="sched-modes">${[["day", "Today"], ["week", "Week"], ["month", "Month"]].map(([m, l]) =>
+      `<button type="button" data-sm="${m}" class="${schedMode === m ? "on" : ""}">${l}</button>`).join("")}</div>
+      <div class="sched-nav"><button type="button" id="schedPrev" aria-label="이전">‹</button>
+        <button type="button" id="schedLabel" class="sched-label"></button>
+        <button type="button" id="schedNext" aria-label="다음">›</button></div>
+      <div id="schedBody"></div>`;
+  }
+
+  async function openSchedule() {
+    show("scheduleView");
+    const v = $("scheduleView");
+    if (!v.dataset.ready) {
+      v.innerHTML = scheduleShell();
+      v.dataset.ready = "1";
+      v.querySelectorAll("[data-sm]").forEach((b) => b.addEventListener("click", () => {
+        schedMode = b.dataset.sm;
+        v.querySelectorAll("[data-sm]").forEach((x) => x.classList.toggle("on", x === b));
+        renderSchedule();
+      }));
+      $("schedPrev").addEventListener("click", () => moveSched(-1));
+      $("schedNext").addEventListener("click", () => moveSched(1));
+      $("schedLabel").addEventListener("click", () => { schedDate = dayStart(new Date()); renderSchedule(); });
+    }
+    renderSchedule();
+  }
+  function moveSched(n) {
+    if (schedMode === "day") schedDate = addDays(schedDate, n);
+    else if (schedMode === "week") schedDate = addDays(schedDate, 7 * n);
+    else schedDate = new Date(schedDate.getFullYear(), schedDate.getMonth() + n, 1);
+    renderSchedule();
+  }
+  function setMode(m, d) {
+    schedMode = m; schedDate = dayStart(d);
+    $("scheduleView").querySelectorAll("[data-sm]").forEach((x) => x.classList.toggle("on", x.dataset.sm === m));
+    renderSchedule();
+  }
+
+  function needGoogle(msg) {
+    $("schedBody").innerHTML = `<div class="card center"><p class="lead">구글 캘린더 연결</p>
+      <p class="hint">${esc(msg || "일정을 보려면 구글 계정으로 한 번 로그인해 주세요.")}${appSettings.google && appSettings.google.account ? "<br>연결 계정: " + esc(appSettings.google.account) : ""}</p>
+      <button type="button" class="primary" id="gConnect">구글 계정 연결</button></div>`;
+    $("gConnect").addEventListener("click", async () => {
+      try { await requestGToken(); renderSchedule(); } catch (e) { toast(e.message); }
+    });
+  }
+
+  async function renderSchedule() {
+    const req = ++schedReq;
+    const body = $("schedBody");
+    let from, to, label;
+    if (schedMode === "day") {
+      from = schedDate; to = addDays(from, 1);
+      label = (sameDay(from, new Date()) ? "오늘 · " : "") + dayLabel(from);
+    } else if (schedMode === "week") {
+      from = weekStart(schedDate); to = addDays(from, 7);
+      const e = addDays(to, -1);
+      label = `${from.getMonth() + 1}/${from.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()}`;
+    } else {
+      from = new Date(schedDate.getFullYear(), schedDate.getMonth(), 1);
+      to = new Date(schedDate.getFullYear(), schedDate.getMonth() + 1, 1);
+      label = `${from.getFullYear()}년 ${from.getMonth() + 1}월`;
+    }
+    $("schedLabel").textContent = label;
+    if (!GCFG.clientId) { body.innerHTML = '<p class="hint pad">config.js에 구글 clientId가 없습니다.</p>'; return; }
+    if (!storedGToken() && !gTokenMem) return needGoogle();
+    body.innerHTML = '<p class="hint pad">일정을 불러오는 중…</p>';
+    let events;
+    try {
+      // 월 보기: 앞뒤 주까지 포함해서 달력 칸을 채움
+      const f = schedMode === "month" ? weekStart(from) : from;
+      const t = schedMode === "month" ? addDays(weekStart(addDays(to, -1)), 7) : to;
+      events = await fetchEvents(f, t);
+      if (schedMode === "month") { from = f; to = t; }
+    } catch (e) {
+      if (req !== schedReq) return;
+      if (e.message === "GOOGLE_AUTH") return needGoogle("구글 연결 시간이 지났습니다. 다시 연결해 주세요.");
+      if (e.message === "NO_CALENDAR") { body.innerHTML = '<p class="hint pad">보여줄 캘린더가 없습니다. 관리자 › 설정에서 캘린더를 선택해 주세요.</p>'; return; }
+      body.innerHTML = ""; return handleError(e);
+    }
+    if (req !== schedReq) return;
+    if (schedMode === "day") return renderDay(events, req);
+    if (schedMode === "week") return renderWeek(events, from);
+    return renderMonth(events, from, to);
+  }
+
+  const calDot = (e) => `<span class="cal-dot" style="background:${esc(e.cal.color || "var(--brand)")}"></span>`;
+  // "10:00 ~ 11:00 스케줄명 - 캘린더" 한 줄
+  const evLine = (e) => `<span class="ev-time">${esc(timeText(e))}</span> <span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}</span>`;
+
+  function renderWeek(events, from) {
+    let html = "";
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(from, i);
+      const evs = events.filter((e) => onDay(e, d));
+      html += `<div class="card week-day${sameDay(d, new Date()) ? " today" : ""}"><button type="button" class="wd-head" data-day="${+d}">${esc(dayLabel(d))}<span class="hint">${evs.length ? evs.length + "건" : ""}</span><span class="chev">›</span></button>
+        ${evs.map((e) => `<div class="ev-row">${calDot(e)}${evLine(e)}</div>`).join("") || '<p class="hint">일정 없음</p>'}</div>`;
+    }
+    $("schedBody").innerHTML = html;
+    $("schedBody").querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => setMode("day", new Date(+b.dataset.day))));
+  }
+
+  function renderMonth(events, from, to) {
+    const month = schedDate.getMonth();
+    let cells = "";
+    for (let d = from; d < to; d = addDays(d, 1)) {
+      const evs = events.filter((e) => onDay(e, d));
+      cells += `<button type="button" class="m-cell${d.getMonth() !== month ? " other" : ""}${sameDay(d, new Date()) ? " today" : ""}" data-day="${+d}">
+        <span class="m-num">${d.getDate()}</span>
+        ${evs.slice(0, 3).map((e) => `<span class="m-ev" style="border-color:${esc(e.cal.color || "var(--brand)")}">${esc(e.title)}</span>`).join("")}
+        ${evs.length > 3 ? `<span class="m-more">+${evs.length - 3}</span>` : ""}</button>`;
+    }
+    $("schedBody").innerHTML = `<div class="card month"><div class="m-grid">${WD.slice(1).concat(WD[0]).map((w) => `<span class="m-wd">${w}</span>`).join("")}${cells}</div></div>`;
+    $("schedBody").querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => setMode("day", new Date(+b.dataset.day))));
+  }
+
+  async function renderDay(events, req) {
+    const d = schedDate;
+    const evs = events.filter((e) => onDay(e, d));
+    const body = $("schedBody");
+    if (!evs.length) { body.innerHTML = '<div class="card center"><p class="hint">일정이 없습니다.</p></div>'; return; }
+    body.innerHTML = '<div id="dayList"></div>';
+    // 고객 찾기 (고객 리스트 엑셀)
+    let records = [];
+    try { records = await loadLists(); } catch (e) { handleError(e); }
+    if (req !== schedReq) return;
+    const items = evs.map((e) => ({ e, cust: e.allDay ? null : matchCustomer(e.title, records) }));
+    const list = $("dayList");
+    list.innerHTML = items.map((it, i) => `<div class="travel" id="tr${i}" hidden></div>${dayCardHtml(it, i)}`).join("") +
+      `<div class="travel" id="tr${items.length}" hidden></div>`;
+    items.forEach((it, i) => bindDayCard(it, i));
+    // 추가정보(미팅장소, 상담기록)
+    await Promise.all(items.map(async (it, i) => {
+      if (!it.cust) return;
+      const fc = (it.cust.entries.find((e) => e.fc) || {}).fc || "";
+      try { it.extra = await loadExtraFor(fc, it.cust.name); } catch (e) { it.extra = null; }
+      if (req !== schedReq) return;
+      fillDayCard(it, i);
+    }));
+    if (req !== schedReq) return;
+    renderTravel(items, req);
+  }
+
+  function dayCardHtml(it, i) {
+    const e = it.e;
+    let cust = "";
+    if (it.cust) {
+      const c = it.cust;
+      const phone = (c.entries.find((x) => x.phone) || {}).phone || "";
+      const addr = currentValue(c, ["주소"]);
+      const types = [...new Set(c.entries.map((x) => x.type))];
+      cust = `<div class="ev-cust">
+        <button type="button" class="ev-name" data-open="${i}"><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>
+          ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button>
+        <dl class="ev-info">
+          ${c.birth ? `<dt>생년월일</dt><dd>${esc(c.birth)}</dd>` : ""}
+          ${phone ? `<dt>연락처</dt><dd><a class="nowrap" href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${esc(phone)}</a></dd>` : ""}
+          ${addr ? `<dt>주소</dt><dd>${esc(addr)}</dd>` : ""}
+          <dt>미팅장소</dt><dd id="mp${i}" class="hint">…</dd>
+        </dl>
+        <div id="cs${i}"></div></div>`;
+    } else if (!e.allDay) {
+      cust = `<p class="hint">고객 리스트에서 일치하는 고객을 찾지 못했습니다.</p>`;
+    }
+    return `<div class="card ev-card">${calDot(e)}<div class="ev-head">${evLine(e)}</div>
+      ${e.location ? `<p class="hint">📍 ${esc(e.location)}</p>` : ""}${cust}</div>`;
+  }
+  function bindDayCard(it, i) {
+    const b = document.querySelector(`[data-open="${i}"]`);
+    if (b) b.addEventListener("click", () => openCustomer(it.cust));
+  }
+  function fillDayCard(it, i) {
+    const x = it.extra || {};
+    const mp = (x.values || {})["미팅장소"] || "";
+    const el = $("mp" + i);
+    if (el) { el.textContent = mp || "-"; el.classList.toggle("hint", !mp); }
+    const cs = (x.consults || []).slice(0, 10);
+    const box = $("cs" + i);
+    if (box && cs.length) {
+      box.innerHTML = `<details class="ev-consult"><summary>최근 상담 ${cs.length}건</summary>
+        ${cs.map((c) => `<div class="consult-item"><div class="hint">${esc(c.date)}</div><div>${esc(c.text).replace(/\n/g, "<br>")}</div></div>`).join("")}</details>`;
+    }
+  }
+
+  // 이동 거리·시간: 회사 → 일정1 → 일정2 … → 회사
+  //   장소: 미팅장소 → 고객 주소 → 일정 장소 → 일정 지역(제목)의 시청·군청
+  async function renderTravel(items, req) {
+    const timed = items.map((it, i) => ({ ...it, i })).filter((it) => !it.e.allDay);
+    if (!timed.length || !KAKAO.restKey) return;
+    const company = appSettings.companyAddress ? await geocode(appSettings.companyAddress) : null;
+    const pointOf = async (it) => {
+      const tries = [];
+      if (it.cust) {
+        tries.push((it.extra && it.extra.values && it.extra.values["미팅장소"]) || "");
+        tries.push(currentValue(it.cust, ["주소"]));
+      }
+      tries.push(it.e.location);
+      for (const q of tries) { const p = q && await geocode(q); if (p) return { p, label: q }; }
+      const city = (it.cust && it.cust.city) || titleRegion(it.e.title);
+      const hall = cityHall(city);
+      const p = await geocode(hall);
+      return p ? { p, label: hall, approx: true } : null;
+    };
+    const pts = [];
+    for (const it of timed) pts.push(await pointOf(it));
+    if (req !== schedReq) return;
+    const show = (slot, html) => { const el = $("tr" + slot); if (el) { el.innerHTML = html; el.hidden = false; } };
+    const legTxt = (r, approx) => r ? `🚗 ${r.km.toFixed(1)}km · ${r.min}분${approx ? ' <span class="hint">(시청·군청 기준)</span>' : ""}` : '🚗 <span class="hint">경로를 계산할 수 없음</span>';
+    // 회사 출발
+    if (company && pts[0]) {
+      const r = await route(company, pts[0].p);
+      const leave = r ? new Date(timed[0].e.start - r.min * 60000) : null;
+      show(timed[0].i, `${leave ? `<b>🏢 회사 출발 ${hm(leave)}</b> · ` : "🏢 회사에서 "}${legTxt(r, pts[0].approx)}`);
+    } else if (!appSettings.companyAddress) {
+      show(timed[0].i, '<span class="hint">회사 주소를 관리자 › 설정에 넣으면 출발·도착 시간이 계산됩니다.</span>');
+    }
+    for (let k = 1; k < timed.length; k++) {
+      if (req !== schedReq) return;
+      const a = pts[k - 1], b = pts[k];
+      const r = a && b ? await route(a.p, b.p) : null;
+      const gap = Math.round((timed[k].e.start - timed[k - 1].e.end) / 60000);
+      const late = r && gap < r.min ? ` <span class="warn">⚠ 이동시간 부족 (여유 ${Math.max(gap, 0)}분)</span>` : "";
+      show(timed[k].i, legTxt(r, (a && a.approx) || (b && b.approx)) + late);
+    }
+    // 회사 복귀
+    const last = timed[timed.length - 1], lp = pts[pts.length - 1];
+    if (company && lp) {
+      const r = await route(lp.p, company);
+      const back = r ? new Date(+last.e.end + r.min * 60000) : null;
+      show(items.length, `${legTxt(r, lp.approx)}${back ? ` · <b>🏢 회사 도착 ${hm(back)}</b>` : ""}`);
+    }
+  }
+
+  // ---------- 관리자 설정: 구글 계정·캘린더 선택 ----------
+  async function loadCalendarChoices() {
+    const box = $("gCalBox");
+    if (!box) return;
+    if (!storedGToken() && !gTokenMem) {
+      box.innerHTML = `<button type="button" class="secondary" id="gAdminConnect">구글 계정 연결</button>`;
+      $("gAdminConnect").addEventListener("click", async () => {
+        try { await requestGToken("select_account"); loadCalendarChoices(); } catch (e) { toast(e.message); }
+      });
+      return;
+    }
+    box.innerHTML = '<p class="hint">캘린더 목록을 불러오는 중…</p>';
+    let cals;
+    try { cals = await calendarList(); } catch (e) {
+      if (e.message === "GOOGLE_AUTH") { gTokenMem = null; return loadCalendarChoices(); }
+      box.innerHTML = ""; return handleError(e);
+    }
+    const primary = cals.find((c) => c.primary);
+    const saved = ((appSettings.google || {}).calendars || []).map((c) => c.id);
+    const want = GCFG.calendars || [];
+    const isOn = (c) => (saved.length ? saved.includes(c.id) : want.includes(c.name));
+    box.dataset.account = primary ? primary.id : "";
+    box.innerHTML = `<p class="hint">로그인한 계정: ${esc(primary ? primary.id : "-")}
+        <button type="button" class="link-btn" id="gSwitch">다른 계정</button></p>
+      ${cals.map((c, i) => `<label class="chk-line"><input type="checkbox" data-cal="${i}" ${isOn(c) ? "checked" : ""}>
+        <span>${calDot({ cal: c })}${esc(c.name)}</span></label>`).join("")}`;
+    box._cals = cals;
+    $("gSwitch").addEventListener("click", async () => {
+      try { await requestGToken("select_account"); loadCalendarChoices(); } catch (e) { toast(e.message); }
+    });
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  function readCalendarChoices() {
+    const box = $("gCalBox");
+    if (!box || !box._cals) return null;
+    const cals = [...box.querySelectorAll("[data-cal]")].filter((x) => x.checked).map((x) => box._cals[+x.dataset.cal])
+      .map((c) => ({ id: c.id, name: c.name, color: c.color }));
+    return { account: box.dataset.account || "", calendars: cals };
+  }
+
   // 큰 메뉴: 일정 / 고객 / 관리자
   $("mainNav").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     const s = b.dataset.section;
-    if (s === "schedule") show("scheduleView");
+    if (s === "schedule") openSchedule();
     else if (s === "admin") openAdmin();
     else show("searchView");
   }));
-  window.addEventListener("popstate", () => { if (!$("customerView").hidden) show("searchView"); });
+  window.addEventListener("popstate", () => { if (!$("customerView").hidden) { if (returnView === "scheduleView") openSchedule(); else show("searchView"); } });
 
   // (검색 가능한 FC 문구는 표시하지 않음)
   function showScope() { $("scopeHint").textContent = ""; }
