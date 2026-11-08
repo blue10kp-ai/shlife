@@ -835,7 +835,7 @@
     } else if (/이메일|e-?mail/i.test(k) && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v).trim())) {
       btns = `<a class="act-btn" href="mailto:${esc(String(v).trim())}" aria-label="메일 보내기">✉️<span>@</span></a>`;
     }
-    return btns ? `<div class="val-row"><span class="val">${esc(v)}</span><span class="acts">${btns}</span></div>`
+    return btns ? `<div class="val-row"><span class="val ${m ? "nowrap" : ""}">${esc(v)}</span><span class="acts">${btns}</span></div>`
       : `<div>${esc(v)}</div>`;
   }
 
