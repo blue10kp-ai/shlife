@@ -237,7 +237,8 @@
   //   (예: "20261108 - 최수진 - 계약.xlsx"와 나중의 "20261115 - 최수진 - 계약.xlsx"가 있으면 20261115만)
   function pickSourceFiles(files, spec) {
     const re = spec.fileRegex ? new RegExp(spec.fileRegex, "i") : null;
-    const hit = files.filter((f) => /\.xlsx?$/i.test(f.name) && (re ? re.test(f.name) : spec.fileKeyword && f.name.includes(spec.fileKeyword)));
+    // 고객 리스트는 FC 폴더 안의 파일만 (고객 폴더 바로 아래로 옮겨 둔 예전 파일은 읽지 않음)
+    const hit = files.filter((f) => f.fc && /\.xlsx?$/i.test(f.name) && (re ? re.test(f.name) : spec.fileKeyword && f.name.includes(spec.fileKeyword)));
     const byFc = new Map();
     // 통합 '리스트' 파일이 있으면 그것을 우선, 그다음 최신 날짜 (예전 '계약'/'기타' 파일은 리스트가 없는 FC만)
     const rank = (f) => (/ - 리스트\.xlsx?$/i.test(f.name) ? "1" : "0") + f.name;
