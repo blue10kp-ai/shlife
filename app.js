@@ -378,6 +378,18 @@
   let mode = "all";
   const norm = (s) => String(s).replace(/\s+/g, "").toLowerCase();
   const custPart = (n) => n.split(" - ")[0]; // 폴더명 "고객명 - 담당자명"
+  // 동명이인 표시를 뺀 이름: "이영숙(640927)" → "이영숙" (일정 제목·계약 매칭은 이 이름으로)
+  const baseName = (n) => String(n || "").replace(/\(\d{6}\)\s*$/, "").trim();
+  // 시트 우선순위: config.lists 순서 (계약 > 이관 > 따행 > DB > 추가 > 진행)
+  const LIST_PRIORITY = CFG.lists.map((l) => l.label);
+  const prio = (type) => { const i = LIST_PRIORITY.indexOf(type); return i < 0 ? 99 : i; };
+  // 미팅장소: 고객리스트 시트의 '미팅장소' 칸(우선순위 순) → 없으면 고객추가정보 엑셀
+  function meetingOf(c, extra) {
+    const es = [...(c.entries || [])].sort((a, b) => prio(a.type) - prio(b.type));
+    for (const e of es) { const f = e.fields.find(([k]) => k.trim() === "미팅장소"); if (f && String(f[1]).trim()) return String(f[1]).trim(); }
+    const x = extra || c.extra || {};
+    return String((x.values || {})["미팅장소"] || "").trim();
+  }
 
   // 주소 → 지역 약칭: "광주광역시 서구…" → 광주, "전라남도 영광군…" → 전남 영광
   const METRO = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종"];
@@ -446,7 +458,8 @@
       // 고객 이름 · 연락처 · 주소 · 미팅장소로 검색
       const nq = norm(q), dq = digits(q);
       const meets = await loadMeetingPlaces().catch(() => []);
-      const meetOf = (r) => meets.filter((m) => norm(m.name) === norm(r.name) && sameFc(m.fc, r.fc)).map((m) => m.mp).join(" ");
+      const meetOf = (r) => meets.filter((m) => norm(m.name) === norm(r.name) && sameFc(m.fc, r.fc)).map((m) => m.mp)
+        .concat(r.fields.filter(([k]) => k.trim() === "미팅장소").map(([, v]) => v)).join(" ");
       const hits = records.filter((r) => {
         if (want && r.type !== want.label) return false;
         if (norm(r.name).includes(nq)) return true;
@@ -460,11 +473,13 @@
         // 생년월일 형식 통일: "1980-10-21" → 801021, "851002-1" → 851002
         const d = String(r.birth).replace(/\D/g, "");
         const ymd = /^(19|20)\d{6}/.test(d) ? d.slice(2, 8) : d.slice(0, 6);
-        const key = norm(r.name) + "|" + ymd;
+        const key = norm(baseName(r.name)) + "|" + ymd; // "이영숙(640927)"도 같은 사람으로 묶음
         if (!map.has(key)) map.set(key, { name: r.name, birth: r.birth, entries: [] });
         map.get(key).entries.push(r);
       });
-      const custs = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ko"));
+      // 고객 안의 시트는 우선순위 순 (계약 > 이관 > 따행 > DB > 추가)
+      map.forEach((c) => { c.entries.sort((a, b) => prio(a.type) - prio(b.type)); c.name = c.entries[0].name; });
+      const custs = [...map.values()].sort((a, b) => baseName(a.name).localeCompare(baseName(b.name), "ko") || a.name.localeCompare(b.name, "ko"));
       const label = want ? want.label + " " : "";
       status.textContent = custs.length ? label + custs.length + "명 찾음" : "'" + q + "' " + label + "고객이 없습니다.";
       if (custs.length === 1) return openCustomer(custs[0]);
@@ -829,7 +844,8 @@
     history.pushState({ v: "customer" }, "");
     current = { cust, folders: [], files: [], phones: null, contracts: [], fc: "", extra: { values: {} }, profilePhoto: null, photoUrl: null };
     try {
-      const byName = (await loadCustomerFolders()).filter((f) => norm(custPart(f.name)) === norm(cust.name));
+      const names = new Set(cust.entries.map((e) => norm(e.name)).concat(norm(cust.name)));
+      const byName = (await loadCustomerFolders()).filter((f) => names.has(norm(custPart(f.name))));
       // 같은 이름이 여러 FC에 있으면 이 고객의 담당 FC 폴더만
       const fcs = cust.entries.map((e) => e.fc).filter(Boolean);
       const sameFc = byName.filter((f) => f.fc && fcs.includes(f.fc));
@@ -845,7 +861,13 @@
         loadContracts().catch((e) => { console.error(e); return []; }),
         loadExtraFor(current.fc, cust.name).catch((e) => { console.error(e); return { error: true, values: {} }; })
       ]);
-      current.contracts = contracts.filter((c) => c.names.includes(norm(cust.name)) && (!fcs.length || fcs.includes(c.fc) || fcs.includes(c.srcFc)));
+      const phones = new Set(cust.entries.map((e) => String(e.phone || "").replace(/\D/g, "")).filter(Boolean));
+      current.contracts = contracts.filter((c) => {
+        if (!c.names.includes(norm(baseName(cust.name)))) return false;
+        if (fcs.length && !fcs.includes(c.fc) && !fcs.includes(c.srcFc)) return false;
+        const cp = String(c.row["연락처"] || "").replace(/\D/g, "");
+        return !cp || !phones.size || phones.has(cp); // 이관 계약은 계약자 연락처로 동명이인 구분
+      });
       current.extra = extra;
     } catch (e) {
       handleError(e);
@@ -948,7 +970,7 @@
   //   보기: 연락처 · (이메일) · 주소 · 통신사/차량번호/자동차보험갱신일 · (그 밖의 고객리스트 항목) / 미팅장소 · 메모
   //   수정(맨 위 '수정' 버튼): 같은 항목을 한 화면에서 고치고 저장
   //     연락처·주소·이메일 → 고객리스트 엑셀 + '우선' 1 / 나머지 → 고객추가정보 엑셀
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선"];
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선"];
   const BIRTH_KEYS = ["생년월일", "생일"];
   const EMAIL_COLS = ["이메일", "e-mail", "Email"];
   let editMode = false;
@@ -1027,7 +1049,7 @@
       : x.error ? '<div class="card"><p class="hint">추가 정보 엑셀을 읽지 못했습니다.</p></div>'
       : prim.length ? `<div class="card" id="memoCard">${prim.map((k) => `<label class="fld"><span>${esc(k)}</span>
           ${/메모/.test(k) ? `<textarea data-pm="${esc(k)}" rows="3">${esc(ev[k] || "")}</textarea>`
-            : `<input data-pm="${esc(k)}" value="${esc(ev[k] || "")}" autocomplete="off">`}</label>`).join("")}
+            : `<input data-pm="${esc(k)}" value="${esc(k === "미팅장소" ? meetingOf(c, x) : ev[k] || "")}" autocomplete="off">`}</label>`).join("")}
           <div class="file-actions"><button type="button" class="primary" id="memoSave" disabled>저장</button></div></div>` : "";
     return info + memo;
   }
@@ -1037,13 +1059,18 @@
     if (!btn) return;
     const inputs = [...$("tabBody").querySelectorAll("[data-pm]")];
     const orig = { ...((current.extra && current.extra.values) || {}) };
-    const dirty = () => inputs.some((i) => i.value.trim() !== (orig[i.dataset.pm] || "").trim());
+    const shown = { ...orig, 미팅장소: meetingOf(current.cust, current.extra) };
+    const dirty = () => inputs.some((i) => i.value.trim() !== (shown[i.dataset.pm] || "").trim());
     inputs.forEach((i) => i.addEventListener("input", () => { btn.disabled = !dirty(); }));
     btn.addEventListener("click", async () => {
       btn.disabled = true; btn.textContent = "저장 중…";
       const v = { ...orig };
       inputs.forEach((i) => { v[i.dataset.pm] = i.value.trim(); });
       try {
+        // 미팅장소는 이 고객이 있는 고객리스트 시트마다 '미팅장소' 칸에 저장 (칸이 없으면 만듦)
+        if ("미팅장소" in v && v["미팅장소"] !== (shown["미팅장소"] || "")) {
+          await writeEntryCells(current.cust.entries, { 미팅장소: v["미팅장소"] });
+        }
         await saveExtraFor(current.fc, current.cust.name, v, orig);
         current.extra = { ...current.extra, found: true, values: v };
         meetCache = null;
@@ -1822,8 +1849,8 @@
   });
   // 검색 범위 버튼: 전체 + config.lists 순서대로
   $("modes").innerHTML = `<button type="button" data-mode="all" class="on">전체</button>` +
-    CFG.lists.map((l) => `<button type="button" data-mode="${esc(l.id)}">${esc(l.label)}</button>`).join("");
-  $("modes").style.gridTemplateColumns = `repeat(${CFG.lists.length + 1}, 1fr)`;
+    CFG.lists.filter((l) => !l.hidden).map((l) => `<button type="button" data-mode="${esc(l.id)}">${esc(l.label)}</button>`).join("");
+  $("modes").style.gridTemplateColumns = `repeat(${CFG.lists.filter((l) => !l.hidden).length + 1}, 1fr)`;
   $("modes").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     mode = b.dataset.mode;
     $("modes").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
@@ -1946,22 +1973,20 @@
   // 제목의 지역: 괄호 안 지역 "(광양)" → 그 외 알려진 시·군 이름 → 없으면 광주
   const titleRegion = (t) => { const p = (t.match(/\(([가-힣]{2,4})\)/) || [])[1]; return (p && !/^\d|차$/.test(p) && p !== "광주" ? p.replace(/(시|군)$/, "") : "") || CITIES.find((c) => t.includes(c)) || ""; };
   const custRegionCity = (region) => { const m = String(region || "").match(/(\S+)$/); return region === "광주" || !region ? "" : (m ? m[1] : ""); };
-  const LIST_PRIORITY = ["진행", "DB", "이관", "계약"]; // 같은 이름이 여러 리스트에 있으면 이 순서로
-  const prio = (type) => { const i = LIST_PRIORITY.indexOf(type); return i < 0 ? 99 : i; };
   const entryAddr = (e) => { const a = e.fields.find(([k]) => k.trim() === "주소"); return a ? a[1] : ""; };
 
   // 일정 제목에 들어 있는 고객 이름 → 고객 (같은 이름이 여러 명이면 모두, 최근 등록 순)
   function matchCustomers(title, records, contracts) {
     const nt = norm(title);
     const fcs = new Set(records.map((r) => norm(r.fc)).filter(Boolean));
-    const names = [...new Set(records.map((r) => r.name))].filter((n) => norm(n).length >= 2 && nt.includes(norm(n)));
+    const names = [...new Set(records.map((r) => baseName(r.name)))].filter((n) => norm(n).length >= 2 && nt.includes(norm(n)));
     if (!names.length) return [];
     // FC 이름이 아닌 것, 긴 이름 우선
     names.sort((a, b) => (fcs.has(norm(a)) - fcs.has(norm(b))) || norm(b).length - norm(a).length);
     const name = names[0];
     const city = titleRegion(title);
     const fcHead = (title.match(/^\s*([^\s)]{1,3})\)/) || [])[1] || ""; // "최) …" → 최수진 FC 고객 우선
-    const recs = records.filter((r) => norm(r.name) === norm(name));
+    const recs = records.filter((r) => norm(baseName(r.name)) === norm(name)); // "이영숙(640927)"도 포함
     const score = (r) => {
       const fcMiss = fcHead && r.fc && !String(r.fc).startsWith(fcHead) ? 4 : 0;
       const a = entryAddr(r);
@@ -1978,13 +2003,15 @@
     });
     const list = [...groups.values()];
     list.forEach((g) => {
-      g.entries.sort((a, b) => score(a) - score(b) || prio(a.type) - prio(b.type));
+      g.entries.sort((a, b) => prio(a.type) - prio(b.type) || score(a) - score(b));
+      g.name = g.entries[0].name;
       g.city = city;
       g.recent = recencyOf(g, contracts);
     });
-    // 최근 등록 순 (계약일·이관일·보장분석일 중 가장 최근), 같으면 지역·리스트 우선순위
-    const best = (g) => Math.min(...g.entries.map((e) => score(e) * 100 + prio(e.type)));
-    return list.sort((a, b) => (b.recent || "").localeCompare(a.recent || "") || best(a) - best(b));
+    // 표시 순서: 시트 우선순위(계약 > 이관 > 따행 > DB > 추가), 같으면 최근 등록 순 → 지역
+    const top = (g) => Math.min(...g.entries.map((e) => prio(e.type)));
+    const sc = (g) => Math.min(...g.entries.map(score));
+    return list.sort((a, b) => top(a) - top(b) || (b.recent || "").localeCompare(a.recent || "") || sc(a) - sc(b));
   }
   // 날짜 글자 → 비교용 YYYYMMDD ("2026.05", "2026-08-31", "2005.01.01")
   const dateKey = (v) => {
@@ -2171,7 +2198,7 @@
 
   // 동명이인 확인: 일정에 주소를 입력한 고객으로 지정 (이 기기에 저장, '초기화'로 지움)
   const PICK_KEY = "shlife.eventPick";
-  const custKey = (c) => norm(c.name) + "|" + String(c.birth || "").replace(/\D/g, "");
+  const custKey = (c) => norm(baseName(c.name)) + "|" + String(c.birth || "").replace(/\D/g, "");
   function readPicks() { try { return JSON.parse(localStorage.getItem(PICK_KEY) || "{}"); } catch (e) { return {}; } }
   function savePick(eventKey, ck) {
     const p = readPicks();
@@ -2191,9 +2218,22 @@
     const body = $("schedBody");
     if (!evs.length) { body.innerHTML = '<div class="card center"><p class="hint">일정이 없습니다.</p></div>'; return; }
     body.innerHTML = '<div class="day-tools"><button type="button" class="link-btn" id="pickReset">초기화</button></div><div id="dayList"></div>';
-    $("pickReset").addEventListener("click", () => {
-      if (!confirm("동명이인 확인 내용을 지우고, 찾은 고객을 모두 다시 보여줄까요?")) return;
+    // 초기화: 동명이인 지정을 지우고, 고객 주소·미팅장소로 '입력'해 둔 일정 장소도 지움
+    let dayItems = [];
+    $("pickReset").addEventListener("click", async () => {
+      const filled = dayItems.filter((it) => it.e.location && it.all.some((c) =>
+        [currentValue(c, ["주소"]), meetingOf(c)].map((v) => String(v || "").trim()).filter(Boolean).includes(it.e.location.trim())));
+      const msg = "동명이인 확인 내용을 지우고, 찾은 고객을 모두 다시 보여줄까요?" +
+        (filled.length ? `\n고객 정보로 입력한 일정 장소 ${filled.length}건도 지웁니다.` : "");
+      if (!confirm(msg)) return;
       try { localStorage.removeItem(PICK_KEY); } catch (e) {}
+      if (filled.length) {
+        try {
+          await ensureGWrite();
+          for (const it of filled) await gcalPatch(it.e.calId, it.e.eventId, { location: "" });
+          toast(`일정 장소 ${filled.length}건을 지웠습니다.`);
+        } catch (e) { toast(e.message === "GOOGLE_AUTH" ? "구글 연결이 끊겼습니다. 다시 눌러 주세요." : e.message); }
+      }
       renderSchedule();
     });
     // 고객 찾기 (고객 리스트 엑셀 + 계약일로 최근 등록 순)
@@ -2204,11 +2244,13 @@
     if (req !== schedReq) return;
     const picks = readPicks();
     const items = evs.map((e) => {
-      let custs = isTeamEvent(e) ? matchCustomers(e.title, records, contracts) : [];
+      const all = isTeamEvent(e) ? matchCustomers(e.title, records, contracts) : [];
+      let custs = all;
       const pk = picks[e.id];
       if (pk && custs.length > 1) { const one = custs.filter((c) => custKey(c) === pk); if (one.length) custs = one; }
-      return { e, custs };
+      return { e, custs, all };
     });
+    dayItems = items;
     items.forEach((it) => { it.cust = it.custs[0] || null; });
     const list = $("dayList");
     list.innerHTML = items.map((it, i) => `<div class="travel" id="tr${i}" hidden></div>${dayCardHtml(it, i)}`).join("") +
@@ -2267,7 +2309,7 @@
   }
   function fillCust(it, c, i, j) {
     const x = c.extra || {};
-    const mp = ((x.values || {})["미팅장소"] || "").trim();
+    const mp = meetingOf(c, x);
     if (mp) {
       const dd = $(`mp${i}-${j}`);
       dd.innerHTML = `<span>${esc(mp)}</span>${putBtn(i, j, "mp")}`;
@@ -2284,7 +2326,7 @@
   // 주소/미팅장소 '입력' → 그 일정의 장소(위치)에 저장 + 동명이인이면 이 고객으로 지정
   async function putLocation(it, i, j, kind, btn) {
     const c = it.custs[j];
-    const text = kind === "mp" ? ((c.extra && c.extra.values && c.extra.values["미팅장소"]) || "").trim() : currentValue(c, ["주소"]);
+    const text = kind === "mp" ? meetingOf(c) : currentValue(c, ["주소"]);
     if (!text) return;
     btn.disabled = true; btn.textContent = "저장 중";
     try {
@@ -2370,7 +2412,7 @@
     const pointOf = async (it) => {
       const tries = [];
       if (it.cust) {
-        tries.push((it.extra && it.extra.values && it.extra.values["미팅장소"]) || "");
+        tries.push(meetingOf(it.cust, it.extra));
         tries.push(currentValue(it.cust, ["주소"]));
       }
       tries.push(it.e.location);

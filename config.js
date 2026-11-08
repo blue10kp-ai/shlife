@@ -18,13 +18,16 @@ window.APP_CONFIG = {
   permFile: "shlife-권한.json",
 
   // 고객 검색 범위 버튼 (전체 + 아래 순서)
-  //   FC 폴더 안 "날짜 - FC - 계약.xlsx" / "날짜 - FC - 기타.xlsx"의 시트를 읽음 (FC마다 가장 최근 날짜 파일 하나)
+  //   FC 폴더 안 "날짜 - FC - 리스트.xlsx"의 시트를 읽음 (FC마다 가장 최근 날짜 파일 하나)
+  //   순서 = 우선순위 (같은 고객이 여러 시트에 있으면 앞쪽 우선, 일정에서도 이 순서로 표시)
+  //   hidden: 버튼은 없고 '전체' 검색에만 포함
   lists: [
     { id: "contract", label: "계약", fileRegex: " - (리스트|계약)\\.xlsx$", sheet: "계약고객" },
     { id: "transfer", label: "이관", fileRegex: " - (리스트|계약)\\.xlsx$", sheet: "이관고객" },
-    { id: "ddahaeng", label: "따행", fileKeyword: "따뜻한행복" },
+    { id: "ddahaeng", label: "따행", fileRegex: " - 리스트\\.xlsx$", sheet: "따행고객" },
     { id: "db",       label: "DB",   fileRegex: " - 리스트\\.xlsx$", sheet: "DB고객" },
-    { id: "progress", label: "진행", fileRegex: " - (리스트|기타)\\.xlsx$", sheet: "진행고객" }
+    { id: "plan",     label: "추가", fileRegex: " - 리스트\\.xlsx$", sheet: "예정고객" },
+    { id: "progress", label: "진행", fileRegex: " - (리스트|기타)\\.xlsx$", sheet: "진행고객", hidden: true }
   ],
 
   // 계약 탭에 보여줄 계약 상세 ('계약자'·'주피보험자'·'피보'로 고객 매칭)
