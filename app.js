@@ -822,7 +822,7 @@
     $("avatar").classList.remove("editable");
     consultShowAll = false; // 상담기록은 처음엔 최근 10건
     $("avatar").classList.remove("has-photo");
-    $("custSub").textContent = custSubText(cust);
+    $("custSub").innerHTML = custSubHtml(cust);
     $("tabBody").innerHTML = '<p class="hint pad">고객 정보를 불러오는 중…</p>';
     $("tabs").innerHTML = "";
     history.pushState({ v: "customer" }, "");
@@ -976,12 +976,14 @@
       : `<div>${esc(v)}</div>`;
   }
 
-  // 맨 위: 생년월일 (남) · 계약 · 담당: 최수진FC
-  function custSubText(c) {
+  // 맨 위: 생년월일 (남) · [계약] · 담당: 최수진FC   (계약/이관 등은 색 태그)
+  function custSubHtml(c) {
     const g = genderOf(c);
     const types = [...new Set(c.entries.map((e) => e.type))];
     const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
-    return [c.birth ? c.birth + (g ? ` (${g})` : "") : "", types.join(" · "), fcs.length ? "담당: " + fcs.map((f) => f + "FC").join(", ") : ""]
+    return [c.birth ? esc(c.birth + (g ? ` (${g})` : "")) : "",
+      types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join(" "),
+      fcs.length ? esc("담당: " + fcs.map((f) => f + "FC").join(", ")) : ""]
       .filter(Boolean).join(" · ");
   }
 
@@ -1009,7 +1011,7 @@
     // 통신사 / 차량번호 / 자동차보험갱신일 (+ 미팅장소·메모가 아닌 추가 항목) — 주소 밑 한 줄
     const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k));
     const chips = extraKeys.filter((k) => (ev[k] || "").trim()).map((k) =>
-      `<span class="chip"><small>${esc(k === "자동차보험갱신일" ? "보험갱신" : k)}</small> ${esc(EXTRA.monthDayCols.includes(k) ? mdText(ev[k]) : ev[k])}</span>`).join("");
+      `<span class="chip" title="${esc(k)}">${esc(EXTRA.monthDayCols.includes(k) ? mdText(ev[k]) : ev[k])}</span>`).join("");
     const rest = [...merged];
     const info = `<div class="card" id="infoCard"><dl class="kv">
         ${phones.length ? row("연락처", phones.map(([k, v]) => valueWithActions(k, v)).join("")) : row("연락처", '<span class="hint">-</span>')}
@@ -1019,10 +1021,38 @@
         ${rest.map(([k, vs]) => row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
       </dl></div>`;
     const prim = (x.fields || []).filter((k) => EXTRA.primary.includes(k));
+    // 미팅장소·메모: 수정 모드가 아니어도 바로 입력하고 저장
     const memo = x.missing ? `<div class="card"><p class="hint">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p></div>`
-      : prim.length ? `<div class="card"><dl class="kv">${prim.map((k) => row(k, (ev[k] || "").trim()
-        ? `<div class="pre">${esc(ev[k])}</div>` : '<span class="hint">-</span>')).join("")}</dl></div>` : "";
+      : x.error ? '<div class="card"><p class="hint">추가 정보 엑셀을 읽지 못했습니다.</p></div>'
+      : prim.length ? `<div class="card" id="memoCard">${prim.map((k) => `<label class="fld"><span>${esc(k)}</span>
+          ${/메모/.test(k) ? `<textarea data-pm="${esc(k)}" rows="3">${esc(ev[k] || "")}</textarea>`
+            : `<input data-pm="${esc(k)}" value="${esc(ev[k] || "")}" autocomplete="off">`}</label>`).join("")}
+          <div class="file-actions"><button type="button" class="primary" id="memoSave" disabled>저장</button></div></div>` : "";
     return info + memo;
+  }
+
+  function bindMemo() {
+    const btn = $("memoSave");
+    if (!btn) return;
+    const inputs = [...$("tabBody").querySelectorAll("[data-pm]")];
+    const orig = { ...((current.extra && current.extra.values) || {}) };
+    const dirty = () => inputs.some((i) => i.value.trim() !== (orig[i.dataset.pm] || "").trim());
+    inputs.forEach((i) => i.addEventListener("input", () => { btn.disabled = !dirty(); }));
+    btn.addEventListener("click", async () => {
+      btn.disabled = true; btn.textContent = "저장 중…";
+      const v = { ...orig };
+      inputs.forEach((i) => { v[i.dataset.pm] = i.value.trim(); });
+      try {
+        await saveExtraFor(current.fc, current.cust.name, v, orig);
+        current.extra = { ...current.extra, found: true, values: v };
+        meetCache = null;
+        toast("저장했습니다.");
+        selectTab("basic");
+      } catch (e) {
+        btn.disabled = false; btn.textContent = "저장";
+        saveError(e);
+      }
+    });
   }
 
   // 정보 수정: 연락처·주소·이메일 → 고객리스트 엑셀 + '우선' 1
@@ -1060,11 +1090,10 @@
       return `<label class="fld ${EXTRA.monthDayCols.includes(k) ? "fld-md" : ""}"><span>${esc(k)}</span>${input}</label>`;
     };
     const fields = x.fields || [];
-    const more = fields.filter((k) => !EXTRA.primary.includes(k));
-    const prim = fields.filter((k) => EXTRA.primary.includes(k));
+    const more = fields.filter((k) => !EXTRA.primary.includes(k)); // 미팅장소·메모는 정보 화면에서 바로 입력
     return `<div class="card" id="infoForm">
         ${listFields}
-        ${x.missing || x.error ? `<p class="hint">추가 정보 엑셀을 읽지 못해 통신사·차량·미팅장소·메모는 수정할 수 없습니다.</p>` : more.map(field).join("") + prim.map(field).join("")}
+        ${x.missing || x.error ? `<p class="hint">추가 정보 엑셀을 읽지 못해 통신사·차량번호·갱신일은 수정할 수 없습니다.</p>` : more.map(field).join("")}
         <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
         <div class="file-actions">
           <button type="button" class="secondary" id="infoCancel">취소</button>
@@ -1075,7 +1104,7 @@
   }
 
   function bindExtra() {
-    if (!editMode) return;
+    if (!editMode) return bindMemo();
     const body = $("tabBody");
     // 월/일 선택 → 'MMDD'
     body.querySelectorAll(".mmdd").forEach((box) => {
@@ -1099,7 +1128,7 @@
       // 고객추가정보: 바뀐 칸이 있으면
       const inputs = [...body.querySelectorAll("[data-ex]")];
       const orig = { ...((current.extra && current.extra.values) || {}) };
-      const v = Object.fromEntries(inputs.map((i) => [i.dataset.ex, i.value.trim()]));
+      const v = { ...orig, ...Object.fromEntries(inputs.map((i) => [i.dataset.ex, i.value.trim()])) };
       const extraDirty = inputs.some((i) => i.value.trim() !== (orig[i.dataset.ex] || ""));
       if (!Object.keys(listValues).length && !extraDirty) return setEditMode(false);
       btn.disabled = true; btn.textContent = "저장 중…";
@@ -1592,10 +1621,7 @@
           <button class="secondary" id="resetPerms" disabled>되돌리기</button>
           <button class="primary" id="savePerms" disabled>변경 저장</button>
         </div>
-      </div>
-
-      <div class="card">
-        <h3 class="sec-title">사용자 추가</h3>
+        <h4 class="sub-title">사용자 추가</h4>
         <form id="addUserForm" class="search">
           <input id="newUser" type="email" placeholder="Microsoft 계정 이메일" autocomplete="off" required>
           <button class="primary" type="submit">추가</button>
@@ -1811,7 +1837,7 @@
   function storedGToken() {
     try {
       const t = JSON.parse(localStorage.getItem(GTOKEN_KEY) || "null");
-      return t && t.exp > Date.now() + 60000 ? t.token : null;
+      return t && t.exp > Date.now() + 60000 && t.v === 2 ? t.token : null; // v2 = 일정 수정 권한 포함
     } catch (e) { return null; }
   }
   // 구글 로그인 창(팝업) → 캘린더 읽기 권한 토큰 (1시간 유효, 버튼을 눌렀을 때만 호출)
@@ -1821,11 +1847,11 @@
       if (!g) return reject(new Error("구글 로그인 모듈을 불러오지 못했습니다. 잠시 후 다시 시도하세요."));
       const client = g.initTokenClient({
         client_id: GCFG.clientId,
-        scope: "https://www.googleapis.com/auth/calendar.readonly",
+        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events",
         hint: (appSettings.google && appSettings.google.account) || undefined,
         callback: (r) => {
           if (r.error) return reject(new Error("구글 연결 실패: " + r.error));
-          try { localStorage.setItem(GTOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000 })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ }
+          try { localStorage.setItem(GTOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, v: 2 })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ }
           gTokenMem = r.access_token;
           resolve(r.access_token);
         },
@@ -1840,6 +1866,18 @@
     if (!t) throw new Error("GOOGLE_AUTH");
     const res = await fetch(GCAL + path, { headers: { Authorization: "Bearer " + t } });
     if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
+    return res.json();
+  }
+  // 일정 수정 (장소 입력, 일정 수정 모드)
+  async function gcalPatch(calId, eventId, body) {
+    const t = storedGToken() || gTokenMem;
+    if (!t) throw new Error("GOOGLE_AUTH");
+    const res = await fetch(GCAL + "/calendars/" + encodeURIComponent(calId) + "/events/" + encodeURIComponent(eventId), {
+      method: "PATCH", headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" }, body: JSON.stringify(body)
+    });
+    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 403) throw new Error("이 캘린더의 일정을 수정할 권한이 없습니다.");
     if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
     return res.json();
   }
@@ -1864,8 +1902,9 @@
     const lists = await Promise.all(cals.map(withAlias).map(async (c) => {
       const d = await gcal("/calendars/" + encodeURIComponent(c.id) + "/events" + q);
       return (d.items || []).filter((e) => e.status !== "cancelled").map((e) => ({
-        id: c.id + "|" + e.id, cal: c,
+        id: c.id + "|" + e.id, cal: c, calId: c.id, eventId: e.id,
         title: String(e.summary || "(제목 없음)").trim(),
+        desc: String(e.description || ""),
         location: String(e.location || "").trim(),
         allDay: !!e.start.date,
         start: e.start.dateTime ? new Date(e.start.dateTime) : ymdToDate(e.start.date),
@@ -2086,7 +2125,7 @@
 
   const calDot = (e) => `<span class="cal-dot" style="background:${esc(e.cal.color || "var(--brand)")}"></span>`;
   // "10:00 ~ 11:00 스케줄명 - 캘린더" 한 줄
-  const evLine = (e) => `<span class="ev-time">${esc(timeText(e))}</span> <span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}</span>`;
+  const evLine = (e) => `<span class="ev-time">${esc(timeText(e))}</span><span class="ev-sep">|</span><span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}</span>`;
 
   function renderWeek(events, from) {
     let html = "";
@@ -2117,31 +2156,58 @@
   // 고객 정보·이동 시간은 팀 캘린더(1팀) 일정만. 개인 일정(김현성·최수진)은 일정 내용만
   const isTeamEvent = (e) => !e.allDay && e.cal.name === (GCFG.teamCalendar || "1팀");
 
+  // 동명이인 확인: 일정에 주소를 입력한 고객으로 지정 (이 기기에 저장, '초기화'로 지움)
+  const PICK_KEY = "shlife.eventPick";
+  const custKey = (c) => norm(c.name) + "|" + String(c.birth || "").replace(/\D/g, "");
+  function readPicks() { try { return JSON.parse(localStorage.getItem(PICK_KEY) || "{}"); } catch (e) { return {}; } }
+  function savePick(eventKey, ck) {
+    const p = readPicks();
+    if (ck) p[eventKey] = ck; else delete p[eventKey];
+    try { localStorage.setItem(PICK_KEY, JSON.stringify(p)); } catch (e) { /* 저장 못 해도 이번 화면엔 반영 */ }
+  }
+
+  // 구글 일정 수정 전: 수정 권한이 있는 토큰이 없으면 (버튼을 누른 그 순간에) 로그인 창
+  async function ensureGWrite() {
+    if (storedGToken() || gTokenMem) return;
+    await requestGToken();
+  }
+
   async function renderDay(events, req) {
     const d = schedDate;
     const evs = events.filter((e) => onDay(e, d));
     const body = $("schedBody");
     if (!evs.length) { body.innerHTML = '<div class="card center"><p class="hint">일정이 없습니다.</p></div>'; return; }
-    body.innerHTML = '<div id="dayList"></div>';
+    body.innerHTML = '<div class="day-tools"><button type="button" class="link-btn" id="pickReset">초기화</button></div><div id="dayList"></div>';
+    $("pickReset").addEventListener("click", () => {
+      if (!confirm("동명이인 확인 내용을 지우고, 찾은 고객을 모두 다시 보여줄까요?")) return;
+      try { localStorage.removeItem(PICK_KEY); } catch (e) {}
+      renderSchedule();
+    });
     // 고객 찾기 (고객 리스트 엑셀 + 계약일로 최근 등록 순)
     let records = [], contracts = [];
     if (evs.some(isTeamEvent)) {
       try { [records, contracts] = await Promise.all([loadLists(), loadContracts().catch(() => [])]); } catch (e) { handleError(e); }
     }
     if (req !== schedReq) return;
-    const items = evs.map((e) => ({ e, custs: isTeamEvent(e) ? matchCustomers(e.title, records, contracts) : [] }));
+    const picks = readPicks();
+    const items = evs.map((e) => {
+      let custs = isTeamEvent(e) ? matchCustomers(e.title, records, contracts) : [];
+      const pk = picks[e.id];
+      if (pk && custs.length > 1) { const one = custs.filter((c) => custKey(c) === pk); if (one.length) custs = one; }
+      return { e, custs };
+    });
     items.forEach((it) => { it.cust = it.custs[0] || null; });
     const list = $("dayList");
     list.innerHTML = items.map((it, i) => `<div class="travel" id="tr${i}" hidden></div>${dayCardHtml(it, i)}`).join("") +
       `<div class="travel" id="tr${items.length}" hidden></div>`;
-    items.forEach((it, i) => bindDayCard(it, i));
+    items.forEach((it, i) => bindDayCard(it, i, req));
     // 추가정보(미팅장소, 상담기록)
     await Promise.all(items.map(async (it, i) => {
       await Promise.all(it.custs.map(async (c, j) => {
         const fc = (c.entries.find((e) => e.fc) || {}).fc || "";
         try { c.extra = await loadExtraFor(fc, c.name); } catch (e) { c.extra = null; }
         if (req !== schedReq) return;
-        fillCust(c, i, j);
+        fillCust(it, c, i, j);
       }));
       it.extra = it.cust && it.cust.extra;
     }));
@@ -2149,6 +2215,7 @@
     renderTravel(items, req);
   }
 
+  const putBtn = (i, j, kind) => `<button type="button" class="put-btn" data-put="${i}-${j}-${kind}" aria-label="일정 장소에 입력">입력</button>`;
   function custBlockHtml(c, i, j) {
     const phone = (c.entries.find((x) => x.phone) || {}).phone || "";
     const addr = currentValue(c, ["주소"]);
@@ -2160,32 +2227,116 @@
         <dl class="ev-info">
           ${c.birth ? `<dt>생년월일</dt><dd>${esc(c.birth)}${g ? ` (${esc(g)})` : ""}</dd>` : ""}
           ${phone ? `<dt>연락처</dt><dd><a class="nowrap" href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${esc(phone)}</a></dd>` : ""}
-          ${addr ? `<dt>주소</dt><dd>${esc(addr)}</dd>` : ""}
-          <dt id="mpl${i}-${j}" hidden>미팅장소</dt><dd id="mp${i}-${j}" hidden></dd>
+          ${addr ? `<dt>주소</dt><dd class="put-row"><span>${esc(addr)}</span>${putBtn(i, j, "addr")}</dd>` : ""}
+          <dt id="mpl${i}-${j}" hidden>미팅장소</dt><dd id="mp${i}-${j}" class="put-row" hidden></dd>
         </dl>
         <div id="cs${i}-${j}"></div></div>`;
   }
   function dayCardHtml(it, i) {
     const e = it.e;
-    return `<div class="card ev-card">${calDot(e)}<div class="ev-head">${evLine(e)}</div>
-      ${e.location ? `<p class="hint">📍 ${esc(e.location)}</p>` : ""}${it.custs.map((c, j) => custBlockHtml(c, i, j)).join("")}</div>`;
+    return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head">${evLine(e)}</div>
+        <button type="button" class="ev-edit" data-evedit="${i}">수정</button></div>
+      <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}>📍 ${esc(e.location)}</p>
+      <div id="evForm${i}"></div>
+      ${it.custs.map((c, j) => custBlockHtml(c, i, j)).join("")}</div>`;
   }
-  function bindDayCard(it, i) {
+  function bindDayCard(it, i, req) {
     it.custs.forEach((c, j) => {
       const b = document.querySelector(`[data-open="${i}-${j}"]`);
       if (b) b.addEventListener("click", () => openCustomer(c));
     });
+    const card = $("ev" + i);
+    card.addEventListener("click", (ev) => {
+      const put = ev.target.closest("[data-put]");
+      if (put) { const [, j, kind] = put.dataset.put.split("-"); putLocation(it, i, +j, kind, put); }
+    });
+    card.querySelector("[data-evedit]").addEventListener("click", () => toggleEventForm(it, i));
   }
-  function fillCust(c, i, j) {
+  function fillCust(it, c, i, j) {
     const x = c.extra || {};
     const mp = ((x.values || {})["미팅장소"] || "").trim();
-    if (mp) { $(`mp${i}-${j}`).textContent = mp; $(`mp${i}-${j}`).hidden = false; $(`mpl${i}-${j}`).hidden = false; }
+    if (mp) {
+      const dd = $(`mp${i}-${j}`);
+      dd.innerHTML = `<span>${esc(mp)}</span>${putBtn(i, j, "mp")}`;
+      dd.hidden = false; $(`mpl${i}-${j}`).hidden = false;
+    }
     const cs = (x.consults || []).slice(0, 10);
     const box = $(`cs${i}-${j}`);
     if (box && cs.length) {
       box.innerHTML = `<details class="ev-consult"><summary>최근 상담 ${cs.length}건</summary>
         ${cs.map((r) => `<div class="consult-item"><div class="hint">${esc(r.date)}</div><div>${esc(r.text).replace(/\n/g, "<br>")}</div></div>`).join("")}</details>`;
     }
+  }
+
+  // 주소/미팅장소 '입력' → 그 일정의 장소(위치)에 저장 + 동명이인이면 이 고객으로 지정
+  async function putLocation(it, i, j, kind, btn) {
+    const c = it.custs[j];
+    const text = kind === "mp" ? ((c.extra && c.extra.values && c.extra.values["미팅장소"]) || "").trim() : currentValue(c, ["주소"]);
+    if (!text) return;
+    btn.disabled = true; btn.textContent = "저장 중";
+    try {
+      await ensureGWrite();
+      await gcalPatch(it.e.calId, it.e.eventId, { location: text });
+      it.e.location = text;
+      const loc = $("loc" + i);
+      loc.textContent = "📍 " + text; loc.hidden = false;
+      toast("일정 장소에 입력했습니다.");
+      if (it.custs.length > 1) { savePick(it.e.id, custKey(c)); renderSchedule(); return; }
+      btn.textContent = "입력됨";
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "입력";
+      toast(e.message === "GOOGLE_AUTH" ? "구글 연결이 끊겼습니다. 다시 눌러 주세요." : e.message);
+    }
+  }
+
+  // 일정 수정 모드: 제목 · 날짜 · 시간 · 장소 · 설명
+  const ymdStr = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  function toggleEventForm(it, i) {
+    const box = $("evForm" + i);
+    if (box.innerHTML) { box.innerHTML = ""; return; }
+    const e = it.e;
+    const endDay = e.allDay ? addDays(e.end, -1) : e.end;
+    box.innerHTML = `<div class="ev-form">
+        <label class="fld"><span>제목</span><input data-f="title" value="${esc(e.title)}" autocomplete="off"></label>
+        <label class="fld"><span>날짜</span><input data-f="date" type="date" value="${ymdStr(e.start)}"></label>
+        ${e.allDay ? `<label class="fld"><span>종료 날짜</span><input data-f="endDate" type="date" value="${ymdStr(endDay)}"></label>`
+          : `<div class="fld-2"><label class="fld"><span>시작</span><input data-f="start" type="time" value="${hm(e.start)}"></label>
+             <label class="fld"><span>종료</span><input data-f="end" type="time" value="${hm(e.end)}"></label></div>`}
+        <label class="fld"><span>장소</span><input data-f="location" value="${esc(e.location)}" autocomplete="off"></label>
+        <label class="fld"><span>설명</span><textarea data-f="desc" rows="3">${esc(e.desc)}</textarea></label>
+        <div class="file-actions"><button type="button" class="secondary" data-f-cancel>취소</button><button type="button" class="primary" data-f-save>저장</button></div>
+      </div>`;
+    const val = (k) => (box.querySelector(`[data-f="${k}"]`) || {}).value;
+    box.querySelector("[data-f-cancel]").addEventListener("click", () => { box.innerHTML = ""; });
+    box.querySelector("[data-f-save]").addEventListener("click", async (ev) => {
+      const btn = ev.currentTarget;
+      const patch = { summary: val("title").trim(), location: val("location").trim(), description: val("desc") };
+      if (!val("date")) return toast("날짜를 입력해 주세요.");
+      if (e.allDay) {
+        const endD = val("endDate") || val("date");
+        if (endD < val("date")) return toast("종료 날짜가 시작보다 빠릅니다.");
+        patch.start = { date: val("date") };
+        patch.end = { date: ymdStr(addDays(ymdToDate(endD), 1)) };
+      } else {
+        if (!val("start") || !val("end")) return toast("시간을 입력해 주세요.");
+        const st = new Date(val("date") + "T" + val("start") + ":00");
+        let en = new Date(val("date") + "T" + val("end") + ":00");
+        if (en <= st) return toast("종료 시간이 시작보다 빠릅니다.");
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Seoul";
+        patch.start = { dateTime: st.toISOString(), timeZone: tz };
+        patch.end = { dateTime: en.toISOString(), timeZone: tz };
+      }
+      btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        await ensureGWrite();
+        await gcalPatch(e.calId, e.eventId, patch);
+        toast("일정을 저장했습니다.");
+        renderSchedule();
+      } catch (err) {
+        btn.disabled = false; btn.textContent = "저장";
+        toast(err.message === "GOOGLE_AUTH" ? "구글 연결이 끊겼습니다. 다시 눌러 주세요." : err.message);
+      }
+    });
   }
 
   // 이동 거리·시간 (1팀 일정만): 회사 → 일정1 → 일정2 … → 회사
