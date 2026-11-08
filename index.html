@@ -10,14 +10,14 @@
   <link rel="manifest" href="manifest.webmanifest?v=2">
   <link rel="icon" href="favicon.png?v=2" type="image/png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
-  <link rel="stylesheet" href="style.css?v=40">
+  <link rel="stylesheet" href="style.css?v=42">
 </head>
 <body>
   <header class="topbar">
     <button id="backBtn" class="back-btn" hidden aria-label="뒤로 가기"><span class="chev-l">‹</span><span id="backLabel">고객 정보</span></button>
     <h1 id="title">고객</h1>
     <form id="topSearch" class="top-search" hidden role="search">
-      <input id="q" type="search" placeholder="🔍 검색" autocomplete="off" enterkeyhint="search" aria-label="고객명 검색">
+      <input id="q" type="search" placeholder="🔍 검색" autocomplete="off" enterkeyhint="search" aria-label="고객 검색 (이름·연락처·주소·미팅장소)">
       <ul id="recentList" class="recent" hidden></ul>
     </form>
     <button id="logoutBtn" class="text-btn" hidden>로그아웃</button>
@@ -47,14 +47,21 @@
 
     <!-- 고객 상세 화면 -->
     <section id="customerView" class="view" hidden>
-      <div class="card">
+      <div class="card cust-card">
         <div class="cust-head">
           <div class="avatar" id="avatar"></div>
-          <div>
-            <div class="name-row"><h2 id="custName"></h2><span id="gradeBtns" class="grade-btns"></span></div>
-            <div id="custSub" class="hint"></div>
+          <div class="cust-main">
+            <div class="name-row"><h2 id="custName"></h2><button type="button" id="editBtn" class="edit-mini">수정</button></div>
+            <div id="custSub" class="cust-sub"></div>
           </div>
         </div>
+        <div id="photoMenu" class="photo-menu" hidden>
+          <button type="button" id="photoPick">📷 사진 바꾸기</button>
+          <button type="button" id="photoDel" class="danger">🗑 사진 삭제</button>
+          <button type="button" id="photoMenuClose">취소</button>
+        </div>
+        <div id="gradeBtns" class="grade-btns" hidden></div>
+        <input type="file" id="photoInput" accept="image/*" hidden>
       </div>
       <nav id="tabs" class="tabs"></nav>
       <div id="tabBody"></div>
@@ -95,7 +102,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="config.js?v=40"></script>
-  <script src="app.js?v=40"></script>
+  <script src="config.js?v=42"></script>
+  <script src="app.js?v=42"></script>
 </body>
 </html>

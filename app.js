@@ -136,27 +136,46 @@
   // { "users": { "someone@outlook.com": ["김현성"], "other@hotmail.com": ["*"] } }   "*" = 전체 FC
   const PERM_FILE = CFG.permFile || "shlife-권한.json";
 
-  // ---------- 관리자 설정 (고객 폴더 안 설정 파일) ----------
+  // ---------- 앱 저장 폴더: Claude/app/신한FC/설정 (설정·권한 파일) ----------
+  //   소유자(관리자): 내 OneDrive 경로 / 다른 사용자: 관리자가 공유해 준 같은 폴더 (config.owner.appDirId)
+  let appDir = null;
+  async function resolveAppDir() {
+    if (appDir) return appDir;
+    await resolveBase();
+    try {
+      const path = "/me/drive/root:/" + CFG.appFolder.split("/").map(encodeURIComponent).join("/");
+      const it = await graph(path + "?$select=id,parentReference");
+      return (appDir = { driveId: it.parentReference.driveId, id: it.id });
+    } catch (e) {
+      if (!String(e.message).includes("404")) throw e;
+    }
+    return (appDir = { driveId: CFG.owner.driveId, id: CFG.owner.appDirId });
+  }
+  const appFilePath = (name) => "/drives/" + appDir.driveId + "/items/" + appDir.id + ":/" + encodeURIComponent(name) + ":/content";
+
+  // ---------- 관리자 설정 (앱 저장 폴더의 설정 파일, 모든 사용자가 같은 설정 사용) ----------
   //   { companyAddress, dataSaver, google: { account, calendars: [] } }
   const SETTINGS_FILE = CFG.settingsFile || "shlife-설정.json";
   let appSettings = { companyAddress: "", dataSaver: false, google: { account: "", calendars: [] } };
-  const settingsPath = () => itemPath(base.id) + ":/" + encodeURIComponent(SETTINGS_FILE) + ":/content";
+  const settingsPath = () => appFilePath(SETTINGS_FILE);
   async function loadSettings() {
     try {
-      await resolveBase();
+      await resolveAppDir();
       const s = await graph(settingsPath() + "?x=" + Date.now());
       appSettings = { ...appSettings, ...s, google: { ...appSettings.google, ...(s.google || {}) } };
     } catch (e) { /* 설정 파일이 아직 없으면 기본값 */ }
     return appSettings;
   }
   async function saveSettings(next) {
+    await resolveAppDir();
     await gx("PUT", settingsPath(), next);
     appSettings = next;
-  }  const permPath = () => itemPath(base.id) + ":/" + encodeURIComponent(PERM_FILE) + ":/content";
+  }
+  const permPath = () => appFilePath(PERM_FILE);
   const me = () => String((account() || {}).username || "").toLowerCase();
 
   async function readPerms() {
-    await resolveBase();
+    await resolveAppDir();
     try {
       const p = await graph(permPath() + "?x=" + Date.now());
       return { users: (p && p.users) || {} };
@@ -390,6 +409,23 @@
     return "";
   }
 
+  // 미팅장소 (고객추가정보 '기본' 시트) — 검색용, 저장하면 다시 읽음
+  let meetCache = null;
+  function loadMeetingPlaces() {
+    if (meetCache) return meetCache;
+    meetCache = (async () => {
+      const x = await readExtra();
+      if (!x) return [];
+      const ni = x.head.indexOf(EXTRA.nameCol), fi = x.head.indexOf(EXTRA.fcCol), mi = x.head.indexOf("미팅장소");
+      if (ni < 0 || mi < 0) return [];
+      return x.rows.slice(1).map((r) => ({ name: String(r[ni] ?? "").trim(), fc: fi < 0 ? "" : String(r[fi] ?? "").trim(), mp: String(r[mi] ?? "").trim() }))
+        .filter((m) => m.name && m.mp);
+    })();
+    meetCache.catch(() => { meetCache = null; });
+    return meetCache;
+  }
+  const digits = (v) => String(v || "").replace(/D/g, "");
+
   async function search(q) {
     q = q.trim();
     const status = $("searchStatus");
@@ -406,7 +442,17 @@
           : `'${want.label}' 엑셀 파일이 없습니다. FC 폴더에 이름에 '${want.fileKeyword}'가 들어간 엑셀을 넣어 주세요.`;
         return;
       }
-      const hits = records.filter((r) => (!want || r.type === want.label) && norm(r.name).includes(norm(q)));
+      // 고객 이름 · 연락처 · 주소 · 미팅장소로 검색
+      const nq = norm(q), dq = digits(q);
+      const meets = await loadMeetingPlaces().catch(() => []);
+      const meetOf = (r) => meets.filter((m) => norm(m.name) === norm(r.name) && sameFc(m.fc, r.fc)).map((m) => m.mp).join(" ");
+      const hits = records.filter((r) => {
+        if (want && r.type !== want.label) return false;
+        if (norm(r.name).includes(nq)) return true;
+        if (dq.length >= 3 && dq === q.replace(/[s-]/g, "") && digits(r.phone).includes(dq)) return true;
+        if (nq.length < 2) return false;
+        return norm(entryAddr(r)).includes(nq) || norm(meetOf(r)).includes(nq);
+      });
       // 같은 이름 + 같은 생년월일은 한 고객으로 묶기
       const map = new Map();
       hits.forEach((r) => {
@@ -735,9 +781,11 @@
   function renderGrade(cust) {
     const g = gradeOf(cust) || "Good";
     $("custName").className = gradeClass(g) + " cname";
-    $("gradeBtns").innerHTML = GRADES.filter((x) => x.id !== g).map((x) =>
-      `<button type="button" class="grade-dot" data-grade="${x.id}" style="background:${x.color}" title="${x.label}" aria-label="성향을 ${x.label}(으)로"></button>`).join("");
-    $("gradeBtns").querySelectorAll("[data-grade]").forEach((b) => b.addEventListener("click", () => saveGrade(cust, b.dataset.grade)));
+    const box = $("gradeBtns");
+    box.hidden = !editMode;
+    box.innerHTML = editMode ? '<span class="grade-title">성향</span>' + GRADES.map((x) =>
+      `<button type="button" class="grade-opt${x.id === g ? " on" : ""}" data-grade="${x.id}" aria-label="성향 ${x.label}"><span class="grade-dot" style="background:${x.color}"></span><span>${x.label}</span></button>`).join("") : "";
+    box.querySelectorAll("[data-grade]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.grade !== g) saveGrade(cust, b.dataset.grade); }));
   }
 
   async function saveGrade(cust, g) {
@@ -763,13 +811,18 @@
     returnView = $("scheduleView").hidden ? "searchView" : "scheduleView";
     show("customerView");
     $("custName").textContent = cust.name;
+    editMode = false;
     renderGrade(cust);
     $("avatar").textContent = cust.name[0];
     $("avatar").style.backgroundImage = "";
-    extraOpen = false; // 추가 항목은 처음엔 접힌 상태
+    editMode = false;
+    $("editBtn").textContent = "수정";
+    $("editBtn").classList.remove("on");
+    $("photoMenu").hidden = true;
+    $("avatar").classList.remove("editable");
     consultShowAll = false; // 상담기록은 처음엔 최근 10건
     $("avatar").classList.remove("has-photo");
-    $("custSub").textContent = [cust.birth, ...new Set(cust.entries.map((e) => e.type))].filter(Boolean).join(" · ");
+    $("custSub").textContent = custSubText(cust);
     $("tabBody").innerHTML = '<p class="hint pad">고객 정보를 불러오는 중…</p>';
     $("tabs").innerHTML = "";
     history.pushState({ v: "customer" }, "");
@@ -890,11 +943,14 @@
     if (id === "basic") bindExtra();
   }
 
-  // 기본정보: 고객리스트의 인적 정보만 (계약·이관 내용, 상품명, 우편번호, 성별 제외 → 성별은 생년월일 뒤에)
-  //   + 추가 정보 엑셀의 통신사(연락처 앞), 차량번호·자동차보험갱신일(주소 밑)
+  // 정보 탭
+  //   보기: 연락처 · (이메일) · 주소 · 통신사/차량번호/자동차보험갱신일 · (그 밖의 고객리스트 항목) / 미팅장소 · 메모
+  //   수정(맨 위 '수정' 버튼): 같은 항목을 한 화면에서 고치고 저장
+  //     연락처·주소·이메일 → 고객리스트 엑셀 + '우선' 1 / 나머지 → 고객추가정보 엑셀
   const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선"];
   const BIRTH_KEYS = ["생년월일", "생일"];
-  let extraOpen = false;
+  const EMAIL_COLS = ["이메일", "e-mail", "Email"];
+  let editMode = false;
 
   function genderMark(v) {
     const s = String(v || "").trim();
@@ -902,6 +958,7 @@
     if (/^(여|여자|F|female)$/i.test(s)) return "여";
     return s;
   }
+  const genderOf = (c) => { for (const e of c.entries) { const f = e.fields.find(([k]) => k.trim() === "성별"); if (f && f[1]) return genderMark(f[1]); } return ""; };
 
   // 연락처(휴대폰): 📞 Call · 💬 SMS / 이메일: ✉️ @ — 오른쪽 끝 정렬 버튼
   const MOBILE_RE = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/;
@@ -919,46 +976,74 @@
       : `<div>${esc(v)}</div>`;
   }
 
+  // 맨 위: 생년월일 (남) · 계약 · 담당: 최수진FC
+  function custSubText(c) {
+    const g = genderOf(c);
+    const types = [...new Set(c.entries.map((e) => e.type))];
+    const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
+    return [c.birth ? c.birth + (g ? ` (${g})` : "") : "", types.join(" · "), fcs.length ? "담당: " + fcs.map((f) => f + "FC").join(", ") : ""]
+      .filter(Boolean).join(" · ");
+  }
+
+  const mdText = (v) => { const p = parseMonthDay(v); return p ? `${p[0]}월 ${p[1]}일` : String(v || ""); };
+
   function basicHtml() {
+    return editMode ? basicFormHtml() : basicViewHtml();
+  }
+
+  function basicViewHtml() {
     const c = current.cust;
     const x = current.extra || { values: {}, fields: [] };
     const ev = x.values || {};
+    // 고객리스트 항목 (같은 항목은 한 번만)
     const merged = new Map();
-    let gender = "";
     c.entries.forEach((e) => e.fields.forEach(([k, v]) => {
-      if (k.trim() === "성별" && !gender) gender = genderMark(v);
-      if (BASIC_EXCLUDE.includes(k.trim())) return;
-      if (!merged.has(k)) merged.set(k, []);
-      if (!merged.get(k).includes(v)) merged.get(k).push(v);
+      const key = k.trim();
+      if (BASIC_EXCLUDE.includes(key) || NAME_COLS.includes(key) || BIRTH_KEYS.includes(key)) return;
+      if (!merged.has(key)) merged.set(key, []);
+      if (!merged.get(key).includes(v)) merged.get(key).push(v);
     }));
-    // 성별을 생년월일 뒤에: 1980-10-21 (남)
-    if (gender) BIRTH_KEYS.forEach((k) => { if (merged.has(k)) merged.set(k, merged.get(k).map((v) => `${v} (${gender})`)); });
-    // 통신사를 연락처 앞에
-    const carrier = (ev[EXTRA.carrierCol] || "").trim();
-    if (carrier) PHONE_COLS.forEach((k) => { if (merged.has(k)) merged.set(k, merged.get(k).map((v) => carrier + " " + v)); });
-    // (차량번호·자동차보험갱신일은 기본 표에 표시하지 않음 — 추가 항목에서만 보고 수정)
-    const rows = [...merged];
-    const types = [...new Set(c.entries.map((e) => e.type))];
-    const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
-    const editable = c.entries.some((e) => e.src);
-    const infoCard = `<div class="card" id="infoCard">
-        <div class="entry-head">${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}
-          <span class="hint">${esc(fcs.length ? "담당 FC: " + fcs.join(", ") : "")}</span>
-          ${editable ? '<button type="button" class="edit-btn" id="infoEdit">✏️ 수정</button>' : ""}</div>
-        <div id="infoView">${rows.length ? `<dl class="kv">${rows.map(([k, vs]) => `<dt>${esc(k)}</dt><dd>${vs.map((v) => valueWithActions(k, v)).join("")}</dd>`).join("")}</dl>`
-          : '<p class="hint">고객리스트에 기본정보가 없습니다.</p>'}</div>
-        <div id="infoForm" hidden>
-          ${EDIT_FIELDS.map((f) => `<label class="fld"><span>${esc(f.label)}</span>
-            ${f.multi ? `<textarea data-edit="${esc(f.label)}" rows="2">${esc(currentValue(c, f.cols))}</textarea>`
-              : `<input data-edit="${esc(f.label)}" value="${esc(currentValue(c, f.cols))}" type="${f.type}" autocomplete="off">`}</label>`).join("")}
-          <div class="file-actions">
-            <button type="button" class="secondary" id="infoCancel">취소</button>
-            <button type="button" class="primary" id="infoSave">저장</button>
-          </div>
-          <p class="hint">저장하면 고객리스트 엑셀의 이 고객 줄에 반영되고 '${PRIORITY_COL}' 칸에 1이 표시됩니다.</p>
-        </div>
-      </div>`;
+    const take = (cols) => { const out = []; cols.forEach((k) => { (merged.get(k) || []).forEach((v) => out.push([k, v])); merged.delete(k); }); return out; };
+    const phones = take(PHONE_COLS), emails = take(EMAIL_COLS), addrs = take(["주소"]);
+    const row = (label, html) => `<dt>${esc(label)}</dt><dd>${html}</dd>`;
+    // 통신사 / 차량번호 / 자동차보험갱신일 (+ 미팅장소·메모가 아닌 추가 항목) — 주소 밑 한 줄
+    const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k));
+    const chips = extraKeys.filter((k) => (ev[k] || "").trim()).map((k) =>
+      `<span class="chip"><small>${esc(k === "자동차보험갱신일" ? "보험갱신" : k)}</small> ${esc(EXTRA.monthDayCols.includes(k) ? mdText(ev[k]) : ev[k])}</span>`).join("");
+    const rest = [...merged];
+    const info = `<div class="card" id="infoCard"><dl class="kv">
+        ${phones.length ? row("연락처", phones.map(([k, v]) => valueWithActions(k, v)).join("")) : row("연락처", '<span class="hint">-</span>')}
+        ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
+        ${addrs.length ? row("주소", addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
+        ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
+        ${rest.map(([k, vs]) => row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
+      </dl></div>`;
+    const prim = (x.fields || []).filter((k) => EXTRA.primary.includes(k));
+    const memo = x.missing ? `<div class="card"><p class="hint">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p></div>`
+      : prim.length ? `<div class="card"><dl class="kv">${prim.map((k) => row(k, (ev[k] || "").trim()
+        ? `<div class="pre">${esc(ev[k])}</div>` : '<span class="hint">-</span>')).join("")}</dl></div>` : "";
+    return info + memo;
+  }
 
+  // 정보 수정: 연락처·주소·이메일 → 고객리스트 엑셀 + '우선' 1
+  const EDIT_FIELDS = [
+    { label: "연락처", cols: PHONE_COLS, type: "tel" },
+    { label: "주소", cols: ["주소"], type: "text", multi: true },
+    { label: "이메일", cols: EMAIL_COLS, type: "email" }
+  ];
+  function currentValue(c, cols) {
+    for (const e of c.entries) for (const k of cols) { const f = e.fields.find(([fk]) => fk.trim() === k); if (f && f[1]) return f[1]; }
+    return "";
+  }
+
+  function basicFormHtml() {
+    const c = current.cust;
+    const x = current.extra || { values: {}, fields: [] };
+    const ev = x.values || {};
+    const canList = c.entries.some((e) => e.src);
+    const listFields = canList ? EDIT_FIELDS.map((f) => `<label class="fld"><span>${esc(f.label)}</span>
+        ${f.multi ? `<textarea data-edit="${esc(f.label)}" rows="2">${esc(currentValue(c, f.cols))}</textarea>`
+          : `<input data-edit="${esc(f.label)}" value="${esc(currentValue(c, f.cols))}" type="${f.type}" autocomplete="off">`}</label>`).join("") : "";
     const field = (k) => {
       const v = esc(ev[k] || "");
       let input;
@@ -974,65 +1059,63 @@
       else input = `<input data-ex="${esc(k)}" value="${v}" autocomplete="off">`;
       return `<label class="fld ${EXTRA.monthDayCols.includes(k) ? "fld-md" : ""}"><span>${esc(k)}</span>${input}</label>`;
     };
-    const prim = (x.fields || []).filter((k) => EXTRA.primary.includes(k));
-    const more = (x.fields || []).filter((k) => !EXTRA.primary.includes(k));
-    const moreFilled = more.filter((k) => (ev[k] || "").trim()).length + (current.profilePhoto ? 1 : 0);
-    const photoField = `<div class="fld photo-fld"><span>프로필 사진</span>
-        <div class="photo-row">
-          <div class="photo-thumb" id="photoThumb">${current.photoUrl ? `<img src="${current.photoUrl}" alt="프로필 사진">` : "사진 없음"}</div>
-          <label class="secondary photo-pick">📷 촬영 / 앨범에서 선택<input type="file" id="photoInput" accept="image/*" hidden></label>
+    const fields = x.fields || [];
+    const more = fields.filter((k) => !EXTRA.primary.includes(k));
+    const prim = fields.filter((k) => EXTRA.primary.includes(k));
+    return `<div class="card" id="infoForm">
+        ${listFields}
+        ${x.missing || x.error ? `<p class="hint">추가 정보 엑셀을 읽지 못해 통신사·차량·미팅장소·메모는 수정할 수 없습니다.</p>` : more.map(field).join("") + prim.map(field).join("")}
+        <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
+        <div class="file-actions">
+          <button type="button" class="secondary" id="infoCancel">취소</button>
+          <button type="button" class="primary" id="infoSave">저장</button>
         </div>
-        ${current.folders.length ? "" : '<p class="hint">이 고객의 폴더가 없어 사진을 저장할 수 없습니다.</p>'}
+        ${canList ? `<p class="hint">연락처·주소·이메일을 바꾸면 고객리스트 엑셀에 반영되고 '${PRIORITY_COL}' 칸에 1이 표시됩니다.</p>` : ""}
       </div>`;
-    const extraCard = `<div class="card">
-        ${x.missing ? `<p class="hint">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p>` :
-          x.error ? '<p class="hint">추가 정보 엑셀을 읽지 못했습니다.</p>' : `
-          ${prim.map(field).join("")}
-            <button type="button" class="more-btn" id="exMore" aria-expanded="${extraOpen}">
-              <span>${extraOpen ? "추가 항목 접기" : "추가 항목 펼치기"}</span>
-              <span class="hint">${esc(more.concat("프로필 사진").join(" · "))}${moreFilled ? ` (${moreFilled}개 입력됨)` : ""}</span>
-              <span class="chev">${extraOpen ? "▴" : "▾"}</span>
-            </button>
-            <div id="exMoreBox" ${extraOpen ? "" : "hidden"}>${more.map(field).join("")}${photoField}</div>
-          <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
-          <div class="file-actions"><button class="primary" id="exSave" disabled>저장</button></div>`}
-      </div>`;
-    return infoCard + extraCard;
   }
 
-  // 정보 수정: 연락처·주소·이메일 → 고객리스트 엑셀 + '우선' 1
-  const EDIT_FIELDS = [
-    { label: "연락처", cols: PHONE_COLS, type: "tel" },
-    { label: "주소", cols: ["주소"], type: "text", multi: true },
-    { label: "이메일", cols: ["이메일", "e-mail", "Email"], type: "email" }
-  ];
-  function currentValue(c, cols) {
-    for (const e of c.entries) for (const k of cols) { const f = e.fields.find(([fk]) => fk.trim() === k); if (f && f[1]) return f[1]; }
-    return "";
-  }
-  function bindInfoEdit() {
-    const edit = $("infoEdit");
-    if (!edit) return;
-    const show = (on) => { $("infoView").hidden = on; $("infoForm").hidden = !on; edit.hidden = on; };
-    edit.addEventListener("click", () => show(true));
-    $("infoCancel").addEventListener("click", () => show(false));
+  function bindExtra() {
+    if (!editMode) return;
+    const body = $("tabBody");
+    // 월/일 선택 → 'MMDD'
+    body.querySelectorAll(".mmdd").forEach((box) => {
+      const mm = box.querySelector("[data-mm]"), dd = box.querySelector("[data-dd]"), hid = box.querySelector("[data-ex]");
+      const upd = () => { hid.value = mm.value && dd.value ? pad2(mm.value) + pad2(dd.value) : (!mm.value && !dd.value ? "" : hid.value); };
+      mm.addEventListener("change", upd);
+      dd.addEventListener("change", upd);
+    });
+    $("infoCancel").addEventListener("click", () => setEditMode(false));
     $("infoSave").addEventListener("click", async () => {
       const c = current.cust;
-      const values = {};
-      $("infoForm").querySelectorAll("[data-edit]").forEach((i) => {
-        const f = EDIT_FIELDS.find((x) => x.label === i.dataset.edit);
-        // 엑셀에 이미 있는 열 이름을 그대로 사용 (예: 연락처/휴대폰)
-        const col = c.entries.flatMap((e) => e.fields.map(([k]) => k.trim())).find((k) => f.cols.includes(k)) || f.label;
-        values[col] = i.value.trim();
-      });
-      values[PRIORITY_COL] = 1;
       const btn = $("infoSave");
+      // 고객리스트: 바뀐 칸만
+      const listValues = {};
+      body.querySelectorAll("[data-edit]").forEach((i) => {
+        const f = EDIT_FIELDS.find((x) => x.label === i.dataset.edit);
+        if (i.value.trim() === currentValue(c, f.cols).trim()) return;
+        const col = c.entries.flatMap((e) => e.fields.map(([k]) => k.trim())).find((k) => f.cols.includes(k)) || f.label;
+        listValues[col] = i.value.trim();
+      });
+      // 고객추가정보: 바뀐 칸이 있으면
+      const inputs = [...body.querySelectorAll("[data-ex]")];
+      const orig = { ...((current.extra && current.extra.values) || {}) };
+      const v = Object.fromEntries(inputs.map((i) => [i.dataset.ex, i.value.trim()]));
+      const extraDirty = inputs.some((i) => i.value.trim() !== (orig[i.dataset.ex] || ""));
+      if (!Object.keys(listValues).length && !extraDirty) return setEditMode(false);
       btn.disabled = true; btn.textContent = "저장 중…";
       try {
-        await writeEntryCells(c.entries, values);
+        if (Object.keys(listValues).length) {
+          listValues[PRIORITY_COL] = 1;
+          await writeEntryCells(c.entries, listValues);
+        }
+        if (extraDirty) {
+          await saveExtraFor(current.fc, c.name, v, orig);
+          current.extra = { ...current.extra, found: true, values: v };
+          meetCache = null;
+        }
         current.phones = null;
-        toast("고객 정보를 고객리스트 엑셀에 저장했습니다.");
-        selectTab("basic");
+        toast("저장했습니다.");
+        setEditMode(false);
       } catch (e) {
         btn.disabled = false; btn.textContent = "저장";
         saveError(e);
@@ -1040,73 +1123,15 @@
     });
   }
 
-  function bindExtra() {
-    bindInfoEdit();
-    const btn = $("exSave");
-    if (!btn) return;
-    const more = $("exMore");
-    if (more) more.addEventListener("click", () => {
-      extraOpen = !extraOpen;
-      $("exMoreBox").hidden = !extraOpen;
-      more.setAttribute("aria-expanded", extraOpen);
-      more.querySelector("span").textContent = extraOpen ? "추가 항목 접기" : "추가 항목 펼치기";
-      more.querySelector(".chev").textContent = extraOpen ? "▴" : "▾";
-    });
-    // 월/일 선택 → 'MMDD'
-    $("tabBody").querySelectorAll(".mmdd").forEach((box) => {
-      const mm = box.querySelector("[data-mm]"), dd = box.querySelector("[data-dd]"), hid = box.querySelector("[data-ex]");
-      const upd = () => {
-        hid.value = mm.value && dd.value ? pad2(mm.value) + pad2(dd.value) : (!mm.value && !dd.value ? "" : hid.value);
-        hid.dispatchEvent(new Event("input"));
-      };
-      mm.addEventListener("change", upd);
-      dd.addEventListener("change", upd);
-    });
-    const inputs = [...$("tabBody").querySelectorAll("[data-ex]")];
-    const vals = () => Object.fromEntries(inputs.map((i) => [i.dataset.ex, i.value.trim()]));
-    const orig = { ...(current.extra.values || {}) };
-    let pendingPhoto = null; // 선택한 사진 (저장 전)
-    const valuesDirty = () => inputs.some((i) => i.value.trim() !== (orig[i.dataset.ex] || ""));
-    const dirty = () => valuesDirty() || !!pendingPhoto;
-    inputs.forEach((i) => i.addEventListener("input", () => { btn.disabled = !dirty(); }));
-    // 사진: 카메라 촬영 또는 갤러리 선택 → 미리보기 (휴대폰 사진은 줄여서 저장)
-    const photoInput = $("photoInput");
-    if (photoInput) photoInput.addEventListener("change", async () => {
-      const file = photoInput.files && photoInput.files[0];
-      if (!file) return;
-      photoInput.value = ""; // 같은 사진을 다시 골라도 change가 일어나게
-      try {
-        const cropped = await cropToCircle(file); // 원 안에 맞추기 (취소하면 null)
-        if (!cropped) return;
-        pendingPhoto = cropped;
-        $("photoThumb").innerHTML = `<img src="${URL.createObjectURL(pendingPhoto)}" alt="선택한 사진">`;
-        btn.disabled = !dirty();
-      } catch (e) { console.error(e); toast("사진을 읽지 못했습니다."); }
-    });
-    if (current.profilePhoto && !current.photoUrl && !appSettings.dataSaver) loadProfilePhoto();
-    btn.addEventListener("click", async () => {
-      btn.disabled = true;
-      btn.textContent = "저장 중…";
-      const v = vals();
-      try {
-        if (pendingPhoto && !current.folders.length) throw new Error("NO_CUSTOMER_FOLDER");
-        if (valuesDirty()) {
-          await saveExtraFor(current.fc, current.cust.name, v, orig);
-          current.extra = { ...current.extra, found: true, values: v };
-          current.phones = null; // 연락하기 탭 다시 계산
-        }
-        if (pendingPhoto) {
-          await uploadProfilePhoto(pendingPhoto);
-          pendingPhoto = null;
-        }
-        toast("저장했습니다.");
-        selectTab("basic"); // 통신사·차량 정보 반영해서 다시 표시
-      } catch (e) {
-        btn.disabled = false;
-        btn.textContent = "저장";
-        saveError(e);
-      }
-    });
+  // 맨 위 '수정' 버튼: 성향 버튼 · 사진 바꾸기 · 정보 수정 화면
+  function setEditMode(on) {
+    editMode = on;
+    $("editBtn").textContent = on ? "닫기" : "수정";
+    $("editBtn").classList.toggle("on", on);
+    $("photoMenu").hidden = true;
+    renderGrade(current.cust);
+    $("avatar").classList.toggle("editable", on);
+    selectTab("basic");
   }
 
   // ---------- 프로필 사진 ----------
@@ -1219,6 +1244,18 @@
     if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
     current.photoUrl = URL.createObjectURL(blob);
     setAvatarPhoto();
+  }
+
+  // 프로필 사진 삭제 (이 고객 폴더의 '프로필사진' 이미지 모두 → OneDrive 휴지통)
+  async function deleteProfilePhotos() {
+    const list = current.files.filter((f) => /프로필사진/.test(f.name) && /.(jpe?g|png|heic|webp)$/i.test(f.name));
+    for (const f of list) await gx("DELETE", itemPath(f.id));
+    current.files = current.files.filter((f) => !list.includes(f));
+    current.profilePhoto = null;
+    if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
+    current.photoUrl = null;
+    const a = $("avatar");
+    a.style.backgroundImage = ""; a.classList.remove("has-photo"); a.textContent = current.cust.name[0];
   }
 
   function findProfilePhoto(files) {
@@ -1463,8 +1500,8 @@
           <input id="setKakao" value="${esc(s.kakaoRestKey || "")}" placeholder="developers.kakao.com › 앱 › 플랫폼 키" autocomplete="off" spellcheck="false"></label>
         <label class="chk-line"><input type="checkbox" id="setSaver" ${s.dataSaver ? "checked" : ""}>
           <span><b>데이터 절약 모드</b><br><span class="hint">켜면 고객 사진을 불러오지 않습니다.</span></span></label>
-        <div class="fld"><span>일정에 보여줄 구글 캘린더</span>
-          <div id="gCalBox"></div></div>
+        <details class="fold" id="gFold"><summary>구글 캘린더 설정 <span class="hint">${esc(((s.google || {}).calendars || []).map((c) => c.name).join(", ") || "기본(1팀·김현성·최수진)")}</span></summary>
+          <div id="gCalBox"></div></details>
         <div class="file-actions"><button type="button" class="primary" id="setSave" disabled>설정 저장</button></div>
       </div>`;
   }
@@ -1489,7 +1526,7 @@
       btn.textContent = "설정 저장";
       btn.disabled = !dirty();
     });
-    loadCalendarChoices();
+    $("gFold").addEventListener("toggle", () => { if ($("gFold").open && !$("gCalBox").dataset.loaded) { $("gCalBox").dataset.loaded = "1"; loadCalendarChoices(); } });
   }
 
   // ---------- 관리자 페이지: 아이디별 FC 폴더 권한 (앱 자체 권한 파일) ----------
@@ -1512,14 +1549,7 @@
     const fcs = items.filter((i) => i.folder && !i.name.startsWith("_")).map((f) => f.name)
       .sort((a, b) => a.localeCompare(b, "ko"));
     const perms = await readPerms();
-    // 참고용: OneDrive에서 '고객' 폴더(또는 상위 폴더)를 누구와 공유했는지
-    const shares = [];
-    try {
-      const p = (await graph(itemPath(base.id) + "/permissions")).value || [];
-      p.filter((x) => !(x.roles || []).includes("owner")).forEach((x) =>
-        shares.push({ email: emailOf(x), name: nameOf(x), link: !!x.link, inherited: !!x.inheritedFrom }));
-    } catch (e) { /* 공유 목록을 못 읽어도 권한 관리는 가능 */ }
-    adminState = { fcs, perms, shares };
+    adminState = { fcs, perms };
   }
 
   async function openAdmin() {
@@ -1536,12 +1566,11 @@
   }
 
   function renderAdmin() {
-    const { fcs, perms, shares } = adminState;
+    const { fcs, perms } = adminState;
     const users = [...new Set([...Object.keys(perms.users), ...extraUsers])].sort();
     const listOf = (em) => perms.users[em] || [];
     const isAll = (em) => listOf(em).includes("*");
     const has = (em, fc) => isAll(em) || listOf(em).includes(fc);
-    const shared = (em) => shares.some((s) => s.email === em);
 
     $("adminBody").innerHTML = settingsCardHtml() + `
       <div class="card">
@@ -1552,7 +1581,7 @@
           ${(CFG.admins || []).map((a) => `<tr class="admin-row"><td>${esc(a)} <span class="tag">관리자</span></td>
             <td class="ok">●</td>${fcs.map(() => `<td class="ok">●</td>`).join("")}<td></td></tr>`).join("")}
           ${users.map((em) => `<tr class="perm-row" data-em="${esc(em)}">
-            <td>${esc(em)}${shared(em) ? "" : ' <span class="warn-dot" title="OneDrive에서 고객 폴더 공유가 확인되지 않음">⚠️</span>'}</td>
+            <td>${esc(em)}</td>
             <td><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"></td>
             ${fcs.map((fc) => `<td><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"></td>`).join("")}
             <td><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></td>
@@ -1572,13 +1601,6 @@
           <button class="primary" type="submit">추가</button>
         </form>
         <p class="hint">추가하면 위 표에 줄이 생깁니다. 권한을 체크하고 '변경 저장'을 누르세요.</p>
-      </div>
-
-      <div class="card">
-        <h3 class="sec-title">OneDrive '고객' 폴더 공유 현황 (참고)</h3>
-        ${shares.length ? `<ul class="plain">${shares.map((s) => `<li>${esc(s.email || s.name || "(알 수 없음)")}${s.link ? " · 링크 공유" : ""}${s.inherited ? " · 상위 폴더에서 공유" : ""}</li>`).join("")}</ul>`
-          : '<p class="hint">아직 아무와도 공유되지 않았습니다.</p>'}
-        <p class="hint">다른 사용자가 앱을 쓰려면 OneDrive에서 '${esc(CFG.baseFolder)}' 폴더를 그 아이디와 한 번 공유(보기 가능)해야 합니다. 어떤 FC를 보여줄지는 위 표의 앱 권한으로 정합니다.</p>
       </div>`;
 
     $("addUserForm").addEventListener("submit", (ev) => {
@@ -1737,9 +1759,35 @@
   $("backBtn").addEventListener("click", () => history.back());
   // 고객 사진을 누르면 크게 보기, 다시 누르면 닫기
   $("avatar").addEventListener("click", () => {
-    if (!current || !current.photoUrl) return;
+    if (!current) return;
+    if (editMode) {
+      if (!current.folders.length) return toast("이 고객의 폴더가 없어 사진을 저장할 수 없습니다.");
+      if (current.profilePhoto) { $("photoMenu").hidden = !$("photoMenu").hidden; return; }
+      return $("photoInput").click();
+    }
+    if (!current.photoUrl) return;
     $("photoViewerImg").src = current.photoUrl;
     $("photoViewer").hidden = false;
+  });
+  $("editBtn").addEventListener("click", () => { if (current) setEditMode(!editMode); });
+  $("photoPick").addEventListener("click", () => { $("photoMenu").hidden = true; $("photoInput").click(); });
+  $("photoMenuClose").addEventListener("click", () => { $("photoMenu").hidden = true; });
+  $("photoDel").addEventListener("click", async () => {
+    $("photoMenu").hidden = true;
+    if (!confirm("이 고객의 프로필 사진을 삭제할까요? (OneDrive 휴지통으로 이동)")) return;
+    try { await deleteProfilePhotos(); toast("사진을 삭제했습니다."); } catch (e) { saveError(e); }
+  });
+  $("photoInput").addEventListener("change", async () => {
+    const file = $("photoInput").files && $("photoInput").files[0];
+    $("photoInput").value = "";
+    if (!file) return;
+    try {
+      const cropped = await cropToCircle(file); // 원 안에 맞추기 (취소하면 null)
+      if (!cropped) return;
+      toast("사진 저장 중…");
+      await uploadProfilePhoto(cropped);
+      toast("사진을 저장했습니다.");
+    } catch (e) { saveError(e); }
   });
   $("photoViewer").addEventListener("click", () => { $("photoViewer").hidden = true; });
   // PDF 열기 버튼 (계약 열기, 보장분석 등): 휴대폰 PDF 앱/브라우저로
@@ -1850,26 +1898,25 @@
   const prio = (type) => { const i = LIST_PRIORITY.indexOf(type); return i < 0 ? 99 : i; };
   const entryAddr = (e) => { const a = e.fields.find(([k]) => k.trim() === "주소"); return a ? a[1] : ""; };
 
-  function matchCustomer(title, records) {
+  // 일정 제목에 들어 있는 고객 이름 → 고객 (같은 이름이 여러 명이면 모두, 최근 등록 순)
+  function matchCustomers(title, records, contracts) {
     const nt = norm(title);
     const fcs = new Set(records.map((r) => norm(r.fc)).filter(Boolean));
     const names = [...new Set(records.map((r) => r.name))].filter((n) => norm(n).length >= 2 && nt.includes(norm(n)));
-    if (!names.length) return null;
+    if (!names.length) return [];
     // FC 이름이 아닌 것, 긴 이름 우선
     names.sort((a, b) => (fcs.has(norm(a)) - fcs.has(norm(b))) || norm(b).length - norm(a).length);
     const name = names[0];
     const city = titleRegion(title);
-    const fcHead = (title.match(/^\s*([^\s)]{1,3})\)/) || [])[1] || ""; // "최) …" → 최
+    const fcHead = (title.match(/^\s*([^\s)]{1,3})\)/) || [])[1] || ""; // "최) …" → 최수진 FC 고객 우선
     const recs = records.filter((r) => norm(r.name) === norm(name));
-    // 지역이 맞는 고객 우선 (주소가 없는 고객은 중립)
     const score = (r) => {
-      const a = entryAddr(r);
       const fcMiss = fcHead && r.fc && !String(r.fc).startsWith(fcHead) ? 4 : 0;
+      const a = entryAddr(r);
       if (!a) return 1 + fcMiss;
-      const rc = custRegionCity(regionFromAddress(a));
-      return (rc === city ? 0 : 2) + fcMiss;
+      return (custRegionCity(regionFromAddress(a)) === city ? 0 : 2) + fcMiss;
     };
-    // 같은 사람(이름+생년월일)으로 묶은 뒤 지역 → 리스트 우선순위로 선택
+    // 같은 사람(이름+생년월일)으로 묶기
     const groups = new Map();
     recs.forEach((r) => {
       const d = String(r.birth).replace(/\D/g, "");
@@ -1877,11 +1924,35 @@
       if (!groups.has(key)) groups.set(key, { name: r.name, birth: r.birth, entries: [] });
       groups.get(key).entries.push(r);
     });
+    const list = [...groups.values()];
+    list.forEach((g) => {
+      g.entries.sort((a, b) => score(a) - score(b) || prio(a.type) - prio(b.type));
+      g.city = city;
+      g.recent = recencyOf(g, contracts);
+    });
+    // 최근 등록 순 (계약일·이관일·보장분석일 중 가장 최근), 같으면 지역·리스트 우선순위
     const best = (g) => Math.min(...g.entries.map((e) => score(e) * 100 + prio(e.type)));
-    const g = [...groups.values()].sort((a, b) => best(a) - best(b))[0];
-    g.entries.sort((a, b) => score(a) - score(b) || prio(a.type) - prio(b.type));
-    g.city = city;
-    return g;
+    return list.sort((a, b) => (b.recent || "").localeCompare(a.recent || "") || best(a) - best(b));
+  }
+  // 날짜 글자 → 비교용 YYYYMMDD ("2026.05", "2026-08-31", "2005.01.01")
+  const dateKey = (v) => {
+    const d = String(v || "").replace(/\D/g, "");
+    if (/^(19|20)\d{6}/.test(d)) return d.slice(0, 8);
+    if (/^(19|20)\d{4}$/.test(d)) return d + "00";
+    return "";
+  };
+  const RECENT_COLS = ["최초계약일", "계약일", "이관일자", "이관월", "최근 보장분석"];
+  function recencyOf(g, contracts) {
+    let best = "";
+    const take = (v) => { const k = dateKey(v); if (k > best) best = k; };
+    g.entries.forEach((e) => e.fields.forEach(([k, v]) => { if (RECENT_COLS.includes(k.trim())) take(v); }));
+    const fcs = g.entries.map((e) => e.fc).filter(Boolean);
+    (contracts || []).forEach((c) => {
+      if (!c.names.includes(norm(g.name))) return;
+      if (fcs.length && !fcs.includes(c.fc) && !fcs.includes(c.srcFc)) return;
+      RECENT_COLS.forEach((k) => take(c.row[k]));
+    });
+    return best;
   }
 
   // ---------- 카카오: 주소 → 좌표, 길찾기 ----------
@@ -2043,78 +2114,84 @@
     $("schedBody").querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => setMode("day", new Date(+b.dataset.day))));
   }
 
+  // 고객 정보·이동 시간은 팀 캘린더(1팀) 일정만. 개인 일정(김현성·최수진)은 일정 내용만
+  const isTeamEvent = (e) => !e.allDay && e.cal.name === (GCFG.teamCalendar || "1팀");
+
   async function renderDay(events, req) {
     const d = schedDate;
     const evs = events.filter((e) => onDay(e, d));
     const body = $("schedBody");
     if (!evs.length) { body.innerHTML = '<div class="card center"><p class="hint">일정이 없습니다.</p></div>'; return; }
     body.innerHTML = '<div id="dayList"></div>';
-    // 고객 찾기 (고객 리스트 엑셀)
-    let records = [];
-    try { records = await loadLists(); } catch (e) { handleError(e); }
+    // 고객 찾기 (고객 리스트 엑셀 + 계약일로 최근 등록 순)
+    let records = [], contracts = [];
+    if (evs.some(isTeamEvent)) {
+      try { [records, contracts] = await Promise.all([loadLists(), loadContracts().catch(() => [])]); } catch (e) { handleError(e); }
+    }
     if (req !== schedReq) return;
-    const items = evs.map((e) => ({ e, cust: e.allDay ? null : matchCustomer(e.title, records) }));
+    const items = evs.map((e) => ({ e, custs: isTeamEvent(e) ? matchCustomers(e.title, records, contracts) : [] }));
+    items.forEach((it) => { it.cust = it.custs[0] || null; });
     const list = $("dayList");
     list.innerHTML = items.map((it, i) => `<div class="travel" id="tr${i}" hidden></div>${dayCardHtml(it, i)}`).join("") +
       `<div class="travel" id="tr${items.length}" hidden></div>`;
     items.forEach((it, i) => bindDayCard(it, i));
     // 추가정보(미팅장소, 상담기록)
     await Promise.all(items.map(async (it, i) => {
-      if (!it.cust) return;
-      const fc = (it.cust.entries.find((e) => e.fc) || {}).fc || "";
-      try { it.extra = await loadExtraFor(fc, it.cust.name); } catch (e) { it.extra = null; }
-      if (req !== schedReq) return;
-      fillDayCard(it, i);
+      await Promise.all(it.custs.map(async (c, j) => {
+        const fc = (c.entries.find((e) => e.fc) || {}).fc || "";
+        try { c.extra = await loadExtraFor(fc, c.name); } catch (e) { c.extra = null; }
+        if (req !== schedReq) return;
+        fillCust(c, i, j);
+      }));
+      it.extra = it.cust && it.cust.extra;
     }));
     if (req !== schedReq) return;
     renderTravel(items, req);
   }
 
-  function dayCardHtml(it, i) {
-    const e = it.e;
-    let cust = "";
-    if (it.cust) {
-      const c = it.cust;
-      const phone = (c.entries.find((x) => x.phone) || {}).phone || "";
-      const addr = currentValue(c, ["주소"]);
-      const types = [...new Set(c.entries.map((x) => x.type))];
-      cust = `<div class="ev-cust">
-        <button type="button" class="ev-name" data-open="${i}"><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>
+  function custBlockHtml(c, i, j) {
+    const phone = (c.entries.find((x) => x.phone) || {}).phone || "";
+    const addr = currentValue(c, ["주소"]);
+    const types = [...new Set(c.entries.map((x) => x.type))];
+    const g = genderOf(c);
+    return `<div class="ev-cust">
+        <button type="button" class="ev-name" data-open="${i}-${j}"><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>
           ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button>
         <dl class="ev-info">
-          ${c.birth ? `<dt>생년월일</dt><dd>${esc(c.birth)}</dd>` : ""}
+          ${c.birth ? `<dt>생년월일</dt><dd>${esc(c.birth)}${g ? ` (${esc(g)})` : ""}</dd>` : ""}
           ${phone ? `<dt>연락처</dt><dd><a class="nowrap" href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${esc(phone)}</a></dd>` : ""}
           ${addr ? `<dt>주소</dt><dd>${esc(addr)}</dd>` : ""}
-          <dt>미팅장소</dt><dd id="mp${i}" class="hint">…</dd>
+          <dt id="mpl${i}-${j}" hidden>미팅장소</dt><dd id="mp${i}-${j}" hidden></dd>
         </dl>
-        <div id="cs${i}"></div></div>`;
-    } else if (!e.allDay) {
-      cust = `<p class="hint">고객 리스트에서 일치하는 고객을 찾지 못했습니다.</p>`;
-    }
+        <div id="cs${i}-${j}"></div></div>`;
+  }
+  function dayCardHtml(it, i) {
+    const e = it.e;
     return `<div class="card ev-card">${calDot(e)}<div class="ev-head">${evLine(e)}</div>
-      ${e.location ? `<p class="hint">📍 ${esc(e.location)}</p>` : ""}${cust}</div>`;
+      ${e.location ? `<p class="hint">📍 ${esc(e.location)}</p>` : ""}${it.custs.map((c, j) => custBlockHtml(c, i, j)).join("")}</div>`;
   }
   function bindDayCard(it, i) {
-    const b = document.querySelector(`[data-open="${i}"]`);
-    if (b) b.addEventListener("click", () => openCustomer(it.cust));
+    it.custs.forEach((c, j) => {
+      const b = document.querySelector(`[data-open="${i}-${j}"]`);
+      if (b) b.addEventListener("click", () => openCustomer(c));
+    });
   }
-  function fillDayCard(it, i) {
-    const x = it.extra || {};
-    const mp = (x.values || {})["미팅장소"] || "";
-    const el = $("mp" + i);
-    if (el) { el.textContent = mp || "-"; el.classList.toggle("hint", !mp); }
+  function fillCust(c, i, j) {
+    const x = c.extra || {};
+    const mp = ((x.values || {})["미팅장소"] || "").trim();
+    if (mp) { $(`mp${i}-${j}`).textContent = mp; $(`mp${i}-${j}`).hidden = false; $(`mpl${i}-${j}`).hidden = false; }
     const cs = (x.consults || []).slice(0, 10);
-    const box = $("cs" + i);
+    const box = $(`cs${i}-${j}`);
     if (box && cs.length) {
       box.innerHTML = `<details class="ev-consult"><summary>최근 상담 ${cs.length}건</summary>
-        ${cs.map((c) => `<div class="consult-item"><div class="hint">${esc(c.date)}</div><div>${esc(c.text).replace(/\n/g, "<br>")}</div></div>`).join("")}</details>`;
+        ${cs.map((r) => `<div class="consult-item"><div class="hint">${esc(r.date)}</div><div>${esc(r.text).replace(/\n/g, "<br>")}</div></div>`).join("")}</details>`;
     }
   }
 
-  // 이동 거리·시간: 회사 → 일정1 → 일정2 … → 회사
+  // 이동 거리·시간 (1팀 일정만): 회사 → 일정1 → 일정2 … → 회사
   //   장소: 미팅장소 → 고객 주소 → 일정 장소 → 일정 지역(제목)의 시청·군청
   async function renderTravel(items, req) {
-    const timed = items.map((it, i) => ({ ...it, i })).filter((it) => !it.e.allDay);
+    const timed = items.map((it, i) => ({ ...it, i })).filter((it) => isTeamEvent(it.e));
     if (!timed.length || !KAKAO.restKey) return;
     const company = appSettings.companyAddress ? await geocode(appSettings.companyAddress) : null;
     const pointOf = async (it) => {
@@ -2124,24 +2201,21 @@
         tries.push(currentValue(it.cust, ["주소"]));
       }
       tries.push(it.e.location);
-      for (const q of tries) { const p = q && await geocode(q); if (p) return { p, label: q }; }
+      for (const q of tries) { const p = q && await geocode(q); if (p) return { p }; }
       const city = (it.cust && it.cust.city) || titleRegion(it.e.title);
-      const hall = cityHall(city);
-      const p = await geocode(hall);
-      return p ? { p, label: hall, approx: true } : null;
+      const p = await geocode(cityHall(city));
+      return p ? { p } : null;
     };
     const pts = [];
     for (const it of timed) pts.push(await pointOf(it));
     if (req !== schedReq) return;
     const show = (slot, html) => { const el = $("tr" + slot); if (el) { el.innerHTML = html; el.hidden = false; } };
-    const legTxt = (r, approx) => r ? `🚗 ${r.km.toFixed(1)}km · ${r.min}분${approx ? ' <span class="hint">(시청·군청 기준)</span>' : ""}` : '🚗 <span class="hint">경로를 계산할 수 없음</span>';
+    const legTxt = (r) => r ? `🚗 ${r.km.toFixed(1)}km · ${r.min}분` : '🚗 <span class="hint">경로를 계산할 수 없음</span>';
     // 회사 출발
     if (company && pts[0]) {
       const r = await route(company, pts[0].p);
       const leave = r ? new Date(timed[0].e.start - r.min * 60000) : null;
-      show(timed[0].i, `${leave ? `<b>🏢 회사 출발 ${hm(leave)}</b> · ` : "🏢 회사에서 "}${legTxt(r, pts[0].approx)}`);
-    } else if (!appSettings.companyAddress) {
-      show(timed[0].i, '<span class="hint">회사 주소를 관리자 › 설정에 넣으면 출발·도착 시간이 계산됩니다.</span>');
+      show(timed[0].i, `${leave ? `<b>🏢 회사 출발 ${hm(leave)}</b> · ` : "🏢 회사에서 "}${legTxt(r)}`);
     }
     for (let k = 1; k < timed.length; k++) {
       if (req !== schedReq) return;
@@ -2149,16 +2223,17 @@
       const r = a && b ? await route(a.p, b.p) : null;
       const gap = Math.round((timed[k].e.start - timed[k - 1].e.end) / 60000);
       const late = r && gap < r.min ? ` <span class="warn">⚠ 이동시간 부족 (여유 ${Math.max(gap, 0)}분)</span>` : "";
-      show(timed[k].i, legTxt(r, (a && a.approx) || (b && b.approx)) + late);
+      show(timed[k].i, legTxt(r) + late);
     }
-    // 회사 복귀
+    // 회사 복귀: 마지막 1팀 일정 뒤
     const last = timed[timed.length - 1], lp = pts[pts.length - 1];
     if (company && lp) {
       const r = await route(lp.p, company);
       const back = r ? new Date(+last.e.end + r.min * 60000) : null;
-      show(items.length, `${legTxt(r, lp.approx)}${back ? ` · <b>🏢 회사 도착 ${hm(back)}</b>` : ""}`);
+      show(last.i + 1, `${legTxt(r)}${back ? ` · <b>🏢 회사 도착 ${hm(back)}</b>` : ""}`);
     }
   }
+
 
   // ---------- 관리자 설정: 구글 계정·캘린더 선택 ----------
   async function loadCalendarChoices() {
@@ -2226,7 +2301,8 @@
         sessionStorage.removeItem("openAdmin");
         openAdmin();
       } else {
-        show("searchView");
+        schedMode = "day"; schedDate = dayStart(new Date());
+        loadSettings().then(() => openSchedule()); // 첫 화면: 일정 Today (설정을 읽은 뒤)
       }
       loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
       loadLists().then(showScope).catch(handleError); // 미리 불러오기

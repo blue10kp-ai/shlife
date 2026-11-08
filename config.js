@@ -5,6 +5,8 @@ window.APP_CONFIG = {
 
   // 고객 폴더들이 들어 있는 OneDrive 폴더 (OneDrive 최상위 기준)
   baseFolder: "Claude/고객",
+  // 앱이 저장하는 파일(설정·권한)의 폴더. 앱마다 Claude/app/앱이름/설정
+  appFolder: "Claude/app/신한FC/설정",
 
   // 관리자 아이디 (이 계정으로 로그인하면 '관리자' 메뉴가 보임)
   admins: ["blue10kp@gmail.com"],
@@ -56,6 +58,7 @@ window.APP_CONFIG = {
   google: {
     clientId: "482206908404-5sdbvetcrc8j7ctrhe6aa23ccmd3d05d.apps.googleusercontent.com",
     calendars: ["1팀", "김현성", "최수진"],
+    teamCalendar: "1팀", // 이 캘린더 일정만 고객 정보·이동 시간 표시 (나머지는 개인 일정)
     // 이름이 이메일로 보이는 캘린더의 표시 이름
     calendarNames: { "blue10kp@gmail.com": "김현성", "nonmollarechoi@gmail.com": "최수진" }
   }

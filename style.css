@@ -297,3 +297,47 @@ th { background: var(--brand-weak); }
 .m-ev { font-size: 10px; line-height: 1.3; border-left: 2px solid var(--brand); padding-left: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .m-more { font-size: 10px; color: var(--muted); text-align: center; }
 .link-btn { border: 0; background: none; color: var(--brand); font-size: 13px; padding: 0 4px; text-decoration: underline; }
+
+/* ---------- 고객 대표 줄 (일반·다크 모드 모두 같은 색) ---------- */
+.cust-card { background: linear-gradient(135deg, #1f4e8c, #2d6cb5); color: #fff; }
+.cust-card .avatar { background-color: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.55); color: #fff; width: 60px; height: 60px; font-size: 24px; }
+.cust-card .avatar.editable { outline: 2px dashed #fff; outline-offset: 3px; cursor: pointer; }
+.cust-card .avatar.editable::after { content: "📷"; position: absolute; font-size: 14px; transform: translate(20px, 20px); }
+.cust-card .avatar { position: relative; }
+.cust-main { flex: 1; min-width: 0; }
+.cust-card .name-row { flex-wrap: nowrap; }
+.cust-card .name-row h2 { flex: 1; min-width: 0; margin: 0 0 4px; font-size: 22px; overflow-wrap: anywhere; }
+/* 성향: 이름 글자색 — Good 흰색 · Bad 주황 · Shit 빨강 */
+.cust-card .cname { display: inline; padding: 0; border: 0; border-radius: 0; background: none; color: #fff; }
+.cust-card .cname.grade-bad { color: #ffb347; background: none; }
+.cust-card .cname.grade-shit { color: #ff6b6b; background: none; }
+.cust-sub { font-size: 13px; color: rgba(255,255,255,.85); line-height: 1.5; }
+.edit-mini { flex: none; border: 1px solid rgba(255,255,255,.7); background: transparent; color: #fff; border-radius: 8px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
+.edit-mini.on { background: #fff; color: #1f4e8c; }
+.cust-card .grade-btns { display: flex; align-items: flex-start; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.25); }
+.cust-card .grade-btns[hidden] { display: none; }
+.grade-title { font-size: 13px; color: rgba(255,255,255,.85); align-self: center; }
+.grade-opt { display: flex; flex-direction: column; align-items: center; gap: 4px; border: 0; background: none; color: #fff; font-size: 12px; font-weight: 600; padding: 0; }
+.grade-opt .grade-dot { width: 30px; height: 30px; border: 2px solid rgba(255,255,255,.6); }
+.grade-opt.on .grade-dot { border: 3px solid #fff; box-shadow: 0 0 0 3px rgba(255,255,255,.35); }
+.photo-menu { display: flex; gap: 8px; margin-top: 12px; }
+.photo-menu[hidden] { display: none; }
+.photo-menu button { flex: 1; border: 0; border-radius: 10px; padding: 9px 4px; background: rgba(255,255,255,.18); color: #fff; font-weight: 600; font-size: 13px; }
+.photo-menu .danger { background: rgba(229,57,53,.85); }
+/* 검색 결과 이름: 배경 없이 글자색만 */
+.list .cname { padding: 0; border: 0; background: none; color: var(--text); }
+.list .cname.grade-bad { color: #e68a00; background: none; }
+.list .cname.grade-shit { color: #e53935; background: none; }
+.ev-name .cname { padding: 0; border: 0; background: none; color: var(--text); }
+.ev-name .cname.grade-bad { color: #e68a00; }
+.ev-name .cname.grade-shit { color: #e53935; }
+/* 정보: 통신사 · 차량번호 · 보험갱신 */
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { background: var(--brand-weak); color: var(--text); border-radius: 8px; padding: 3px 8px; font-size: 13px; }
+.chip small { color: var(--muted); margin-right: 2px; }
+.pre { white-space: pre-wrap; }
+/* 관리자: 접는 구글 캘린더 설정 */
+details.fold { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0 12px; }
+details.fold summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+details.fold summary .hint { font-weight: 400; margin-left: 6px; }
+details.fold[open] summary { margin-bottom: 8px; }
