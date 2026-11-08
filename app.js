@@ -1098,9 +1098,7 @@
         <div class="file-actions">
           <button type="button" class="secondary" id="infoCancel">취소</button>
           <button type="button" class="primary" id="infoSave">저장</button>
-        </div>
-        ${canList ? `<p class="hint">연락처·주소·이메일을 바꾸면 고객리스트 엑셀에 반영되고 '${PRIORITY_COL}' 칸에 1이 표시됩니다.</p>` : ""}
-      </div>`;
+        </div>      </div>`;
   }
 
   function bindExtra() {
@@ -1870,6 +1868,19 @@
     return res.json();
   }
   // 일정 수정 (장소 입력, 일정 수정 모드)
+  // 다른 캘린더로 옮기기 (원래 캘린더에서 이 일정을 만든 경우에만 가능)
+  async function gcalMove(calId, eventId, destId) {
+    const t = storedGToken() || gTokenMem;
+    if (!t) throw new Error("GOOGLE_AUTH");
+    const res = await fetch(GCAL + "/calendars/" + encodeURIComponent(calId) + "/events/" + encodeURIComponent(eventId) + "/move?destination=" + encodeURIComponent(destId), {
+      method: "POST", headers: { Authorization: "Bearer " + t }
+    });
+    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 403) throw new Error("이 일정은 다른 캘린더로 옮길 권한이 없습니다.");
+    if (!res.ok) throw new Error("캘린더 변경 실패 (" + res.status + "): " + (await res.text()).slice(0, 120));
+    return res.json();
+  }
+  let schedCals = []; // 지금 일정 화면에 보이는 캘린더 (일정 수정의 캘린더 선택용)
   async function gcalPatch(calId, eventId, body) {
     const t = storedGToken() || gTokenMem;
     if (!t) throw new Error("GOOGLE_AUTH");
@@ -1899,7 +1910,8 @@
     const cals = await scheduleCalendars();
     if (!cals.length) throw new Error("NO_CALENDAR");
     const q = `?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(from.toISOString())}&timeMax=${encodeURIComponent(to.toISOString())}`;
-    const lists = await Promise.all(cals.map(withAlias).map(async (c) => {
+    schedCals = cals.map(withAlias);
+    const lists = await Promise.all(schedCals.map(async (c) => {
       const d = await gcal("/calendars/" + encodeURIComponent(c.id) + "/events" + q);
       return (d.items || []).filter((e) => e.status !== "cancelled").map((e) => ({
         id: c.id + "|" + e.id, cal: c, calId: c.id, eventId: e.id,
@@ -2297,6 +2309,8 @@
     const e = it.e;
     const endDay = e.allDay ? addDays(e.end, -1) : e.end;
     box.innerHTML = `<div class="ev-form">
+        <label class="fld"><span>캘린더</span><select data-f="cal">${schedCals.map((c) =>
+          `<option value="${esc(c.id)}" ${c.id === e.calId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
         <label class="fld"><span>제목</span><input data-f="title" value="${esc(e.title)}" autocomplete="off"></label>
         <label class="fld"><span>날짜</span><input data-f="date" type="date" value="${ymdStr(e.start)}"></label>
         ${e.allDay ? `<label class="fld"><span>종료 날짜</span><input data-f="endDate" type="date" value="${ymdStr(endDay)}"></label>`
@@ -2330,6 +2344,13 @@
       try {
         await ensureGWrite();
         await gcalPatch(e.calId, e.eventId, patch);
+        // 캘린더를 바꿨으면 그 캘린더로 옮기기 (동명이인 지정은 새 일정 id로 이어서)
+        const dest = val("cal");
+        if (dest && dest !== e.calId) {
+          const moved = await gcalMove(e.calId, e.eventId, dest);
+          const pk = readPicks()[e.id];
+          if (pk) { savePick(e.id, ""); savePick(dest + "|" + (moved.id || e.eventId), pk); }
+        }
         toast("일정을 저장했습니다.");
         renderSchedule();
       } catch (err) {
