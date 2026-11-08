@@ -424,7 +424,7 @@
     meetCache.catch(() => { meetCache = null; });
     return meetCache;
   }
-  const digits = (v) => String(v || "").replace(/D/g, "");
+  const digits = (v) => String(v || "").replace(/\D/g, "");
 
   async function search(q) {
     q = q.trim();
@@ -449,7 +449,7 @@
       const hits = records.filter((r) => {
         if (want && r.type !== want.label) return false;
         if (norm(r.name).includes(nq)) return true;
-        if (dq.length >= 3 && dq === q.replace(/[s-]/g, "") && digits(r.phone).includes(dq)) return true;
+        if (dq.length >= 3 && dq === q.replace(/[\s-]/g, "") && digits(r.phone).includes(dq)) return true;
         if (nq.length < 2) return false;
         return norm(entryAddr(r)).includes(nq) || norm(meetOf(r)).includes(nq);
       });
@@ -1248,7 +1248,7 @@
 
   // 프로필 사진 삭제 (이 고객 폴더의 '프로필사진' 이미지 모두 → OneDrive 휴지통)
   async function deleteProfilePhotos() {
-    const list = current.files.filter((f) => /프로필사진/.test(f.name) && /.(jpe?g|png|heic|webp)$/i.test(f.name));
+    const list = current.files.filter((f) => /프로필사진/.test(f.name) && /\.(jpe?g|png|heic|webp)$/i.test(f.name));
     for (const f of list) await gx("DELETE", itemPath(f.id));
     current.files = current.files.filter((f) => !list.includes(f));
     current.profilePhoto = null;
