@@ -379,7 +379,7 @@
     carrierCol: "통신사",                      // 연락처 앞에 표시
     afterAddress: ["차량번호", "자동차보험갱신일"], // 기본정보 주소 밑에 표시
     monthDayCols: ["자동차보험갱신일"],          // 월/일을 골라서 'MMDD'로 저장
-    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: "저장날짜", textCol: "내용", voiceCol: "음성파일", voiceText: "음성기록" }
+    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: ["저장날짜시간", "저장날짜"], textCol: "내용", voiceCol: "음성파일", voiceText: "음성기록" }
   }, CFG.extraInfo || {});
   const nospace = (s) => String(s || "").replace(/\s+/g, "");
 
@@ -458,7 +458,8 @@
     const rg = XLSX.utils.decode_range(ws["!ref"] || "A1:D1");
     const head = [];
     for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[XLSX.utils.encode_cell({ r: rg.s.r, c })]; head[c] = cell ? String(cell.v).trim() : ""; }
-    const col = (h) => head.indexOf(h);
+    // 열 이름 후보 여러 개 허용 (예: 날짜 열 = "저장날짜시간" 또는 "저장날짜")
+    const col = (h) => { for (const x of [].concat(h)) { const i = head.indexOf(x); if (i >= 0) return i; } return -1; };
     return { rg, head, ni: col(C.nameCol), fi: col(C.fcCol), di: col(C.dateCol), ti: col(C.textCol), vi: col(C.voiceCol) };
   }
 
@@ -542,7 +543,7 @@
     if (!x) throw new Error("NO_EXTRA_FILE");
     let ws = x.wb.Sheets[C.sheet];
     if (!ws) {
-      ws = XLSX.utils.aoa_to_sheet([[C.nameCol, C.fcCol, C.dateCol, C.textCol, C.voiceCol]]);
+      ws = XLSX.utils.aoa_to_sheet([[[].concat(C.dateCol)[0], C.nameCol, C.fcCol, C.textCol, C.voiceCol]]);
       XLSX.utils.book_append_sheet(x.wb, ws, C.sheet);
     }
     const enc = (r, c) => XLSX.utils.encode_cell({ r, c });

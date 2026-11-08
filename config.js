@@ -37,7 +37,7 @@ window.APP_CONFIG = {
     fileKeyword: "고객추가정보", sheet: "기본", fcCol: "담당 FC", nameCol: "고객명",
     primary: ["미팅장소", "메모"], carrierCol: "통신사",
     afterAddress: ["차량번호", "자동차보험갱신일"], monthDayCols: ["자동차보험갱신일"],
-    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: "저장날짜", textCol: "내용", voiceCol: "음성파일", voiceText: "음성기록" }
+    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: ["저장날짜시간", "저장날짜"], textCol: "내용", voiceCol: "음성파일", voiceText: "음성기록" }
   },
 
   // 세부항목 버튼: 파일/폴더 이름에 키워드가 들어 있으면 그 탭에 표시됩니다.
