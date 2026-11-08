@@ -239,7 +239,9 @@
     const re = spec.fileRegex ? new RegExp(spec.fileRegex, "i") : null;
     const hit = files.filter((f) => /\.xlsx?$/i.test(f.name) && (re ? re.test(f.name) : spec.fileKeyword && f.name.includes(spec.fileKeyword)));
     const byFc = new Map();
-    hit.forEach((f) => { const k = f.fc || ""; if (!byFc.has(k) || f.name > byFc.get(k).name) byFc.set(k, f); });
+    // 통합 '리스트' 파일이 있으면 그것을 우선, 그다음 최신 날짜 (예전 '계약'/'기타' 파일은 리스트가 없는 FC만)
+    const rank = (f) => (/ - 리스트\.xlsx?$/i.test(f.name) ? "1" : "0") + f.name;
+    hit.forEach((f) => { const k = f.fc || ""; if (!byFc.has(k) || rank(f) > rank(byFc.get(k))) byFc.set(k, f); });
     return [...byFc.values()];
   }
   // 읽을 시트: 설정에 sheet가 있으면 그 시트만, 없으면 전부

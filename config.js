@@ -18,17 +18,17 @@ window.APP_CONFIG = {
   // 고객 검색 범위 버튼 (전체 + 아래 순서)
   //   FC 폴더 안 "날짜 - FC - 계약.xlsx" / "날짜 - FC - 기타.xlsx"의 시트를 읽음 (FC마다 가장 최근 날짜 파일 하나)
   lists: [
-    { id: "contract", label: "계약", fileRegex: " - 계약\\.xlsx$", sheet: "계약고객" },
-    { id: "transfer", label: "이관", fileRegex: " - 계약\\.xlsx$", sheet: "이관고객" },
+    { id: "contract", label: "계약", fileRegex: " - (리스트|계약)\\.xlsx$", sheet: "계약고객" },
+    { id: "transfer", label: "이관", fileRegex: " - (리스트|계약)\\.xlsx$", sheet: "이관고객" },
     { id: "ddahaeng", label: "따행", fileKeyword: "따뜻한행복" },
     { id: "db",       label: "DB",   fileKeyword: "DB" },
-    { id: "progress", label: "진행", fileRegex: " - 기타\\.xlsx$", sheet: "진행고객" }
+    { id: "progress", label: "진행", fileRegex: " - (리스트|기타)\\.xlsx$", sheet: "진행고객" }
   ],
 
   // 계약 탭에 보여줄 계약 상세 ('계약자'·'주피보험자'·'피보'로 고객 매칭)
   contractLists: [
-    { label: "계약", fileRegex: " - 계약\\.xlsx$", sheet: "계약" },
-    { label: "이관", fileRegex: " - 계약\\.xlsx$", sheet: "이관" }
+    { label: "계약", fileRegex: " - (리스트|계약)\\.xlsx$", sheet: "계약" },
+    { label: "이관", fileRegex: " - (리스트|계약)\\.xlsx$", sheet: "이관" }
   ],
 
   // 기본정보 탭의 추가 정보 (고객 폴더 바로 안 엑셀). 담당 FC + 고객명으로 줄을 찾아 읽고/저장
