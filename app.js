@@ -459,11 +459,24 @@
             if (!fields.length) return;
             const row = Object.fromEntries(fields);
             const names = CONTRACT_NAME_COLS.map((c) => row[c]).filter(Boolean).map(norm);
-            if (names.length) out.push({ type: s.label, fc, sheet, row, fields, names });
+            // 줄에 담당FC가 있으면 그 FC로 표시 (다른 FC 파일에 같이 들어 있는 계약)
+            const rowFc = String(row["담당FC"] || row["담당 FC"] || "").trim() || fc;
+            if (names.length) out.push({ type: s.label, fc: rowFc, srcFc: fc, sheet, row, fields, names });
           });
         });
       }));
-      return out;
+      // 같은 증권번호가 여러 FC 파일에 있으면 한 번만 (담당 FC 파일의 것을 우선)
+      const seen = new Map();
+      out.forEach((c, i) => {
+        const no = String(c.row["증권번호"] || "").trim();
+        if (!no) return;
+        const key = c.type + "|" + no;
+        if (!seen.has(key)) seen.set(key, i);
+      });
+      return out.filter((c, i) => {
+        const no = String(c.row["증권번호"] || "").trim();
+        return !no || seen.get(c.type + "|" + no) === i;
+      });
     })();
     contractCache.catch(() => { contractCache = null; });
     return contractCache;
@@ -778,7 +791,7 @@
         loadContracts().catch((e) => { console.error(e); return []; }),
         loadExtraFor(current.fc, cust.name).catch((e) => { console.error(e); return { error: true, values: {} }; })
       ]);
-      current.contracts = contracts.filter((c) => c.names.includes(norm(cust.name)) && (!fcs.length || fcs.includes(c.fc)));
+      current.contracts = contracts.filter((c) => c.names.includes(norm(cust.name)) && (!fcs.length || fcs.includes(c.fc) || fcs.includes(c.srcFc)));
       current.extra = extra;
     } catch (e) {
       handleError(e);
