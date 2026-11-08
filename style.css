@@ -363,3 +363,9 @@ details.fold[open] summary { margin-bottom: 8px; }
 .day-tools { display: flex; justify-content: flex-end; margin: -4px 0 6px; }
 .ev-form { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
 .fld-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* 일정 수정 모드: 맨 위 오른쪽 '취소 · 완료' */
+.ev-edit[hidden], .ev-edit-acts[hidden] { display: none; }
+.ev-edit-acts { display: inline-flex; gap: 6px; flex: none; margin-left: 8px; }
+.ev-edit-acts .ev-edit { margin-left: 0; padding: 4px 10px; font-size: 13px; }
+.ev-edit.ev-done { background: var(--brand); border-color: var(--brand); color: #fff; }
+.ev-card.editing { outline: 2px solid var(--brand); }

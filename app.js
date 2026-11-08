@@ -2290,7 +2290,8 @@
   function dayCardHtml(it, i) {
     const e = it.e;
     return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head">${evLine(e)}</div>
-        <button type="button" class="ev-edit" data-evedit="${i}">수정</button></div>
+        <button type="button" class="ev-edit" data-evedit="${i}">수정</button>
+        <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
       <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}>📍 ${esc(e.location)}</p>
       <div id="evForm${i}"></div>
       ${it.custs.map((c, j) => custBlockHtml(c, i, j)).join("")}</div>`;
@@ -2346,9 +2347,17 @@
 
   // 일정 수정 모드: 제목 · 날짜 · 시간 · 장소 · 설명
   const ymdStr = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  // 일정 수정 모드: 이 일정만 '수정' 대신 '취소 · 완료'(맨 위 오른쪽), 다른 일정의 '수정'은 숨김
+  function setEventEditing(i, on) {
+    const box = $("evForm" + i), acts = $("evActs" + i);
+    if (!on) box.innerHTML = "";
+    acts.hidden = !on;
+    document.querySelectorAll("#dayList [data-evedit]").forEach((b) => { b.hidden = on; });
+    $("ev" + i).classList.toggle("editing", on);
+  }
   function toggleEventForm(it, i) {
     const box = $("evForm" + i);
-    if (box.innerHTML) { box.innerHTML = ""; return; }
+    if (box.innerHTML) { setEventEditing(i, false); return; }
     const e = it.e;
     const endDay = e.allDay ? addDays(e.end, -1) : e.end;
     box.innerHTML = `<div class="ev-form">
@@ -2361,11 +2370,12 @@
              <label class="fld"><span>종료</span><input data-f="end" type="time" value="${hm(e.end)}"></label></div>`}
         <label class="fld"><span>장소</span><input data-f="location" value="${esc(e.location)}" autocomplete="off"></label>
         <label class="fld"><span>설명</span><textarea data-f="desc" rows="3">${esc(e.desc)}</textarea></label>
-        <div class="file-actions"><button type="button" class="secondary" data-f-cancel>취소</button><button type="button" class="primary" data-f-save>저장</button></div>
       </div>`;
+    setEventEditing(i, true);
+    const acts = $("evActs" + i);
     const val = (k) => (box.querySelector(`[data-f="${k}"]`) || {}).value;
-    box.querySelector("[data-f-cancel]").addEventListener("click", () => { box.innerHTML = ""; });
-    box.querySelector("[data-f-save]").addEventListener("click", async (ev) => {
+    acts.querySelector("[data-f-cancel]").onclick = () => setEventEditing(i, false);
+    acts.querySelector("[data-f-save]").onclick = async (ev) => {
       const btn = ev.currentTarget;
       const patch = { summary: val("title").trim(), location: val("location").trim(), description: val("desc") };
       if (!val("date")) return toast("날짜를 입력해 주세요.");
@@ -2397,10 +2407,10 @@
         toast("일정을 저장했습니다.");
         renderSchedule();
       } catch (err) {
-        btn.disabled = false; btn.textContent = "저장";
+        btn.disabled = false; btn.textContent = "완료";
         toast(err.message === "GOOGLE_AUTH" ? "구글 연결이 끊겼습니다. 다시 눌러 주세요." : err.message);
       }
-    });
+    };
   }
 
   // 이동 거리·시간 (1팀 일정만): 회사 → 일정1 → 일정2 … → 회사
