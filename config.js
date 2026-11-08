@@ -55,6 +55,8 @@ window.APP_CONFIG = {
   // 일정: 구글 캘린더 (읽기 전용). 관리자 설정에서 고른 캘린더가 없으면 아래 이름의 캘린더를 사용
   google: {
     clientId: "482206908404-5sdbvetcrc8j7ctrhe6aa23ccmd3d05d.apps.googleusercontent.com",
-    calendars: ["1팀", "김현성", "최수진"]
+    calendars: ["1팀", "김현성", "최수진"],
+    // 이름이 이메일로 보이는 캘린더의 표시 이름
+    calendarNames: { "blue10kp@gmail.com": "김현성", "nonmollarechoi@gmail.com": "최수진" }
   }
 };

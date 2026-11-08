@@ -1779,7 +1779,8 @@
     if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
     return res.json();
   }
-  const calName = (c) => String(c.summaryOverride || c.summary || "").trim();
+  const calAlias = (id, name) => ((GCFG.calendarNames || {})[id] || name);
+  const calName = (c) => calAlias(c.id, String(c.summaryOverride || c.summary || "").trim());
   async function calendarList() {
     return ((await gcal("/users/me/calendarList?minAccessRole=reader&maxResults=250")).items || [])
       .map((c) => ({ id: c.id, name: calName(c), color: c.backgroundColor, primary: !!c.primary }));
@@ -1791,11 +1792,12 @@
     const want = GCFG.calendars || [];
     return (await calendarList()).filter((c) => want.includes(c.name));
   }
+  const withAlias = (c) => ({ ...c, name: calAlias(c.id, c.name) });
   async function fetchEvents(from, to) {
     const cals = await scheduleCalendars();
     if (!cals.length) throw new Error("NO_CALENDAR");
     const q = `?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(from.toISOString())}&timeMax=${encodeURIComponent(to.toISOString())}`;
-    const lists = await Promise.all(cals.map(async (c) => {
+    const lists = await Promise.all(cals.map(withAlias).map(async (c) => {
       const d = await gcal("/calendars/" + encodeURIComponent(c.id) + "/events" + q);
       return (d.items || []).filter((e) => e.status !== "cancelled").map((e) => ({
         id: c.id + "|" + e.id, cal: c,
@@ -1840,13 +1842,15 @@
     names.sort((a, b) => (fcs.has(norm(a)) - fcs.has(norm(b))) || norm(b).length - norm(a).length);
     const name = names[0];
     const city = titleRegion(title);
+    const fcHead = (title.match(/^\s*([^\s)]{1,3})\)/) || [])[1] || ""; // "최) …" → 최
     const recs = records.filter((r) => norm(r.name) === norm(name));
     // 지역이 맞는 고객 우선 (주소가 없는 고객은 중립)
     const score = (r) => {
       const a = entryAddr(r);
-      if (!a) return 1;
+      const fcMiss = fcHead && r.fc && !String(r.fc).startsWith(fcHead) ? 4 : 0;
+      if (!a) return 1 + fcMiss;
       const rc = custRegionCity(regionFromAddress(a));
-      return rc === city ? 0 : 2;
+      return (rc === city ? 0 : 2) + fcMiss;
     };
     // 같은 사람(이름+생년월일)으로 묶은 뒤 지역 → 리스트 우선순위로 선택
     const groups = new Map();
