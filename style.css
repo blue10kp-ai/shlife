@@ -239,3 +239,22 @@ th { background: var(--brand-weak); }
 .more-btn.center { justify-content: center; margin: 10px 0 0; }
 .val-row .val.nowrap { white-space: nowrap; word-break: normal; }
 .kv { grid-template-columns: minmax(64px, 26%) 1fr; }
+
+/* 고객 성향: 이름 색 (Good 흰색 · Bad 주황 · Shit 빨강) */
+.cname { display: inline-block; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: #1b2430; }
+.cname.grade-bad { background: #f39c12; border-color: #f39c12; color: #fff; }
+.cname.grade-shit { background: #e53935; border-color: #e53935; color: #fff; }
+.name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.name-row h2 { margin: 0 0 4px; }
+.grade-btns { display: inline-flex; gap: 6px; }
+.grade-dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); padding: 0; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.15); }
+.list .cname { padding: 0 6px; }
+
+/* 정보 수정 버튼 */
+.entry-head .edit-btn { margin-left: auto; border: 1px solid var(--line); background: var(--card); color: var(--brand);
+  border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: 700; }
+.entry-head .edit-btn[hidden] { display: none; }
+
+/* 관리자 설정 */
+.chk-line { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 12px; }
+.chk-line input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--brand); }
