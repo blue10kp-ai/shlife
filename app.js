@@ -1827,7 +1827,8 @@
   // 지역이 없으면 광주(광주광역시/전남광주통합특별시의 구)로 판단
   const COUNTIES = ["담양", "곡성", "구례", "고흥", "보성", "화순", "장흥", "강진", "해남", "영암", "무안", "함평", "영광", "장성", "완도", "진도", "신안"];
   const CITIES = ["목포", "여수", "순천", "나주", "광양", ...COUNTIES, "서울", "부산", "대구", "인천", "대전", "울산", "세종", "전주", "익산", "군산", "정읍", "남원", "김제", "제주"];
-  const titleRegion = (t) => CITIES.find((c) => t.includes(c)) || "";
+  // 제목의 지역: 괄호 안 지역 "(광양)" → 그 외 알려진 시·군 이름 → 없으면 광주
+  const titleRegion = (t) => { const p = (t.match(/\(([가-힣]{2,4})\)/) || [])[1]; return (p && !/^\d|차$/.test(p) && p !== "광주" ? p.replace(/(시|군)$/, "") : "") || CITIES.find((c) => t.includes(c)) || ""; };
   const custRegionCity = (region) => { const m = String(region || "").match(/(\S+)$/); return region === "광주" || !region ? "" : (m ? m[1] : ""); };
   const LIST_PRIORITY = ["진행", "DB", "이관", "계약"]; // 같은 이름이 여러 리스트에 있으면 이 순서로
   const prio = (type) => { const i = LIST_PRIORITY.indexOf(type); return i < 0 ? 99 : i; };
