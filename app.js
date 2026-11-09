@@ -2964,14 +2964,14 @@
   //   보여질 캘린더를 하나도 고르지 않으면 영업일정 캘린더도 고를 수 없음
   //   저장 모양: sales = [{ id, name }]  (예전 { id, name } 하나도 읽음)
   const salesArr = (s) => (Array.isArray(s) ? s : s && s.id ? [s] : []);
-  // 한 줄에 캘린더 하나: 왼쪽 = 보여질 캘린더 체크, 오른쪽 = 영업일정 체크 (왼쪽이 꺼져 있으면 오른쪽은 비활성)
+  // 한 줄에 캘린더 하나: 캘린더 | Show(보여질 캘린더) | 일정(영업일정, Show가 꺼져 있으면 비활성)
   function calPickerHtml(cals, isOn) {
     return `<div class="cal-pick">
-        <div class="cp-head"><span>보여질 캘린더</span><span>영업일정</span></div>
+        <div class="cp-head"><span>캘린더</span><span>Show</span><span>일정</span></div>
         ${cals.map((c, i) => `<div class="cp-row">
-          <label class="cp-left"><input type="checkbox" data-pcal="${i}" ${isOn(c) ? "checked" : ""}>
-            <span>${calDot({ cal: c })}${esc(c.name)}</span></label>
-          <label class="cp-right" aria-label="${esc(c.name)} 영업일정"><input type="checkbox" data-scal="${esc(c.id)}"></label>
+          <span class="cp-name">${calDot({ cal: c })}${esc(c.name)}</span>
+          <label class="cp-cell" aria-label="${esc(c.name)} 보이기"><input type="checkbox" data-pcal="${i}" ${isOn(c) ? "checked" : ""}></label>
+          <label class="cp-cell cp-right" aria-label="${esc(c.name)} 영업일정"><input type="checkbox" data-scal="${esc(c.id)}"></label>
         </div>`).join("")}
       </div>`;
   }

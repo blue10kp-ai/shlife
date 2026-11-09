@@ -403,3 +403,9 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 .cal-pick .cp-right { display: flex; justify-content: center; align-items: center; align-self: stretch; border-left: 1px solid var(--line, #e3e7ee); }
 .cal-pick input[type=checkbox] { width: 20px; height: 20px; flex: none; }
 .cal-pick .cp-row.off .cp-right { opacity: .35; }
+/* 캘린더 | Show | 일정 (3칸) */
+.cal-pick .cp-head, .cal-pick .cp-row { grid-template-columns: 1fr 64px 64px; }
+.cal-pick .cp-head span:not(:first-child) { text-align: center; }
+.cal-pick .cp-name { display: flex; align-items: center; gap: 6px; padding: 8px 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-pick .cp-cell { display: flex; justify-content: center; align-items: center; align-self: stretch; border-left: 1px solid var(--line); cursor: pointer; }
+.cal-pick .cp-row.off .cp-name { color: var(--muted); }
