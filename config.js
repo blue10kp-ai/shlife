@@ -18,7 +18,8 @@ window.APP_CONFIG = {
   storage: "google", // 2026-11-09 Google Drive로 전환 (OneDrive Claude 폴더는 백업)
   // Google Drive 모드: 관리자는 내 드라이브의 Claude/고객 을 경로로 찾음.
   //   다른 사용자는 관리자가 공유해 준 폴더를 아래 ID로 찾음 (폴더 주소 drive.google.com/drive/folders/<ID>)
-  gdrive: { baseId: "1IaRf-UbNqNCaI9Q_XdV3_Tt8bQVHnuNM", appDirId: "1ERsiC6gUGh0LljPSKxRx04Z5dZUGJGC0" },
+  //   project: 구글 로그인 테스트 사용자를 등록하는 Google Cloud 프로젝트 (관리자 페이지 링크용)
+  gdrive: { project: "shinhanfc", baseId: "1IaRf-UbNqNCaI9Q_XdV3_Tt8bQVHnuNM", appDirId: "1ERsiC6gUGh0LljPSKxRx04Z5dZUGJGC0" },
 
   // 아이디별 FC 권한을 저장하는 파일 (고객 폴더 안). 관리자 페이지에서 편집
   permFile: "shlife-권한.json",

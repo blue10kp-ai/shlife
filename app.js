@@ -1713,8 +1713,60 @@
     const fcs = items.filter((i) => i.folder && !i.name.startsWith("_")).map((f) => f.name)
       .sort((a, b) => a.localeCompare(b, "ko"));
     const perms = await readPerms();
-    adminState = { fcs, perms };
+    let shares = null;
+    if (GD && base.owner) { try { shares = await loadShares(); } catch (e) { console.error(e); } }
+    adminState = { fcs, perms, shares };
   }
+
+  // ---------- Google Drive 공유 (관리자: 고객 폴더 = 편집, 설정 폴더 = 보기) ----------
+  async function gdPermList(fileId) {
+    const d = await gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions?supportsAllDrives=true&fields=" + encodeURIComponent("permissions(id,emailAddress,role,type)"));
+    return (d.permissions || []).filter((p) => p.type === "user" && p.emailAddress).map((p) => ({ id: p.id, email: p.emailAddress.toLowerCase(), role: p.role }));
+  }
+  async function loadShares() {
+    await resolveAppDir();
+    const [cust, app] = await Promise.all([gdPermList(base.id), appDir.id ? gdPermList(appDir.id) : []]);
+    return { cust, app };
+  }
+  // 공유 상태: "ok" (고객 편집 + 설정 보기 이상) / "part" / "none"
+  function shareState(em) {
+    const s = adminState && adminState.shares;
+    if (!s) return null;
+    const c = s.cust.find((p) => p.email === em);
+    const a = s.app.find((p) => p.email === em);
+    const cOk = c && (c.role === "writer" || c.role === "owner");
+    if (cOk && a) return "ok";
+    return c || a ? "part" : "none";
+  }
+  async function shareFolders(em) {
+    if (!confirm(`${em} 계정에 Google Drive 폴더를 공유할까요?\n· 고객 폴더: 편집 (메모·미팅장소·사진 저장)\n· 설정 폴더: 보기\n공유 알림 메일이 그 계정으로 갑니다.`)) return;
+    try {
+      const add = (id, role) => gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "/permissions?supportsAllDrives=true&sendNotificationEmail=true",
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role, emailAddress: em }) });
+      const st = adminState.shares;
+      const c = st.cust.find((p) => p.email === em);
+      if (!c || (c.role !== "writer" && c.role !== "owner")) await add(base.id, "writer");
+      if (!st.app.find((p) => p.email === em)) await add(appDir.id, "reader");
+      adminState.shares = await loadShares();
+      toast(`${em} 계정에 폴더를 공유했습니다.`);
+      const pending = collectPending();
+      renderAdmin();
+      applyPending(pending);
+    } catch (e) {
+      handleError(/Drive 400/.test(e.message) ? new Error("공유하지 못했습니다. 구글 계정 이메일이 맞는지 확인해 주세요.") : e);
+    }
+  }
+  async function unshareFolders(em) {
+    const st = adminState && adminState.shares;
+    if (!st) return;
+    const del = (fileId, p) => gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions/" + encodeURIComponent(p.id) + "?supportsAllDrives=true", { method: "DELETE" });
+    for (const p of st.cust.filter((x) => x.email === em && x.role !== "owner")) await del(base.id, p);
+    for (const p of st.app.filter((x) => x.email === em && x.role !== "owner")) await del(appDir.id, p);
+    adminState.shares = await loadShares();
+  }
+  // 표에서 아직 저장 안 한 체크 상태 (다시 그릴 때 유지)
+  let collectPending = () => [];
+  let applyPending = () => {};
 
   async function openAdmin() {
     if (!isAdmin()) return show("searchView");
@@ -1735,19 +1787,28 @@
     const listOf = (em) => perms.users[em] || [];
     const isAll = (em) => listOf(em).includes("*");
     const has = (em, fc) => isAll(em) || listOf(em).includes(fc);
+    const showShare = GD && !!adminState.shares;
+    const shareCell = (em) => {
+      const s = shareState(em);
+      if (s === "ok") return `<td class="ok" title="고객 폴더 편집 · 설정 폴더 보기">공유됨</td>`;
+      return `<td><button type="button" class="link-btn" data-share="${esc(em)}">${s === "part" ? "공유 보완" : "공유하기"}</button></td>`;
+    };
+    const ACC = GD ? "구글 계정" : "아이디";
+    const consoleUrl = "https://console.cloud.google.com/auth/audience" + (GDCFG.project ? "?project=" + encodeURIComponent(GDCFG.project) : "");
 
     $("adminBody").innerHTML = settingsCardHtml() + `
       <div class="card">
         <h3 class="sec-title">사용 FC 현황</h3>
-        <p class="hint">체크박스로 바로 바꾸고 '변경 저장'을 누르세요.</p>
+        <p class="hint">체크박스로 바로 바꾸고 '변경 저장'을 누르세요.${showShare ? " '공유' 칸은 Google Drive 폴더 공유 상태입니다." : ""}</p>
         <div class="table-wrap"><table class="matrix">
-          <tr><th>아이디</th><th>전체</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}<th></th></tr>
+          <tr><th>${ACC}</th><th>전체</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}${showShare ? "<th>공유</th>" : ""}<th></th></tr>
           ${(CFG.admins || []).map((a) => `<tr class="admin-row"><td>${esc(a)} <span class="tag">관리자</span></td>
-            <td class="ok">●</td>${fcs.map(() => `<td class="ok">●</td>`).join("")}<td></td></tr>`).join("")}
+            <td class="ok">●</td>${fcs.map(() => `<td class="ok">●</td>`).join("")}${showShare ? '<td class="ok">소유자</td>' : ""}<td></td></tr>`).join("")}
           ${users.map((em) => `<tr class="perm-row" data-em="${esc(em)}">
             <td>${esc(em)}</td>
             <td><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"></td>
             ${fcs.map((fc) => `<td><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"></td>`).join("")}
+            ${showShare ? shareCell(em) : ""}
             <td><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></td>
           </tr>`).join("")}
         </table></div>
@@ -1758,10 +1819,15 @@
         </div>
         <h4 class="sub-title">사용자 추가</h4>
         <form id="addUserForm" class="search">
-          <input id="newUser" type="email" placeholder="Microsoft 계정 이메일" autocomplete="off" required>
+          <input id="newUser" type="email" placeholder="${GD ? "구글 계정 이메일 (예: name@gmail.com)" : "Microsoft 계정 이메일"}" autocomplete="off" required>
           <button class="primary" type="submit">추가</button>
         </form>
-        <p class="hint">추가하면 위 표에 줄이 생깁니다. 권한을 체크하고 '변경 저장'을 누르세요.</p>
+        ${GD ? `<p class="hint">새 사용자가 앱을 쓰려면 세 가지가 필요합니다.</p>
+        <ol class="hint steps">
+          <li>위 표에서 볼 FC를 체크하고 <b>변경 저장</b></li>
+          <li><b>공유하기</b> → 고객 폴더(편집)·설정 폴더(보기)를 그 계정에 공유</li>
+          <li>구글 로그인 허용: <a href="${esc(consoleUrl)}" target="_blank" rel="noopener">Google Cloud › 대상 › 테스트 사용자</a>에 그 이메일 추가</li>
+        </ol>` : '<p class="hint">추가하면 위 표에 줄이 생깁니다. 권한을 체크하고 \'변경 저장\'을 누르세요.</p>'}
       </div>`;
 
     $("addUserForm").addEventListener("submit", (ev) => {
@@ -1805,6 +1871,9 @@
     $("resetPerms").addEventListener("click", () => renderAdmin());
     bindSettings();
     $("adminBody").querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => deleteUser(b.dataset.del)));
+    $("adminBody").querySelectorAll("[data-share]").forEach((b) => b.addEventListener("click", () => shareFolders(b.dataset.share)));
+    collectPending = collectRows;
+    applyPending = applyRows;
     $("savePerms").addEventListener("click", () => savePerms(changed().map((r) => [r.dataset.em, sel(r)])));
 
     // 사용자 추가 시 저장 전 체크 상태 보존용
@@ -1824,14 +1893,17 @@
 
   // 등록된 아이디 삭제 (권한 파일에서 바로 제거)
   async function deleteUser(em) {
-    if (!confirm(`${em} 아이디를 삭제할까요?\n삭제하면 이 아이디는 앱에서 고객을 검색할 수 없습니다.`)) return;
+    const shared = GD && shareState(em) && shareState(em) !== "none";
+    if (!confirm(`${em} 계정을 삭제할까요?\n삭제하면 이 계정은 앱에서 고객을 검색할 수 없습니다.` +
+      (shared ? "\nGoogle Drive 폴더 공유도 함께 해제합니다." : ""))) return;
     try {
       const perms = await readPerms();
       delete perms.users[em];
       extraUsers.delete(em);
       await writePerms(perms);
       adminState.perms = perms;
-      toast(`${em} 아이디를 삭제했습니다.`);
+      if (shared) await unshareFolders(em);
+      toast(`${em} 계정을 삭제했습니다.`);
       renderAdmin();
     } catch (e) {
       handleError(e);
@@ -1850,7 +1922,7 @@
         if (list.length) perms.users[em] = list; else { delete perms.users[em]; extraUsers.delete(em); }
       });
       await writePerms(perms);
-      toast(`저장했습니다 (${changes.length}개 아이디).`);
+      toast(`저장했습니다 (${changes.length}개 계정).`);
       adminState.perms = perms;
       renderAdmin();
     } catch (e) {
@@ -2615,6 +2687,7 @@
     const box = $("gCalBox");
     if (!box) return;
     if (!storedGToken() && !gTokenMem) {
+      if (GD) return handleError(new Error("GOOGLE_AUTH")); // Google Drive 모드: 로그인 계정 = 캘린더 계정
       box.innerHTML = `<button type="button" class="secondary" id="gAdminConnect">구글 계정 연결</button>`;
       $("gAdminConnect").addEventListener("click", async () => {
         try { await requestGToken("select_account"); loadCalendarChoices(); } catch (e) { toast(e.message); }
@@ -2624,7 +2697,7 @@
     box.innerHTML = '<p class="hint">캘린더 목록을 불러오는 중…</p>';
     let cals;
     try { cals = await calendarList(); } catch (e) {
-      if (e.message === "GOOGLE_AUTH") { gTokenMem = null; return loadCalendarChoices(); }
+      if (e.message === "GOOGLE_AUTH") { gTokenMem = null; if (GD) return handleError(e); return loadCalendarChoices(); }
       box.innerHTML = ""; return handleError(e);
     }
     const primary = cals.find((c) => c.primary);
@@ -2632,12 +2705,14 @@
     const want = GCFG.calendars || [];
     const isOn = (c) => (saved.length ? saved.includes(c.id) : want.includes(c.name));
     box.dataset.account = primary ? primary.id : "";
-    box.innerHTML = `<p class="hint">로그인한 계정: ${esc(primary ? primary.id : "-")}
-        <button type="button" class="link-btn" id="gSwitch">다른 계정</button></p>
+    // Google Drive 모드에서는 계정을 바꾸면 Drive 연결도 바뀌므로 '다른 계정' 버튼 없음 (로그인 계정의 캘린더 사용)
+    box.innerHTML = `<p class="hint">${GD ? "캘린더 계정(로그인 계정)" : "로그인한 계정"}: ${esc(primary ? primary.id : "-")}
+        ${GD ? "" : '<button type="button" class="link-btn" id="gSwitch">다른 계정</button>'}</p>
+      <p class="hint">일정 화면에 보일 캘린더를 고르세요. 다른 사용자는 각자 구글 계정에서 같은 이름의 캘린더를 봅니다.</p>
       ${cals.map((c, i) => `<label class="chk-line"><input type="checkbox" data-cal="${i}" ${isOn(c) ? "checked" : ""}>
         <span>${calDot({ cal: c })}${esc(c.name)}</span></label>`).join("")}`;
     box._cals = cals;
-    $("gSwitch").addEventListener("click", async () => {
+    if ($("gSwitch")) $("gSwitch").addEventListener("click", async () => {
       try { await requestGToken("select_account"); loadCalendarChoices(); } catch (e) { toast(e.message); }
     });
     box.dispatchEvent(new Event("change", { bubbles: true }));
