@@ -384,3 +384,6 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 .page-search { margin-top: 10px; }
 .page-search .search { display: flex; gap: 8px; margin-top: 6px; }
 .page-search input { flex: 1; min-width: 0; }
+
+/* 로그아웃: 전원 아이콘 */
+.icon-btn .power-ico { display: block; }

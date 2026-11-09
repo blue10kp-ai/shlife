@@ -1790,7 +1790,7 @@
     body.innerHTML = `<div class="card">
         <h3 class="sec-title">내 계정</h3>
         <p>${esc(me() || "-")}</p>
-        <p class="hint">로그아웃은 화면 오른쪽 위 🚪 버튼을 누르세요.</p>
+        <p class="hint">로그아웃은 화면 오른쪽 위 전원 모양 버튼을 누르세요.</p>
       </div>
       <div class="card" id="myCalCard">
         <h3 class="sec-title">일정에 보일 캘린더</h3>
