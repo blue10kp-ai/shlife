@@ -2973,8 +2973,7 @@
             <span>${calDot({ cal: c })}${esc(c.name)}</span></label>
           <label class="cp-right" aria-label="${esc(c.name)} 영업일정"><input type="checkbox" data-scal="${esc(c.id)}"></label>
         </div>`).join("")}
-      </div>
-      <p class="hint">영업일정: 약속 장소 사이 거리·예상 시간과 고객 정보를 보여 줄 캘린더 (여러 개 가능, 보여질 캘린더만 고를 수 있음)</p>`;
+      </div>`;
   }
   function bindCalPicker(root, cals, salesIds) {
     const want = new Set(salesIds || []);
