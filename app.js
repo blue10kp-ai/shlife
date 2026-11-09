@@ -1174,7 +1174,7 @@
       if (!merged.get(key).includes(v)) merged.get(key).push(v);
     }));
     const take = (cols) => { const out = []; cols.forEach((k) => { (merged.get(k) || []).forEach((v) => out.push([k, v])); merged.delete(k); }); return out; };
-    const phones = take(PHONE_COLS), emails = take(EMAIL_COLS), addrs = take(["주소"]);
+    const phones = take(PHONE_COLS), backs = take(["후번호"]), emails = take(EMAIL_COLS), addrs = take(["주소"]), accts = take(["계좌"]);
     const row = (label, html) => `<dt>${esc(label)}</dt><dd>${html}</dd>`;
     // 통신사 / 차량번호 / 자동차보험갱신일 (+ 미팅장소·메모가 아닌 추가 항목) — 주소 밑 한 줄
     const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k));
@@ -1183,8 +1183,10 @@
     const rest = [...merged];
     const info = `<div class="card" id="infoCard"><dl class="kv">
         ${phones.length ? row("연락처", phones.map(([k, v]) => valueWithActions(k, v)).join("")) : row("연락처", '<span class="hint">-</span>')}
+        ${backs.length ? row("후번호", backs.map(([, v]) => valueWithActions("연락처", v)).join("")) : ""}
         ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
         ${addrs.length ? row("주소", addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
+        ${row("계좌", accts.length ? accts.map(([, v]) => `<div>${esc(v)}</div>`).join("") : '<span class="hint">-</span>')}
         ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
         ${rest.map(([k, vs]) => row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
       </dl></div>`;
@@ -1228,10 +1230,13 @@
     });
   }
 
-  // 정보 수정: 연락처·주소·이메일 → 고객리스트 엑셀 + '우선' 1
+  // 정보 수정: 연락처·후번호·주소·계좌·이메일 → 고객리스트 엑셀 + '우선' 1
+  //   pair: 같은 줄에 반반 (연락처 | 후번호)
   const EDIT_FIELDS = [
-    { label: "연락처", cols: PHONE_COLS, type: "tel" },
+    { label: "연락처", cols: PHONE_COLS, type: "tel", pair: "후번호" },
+    { label: "후번호", cols: ["후번호"], type: "tel", paired: true },
     { label: "주소", cols: ["주소"], type: "text", multi: true },
+    { label: "계좌", cols: ["계좌"], type: "text", ph: "예: 신한 110-123-456789" },
     { label: "이메일", cols: EMAIL_COLS, type: "email" }
   ];
   function currentValue(c, cols) {
@@ -1244,9 +1249,11 @@
     const x = current.extra || { values: {}, fields: [] };
     const ev = x.values || {};
     const canList = c.entries.some((e) => e.src);
-    const listFields = canList ? EDIT_FIELDS.map((f) => `<label class="fld"><span>${esc(f.label)}</span>
+    const fld = (f) => `<label class="fld"><span>${esc(f.label)}</span>
         ${f.multi ? `<textarea data-edit="${esc(f.label)}" rows="2">${esc(currentValue(c, f.cols))}</textarea>`
-          : `<input data-edit="${esc(f.label)}" value="${esc(currentValue(c, f.cols))}" type="${f.type}" autocomplete="off">`}</label>`).join("") : "";
+          : `<input data-edit="${esc(f.label)}" value="${esc(currentValue(c, f.cols))}" type="${f.type}" autocomplete="off"${f.ph ? ` placeholder="${esc(f.ph)}"` : ""}>`}</label>`;
+    const listFields = canList ? EDIT_FIELDS.filter((f) => !f.paired).map((f) => f.pair
+      ? `<div class="fld-2">${fld(f)}${fld(EDIT_FIELDS.find((x) => x.label === f.pair))}</div>` : fld(f)).join("") : "";
     const field = (k) => {
       const v = esc(ev[k] || "");
       let input;
