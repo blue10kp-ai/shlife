@@ -2361,7 +2361,7 @@
     const e = it.e;
     const endDay = e.allDay ? addDays(e.end, -1) : e.end;
     box.innerHTML = `<div class="ev-form">
-        <label class="fld"><span>캘린더</span><select data-f="cal">${schedCals.map((c) =>
+        <label class="fld"><span>캘린더</span><select data-f="cal">${schedCals.filter((c) => (GCFG.calendars || []).includes(c.name) || c.id === e.calId).map((c) =>
           `<option value="${esc(c.id)}" ${c.id === e.calId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
         <label class="fld"><span>제목</span><input data-f="title" value="${esc(e.title)}" autocomplete="off"></label>
         <label class="fld"><span>날짜</span><input data-f="date" type="date" value="${ymdStr(e.start)}"></label>
