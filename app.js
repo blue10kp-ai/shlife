@@ -297,15 +297,24 @@
   async function readPerms() {
     await resolveAppDir();
     const p = await stReadJsonIn(appDir, PERM_FILE);
-    return { users: (p && p.users) || {} };
+    return { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {} };
   }
+  // 권한 항목: "최수진"(보기+수정) / "최수진:r"(보기만) / "*"(전체)
+  const grantFc = (s) => String(s).replace(/:r$/, "");
+  const grantRo = (s) => /:r$/.test(String(s));
+  let roFcs = new Set(); // 내가 '보기만' 권한인 FC (화면에서 수정 버튼 숨김 — 실제 막는 것은 Drive 공유 권한)
+  let fcFolderIds = {}; // FC 이름 → Drive 폴더 ID (관리자가 변경 저장할 때 권한 파일에 기록)
+  const isRO = (fc) => !!fc && roFcs.has(fc);
 
   // 지금 로그인한 아이디가 볼 수 있는 FC: "*" 또는 FC 이름 목록
   async function myAllowedFcs() {
     if (isAdmin() || base.owner) return "*";
     const perms = await readPerms();
+    fcFolderIds = perms.fcFolders || {};
     const list = perms.users[me()] || [];
-    return list.includes("*") ? "*" : list;
+    if (list.includes("*")) return "*";
+    roFcs = new Set(list.filter(grantRo).map(grantFc));
+    return list.map(grantFc);
   }
 
   // 고객 폴더 구조 읽기
@@ -339,7 +348,10 @@
         }));
       }
       try {
-        await scan(base.id, "");
+        if (allowed !== "*" && allowed.length && allowed.every((f) => fcFolderIds[f])) {
+          // FC 폴더 단위로 공유받은 사용자: 폴더 ID로 바로 열기 (고객 루트 폴더 권한이 없어도 됨)
+          for (const f of allowed) await scan(fcFolderIds[f], f);
+        } else await scan(base.id, "");
       } catch (e) {
         if (!base.owner && /40[34]/.test(String(e.message))) throw new Error("NO_SHARE");
         throw e;
@@ -478,6 +490,7 @@
 
   // entries의 원래 줄(파일·시트·행)에 values({열이름: 값})를 기록. 열이 없으면 머리글 끝에 새로 만듦
   async function writeEntryCells(entries, values) {
+    if (entries.some((e) => isRO(e.fc))) throw new Error("보기 전용 권한이라 수정할 수 없습니다.");
     const byFile = new Map();
     entries.filter((e) => e.src).forEach((e) => { if (!byFile.has(e.src.fileId)) byFile.set(e.src.fileId, []); byFile.get(e.src.fileId).push(e); });
     for (const [fileId, list] of byFile) {
@@ -731,7 +744,8 @@
 
   async function readExtra() {
     await resolveBase();
-    const items = await stList(base.id);
+    let items = [];
+    try { items = await stList(base.id); } catch (e) { if (!/40[34]/.test(String(e.message))) throw e; } // FC 폴더만 공유받은 사용자는 루트 목록이 없음
     const file = items.find((i) => i.file && /\.xlsx$/i.test(i.name) && nospace(i.name).includes(nospace(EXTRA.fileKeyword)));
     if (!file) return null;
     const wb = XLSX.read(await stGet(file.id), { type: "array", cellNF: true }); // 서식 유지 (다시 저장할 때 #,##0·날짜 서식이 사라지지 않게)
@@ -1010,6 +1024,7 @@
     $("avatar").style.backgroundImage = "";
     editMode = false;
     $("editBtn").textContent = "수정";
+    $("editBtn").hidden = false;
     $("editBtn").classList.remove("on");
     $("photoMenu").hidden = true;
     $("avatar").classList.remove("editable");
@@ -1046,6 +1061,7 @@
         const a = $("avatar"); a.style.backgroundImage = ""; a.classList.remove("has-photo"); a.textContent = current.cust.name[0];
       }
       current.fc = fcs[0] || (folders[0] && folders[0].fc) || "";
+      $("editBtn").hidden = isRO(current.fc); // 보기 전용 FC는 수정 버튼 숨김
       const [contracts, extra] = await Promise.all([
         loadContracts().catch((e) => { console.error(e); return []; }),
         loadExtraFor(current.fc, cust.name).catch((e) => { console.error(e); return { error: true, values: {} }; })
@@ -1905,12 +1921,13 @@
   async function loadAdminState() {
     await resolveBase();
     const items = await stList(base.id);
-    const fcs = items.filter((i) => i.folder && !i.name.startsWith("_")).map((f) => f.name)
-      .sort((a, b) => a.localeCompare(b, "ko"));
+    const fcFolders = items.filter((i) => i.folder && !i.name.startsWith("_"));
+    const fcs = fcFolders.map((f) => f.name).sort((a, b) => a.localeCompare(b, "ko"));
+    const fcIds = Object.fromEntries(fcFolders.map((f) => [f.name, f.id]));
     const perms = await readPerms();
     let shares = null;
-    if (GD && base.owner) { try { shares = await loadShares(); } catch (e) { console.error(e); } }
-    adminState = { fcs, perms, shares };
+    if (GD && base.owner) { try { shares = await loadShares(fcIds); } catch (e) { console.error(e); } }
+    adminState = { fcs, perms, shares, fcIds };
   }
 
   // ---------- Google Drive 공유 (관리자: 고객 폴더 = 편집, 설정 폴더 = 보기) ----------
@@ -1918,10 +1935,13 @@
     const d = await gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions?supportsAllDrives=true&fields=" + encodeURIComponent("permissions(id,emailAddress,role,type)"));
     return (d.permissions || []).filter((p) => p.type === "user" && p.emailAddress).map((p) => ({ id: p.id, email: p.emailAddress.toLowerCase(), role: p.role }));
   }
-  async function loadShares() {
+  async function loadShares(fcIds) {
     await resolveAppDir();
+    const ids = fcIds || (adminState && adminState.fcIds) || {};
     const [cust, app] = await Promise.all([gdPermList(base.id), appDir.id ? gdPermList(appDir.id) : []]);
-    return { cust, app };
+    const fc = {}; // FC 폴더별 공유
+    await Promise.all(Object.entries(ids).map(async ([name, id]) => { fc[name] = await gdPermList(id).catch(() => []); }));
+    return { cust, app, fc };
   }
   // 공유 상태: "ok" (고객 편집 + 설정 보기 이상) / "part" / "none"
   function shareState(em) {
@@ -1930,13 +1950,28 @@
     const c = s.cust.find((p) => p.email === em);
     const a = s.app.find((p) => p.email === em);
     const cOk = c && (c.role === "writer" || c.role === "owner");
+    const anyFc = Object.values(s.fc || {}).some((l) => l.some((p) => p.email === em));
     if (cOk && a) return "ok";
-    return c || a ? "part" : "none";
+    return c || a || anyFc ? "part" : "none";
+  }
+  // 이 계정의 FC 권한 목록(list)이 Drive 공유와 정확히 맞는지: 전체("*")는 고객 폴더 편집, 그 외는 FC 폴더별 편집/보기 + 설정 폴더 보기
+  function shareMatches(em, list) {
+    const s = adminState && adminState.shares;
+    if (!s) return true;
+    if (!s.app.find((p) => p.email === em)) return false;
+    if (list.includes("*")) { const c = s.cust.find((p) => p.email === em); return !!c && (c.role === "writer" || c.role === "owner"); }
+    if (s.cust.find((p) => p.email === em && p.role !== "owner")) return false; // 예전 방식(고객 폴더 전체 공유)이면 FC 단위로 바꿔야 함
+    return Object.keys(s.fc || {}).every((name) => {
+      const mine = (s.fc[name] || []).find((p) => p.email === em);
+      const want = list.find((x) => grantFc(x) === name);
+      if (!want) return !mine;
+      return !!mine && (grantRo(want) ? mine.role === "reader" : mine.role === "writer" || mine.role === "owner");
+    });
   }
   async function shareFolders(em) {
     if (!confirm(`${em} 계정에 Google Drive 폴더를 공유할까요?\n· 고객 폴더: 편집 (메모·미팅장소·사진 저장)\n· 설정 폴더: 보기\n공유 알림 메일이 그 계정으로 갑니다.`)) return;
     try {
-      await grantFolders(em);
+      await grantFolders(em, adminState.perms.users[em]);
       adminState.shares = await loadShares();
       toast(`${em} 계정에 폴더를 공유했습니다.`);
       const pending = collectPending();
@@ -1946,16 +1981,36 @@
       handleError(/Drive 400/.test(e.message) ? new Error("공유하지 못했습니다. 구글 계정 이메일이 맞는지 확인해 주세요.") : e);
     }
   }
-  // 고객 폴더 = 편집, 설정 폴더 = 보기 (이미 있으면 건너뜀, 보기로 공유돼 있으면 편집으로 올림)
-  async function grantFolders(em) {
+  // 공유 맞추기: 전체("*")는 고객 폴더 편집, 그 외는 FC 폴더별 편집/보기(:r) — 목록에 없는 FC 폴더·예전 고객 폴더 전체 공유는 해제. 설정 폴더는 보기.
+  async function grantFolders(em, list) {
     const st = adminState.shares;
+    list = list && list.length ? list : ["*"];
     const permUrl = (id, pid) => GDAPI + "/files/" + encodeURIComponent(id) + "/permissions" + (pid ? "/" + encodeURIComponent(pid) : "") + "?supportsAllDrives=true";
-    const add = (id, role) => gdFetch(permUrl(id) + "&sendNotificationEmail=true",
+    const hadAny = st.cust.some((p) => p.email === em) || st.app.some((p) => p.email === em) || Object.values(st.fc || {}).some((l) => l.some((p) => p.email === em));
+    const add = (id, role) => gdFetch(permUrl(id) + "&sendNotificationEmail=" + (hadAny ? "false" : "true"),
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role, emailAddress: em }) });
+    const patch = (id, pid, role) => gdFetch(permUrl(id, pid), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) });
+    const del = (id, pid) => gdFetch(permUrl(id, pid), { method: "DELETE" });
     const c = st.cust.find((p) => p.email === em);
-    if (!c) await add(base.id, "writer");
-    else if (c.role !== "writer" && c.role !== "owner")
-      await gdFetch(permUrl(base.id, c.id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "writer" }) });
+    const apply = async (id, mine, role) => {
+      if (!mine) await add(id, role);
+      else if (mine.role !== role && mine.role !== "owner") await patch(id, mine.id, role);
+    };
+    if (list.includes("*")) {
+      await apply(base.id, c, "writer");
+    } else {
+      const ids = adminState.fcIds || {};
+      for (const g of list) { // 먼저 FC 폴더를 공유하고 (실패하면 여기서 멈춰 예전 권한을 지우지 않음)
+        const fc = grantFc(g);
+        if (!ids[fc]) throw new Error("FC 폴더를 찾을 수 없습니다: " + fc);
+        await apply(ids[fc], ((st.fc || {})[fc] || []).find((p) => p.email === em), grantRo(g) ? "reader" : "writer");
+      }
+      for (const [fc, ps] of Object.entries(st.fc || {})) { // 목록에서 빠진 FC 폴더 공유 해제
+        const mine = ps.find((p) => p.email === em);
+        if (mine && mine.role !== "owner" && !list.some((g) => grantFc(g) === fc)) await del(ids[fc], mine.id);
+      }
+      if (c && c.role !== "owner") await del(base.id, c.id); // 예전 방식(고객 폴더 전체 공유) 정리
+    }
     if (appDir.id && !st.app.find((p) => p.email === em)) await add(appDir.id, "reader");
   }
   async function unshareFolders(em) {
@@ -1964,6 +2019,7 @@
     const del = (fileId, p) => gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions/" + encodeURIComponent(p.id) + "?supportsAllDrives=true", { method: "DELETE" });
     for (const p of st.cust.filter((x) => x.email === em && x.role !== "owner")) await del(base.id, p);
     for (const p of st.app.filter((x) => x.email === em && x.role !== "owner")) await del(appDir.id, p);
+    for (const [fc, ps] of Object.entries(st.fc || {})) for (const p of ps.filter((x) => x.email === em && x.role !== "owner")) await del((adminState.fcIds || {})[fc], p);
     adminState.shares = await loadShares();
   }
   // 표에서 아직 저장 안 한 체크 상태 (다시 그릴 때 유지)
@@ -2032,7 +2088,8 @@
     const users = [...new Set([...Object.keys(perms.users), ...extraUsers])].sort();
     const listOf = (em) => perms.users[em] || [];
     const isAll = (em) => listOf(em).includes("*");
-    const has = (em, fc) => isAll(em) || listOf(em).includes(fc);
+    const has = (em, fc) => isAll(em) || listOf(em).some((g) => grantFc(g) === fc);
+    const isRo = (em, fc) => !isAll(em) && listOf(em).includes(fc + ":r");
     const ACC = GD ? "구글 계정" : "아이디";
 
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
@@ -2047,7 +2104,8 @@
           ${users.map((em) => `<tr class="perm-row" data-em="${esc(em)}">
             <td>${esc(em)}</td>
             <td><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"></td>
-            ${fcs.map((fc) => `<td><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"></td>`).join("")}
+            ${fcs.map((fc) => `<td><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}">
+              <label class="ro-lbl" title="보기만 (수정 불가)"><input type="checkbox" class="cb ro" data-ro="${esc(fc)}" ${isRo(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 보기만">보기만</label></td>`).join("")}
             <td><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></td>
           </tr>`).join("")}
         </table></div>
@@ -2081,7 +2139,10 @@
     const same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
     const sel = (row) => {
       const all = row.querySelector("input[data-all]");
-      return all.checked ? ["*"] : [...row.querySelectorAll("input[data-fc]")].filter((b) => b.checked).map((b) => b.dataset.fc);
+      return all.checked ? ["*"] : [...row.querySelectorAll("input[data-fc]")].filter((b) => b.checked).map((b) => {
+        const ro = row.querySelector(`input[data-ro="${CSS.escape(b.dataset.fc)}"]`);
+        return b.dataset.fc + (ro && ro.checked ? ":r" : "");
+      });
     };
     const changed = () => rows.filter((r) => !same(sel(r), listOf(r.dataset.em)));
     const refresh = () => {
@@ -2094,13 +2155,20 @@
     rows.forEach((row) => {
       const all = row.querySelector("input[data-all]");
       const boxes = [...row.querySelectorAll("input[data-fc]")];
-      const syncAll = () => { all.indeterminate = !all.checked && boxes.some((b) => b.checked); };
+      const ros = [...row.querySelectorAll("input[data-ro]")];
+      const syncRo = () => ros.forEach((r) => {
+        const fb = boxes.find((b) => b.dataset.fc === r.dataset.ro);
+        r.disabled = all.checked || !(fb && fb.checked);
+        if (r.disabled) r.checked = false;
+      });
+      const syncAll = () => { all.indeterminate = !all.checked && boxes.some((b) => b.checked); syncRo(); };
       all.addEventListener("change", () => { boxes.forEach((b) => (b.checked = all.checked)); syncAll(); refresh(); });
       boxes.forEach((b) => b.addEventListener("change", () => {
         if (!b.checked) all.checked = false;
         else if (boxes.every((x) => x.checked)) all.checked = true;
         syncAll(); refresh();
       }));
+      ros.forEach((r) => r.addEventListener("change", refresh));
       syncAll();
     });
     refresh();
@@ -2120,9 +2188,10 @@
         if (!row) return;
         const all = row.querySelector("input[data-all]");
         all.checked = list.includes("*");
-        row.querySelectorAll("input[data-fc]").forEach((b) => (b.checked = all.checked || list.includes(b.dataset.fc)));
+        row.querySelectorAll("input[data-fc]").forEach((b) => (b.checked = all.checked || list.some((g) => grantFc(g) === b.dataset.fc)));
         all.dispatchEvent(new Event("change"));
         if (!all.checked) row.querySelectorAll("input[data-fc]").forEach((b) => b.dispatchEvent(new Event("change")));
+        row.querySelectorAll("input[data-ro]").forEach((r) => { r.checked = !all.checked && list.includes(r.dataset.ro + ":r"); });
       });
     }
   }
@@ -2150,11 +2219,12 @@
     if (!changes.length) return;
     // Google Drive: FC를 체크한 계정은 폴더 공유, 체크를 모두 뺀 계정은 공유 해제 (변경 저장 한 번으로)
     const auto = GD && adminState.shares;
-    const toShare = auto ? changes.filter(([em, list]) => list.length && shareState(em) !== "ok").map(([em]) => em) : [];
+    const toShare = auto ? changes.filter(([em, list]) => list.length && !shareMatches(em, list)).map(([em]) => em) : [];
     const toUnshare = auto ? changes.filter(([em, list]) => !list.length && shareState(em) !== "none").map(([em]) => em) : [];
+    const listOfChange = (em) => (changes.find((c) => c[0] === em) || [em, []])[1];
     if (toShare.length || toUnshare.length) {
       const msg = ["저장하면서 Google Drive 공유도 바꿉니다."];
-      if (toShare.length) msg.push("· 공유(고객 폴더 편집 · 설정 폴더 보기, 알림 메일 발송): " + toShare.join(", "));
+      if (toShare.length) msg.push("· 공유(전체: 고객 폴더 편집 / 그 외: 체크한 FC 폴더만 편집·보기만, 설정 폴더 보기): " + toShare.map((em) => em + " [" + listOfChange(em).join(", ") + "]").join(" / "));
       if (toUnshare.length) msg.push("· 공유 해제: " + toUnshare.join(", "));
       if (!confirm(msg.join("\n"))) return;
     }
@@ -2167,10 +2237,11 @@
       changes.forEach(([em, list]) => {
         if (list.length) perms.users[em] = list; else { delete perms.users[em]; extraUsers.delete(em); }
       });
+      perms.fcFolders = adminState.fcIds || perms.fcFolders || {}; // 사용자 앱이 FC 폴더를 ID로 바로 열 수 있게
       await writePerms(perms);
       adminState.perms = perms;
       const failed = [];
-      for (const em of toShare) { try { await grantFolders(em); } catch (e) { console.error(e); failed.push(em); } }
+      for (const em of toShare) { try { await grantFolders(em, listOfChange(em)); } catch (e) { console.error(e); failed.push(em); } }
       for (const em of toUnshare) { try { await unshareFolders(em); } catch (e) { console.error(e); failed.push(em); } }
       if (toShare.length || toUnshare.length) adminState.shares = await loadShares();
       toast(failed.length ? `저장했습니다. 공유하지 못한 계정: ${failed.join(", ")} (구글 계정 이메일인지 확인)` : `저장했습니다 (${changes.length}개 계정${toShare.length ? ", 폴더 공유 " + toShare.length : ""}${toUnshare.length ? ", 공유 해제 " + toUnshare.length : ""}).`);
