@@ -409,3 +409,10 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 .cal-pick .cp-name { display: flex; align-items: center; gap: 6px; padding: 8px 10px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cal-pick .cp-cell { display: flex; justify-content: center; align-items: center; align-self: stretch; border-left: 1px solid var(--line); cursor: pointer; }
 .cal-pick .cp-row.off .cp-name { color: var(--muted); }
+/* 캘린더 | Show | 일정 | 정보 (4칸) */
+.cal-pick.cp4 .cp-head, .cal-pick.cp4 .cp-row { grid-template-columns: 1fr 56px 56px 56px; }
+/* 일정: 동명이인 선택 버튼 */
+.ev-cust { position: relative; }
+.pick-btn { position: absolute; top: 6px; right: 0; border: 1px solid var(--brand); color: var(--brand); background: var(--card); border-radius: 8px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
+.pick-btn:disabled { opacity: .6; }
+.ev-cust:has(.pick-btn) .ev-name { padding-right: 64px; }
