@@ -1850,28 +1850,21 @@
     const listOf = (em) => perms.users[em] || [];
     const isAll = (em) => listOf(em).includes("*");
     const has = (em, fc) => isAll(em) || listOf(em).includes(fc);
-    const showShare = GD && !!adminState.shares;
-    const shareCell = (em) => {
-      const s = shareState(em);
-      if (s === "ok") return `<td class="ok" title="고객 폴더 편집 · 설정 폴더 보기">공유됨</td>`;
-      return `<td><button type="button" class="link-btn" data-share="${esc(em)}">${s === "part" ? "공유 보완" : "공유하기"}</button></td>`;
-    };
     const ACC = GD ? "구글 계정" : "아이디";
-    const consoleUrl = "https://console.cloud.google.com/auth/audience" + (GDCFG.project ? "?project=" + encodeURIComponent(GDCFG.project) : "");
 
-    $("adminBody").innerHTML = settingsCardHtml() + `
+    // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
+    $("adminBody").innerHTML = `
       <div class="card">
         <h3 class="sec-title">사용 FC 현황</h3>
-        <p class="hint">체크박스로 바로 바꾸고 '변경 저장'을 누르세요.${showShare ? " '공유' 칸은 Google Drive 폴더 공유 상태입니다." : ""}</p>
+        <p class="hint">체크박스로 바로 바꾸고 '변경 저장'을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
         <div class="table-wrap"><table class="matrix">
-          <tr><th>${ACC}</th><th>전체</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}${showShare ? "<th>공유</th>" : ""}<th></th></tr>
+          <tr><th>${ACC}</th><th>전체</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}<th></th></tr>
           ${(CFG.admins || []).map((a) => `<tr class="admin-row"><td>${esc(a)} <span class="tag">관리자</span></td>
-            <td class="ok">●</td>${fcs.map(() => `<td class="ok">●</td>`).join("")}${showShare ? '<td class="ok">소유자</td>' : ""}<td></td></tr>`).join("")}
+            <td class="ok">●</td>${fcs.map(() => `<td class="ok">●</td>`).join("")}<td></td></tr>`).join("")}
           ${users.map((em) => `<tr class="perm-row" data-em="${esc(em)}">
             <td>${esc(em)}</td>
             <td><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"></td>
             ${fcs.map((fc) => `<td><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"></td>`).join("")}
-            ${showShare ? shareCell(em) : ""}
             <td><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></td>
           </tr>`).join("")}
         </table></div>
@@ -1880,17 +1873,15 @@
           <button class="secondary" id="resetPerms" disabled>되돌리기</button>
           <button class="primary" id="savePerms" disabled>변경 저장</button>
         </div>
-        <h4 class="sub-title">사용자 추가</h4>
+      </div>
+      <div class="card">
+        <h3 class="sec-title">사용자 추가</h3>
         <form id="addUserForm" class="search">
           <input id="newUser" type="email" placeholder="${GD ? "구글 계정 이메일 (예: name@gmail.com)" : "Microsoft 계정 이메일"}" autocomplete="off" required>
           <button class="primary" type="submit">추가</button>
         </form>
-        ${GD ? `<p class="hint">새 사용자는 이렇게 추가합니다.</p>
-        <ol class="hint steps">
-          <li>이메일을 추가하고 위 표에서 볼 FC를 체크한 뒤 <b>변경 저장</b> → Google Drive 폴더 공유까지 자동으로 됩니다 (체크를 모두 빼고 저장하면 공유 해제)</li>
-          <li>앱이 '테스트 중'이면 <a href="${esc(consoleUrl)}" target="_blank" rel="noopener">Google Cloud › 대상 › 테스트 사용자</a>에도 그 이메일 추가 (프로덕션이면 필요 없음)</li>
-        </ol>` : '<p class="hint">추가하면 위 표에 줄이 생깁니다. 권한을 체크하고 \'변경 저장\'을 누르세요.</p>'}
-      </div>`;
+        <p class="hint">추가하면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 '변경 저장'을 누르세요.</p>
+      </div>` + settingsCardHtml();
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
