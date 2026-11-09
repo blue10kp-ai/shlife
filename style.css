@@ -387,3 +387,7 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 
 /* 로그아웃: 전원 아이콘 */
 .icon-btn .power-ico { display: block; }
+
+/* 캘린더 고르기 */
+.sub-label { margin: 10px 0 2px; font-weight: 600; font-size: 14px; color: var(--muted); }
+#loginOtherBtn { margin-top: 10px; }

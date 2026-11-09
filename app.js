@@ -1530,7 +1530,7 @@
     if (!p) return;
     const mod = p.lastModifiedDateTime || "";
     if (c.cachedPhoto && c.cachedPhoto.id === p.id && c.cachedPhoto.mod === mod) { showPhotoThumb(); return; }
-    if (appSettings.dataSaver) return; // 데이터 절약 모드: 기기에 없는 사진은 받지 않음
+    if (saverOn()) return; // 데이터 절약 모드: 기기에 없는 사진은 받지 않음
     try {
       const full = new Blob([await stGet(p.id)], { type: "image/jpeg" });
       if (c !== current) return; // 다른 고객으로 넘어감
@@ -1786,7 +1786,7 @@
         kakaoRestKey: $("setKakao").value.trim(),
         google: g ? { ...(appSettings.google || {}), ...g } : appSettings.google };
     };
-    const calKey = (g) => JSON.stringify(((g || {}).calendars || []).map((c) => c.id).sort());
+    const calKey = (g) => JSON.stringify([((g || {}).calendars || []).map((c) => c.id).sort(), (((g || {}).sales) || {}).id || ""]);
     const dirty = () => { const v = read(); return v.companyAddress !== (appSettings.companyAddress || "") || v.kakaoRestKey !== (appSettings.kakaoRestKey || "") || v.dataSaver !== !!appSettings.dataSaver || calKey(v.google) !== calKey(appSettings.google); };
     ["input", "change"].forEach((ev) => $("settingsCard").addEventListener(ev, () => { btn.disabled = !dirty(); }));
     btn.addEventListener("click", async () => {
@@ -1883,47 +1883,46 @@
   let collectPending = () => [];
   let applyPending = () => {};
 
-  // ---------- 설정 (일반 사용자): 내 계정 · 일정에 보일 내 캘린더 ----------
+  // ---------- 설정 (일반 사용자): 구글 캘린더(보여질 캘린더·영업일정 캘린더) + 데이터 절약 모드 ----------
   async function openMySettings() {
     show("adminView");
     const body = $("adminBody");
-    body.innerHTML = `<div class="card">
-        <h3 class="sec-title">내 계정</h3>
-        <p>${esc(me() || "-")}</p>
-        <p class="hint">로그아웃은 화면 오른쪽 위 전원 모양 버튼을 누르세요.</p>
-      </div>
-      <div class="card" id="myCalCard">
-        <h3 class="sec-title">일정에 보일 캘린더</h3>
-        <p class="hint">내 구글 캘린더 중 일정 화면에 보일 캘린더를 고르세요.</p>
+    body.innerHTML = `<div class="card" id="myCalCard">
+        <h3 class="sec-title">구글 캘린더</h3>
         <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
-        <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>
-      </div>`;
-    let cals, prefs;
-    try { [cals, prefs] = await Promise.all([calendarList(), loadMyPrefs(), loadSettings()]); } catch (e) {
+      </div>
+      <div class="card">
+        <label class="chk-line"><input type="checkbox" id="mySaver">
+          <span><b>데이터 절약 모드</b><br><span class="hint">켜면 이 기기에 없는 고객 사진은 받지 않습니다.</span></span></label>
+      </div>
+      <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>`;
+    let cals;
+    try { [cals] = await Promise.all([calendarList(), loadMyPrefs(), loadSettings()]); } catch (e) {
       $("myCalBox").innerHTML = "";
       return handleError(e);
     }
-    prefs = myPrefs || {};
+    const prefs = myPrefs || {};
     const saved = (prefs.calendars || []).map((c) => c.id);
     const want = defaultCalNames();
     const isOn = (c) => (saved.length ? saved.includes(c.id) : want.includes(c.name));
-    $("myCalBox").innerHTML = cals.length ? cals.map((c, i) => `<label class="chk-line"><input type="checkbox" data-mycal="${i}" ${isOn(c) ? "checked" : ""}>
-        <span>${calDot({ cal: c })}${esc(c.name)}</span></label>`).join("") : '<p class="hint">볼 수 있는 캘린더가 없습니다.</p>';
-    const pick = () => [...body.querySelectorAll("[data-mycal]")].filter((x) => x.checked).map((x) => cals[+x.dataset.mycal]).map((c) => ({ id: c.id, name: c.name, color: c.color }));
-    const initial = JSON.stringify(pick().map((c) => c.id).sort());
-    let base0 = saved.length ? JSON.stringify([...saved].sort()) : initial;
+    const box = $("myCalBox");
+    box.innerHTML = cals.length ? calPickerHtml(cals, isOn) : '<p class="hint">볼 수 있는 캘린더가 없습니다.</p>';
+    if (cals.length) bindCalPicker(box, cals, (prefs.sales && prefs.sales.id) || defaultSalesId(cals));
+    $("mySaver").checked = saverOn();
+    const read = () => ({ ...(cals.length ? readCalPicker(box, cals) : { calendars: [], sales: null }), dataSaver: $("mySaver").checked });
+    const key = (v) => JSON.stringify([v.calendars.map((c) => c.id).sort(), (v.sales || {}).id || "", !!v.dataSaver]);
+    let base0 = saved.length ? key({ calendars: prefs.calendars, sales: prefs.sales, dataSaver: saverOn() }) : "";
     const btn = $("myCalSave");
-    const dirty = () => JSON.stringify(pick().map((c) => c.id).sort()) !== base0 || !saved.length;
+    const dirty = () => key(read()) !== base0;
     btn.disabled = !dirty();
-    $("myCalCard").addEventListener("change", () => { btn.disabled = !dirty(); });
+    body.addEventListener("change", () => { btn.disabled = !dirty(); });
     btn.addEventListener("click", async () => {
-      const list = pick();
-      if (!list.length) return toast("캘린더를 하나 이상 고르세요.");
+      const v = read();
+      if (!v.calendars.length) return toast("보여질 캘린더를 하나 이상 고르세요.");
       btn.disabled = true; btn.textContent = "저장 중…";
       try {
-        await saveMyPrefs({ ...(myPrefs || {}), calendars: list });
-        saved.splice(0, saved.length, ...list.map((c) => c.id));
-        base0 = JSON.stringify([...saved].sort());
+        await saveMyPrefs({ ...(myPrefs || {}), calendars: v.calendars, sales: v.sales, dataSaver: v.dataSaver });
+        base0 = key(v);
         toast("저장했습니다. 일정 화면에 반영됩니다.");
       } catch (e) { handleError(e); }
       btn.textContent = "저장";
@@ -2124,22 +2123,26 @@
     if (lead) lead.innerHTML = "<b>신한FC</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.";
     const hint = document.querySelector("#loginView .hint");
     if (hint) hint.textContent = "고객 정보는 Google Drive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.";
+    $("loginOtherBtn").hidden = false;
     show("loginView");
   }
-  async function googleLogin() {
+  // other = true: 구글 계정 선택 창을 띄워 다른 계정으로 로그인
+  async function googleLogin(other) {
     try {
-      await requestGToken();
+      await requestGToken(other ? "select_account" : undefined, other);
       const u = await gdFetch("https://www.googleapis.com/oauth2/v3/userinfo");
       const em = String(u.email || "").toLowerCase();
       if (!em) throw new Error("구글 계정 이메일을 읽지 못했습니다.");
-      if (gAccount() && gAccount() !== em) { base = null; appDir = null; scanCache = null; listCache = null; myPrefs = null; myDir = null; }
+      const changed = gAccount() && gAccount() !== em;
       try { localStorage.setItem(GACC_KEY, em); } catch (e) { /* 이번만 */ }
+      if (changed) { await photoCacheClear(); return location.reload(); } // 계정이 바뀌면 앱을 새로 시작 (이전 계정의 자료·설정 비우기)
       startApp();
     } catch (e) {
       if (e.message !== "GOOGLE_AUTH") toast(e.message); else handleError(e);
     }
   }
   $("loginBtn").addEventListener("click", () => (GD ? googleLogin() : msal.loginRedirect({ scopes: SCOPES })));
+  $("loginOtherBtn").addEventListener("click", () => (GD ? googleLogin(true) : msal.loginRedirect({ scopes: SCOPES, prompt: "select_account" })));
   $("logoutBtn").addEventListener("click", async () => {
     await photoCacheClear(); // 기기에 저장한 고객 사진 지우기
     if (!GD) return msal.logoutRedirect();
@@ -2203,7 +2206,7 @@
     $("photoViewerImg").src = current.photoFullUrl || current.photoUrl;
     $("photoViewer").hidden = false;
     const c = current;
-    if (!c.photoFullUrl && c.profilePhoto && !appSettings.dataSaver) {
+    if (!c.photoFullUrl && c.profilePhoto && !saverOn()) {
       stGet(c.profilePhoto.id).then((buf) => {
         c.photoFullUrl = URL.createObjectURL(new Blob([buf], { type: "image/jpeg" }));
         if (c === current && !$("photoViewer").hidden) $("photoViewerImg").src = c.photoFullUrl;
@@ -2264,14 +2267,14 @@
     gTokenMem = null;
   }
   // 구글 로그인 창(팝업) → 캘린더 읽기 권한 토큰 (1시간 유효, 버튼을 눌렀을 때만 호출)
-  function requestGToken(prompt) {
+  function requestGToken(prompt, noHint) {
     return new Promise((resolve, reject) => {
       const g = window.google && window.google.accounts && window.google.accounts.oauth2;
       if (!g) return reject(new Error("구글 로그인 모듈을 불러오지 못했습니다. 잠시 후 다시 시도하세요."));
       const client = g.initTokenClient({
         client_id: GCFG.clientId,
         scope: GSCOPE,
-        hint: (GD ? gAccount() : appSettings.google && appSettings.google.account) || undefined,
+        hint: noHint ? undefined : (GD ? gAccount() : appSettings.google && appSettings.google.account) || undefined,
         callback: (r) => {
           if (r.error) return reject(new Error("구글 연결 실패: " + r.error));
           if (GD && !google.accounts.oauth2.hasGrantedAllScopes(r, "https://www.googleapis.com/auth/drive")) return reject(new Error("Google Drive 권한을 허용해야 합니다. 다시 로그인하면서 모든 항목에 체크해 주세요."));
@@ -2381,6 +2384,8 @@
     if (!cals.length) throw new Error("NO_CALENDAR");
     const q = `?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(from.toISOString())}&timeMax=${encodeURIComponent(to.toISOString())}`;
     schedCals = cals.map(withAlias);
+    const sp = isAdmin() ? (appSettings.google || {}).sales : (myPrefs || {}).sales;
+    schedSalesId = sp && schedCals.some((c) => c.id === sp.id) ? sp.id : defaultSalesId(schedCals);
     const lists = await Promise.all(schedCals.map(async (c) => {
       // 볼 권한이 없는 캘린더(다른 사람 캘린더 등)는 건너뜀
       let d;
@@ -2542,6 +2547,7 @@
       v.dataset.ready = "1";
       v.querySelectorAll("[data-sm]").forEach((b) => b.addEventListener("click", () => {
         schedMode = b.dataset.sm;
+        if (schedMode === "day") schedDate = dayStart(new Date()); // Today 버튼: 오늘로
         v.querySelectorAll("[data-sm]").forEach((x) => x.classList.toggle("on", x === b));
         renderSchedule();
       }));
@@ -2549,6 +2555,7 @@
       $("schedNext").addEventListener("click", () => moveSched(1));
       $("schedLabel").addEventListener("click", () => { schedDate = dayStart(new Date()); renderSchedule(); });
     }
+    v.querySelectorAll("[data-sm]").forEach((x) => x.classList.toggle("on", x.dataset.sm === schedMode));
     renderSchedule();
   }
   function moveSched(n) {
@@ -2642,7 +2649,9 @@
   }
 
   // 고객 정보·이동 시간은 팀 캘린더(1팀) 일정만. 개인 일정(김현성·최수진)은 일정 내용만
-  const isTeamEvent = (e) => !e.allDay && e.cal.name === (GCFG.teamCalendar || "1팀");
+  // 영업일정 캘린더 일정만 고객 매칭·거리·시간 (설정에서 지정, 없으면 1팀과 같은 이름)
+  let schedSalesId = "";
+  const isTeamEvent = (e) => !e.allDay && !!schedSalesId && e.cal.id === schedSalesId;
 
   // 동명이인 확인: 일정에 주소를 입력한 고객으로 지정 (이 기기에 저장, '초기화'로 지움)
   const PICK_KEY = "shlife.eventPick";
@@ -2927,17 +2936,18 @@
       box.innerHTML = ""; return handleError(e);
     }
     const primary = cals.find((c) => c.primary);
-    const saved = ((appSettings.google || {}).calendars || []).map((c) => c.id);
+    const g = appSettings.google || {};
+    const saved = (g.calendars || []).map((c) => c.id);
     const want = GCFG.calendars || [];
     const isOn = (c) => (saved.length ? saved.includes(c.id) : want.includes(c.name));
     box.dataset.account = primary ? primary.id : "";
     // Google Drive 모드에서는 계정을 바꾸면 Drive 연결도 바뀌므로 '다른 계정' 버튼 없음 (로그인 계정의 캘린더 사용)
     box.innerHTML = `<p class="hint">${GD ? "캘린더 계정(로그인 계정)" : "로그인한 계정"}: ${esc(primary ? primary.id : "-")}
         ${GD ? "" : '<button type="button" class="link-btn" id="gSwitch">다른 계정</button>'}</p>
-      <p class="hint">일정 화면에 보일 캘린더를 고르세요. 다른 사용자는 각자 구글 계정에서 같은 이름의 캘린더를 봅니다.</p>
-      ${cals.map((c, i) => `<label class="chk-line"><input type="checkbox" data-cal="${i}" ${isOn(c) ? "checked" : ""}>
-        <span>${calDot({ cal: c })}${esc(c.name)}</span></label>`).join("")}`;
+      <p class="hint">관리자 일정 화면의 캘린더입니다. 다른 사용자는 '설정'에서 각자 고르며, 고르기 전에는 같은 이름의 캘린더가 기본으로 보입니다.</p>
+      ${calPickerHtml(cals, isOn)}`;
     box._cals = cals;
+    bindCalPicker(box, cals, (g.sales && g.sales.id) || defaultSalesId(cals));
     if ($("gSwitch")) $("gSwitch").addEventListener("click", async () => {
       try { await requestGToken("select_account"); loadCalendarChoices(); } catch (e) { toast(e.message); }
     });
@@ -2946,19 +2956,65 @@
   function readCalendarChoices() {
     const box = $("gCalBox");
     if (!box || !box._cals) return null;
-    const cals = [...box.querySelectorAll("[data-cal]")].filter((x) => x.checked).map((x) => box._cals[+x.dataset.cal])
-      .map((c) => ({ id: c.id, name: c.name, color: c.color }));
-    return { account: box.dataset.account || "", calendars: cals };
+    return { account: box.dataset.account || "", ...readCalPicker(box, box._cals) };
   }
+
+  // ---------- 캘린더 고르기 (관리자 설정·사용자 설정 공통) ----------
+  //   보여질 캘린더(여러 개) + 영업일정 캘린더(보여질 캘린더 중 하나: 약속 장소 사이 거리·예상 시간, 고객 정보)
+  //   보여질 캘린더를 하나도 고르지 않으면 영업일정 캘린더도 고를 수 없음
+  function calPickerHtml(cals, isOn) {
+    return `<p class="sub-label">보여질 캘린더</p>
+      ${cals.map((c, i) => `<label class="chk-line"><input type="checkbox" data-pcal="${i}" ${isOn(c) ? "checked" : ""}>
+        <span>${calDot({ cal: c })}${esc(c.name)}</span></label>`).join("")}
+      <label class="fld"><span>영업일정 캘린더 <span class="hint">(약속 장소 사이 거리·예상 시간과 고객 정보를 보여 줄 캘린더)</span></span>
+        <select data-psales></select></label>`;
+  }
+  function bindCalPicker(root, cals, salesId) {
+    const sel = root.querySelector("[data-psales]");
+    let want = salesId || "";
+    const fill = () => {
+      const on = [...root.querySelectorAll("[data-pcal]")].filter((x) => x.checked).map((x) => cals[+x.dataset.pcal]);
+      if (sel.value) want = sel.value;
+      sel.innerHTML = on.length
+        ? '<option value="">(없음)</option>' + on.map((c) => `<option value="${esc(c.id)}" ${c.id === want ? "selected" : ""}>${esc(c.name)}</option>`).join("")
+        : '<option value="">먼저 보여질 캘린더를 고르세요</option>';
+      sel.disabled = !on.length;
+    };
+    root.querySelectorAll("[data-pcal]").forEach((x) => x.addEventListener("change", fill));
+    sel.addEventListener("change", () => { want = sel.value; });
+    fill();
+  }
+  function readCalPicker(root, cals) {
+    const list = [...root.querySelectorAll("[data-pcal]")].filter((x) => x.checked).map((x) => cals[+x.dataset.pcal])
+      .map((c) => ({ id: c.id, name: c.name, color: c.color }));
+    const sel = root.querySelector("[data-psales]");
+    const s = list.find((c) => c.id === (sel && sel.value));
+    return { calendars: list, sales: s ? { id: s.id, name: s.name } : null };
+  }
+  // 고른 적 없을 때 영업일정 캘린더: 관리자가 정한 영업일정 캘린더 이름 → config 기본(1팀)과 같은 이름
+  function defaultSalesId(cals) {
+    const nm = (((appSettings.google || {}).sales) || {}).name || GCFG.teamCalendar || "1팀";
+    const c = cals.find((x) => x.name === nm);
+    return c ? c.id : "";
+  }
+  // 데이터 절약 모드: 일반 사용자는 자기 설정, 없으면 관리자 설정
+  const saverOn = () => (!isAdmin() && myPrefs && typeof myPrefs.dataSaver === "boolean" ? myPrefs.dataSaver : !!appSettings.dataSaver);
 
   // 큰 메뉴: 일정 / 고객 / 관리자
   $("mainNav").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     const s = b.dataset.section;
-    if (s === "schedule") openSchedule();
+    if (s === "schedule") { schedMode = "day"; schedDate = dayStart(new Date()); openSchedule(); } // 항상 오늘 Today
     else if (s === "admin") openAdmin();
-    else show("searchView");
+    else resetSearch(); // 고객: 검색을 지우고 처음 화면
   }));
   window.addEventListener("popstate", () => { if (!$("customerView").hidden) { if (returnView === "scheduleView") openSchedule(); else show("searchView"); } });
+
+  function resetSearch() {
+    $("q").value = ""; $("q2").value = "";
+    $("results").innerHTML = ""; $("searchStatus").textContent = "";
+    $("recentList").hidden = true;
+    show("searchView");
+  }
 
   // (검색 가능한 FC 문구는 표시하지 않음)
   function showScope() { $("scopeHint").textContent = ""; }
@@ -2990,6 +3046,7 @@
       loadSettings().then(() => openSchedule()); // 첫 화면: 일정 Today (설정을 읽은 뒤)
     }
     loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
+    if (!isAdmin()) loadMyPrefs(); // 일반 사용자 설정 (캘린더·데이터 절약)
     loadLists().then(showScope).catch(handleError); // 미리 불러오기
   }
 })();
