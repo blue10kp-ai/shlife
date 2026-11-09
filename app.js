@@ -272,9 +272,9 @@
   }
 
   // ---------- 관리자 설정 (앱 저장 폴더의 설정 파일, 모든 사용자가 같은 설정 사용) ----------
-  //   { companyAddress, dataSaver, google: { account, calendars: [] } }
+  //   { companyAddress, kakaoRestKey, google: { account, calendars: [] } }
   const SETTINGS_FILE = CFG.settingsFile || "shlife-설정.json";
-  let appSettings = { companyAddress: "", dataSaver: false, google: { account: "", calendars: [] } };
+  let appSettings = { companyAddress: "", google: { account: "", calendars: [] } };
   async function loadSettings() {
     try {
       await resolveAppDir();
@@ -1044,7 +1044,37 @@
       return `<button data-tab="${t.id}">${esc(t.label)}${n !== "" ? `<small>${n}</small>` : ""}</button>`;
     }).join("");
     $("tabs").querySelectorAll("button").forEach((b) =>
-      b.addEventListener("click", () => selectTab(b.dataset.tab)));
+      b.addEventListener("click", async () => {
+        if (b.dataset.tab !== "basic" && !(await confirmLeaveEdit())) return; // 수정 중이면 저장·취소·이동 취소 확인
+        selectTab(b.dataset.tab);
+      }));
+  }
+
+  // 수정모드에서 다른 곳으로 이동하려 할 때: 저장하고 이동 / 수정 취소하고 이동 / 이동 취소
+  function askLeave() {
+    return new Promise((resolve) => {
+      const box = document.createElement("div");
+      box.className = "modal";
+      box.innerHTML = `<div class="modal-box leave-box" role="dialog" aria-modal="true">
+          <p class="lead"><b>수정 중인 내용이 있어요</b></p>
+          <p class="hint">이동하기 전에 어떻게 할까요?</p>
+          <div class="leave-btns">
+            <button type="button" class="primary" data-a="save">저장하고 이동</button>
+            <button type="button" class="secondary" data-a="discard">수정 취소하고 이동</button>
+            <button type="button" class="secondary" data-a="stay">이동 취소</button>
+          </div></div>`;
+      const done = (a) => { box.remove(); resolve(a); };
+      box.addEventListener("click", (ev) => { const b = ev.target.closest("[data-a]"); if (b) done(b.dataset.a); else if (ev.target === box) done("stay"); });
+      document.body.appendChild(box);
+    });
+  }
+  // 이동해도 되면 true (수정 중이 아니거나, 저장했거나, 수정을 취소한 경우)
+  async function confirmLeaveEdit() {
+    if (!editMode || $("customerView").hidden) return true;
+    const a = await askLeave();
+    if (a === "stay") return false;
+    if (a === "discard") { setEditMode(false, true); return true; }
+    return saveInfo({ stay: true });
   }
 
   function kind(name) {
@@ -1292,7 +1322,14 @@
       dd.addEventListener("change", upd);
     });
     $("infoCancel").addEventListener("click", () => setEditMode(false));
-    $("infoSave").addEventListener("click", async () => {
+    $("infoSave").addEventListener("click", () => saveInfo());
+  }
+
+  // 정보 수정 저장. stay: 저장 후 정보 화면을 다시 그리지 않고 수정모드만 끔(다른 곳으로 이동할 때). 성공하면 true
+  async function saveInfo(opt) {
+    const body = $("tabBody");
+    const done = () => setEditMode(false, !!(opt && opt.stay));
+    {
       const c = current.cust;
       const btn = $("infoSave");
       // 고객리스트: 바뀐 칸만
@@ -1308,7 +1345,7 @@
       const orig = { ...((current.extra && current.extra.values) || {}) };
       const v = { ...orig, ...Object.fromEntries(inputs.map((i) => [i.dataset.ex, i.value.trim()])) };
       const extraDirty = inputs.some((i) => i.value.trim() !== (orig[i.dataset.ex] || ""));
-      if (!Object.keys(listValues).length && !extraDirty) return setEditMode(false);
+      if (!Object.keys(listValues).length && !extraDirty) { done(); return true; }
       btn.disabled = true; btn.textContent = "저장 중…";
       try {
         if (Object.keys(listValues).length) {
@@ -1322,23 +1359,25 @@
         }
         current.phones = null;
         toast("저장했습니다.");
-        setEditMode(false);
+        done();
+        return true;
       } catch (e) {
         btn.disabled = false; btn.textContent = "저장";
         saveError(e);
+        return false;
       }
-    });
+    }
   }
 
   // 맨 위 '수정' 버튼: 성향 버튼 · 사진 바꾸기 · 정보 수정 화면
-  function setEditMode(on) {
+  function setEditMode(on, noRender) {
     editMode = on;
     $("editBtn").textContent = on ? "닫기" : "수정";
     $("editBtn").classList.toggle("on", on);
     $("photoMenu").hidden = true;
     renderGrade(current.cust);
     $("avatar").classList.toggle("editable", on);
-    selectTab("basic");
+    if (!noRender) selectTab("basic"); // noRender: 곧바로 다른 탭으로 이동할 때
   }
 
   // ---------- 프로필 사진 ----------
@@ -1530,7 +1569,6 @@
     if (!p) return;
     const mod = p.lastModifiedDateTime || "";
     if (c.cachedPhoto && c.cachedPhoto.id === p.id && c.cachedPhoto.mod === mod) { showPhotoThumb(); return; }
-    if (saverOn()) return; // 데이터 절약 모드: 기기에 없는 사진은 받지 않음
     try {
       const full = new Blob([await stGet(p.id)], { type: "image/jpeg" });
       if (c !== current) return; // 다른 고객으로 넘어감
@@ -1770,8 +1808,6 @@
           <input id="setCompany" value="${esc(s.companyAddress || "")}" placeholder="예: 광주광역시 서구 상무중앙로 98" autocomplete="off"></label>
         <label class="fld"><span>카카오 REST API 키 (이동 거리·시간 계산용)</span>
           <input id="setKakao" value="${esc(s.kakaoRestKey || "")}" placeholder="developers.kakao.com › 앱 › 플랫폼 키" autocomplete="off" spellcheck="false"></label>
-        <label class="chk-line"><input type="checkbox" id="setSaver" ${s.dataSaver ? "checked" : ""}>
-          <span><b>데이터 절약 모드</b><br><span class="hint">켜면 고객 사진을 불러오지 않습니다.</span></span></label>
         <details class="fold" id="gFold"><summary>구글 캘린더 설정 <span class="hint">${esc(((s.google || {}).calendars || []).map((c) => c.name).join(", ") || "기본(1팀·김현성·최수진)")}</span></summary>
           <div id="gCalBox"></div></details>
         <div class="file-actions"><button type="button" class="primary" id="setSave" disabled>설정 저장</button></div>
@@ -1782,12 +1818,13 @@
     if (!btn) return;
     const read = () => {
       const g = readCalendarChoices();
-      return { ...appSettings, companyAddress: $("setCompany").value.trim(), dataSaver: $("setSaver").checked,
+      const { dataSaver: _old, ...rest } = appSettings; // 예전 데이터 절약 설정은 저장할 때 함께 지움
+      return { ...rest, companyAddress: $("setCompany").value.trim(),
         kakaoRestKey: $("setKakao").value.trim(),
         google: g ? { ...(appSettings.google || {}), ...g } : appSettings.google };
     };
     const calKey = (g) => JSON.stringify([((g || {}).calendars || []).map((c) => c.id).sort(), salesArr((g || {}).sales).map((c) => c.id).sort(), salesArr((g || {}).info).map((c) => c.id).sort()]);
-    const dirty = () => { const v = read(); return v.companyAddress !== (appSettings.companyAddress || "") || v.kakaoRestKey !== (appSettings.kakaoRestKey || "") || v.dataSaver !== !!appSettings.dataSaver || calKey(v.google) !== calKey(appSettings.google); };
+    const dirty = () => { const v = read(); return v.companyAddress !== (appSettings.companyAddress || "") || v.kakaoRestKey !== (appSettings.kakaoRestKey || "") || calKey(v.google) !== calKey(appSettings.google); };
     ["input", "change"].forEach((ev) => $("settingsCard").addEventListener(ev, () => { btn.disabled = !dirty(); }));
     btn.addEventListener("click", async () => {
       btn.disabled = true; btn.textContent = "저장 중…";
@@ -1891,10 +1928,6 @@
         <h3 class="sec-title">구글 캘린더</h3>
         <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
       </div>
-      <div class="card">
-        <label class="chk-line"><input type="checkbox" id="mySaver">
-          <span><b>데이터 절약 모드</b><br><span class="hint">켜면 이 기기에 없는 고객 사진은 받지 않습니다.</span></span></label>
-      </div>
       <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>`;
     let cals;
     try { [cals] = await Promise.all([calendarList(), loadMyPrefs(), loadSettings()]); } catch (e) {
@@ -1909,10 +1942,9 @@
     box.innerHTML = cals.length ? calPickerHtml(cals, isOn) : '<p class="hint">볼 수 있는 캘린더가 없습니다.</p>';
     const sIds = salesArr(prefs.sales).length ? salesArr(prefs.sales).map((c) => c.id) : defaultSalesIds(cals);
     if (cals.length) bindCalPicker(box, cals, sIds, Array.isArray(prefs.info) ? prefs.info.map((c) => c.id) : sIds);
-    $("mySaver").checked = saverOn();
-    const read = () => ({ ...(cals.length ? readCalPicker(box, cals) : { calendars: [], sales: [], info: [] }), dataSaver: $("mySaver").checked });
-    const key = (v) => JSON.stringify([(v.calendars || []).map((c) => c.id).sort(), salesArr(v.sales).map((c) => c.id).sort(), salesArr(v.info).map((c) => c.id).sort(), !!v.dataSaver]);
-    let base0 = saved.length ? key({ calendars: prefs.calendars, sales: prefs.sales, info: prefs.info, dataSaver: saverOn() }) : "";
+    const read = () => (cals.length ? readCalPicker(box, cals) : { calendars: [], sales: [], info: [] });
+    const key = (v) => JSON.stringify([(v.calendars || []).map((c) => c.id).sort(), salesArr(v.sales).map((c) => c.id).sort(), salesArr(v.info).map((c) => c.id).sort()]);
+    let base0 = saved.length ? key({ calendars: prefs.calendars, sales: prefs.sales, info: prefs.info }) : "";
     const btn = $("myCalSave");
     const dirty = () => key(read()) !== base0;
     btn.disabled = !dirty();
@@ -1922,7 +1954,8 @@
       if (!v.calendars.length) return toast("보여질 캘린더를 하나 이상 고르세요.");
       btn.disabled = true; btn.textContent = "저장 중…";
       try {
-        await saveMyPrefs({ ...(myPrefs || {}), calendars: v.calendars, sales: v.sales, info: v.info, dataSaver: v.dataSaver });
+        const { dataSaver: _old, ...keep } = myPrefs || {};
+        await saveMyPrefs({ ...keep, calendars: v.calendars, sales: v.sales, info: v.info });
         base0 = key(v);
         toast("저장했습니다. 일정 화면에 반영됩니다.");
       } catch (e) { handleError(e); }
@@ -2155,6 +2188,7 @@
   });
   // 상단 검색창: 어느 화면에서든 검색 → 고객 검색 결과 화면으로
   function runTopSearch(q) {
+    if (editMode && !$("customerView").hidden) { confirmLeaveEdit().then((ok) => { if (ok) runTopSearch(q); }); return; }
     $("q").value = q;
     $("q").blur();
     $("recentList").hidden = true;
@@ -2193,7 +2227,7 @@
     const b = ev.target.closest("[data-q]");
     if (b) { ev.preventDefault(); runTopSearch(b.dataset.q); }
   });
-  $("backBtn").addEventListener("click", () => history.back());
+  $("backBtn").addEventListener("click", async () => { if (await confirmLeaveEdit()) history.back(); });
   // 고객 사진을 누르면 크게 보기, 다시 누르면 닫기
   $("avatar").addEventListener("click", () => {
     if (!current) return;
@@ -2207,7 +2241,7 @@
     $("photoViewerImg").src = current.photoFullUrl || current.photoUrl;
     $("photoViewer").hidden = false;
     const c = current;
-    if (!c.photoFullUrl && c.profilePhoto && !saverOn()) {
+    if (!c.photoFullUrl && c.profilePhoto) {
       stGet(c.profilePhoto.id).then((buf) => {
         c.photoFullUrl = URL.createObjectURL(new Blob([buf], { type: "image/jpeg" }));
         if (c === current && !$("photoViewer").hidden) $("photoViewerImg").src = c.photoFullUrl;
@@ -2717,8 +2751,10 @@
       const all = isInfoEvent(e) ? matchCustomers(e.title, records, contracts) : [];
       let custs = all;
       const pk = picks[e.id] || e.pick;
-      if (pk && custs.length > 1) { const one = custs.filter((c) => custKey(c) === pk); if (one.length) custs = one; }
-      return { e, custs, all };
+      const ignored = pk === IGNORE_KEY && all.length > 0;
+      if (ignored) custs = [];
+      else if (pk && custs.length > 1) { const one = custs.filter((c) => custKey(c) === pk); if (one.length) custs = one; }
+      return { e, custs, all, ignored };
     });
     dayItems = items;
     items.forEach((it) => { it.cust = it.custs[0] || null; });
@@ -2767,6 +2803,9 @@
         <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
       <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}>📍 ${esc(e.location)}</p>
       <div id="evForm${i}"></div>
+      ${it.all.length ? (it.ignored
+        ? `<div class="ev-tools ev-ignored"><span class="hint">검색된 고객 ${it.all.length}명을 숨겼어요</span><button type="button" class="pick-btn" data-unignore="${i}">되돌리기</button></div>`
+        : `<div class="ev-tools"><button type="button" class="pick-btn ign" data-ignore="${i}">무시</button></div>`) : ""}
       ${it.custs.map((c, j) => custBlockHtml(c, i, j, it.custs.length > 1, it.custs.length === 1 && it.all.length > 1)).join("")}</div>`;
   }
   function bindDayCard(it, i, req) {
@@ -2782,6 +2821,10 @@
       if (pk) pickCustomer(it, it.custs[+pk.dataset.pick.split("-")[1]], pk);
       const up = ev.target.closest("[data-unpick]");
       if (up) unpickCustomer(it, up);
+      const ig = ev.target.closest("[data-ignore]");
+      if (ig) setIgnore(it, true, ig);
+      const ui = ev.target.closest("[data-unignore]");
+      if (ui) setIgnore(it, false, ui);
     });
     card.querySelector("[data-evedit]").addEventListener("click", () => toggleEventForm(it, i));
   }
@@ -2813,6 +2856,21 @@
       it.e.pick = key;
     } catch (e) {
       console.warn("pick saved on this device only", e.message); // 수정 권한이 없는 캘린더 등: 이 기기에만
+    }
+    renderSchedule();
+  }
+
+  // '무시': 검색된 고객이 이 일정과 상관없을 때 모두 숨김 / '되돌리기': 다시 보여 줌 (구글 일정에 저장해 모든 기기 공유)
+  async function setIgnore(it, on, btn) {
+    btn.disabled = true; btn.textContent = on ? "숨기는 중" : "되돌리는 중";
+    savePick(it.e.id, on ? IGNORE_KEY : "");
+    try {
+      await ensureGWrite();
+      await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: on ? IGNORE_KEY : "" } } });
+      it.e.pick = on ? IGNORE_KEY : "";
+    } catch (e) {
+      toast("구글 일정에 저장하지 못해 이 기기에만 적용했습니다.");
+      if (!on) it.e.pick = "";
     }
     renderSchedule();
   }
@@ -3014,6 +3072,7 @@
   //   보여질 캘린더(여러 개) + 영업일정 캘린더(보여질 캘린더 중 여러 개: 약속 장소 사이 거리·예상 시간, 고객 정보)
   //   보여질 캘린더를 하나도 고르지 않으면 영업일정 캘린더도 고를 수 없음
   //   저장 모양: sales = [{ id, name }]  (예전 { id, name } 하나도 읽음)
+  const IGNORE_KEY = "__ignore__"; // 일정에 저장하는 고객 지정 값: 이 일정은 검색된 고객을 모두 숨김
   const salesArr = (s) => (Array.isArray(s) ? s : s && s.id ? [s] : []);
   // 한 줄에 캘린더 하나: 캘린더 | Show(보여질 캘린더) | 일정(거리·예상 시간) | 정보(고객 정보)
   //   Show가 꺼지면 일정·정보 비활성. 일정을 켜면 정보도 켜짐, 정보를 끄면 일정도 꺼짐
@@ -3060,11 +3119,11 @@
     const want = names.length ? names : [GCFG.teamCalendar || "1팀"];
     return cals.filter((x) => want.includes(x.name)).map((x) => x.id);
   }
-  // 데이터 절약 모드: 일반 사용자는 자기 설정, 없으면 관리자 설정
-  const saverOn = () => (!isAdmin() && myPrefs && typeof myPrefs.dataSaver === "boolean" ? myPrefs.dataSaver : !!appSettings.dataSaver);
+
 
   // 큰 메뉴: 일정 / 고객 / 관리자
-  $("mainNav").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+  $("mainNav").querySelectorAll("button").forEach((b) => b.addEventListener("click", async () => {
+    if (!(await confirmLeaveEdit())) return;
     const s = b.dataset.section;
     if (s === "schedule") { schedMode = "day"; schedDate = dayStart(new Date()); openSchedule(); } // 항상 오늘 Today
     else if (s === "admin") openAdmin();
