@@ -443,7 +443,7 @@
     const byFile = new Map();
     entries.filter((e) => e.src).forEach((e) => { if (!byFile.has(e.src.fileId)) byFile.set(e.src.fileId, []); byFile.get(e.src.fileId).push(e); });
     for (const [fileId, list] of byFile) {
-      const wb = XLSX.read(await stGet(fileId), { type: "array" }); // 최신 파일
+      const wb = XLSX.read(await stGet(fileId), { type: "array", cellNF: true }); // 최신 파일 (cellNF: 숫자·날짜 서식 유지)
       for (const e of list) {
         const ws = wb.Sheets[e.src.sheet];
         if (!ws) continue;
@@ -470,7 +470,15 @@
         if (row < 0) continue;
         for (const [k, v] of Object.entries(values)) {
           let c = colOf(k);
-          if (c < 0) { c = rg.e.c + 1; ws[enc(hr, c)] = { t: "s", v: k }; rg.e.c = c; } // 새 열
+          if (c < 0) { // 새 열: 맨 끝이 '입력일시'면 그 앞에 만들고 입력일시는 한 칸 뒤로
+            const sc = colOf(STAMP_COL);
+            if (sc >= 0 && sc === rg.e.c) {
+              for (let r = rg.s.r; r <= rg.e.r; r++) { const cell = ws[enc(r, sc)]; delete ws[enc(r, sc)]; if (cell) ws[enc(r, sc + 1)] = cell; }
+              if (ws["!cols"] && ws["!cols"][sc]) { ws["!cols"][sc + 1] = ws["!cols"][sc]; ws["!cols"][sc] = { wch: 12 }; }
+              c = sc;
+            } else c = rg.e.c + 1;
+            ws[enc(hr, c)] = { t: "s", v: k }; rg.e.c += 1;
+          }
           ws[enc(row, c)] = typeof v === "number" ? { t: "n", v } : { t: "s", v: String(v) };
         }
         ws["!ref"] = XLSX.utils.encode_range(rg);
@@ -680,7 +688,7 @@
     const items = await stList(base.id);
     const file = items.find((i) => i.file && /\.xlsx$/i.test(i.name) && nospace(i.name).includes(nospace(EXTRA.fileKeyword)));
     if (!file) return null;
-    const wb = XLSX.read(await stGet(file.id), { type: "array" });
+    const wb = XLSX.read(await stGet(file.id), { type: "array", cellNF: true }); // 서식 유지 (다시 저장할 때 #,##0·날짜 서식이 사라지지 않게)
     const sheetName = wb.SheetNames.includes(EXTRA.sheet) ? EXTRA.sheet : wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: true });
@@ -688,7 +696,8 @@
     return { file, wb, ws, rows, head };
   }
 
-  const extraCols = (x) => x.head.filter((h) => h && h !== EXTRA.fcCol && h !== EXTRA.nameCol);
+  const STAMP_COL = "입력일시"; // 줄이 처음 들어간 시각 (엑셀 날짜·시간, yyyy-mm-dd hh:mm). 새 줄에만 넣고 고칠 때는 그대로
+  const extraCols = (x) => x.head.filter((h) => h && h !== EXTRA.fcCol && h !== EXTRA.nameCol && h !== STAMP_COL);
   const sameFc = (rowFc, fc) => !fc || !String(rowFc || "").trim() || norm(rowFc) === norm(fc);
 
   // (담당 FC, 고객명)이 같은 줄 찾기. 엑셀에 FC가 비어 있으면 이름만으로 매칭
@@ -816,7 +825,11 @@
       const cell = toCell(col, v);
       if (cell) x.ws[addr] = cell; else delete x.ws[addr];
     };
-    if (isNew) { setCell(EXTRA.fcCol, fc); setCell(EXTRA.nameCol, name); }
+    if (isNew) {
+      setCell(EXTRA.fcCol, fc); setCell(EXTRA.nameCol, name);
+      const sc = x.head.indexOf(STAMP_COL);
+      if (sc >= 0) x.ws[XLSX.utils.encode_cell({ r, c: sc })] = { t: "n", v: toExcelDateTime(new Date()), z: "yyyy-mm-dd hh:mm" };
+    }
     Object.keys(values).forEach((k) => {
       if (isNew || (values[k] ?? "") !== (before[k] ?? "")) setCell(k, values[k] ?? "");
     });
@@ -1096,7 +1109,13 @@
   //   보기: 연락처 · (이메일) · 주소 · 통신사/차량번호/자동차보험갱신일 · (그 밖의 고객리스트 항목) / 미팅장소 · 메모
   //   수정(맨 위 '수정' 버튼): 같은 항목을 한 화면에서 고치고 저장
   //     연락처·주소·이메일 → 고객리스트 엑셀 + '우선' 1 / 나머지 → 고객추가정보 엑셀
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선"];
+  // 금액 표시: 숫자면 천 단위 쉼표 + 원 (엑셀 서식이 General이어도)
+  const wonText = (v) => {
+    const t = String(v ?? "").trim().replace(/원\s*$/, "");
+    const n = Number(t.replace(/,/g, ""));
+    return (t && isFinite(n) ? n.toLocaleString("ko-KR") : t) + "원";
+  };
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시"];
   const BIRTH_KEYS = ["생년월일", "생일"];
   const EMAIL_COLS = ["이메일", "e-mail", "Email"];
   let editMode = false;
@@ -1648,7 +1667,7 @@
       const status = c.row["계약상태"] || c.row["상태"] || "";
       const val = (cols) => { for (const k of cols) if (c.row[k]) return c.row[k]; return ""; };
       const shown = CONTRACT_SHOW.map(([label, cols]) => [label, val(cols)]).filter(([, v]) => v)
-        .map(([k, v]) => [k, k === "합계보험료" && !/원\s*$/.test(v) ? v.trim() + "원" : v]); // 79,644 → 79,644원
+        .map(([k, v]) => [k, k === "합계보험료" ? wonText(v) : v]); // 79644 / 79,644 → 79,644원
       const pdf = findContractPdf(val(["최초계약일", "계약일"]), c.row["상품명"]);
       return `<div class="card">
         <div class="entry-head"><span class="tag t-${esc(c.type)}">${esc(c.type)}</span>
