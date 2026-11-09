@@ -391,3 +391,15 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 /* 캘린더 고르기 */
 .sub-label { margin: 10px 0 2px; font-weight: 600; font-size: 14px; color: var(--muted); }
 #loginOtherBtn { margin-top: 10px; }
+
+/* 캘린더 고르기: 왼쪽 보여질 캘린더 / 오른쪽 영업일정 */
+.cal-pick { border: 1px solid var(--line, #e3e7ee); border-radius: 10px; overflow: hidden; margin-top: 6px; }
+.cal-pick .cp-head, .cal-pick .cp-row { display: grid; grid-template-columns: 1fr 76px; align-items: center; }
+.cal-pick .cp-head { background: var(--soft, #f1f4f9); font-size: 13px; font-weight: 600; color: var(--muted); padding: 7px 10px; }
+.cal-pick .cp-head span:last-child { text-align: center; }
+.cal-pick .cp-row { border-top: 1px solid var(--line, #e3e7ee); min-height: 44px; }
+.cal-pick .cp-left { display: flex; align-items: center; gap: 8px; padding: 8px 10px; min-width: 0; }
+.cal-pick .cp-left span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-pick .cp-right { display: flex; justify-content: center; align-items: center; align-self: stretch; border-left: 1px solid var(--line, #e3e7ee); }
+.cal-pick input[type=checkbox] { width: 20px; height: 20px; flex: none; }
+.cal-pick .cp-row.off .cp-right { opacity: .35; }

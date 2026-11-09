@@ -2964,28 +2964,31 @@
   //   보여질 캘린더를 하나도 고르지 않으면 영업일정 캘린더도 고를 수 없음
   //   저장 모양: sales = [{ id, name }]  (예전 { id, name } 하나도 읽음)
   const salesArr = (s) => (Array.isArray(s) ? s : s && s.id ? [s] : []);
+  // 한 줄에 캘린더 하나: 왼쪽 = 보여질 캘린더 체크, 오른쪽 = 영업일정 체크 (왼쪽이 꺼져 있으면 오른쪽은 비활성)
   function calPickerHtml(cals, isOn) {
-    return `<p class="sub-label">보여질 캘린더</p>
-      ${cals.map((c, i) => `<label class="chk-line"><input type="checkbox" data-pcal="${i}" ${isOn(c) ? "checked" : ""}>
-        <span>${calDot({ cal: c })}${esc(c.name)}</span></label>`).join("")}
-      <p class="sub-label">영업일정 캘린더 <span class="hint">(약속 장소 사이 거리·예상 시간과 고객 정보를 보여 줄 캘린더, 여러 개 가능)</span></p>
-      <div data-psales></div>`;
+    return `<div class="cal-pick">
+        <div class="cp-head"><span>보여질 캘린더</span><span>영업일정</span></div>
+        ${cals.map((c, i) => `<div class="cp-row">
+          <label class="cp-left"><input type="checkbox" data-pcal="${i}" ${isOn(c) ? "checked" : ""}>
+            <span>${calDot({ cal: c })}${esc(c.name)}</span></label>
+          <label class="cp-right" aria-label="${esc(c.name)} 영업일정"><input type="checkbox" data-scal="${esc(c.id)}"></label>
+        </div>`).join("")}
+      </div>
+      <p class="hint">영업일정: 약속 장소 사이 거리·예상 시간과 고객 정보를 보여 줄 캘린더 (여러 개 가능, 보여질 캘린더만 고를 수 있음)</p>`;
   }
   function bindCalPicker(root, cals, salesIds) {
-    const box = root.querySelector("[data-psales]");
-    let want = new Set(salesIds || []);
-    const fill = () => {
-      const on = [...root.querySelectorAll("[data-pcal]")].filter((x) => x.checked).map((x) => cals[+x.dataset.pcal]);
-      box.innerHTML = on.length
-        ? on.map((c) => `<label class="chk-line"><input type="checkbox" data-scal="${esc(c.id)}" ${want.has(c.id) ? "checked" : ""}>
-            <span>${calDot({ cal: c })}${esc(c.name)}</span></label>`).join("")
-        : '<p class="hint">먼저 보여질 캘린더를 고르세요.</p>';
-      box.querySelectorAll("[data-scal]").forEach((x) => x.addEventListener("change", () => {
-        if (x.checked) want.add(x.dataset.scal); else want.delete(x.dataset.scal);
-      }));
-    };
-    root.querySelectorAll("[data-pcal]").forEach((x) => x.addEventListener("change", fill));
-    fill();
+    const want = new Set(salesIds || []);
+    root.querySelectorAll(".cp-row").forEach((row) => {
+      const left = row.querySelector("[data-pcal]"), right = row.querySelector("[data-scal]");
+      const sync = () => {
+        right.disabled = !left.checked;
+        if (!left.checked) right.checked = false;
+        row.classList.toggle("off", !left.checked);
+      };
+      right.checked = left.checked && want.has(right.dataset.scal);
+      left.addEventListener("change", sync);
+      sync();
+    });
   }
   function readCalPicker(root, cals) {
     const list = [...root.querySelectorAll("[data-pcal]")].filter((x) => x.checked).map((x) => cals[+x.dataset.pcal])
