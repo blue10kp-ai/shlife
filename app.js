@@ -1749,12 +1749,7 @@
   async function shareFolders(em) {
     if (!confirm(`${em} 계정에 Google Drive 폴더를 공유할까요?\n· 고객 폴더: 편집 (메모·미팅장소·사진 저장)\n· 설정 폴더: 보기\n공유 알림 메일이 그 계정으로 갑니다.`)) return;
     try {
-      const add = (id, role) => gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "/permissions?supportsAllDrives=true&sendNotificationEmail=true",
-        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role, emailAddress: em }) });
-      const st = adminState.shares;
-      const c = st.cust.find((p) => p.email === em);
-      if (!c || (c.role !== "writer" && c.role !== "owner")) await add(base.id, "writer");
-      if (!st.app.find((p) => p.email === em)) await add(appDir.id, "reader");
+      await grantFolders(em);
       adminState.shares = await loadShares();
       toast(`${em} 계정에 폴더를 공유했습니다.`);
       const pending = collectPending();
@@ -1763,6 +1758,18 @@
     } catch (e) {
       handleError(/Drive 400/.test(e.message) ? new Error("공유하지 못했습니다. 구글 계정 이메일이 맞는지 확인해 주세요.") : e);
     }
+  }
+  // 고객 폴더 = 편집, 설정 폴더 = 보기 (이미 있으면 건너뜀, 보기로 공유돼 있으면 편집으로 올림)
+  async function grantFolders(em) {
+    const st = adminState.shares;
+    const permUrl = (id, pid) => GDAPI + "/files/" + encodeURIComponent(id) + "/permissions" + (pid ? "/" + encodeURIComponent(pid) : "") + "?supportsAllDrives=true";
+    const add = (id, role) => gdFetch(permUrl(id) + "&sendNotificationEmail=true",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role, emailAddress: em }) });
+    const c = st.cust.find((p) => p.email === em);
+    if (!c) await add(base.id, "writer");
+    else if (c.role !== "writer" && c.role !== "owner")
+      await gdFetch(permUrl(base.id, c.id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: "writer" }) });
+    if (appDir.id && !st.app.find((p) => p.email === em)) await add(appDir.id, "reader");
   }
   async function unshareFolders(em) {
     const st = adminState && adminState.shares;
@@ -1878,11 +1885,10 @@
           <input id="newUser" type="email" placeholder="${GD ? "구글 계정 이메일 (예: name@gmail.com)" : "Microsoft 계정 이메일"}" autocomplete="off" required>
           <button class="primary" type="submit">추가</button>
         </form>
-        ${GD ? `<p class="hint">새 사용자가 앱을 쓰려면 세 가지가 필요합니다.</p>
+        ${GD ? `<p class="hint">새 사용자는 이렇게 추가합니다.</p>
         <ol class="hint steps">
-          <li>위 표에서 볼 FC를 체크하고 <b>변경 저장</b></li>
-          <li><b>공유하기</b> → 고객 폴더(편집)·설정 폴더(보기)를 그 계정에 공유</li>
-          <li>구글 로그인 허용: <a href="${esc(consoleUrl)}" target="_blank" rel="noopener">Google Cloud › 대상 › 테스트 사용자</a>에 그 이메일 추가</li>
+          <li>이메일을 추가하고 위 표에서 볼 FC를 체크한 뒤 <b>변경 저장</b> → Google Drive 폴더 공유까지 자동으로 됩니다 (체크를 모두 빼고 저장하면 공유 해제)</li>
+          <li>앱이 '테스트 중'이면 <a href="${esc(consoleUrl)}" target="_blank" rel="noopener">Google Cloud › 대상 › 테스트 사용자</a>에도 그 이메일 추가 (프로덕션이면 필요 없음)</li>
         </ol>` : '<p class="hint">추가하면 위 표에 줄이 생깁니다. 권한을 체크하고 \'변경 저장\'을 누르세요.</p>'}
       </div>`;
 
@@ -1968,6 +1974,16 @@
 
   async function savePerms(changes) {
     if (!changes.length) return;
+    // Google Drive: FC를 체크한 계정은 폴더 공유, 체크를 모두 뺀 계정은 공유 해제 (변경 저장 한 번으로)
+    const auto = GD && adminState.shares;
+    const toShare = auto ? changes.filter(([em, list]) => list.length && shareState(em) !== "ok").map(([em]) => em) : [];
+    const toUnshare = auto ? changes.filter(([em, list]) => !list.length && shareState(em) !== "none").map(([em]) => em) : [];
+    if (toShare.length || toUnshare.length) {
+      const msg = ["저장하면서 Google Drive 공유도 바꿉니다."];
+      if (toShare.length) msg.push("· 공유(고객 폴더 편집 · 설정 폴더 보기, 알림 메일 발송): " + toShare.join(", "));
+      if (toUnshare.length) msg.push("· 공유 해제: " + toUnshare.join(", "));
+      if (!confirm(msg.join("\n"))) return;
+    }
     const btn = $("savePerms");
     btn.disabled = true;
     btn.textContent = "저장 중…";
@@ -1978,8 +1994,12 @@
         if (list.length) perms.users[em] = list; else { delete perms.users[em]; extraUsers.delete(em); }
       });
       await writePerms(perms);
-      toast(`저장했습니다 (${changes.length}개 계정).`);
       adminState.perms = perms;
+      const failed = [];
+      for (const em of toShare) { try { await grantFolders(em); } catch (e) { console.error(e); failed.push(em); } }
+      for (const em of toUnshare) { try { await unshareFolders(em); } catch (e) { console.error(e); failed.push(em); } }
+      if (toShare.length || toUnshare.length) adminState.shares = await loadShares();
+      toast(failed.length ? `저장했습니다. 공유하지 못한 계정: ${failed.join(", ")} (구글 계정 이메일인지 확인)` : `저장했습니다 (${changes.length}개 계정${toShare.length ? ", 폴더 공유 " + toShare.length : ""}${toUnshare.length ? ", 공유 해제 " + toUnshare.length : ""}).`);
       renderAdmin();
     } catch (e) {
       btn.disabled = false;
