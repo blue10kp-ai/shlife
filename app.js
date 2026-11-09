@@ -333,6 +333,8 @@
               .forEach((f) => folders.push({ ...f, group: d.name.slice(1), fc }));
           } else if (!fc && ok(d.name)) {
             await scan(d.id, d.name); // 허용된 FC 폴더만
+          } else if (fc) {
+            folders.push({ ...d, group: "", fc }); // 새 구조: FC 폴더 바로 아래가 고객 폴더 (이름 (YYMMDD) - 고객ID)
           }
         }));
       }
@@ -361,6 +363,39 @@
     return bookCache[id];
   }
 
+  // <schema> 새 데이터 구조(고객·계약·이력·관계 4시트) 이중 읽기 — '고객' 시트에 '고객ID' 열이 있는 파일만 새 구조로 읽고, 아니면 예전 시트(계약고객·이관고객…)를 그대로 읽음
+  const CUST_SHEET = "고객", ID_COL = "고객ID";
+  // 현재단계 → 예전 type(화면 태그·우선순위·검색 범위 버튼)
+  const STAGE_TYPE = { "계약": "계약", "이관관리": "이관", "이관": "이관", "진행": "진행", "가망": "추가", "DB": "DB", "피보험자": "피보험자" };
+  const sheetRows = (wb, name) => {
+    const sn = wb.SheetNames.find((n) => n.trim() === name);
+    return sn ? XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "", raw: false, blankrows: true }) : null;
+  };
+  const headIndex = (rows, col) => (rows || []).findIndex((r) => r.some((c) => String(c).trim() === col));
+  const isNewStruct = (wb) => { const rows = sheetRows(wb, CUST_SHEET); return !!rows && headIndex(rows, ID_COL) >= 0; };
+  const stageType = (row) => STAGE_TYPE[String(row["현재단계"] || "").trim()] || "추가";
+  // 고객ID → 이름 (새 구조의 계약 시트가 이름 대신 ID를 가지고 있어서 이름으로 풀어 줌)
+  function idNameMap(wb) {
+    const rows = sheetRows(wb, CUST_SHEET) || [];
+    const h = headIndex(rows, ID_COL), map = new Map();
+    if (h < 0) return map;
+    const head = rows[h].map((c) => String(c).trim()), ic = head.indexOf(ID_COL), nc = head.indexOf("이름");
+    rows.slice(h + 1).forEach((r) => { const id = String(r[ic] || "").trim(), nm = String(r[nc] || "").trim(); if (id && nm) map.set(id, nm); });
+    return map;
+  }
+  // 새 구조의 계약 줄을 예전 계약 탭이 쓰는 모양으로: 계약자·주피보험자 이름을 채움
+  function contractRowCompat(row, ids) {
+    const o = { ...row };
+    if (!o["계약자"] && o["계약자ID"]) o["계약자"] = ids.get(String(o["계약자ID"]).trim()) || "";
+    if (!o["주피보험자"] && o["주피보험자ID"]) o["주피보험자"] = ids.get(String(o["주피보험자ID"]).trim()) || "";
+    return o;
+  }
+  const isNewContractSheet = (head) => head.includes("계약자ID") && !head.includes("계약자");
+  // </schema>
+  // 앱 버전 표시 (화면 맨 아래 작은 글씨) — 새 버전이 모든 기기에 반영됐는지 확인용
+  const APP_VER = (((document.querySelector('script[src*="app.js"]') || {}).src || "").match(/[?&]v=(\d+)/) || [])[1] || "";
+  if (APP_VER) { const el = document.createElement("div"); el.className = "app-ver"; el.textContent = "v" + APP_VER; document.body.appendChild(el); }
+
   const pick = (row, names) => { for (const n of names) if (row[n] != null && String(row[n]).trim()) return String(row[n]).trim(); return ""; };
   const NAME_COLS = ["이름", "계약자", "고객명"];
   const BIRTH_COLS = ["생년월일", "생일"];
@@ -387,7 +422,7 @@
     const { files, folders } = await scanBase();
     const sources = CFG.lists.filter((l) => l.fileRegex || l.fileKeyword).flatMap((l) =>
       pickSourceFiles(files, l).map((f) => ({ ...l, file: f })));
-    const out = [];
+    const out = [], newDone = new Set();
     // 폴더 기반 범위 (예: 진행 = "_진행" 폴더 안 고객 폴더)
     CFG.lists.filter((l) => l.folderGroup).forEach((l) =>
       folders.filter((f) => f.group === l.folderGroup).forEach((f) => out.push({
@@ -398,7 +433,10 @@
       const wb = await readBook(s.file.id);
       // FC 이름: FC 폴더 이름 → 없으면 파일명 "날짜 - FC - ..." 가운데 부분
       const fc = s.file.fc || (s.file.name.split(" - ")[1] || "").trim();
-      sheetsOf(wb, s).forEach((sheet) => {
+      // 새 구조 파일: '고객' 시트 하나만 (파일당 한 번), 예전 시트(계약고객 등)는 건너뜀
+      const newMode = isNewStruct(wb);
+      if (newMode) { if (newDone.has(s.file.id)) return; newDone.add(s.file.id); }
+      (newMode ? [wb.SheetNames.find((n) => n.trim() === CUST_SHEET)] : sheetsOf(wb, s)).forEach((sheet) => {
         const ws = wb.Sheets[sheet];
         if (!ws || !ws["!ref"]) return;
         const rg = XLSX.utils.decode_range(ws["!ref"]);
@@ -414,7 +452,7 @@
           const name = pick(row, NAME_COLS);
           if (!name) return;
           out.push({
-            type: s.label, name, fc, sheet,
+            type: newMode ? stageType(row) : s.label, name, fc, sheet,
             birth: pick(row, BIRTH_COLS),
             phone: pick(row, PHONE_COLS),
             grade: String(row[GRADE_COL] ?? "").trim(),
@@ -633,19 +671,27 @@
       const { files } = await scanBase();
       const sources = (CFG.contractLists || []).flatMap((l) =>
         pickSourceFiles(files, l).map((f) => ({ ...l, file: f })));
-      const out = [];
+      const out = [], newCtDone = new Set();
       await Promise.all(sources.map(async (s) => {
         const wb = await readBook(s.file.id);
         const fc = s.file.fc || (s.file.name.split(" - ")[1] || "").trim();
+        // 새 구조 파일: '계약' 시트 하나(직접모집·타인모집 함께)만 파일당 한 번, 예전 '이관' 시트는 건너뜀
+        const newMode = isNewStruct(wb);
+        if (newMode) { if (newCtDone.has(s.file.id) || s.sheet !== "계약") return; newCtDone.add(s.file.id); }
+        const ids = newMode ? idNameMap(wb) : null;
         sheetsOf(wb, s).forEach((sheet) => {
           const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: "", raw: false });
-          const h = rows.findIndex((r) => r.some((c) => String(c).trim() === "계약자"));
+          const h = rows.findIndex((r) => r.some((c) => ["계약자", "계약자ID"].includes(String(c).trim())));
           if (h < 0) return;
           const head = rows[h].map((c) => String(c).trim());
           rows.slice(h + 1).forEach((r) => {
             const fields = head.map((k, i) => [k, String(r[i] ?? "").trim()]).filter(([k, v]) => k && v);
             if (!fields.length) return;
-            const row = Object.fromEntries(fields);
+            const row = newMode ? contractRowCompat(Object.fromEntries(fields), ids) : Object.fromEntries(fields);
+            if (newMode) { // 계약자·주피보험자 이름도 필드로 (계약 탭 표시용), 타인모집은 '이관'
+              ["계약자", "주피보험자"].forEach((k) => { if (row[k] && !fields.some(([fk]) => fk === k)) fields.push([k, row[k]]); });
+              s = { ...s, label: String(row["모집유형"] || "").trim() === "타인모집" ? "이관" : "계약" };
+            }
             const names = CONTRACT_NAME_COLS.map((c) => row[c]).filter(Boolean).map(norm);
             // 줄에 담당FC가 있으면 그 FC로 표시 (다른 FC 파일에 같이 들어 있는 계약)
             const rowFc = String(row["담당FC"] || row["담당 FC"] || "").trim() || fc;
@@ -977,7 +1023,11 @@
     showCachedPhoto(current); // 기기에 저장된 사진이 있으면 바로
     try {
       const names = new Set(cust.entries.map((e) => norm(e.name)).concat(norm(cust.name)));
-      const byName = (await loadCustomerFolders()).filter((f) => names.has(norm(custPart(f.name))));
+      // 새 구조: 시트의 '폴더' 칸이 가리키는 폴더 우선, 없으면 예전처럼 이름으로
+      const linked = cust.entries.map((e) => { const f = e.fields.find(([k]) => k.trim() === "폴더"); return f ? norm(f[1]) : ""; }).filter(Boolean);
+      const allFolders = await loadCustomerFolders();
+      const byLink = linked.length ? allFolders.filter((f) => linked.includes(norm(f.name))) : [];
+      const byName = byLink.length ? byLink : allFolders.filter((f) => names.has(norm(custPart(f.name))));
       // 같은 이름이 여러 FC에 있으면 이 고객의 담당 FC 폴더만
       const fcs = cust.entries.map((e) => e.fc).filter(Boolean);
       const sameFc = byName.filter((f) => f.fc && fcs.includes(f.fc));

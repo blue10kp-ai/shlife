@@ -424,3 +424,6 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 /* 수정 중 이동 확인 */
 .leave-box .leave-btns { display: grid; gap: 8px; margin-top: 12px; }
 .leave-box .leave-btns button { min-height: 44px; font-size: 15px; }
+
+.app-ver { position: fixed; left: 8px; bottom: 2px; font-size: 10px; color: var(--muted, #9aa0a6); opacity: .6; pointer-events: none; z-index: 1; }
+.tag.t-피보험자, .cust-card .tag.t-피보험자 { background: #eceff3; color: #5d6875; }
