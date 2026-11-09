@@ -377,3 +377,10 @@ details.fold[open] summary { margin-bottom: 8px; }
 ol.steps { margin: 4px 0 0; padding-left: 20px; }
 ol.steps li { margin: 3px 0; line-height: 1.5; }
 .matrix td .link-btn { white-space: nowrap; }
+
+/* 로그아웃 아이콘 버튼 */
+.icon-btn { font-size: 20px; line-height: 1; padding: 6px 8px; }
+/* 고객 화면 안 검색창 (결과가 없을 때) */
+.page-search { margin-top: 10px; }
+.page-search .search { display: flex; gap: 8px; margin-top: 6px; }
+.page-search input { flex: 1; min-width: 0; }

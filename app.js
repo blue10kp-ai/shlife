@@ -213,9 +213,12 @@
     $("title").hidden = view === "customerView";
     $("logoutBtn").hidden = view === "loginView";
     $("topSearch").hidden = view === "loginView"; // 상단 검색창은 로그인 후 항상
-    $("title").textContent = TITLES[view] || APP_NAME;
+    $("title").textContent = view === "adminView" && !isAdmin() ? "설정" : TITLES[view] || APP_NAME;
     $("mainNav").hidden = view === "loginView";
-    $("navAdmin").hidden = !isAdmin();
+    // 관리자: '관리자' 메뉴 / 일반 사용자: '설정' 메뉴 (내 캘린더 고르기)
+    $("navAdmin").hidden = !account();
+    $("navAdminLabel").textContent = isAdmin() ? "관리자" : "설정";
+    if (view === "searchView") $("pageSearch").hidden = $("results").children.length > 0; // 보이는 고객 목록이 없으면 화면 안 검색창
     $("mainNav").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.section === SECTION[view]));
     window.scrollTo(0, 0);
   }
@@ -260,6 +263,8 @@
   async function resolveAppDir() {
     if (appDir) return appDir;
     await resolveBase();
+    // Google Drive: 공유받은 사용자는 관리자의 설정 폴더(ID)를 씀 (자기 드라이브에 같은 이름 폴더가 있어도)
+    if (GD && !base.owner) return (appDir = { id: GDCFG.appDirId || "" });
     const mine = await stFindPath(CFG.appFolder);
     if (mine) return (appDir = mine);
     if (GD) return (appDir = { id: GDCFG.appDirId || "" });
@@ -553,7 +558,9 @@
     const status = $("searchStatus");
     const list = $("results");
     list.innerHTML = "";
+    $("pageSearch").hidden = !!q;
     if (!q) { status.textContent = ""; return; }
+    $("q2").value = q;
     status.textContent = "찾는 중…";
     try {
       const records = await loadLists();
@@ -592,6 +599,7 @@
       const custs = [...map.values()].sort((a, b) => baseName(a.name).localeCompare(baseName(b.name), "ko") || a.name.localeCompare(b.name, "ko"));
       const label = want ? want.label + " " : "";
       status.textContent = custs.length ? label + custs.length + "명 찾음" : "'" + q + "' " + label + "고객이 없습니다.";
+      $("pageSearch").hidden = custs.length > 0; // 못 찾으면 화면 안 검색창으로 다시 검색
       if (custs.length === 1) return openCustomer(custs[0]);
       list.innerHTML = custs.map((c, i) => {
         const types = [...new Set(c.entries.map((e) => e.type))];
@@ -1768,8 +1776,56 @@
   let collectPending = () => [];
   let applyPending = () => {};
 
+  // ---------- 설정 (일반 사용자): 내 계정 · 일정에 보일 내 캘린더 ----------
+  async function openMySettings() {
+    show("adminView");
+    const body = $("adminBody");
+    body.innerHTML = `<div class="card">
+        <h3 class="sec-title">내 계정</h3>
+        <p>${esc(me() || "-")}</p>
+        <p class="hint">로그아웃은 화면 오른쪽 위 🚪 버튼을 누르세요.</p>
+      </div>
+      <div class="card" id="myCalCard">
+        <h3 class="sec-title">일정에 보일 캘린더</h3>
+        <p class="hint">내 구글 캘린더 중 일정 화면에 보일 캘린더를 고르세요.</p>
+        <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
+        <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>
+      </div>`;
+    let cals, prefs;
+    try { [cals, prefs] = await Promise.all([calendarList(), loadMyPrefs(), loadSettings()]); } catch (e) {
+      $("myCalBox").innerHTML = "";
+      return handleError(e);
+    }
+    prefs = myPrefs || {};
+    const saved = (prefs.calendars || []).map((c) => c.id);
+    const want = defaultCalNames();
+    const isOn = (c) => (saved.length ? saved.includes(c.id) : want.includes(c.name));
+    $("myCalBox").innerHTML = cals.length ? cals.map((c, i) => `<label class="chk-line"><input type="checkbox" data-mycal="${i}" ${isOn(c) ? "checked" : ""}>
+        <span>${calDot({ cal: c })}${esc(c.name)}</span></label>`).join("") : '<p class="hint">볼 수 있는 캘린더가 없습니다.</p>';
+    const pick = () => [...body.querySelectorAll("[data-mycal]")].filter((x) => x.checked).map((x) => cals[+x.dataset.mycal]).map((c) => ({ id: c.id, name: c.name, color: c.color }));
+    const initial = JSON.stringify(pick().map((c) => c.id).sort());
+    let base0 = saved.length ? JSON.stringify([...saved].sort()) : initial;
+    const btn = $("myCalSave");
+    const dirty = () => JSON.stringify(pick().map((c) => c.id).sort()) !== base0 || !saved.length;
+    btn.disabled = !dirty();
+    $("myCalCard").addEventListener("change", () => { btn.disabled = !dirty(); });
+    btn.addEventListener("click", async () => {
+      const list = pick();
+      if (!list.length) return toast("캘린더를 하나 이상 고르세요.");
+      btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        await saveMyPrefs({ ...(myPrefs || {}), calendars: list });
+        saved.splice(0, saved.length, ...list.map((c) => c.id));
+        base0 = JSON.stringify([...saved].sort());
+        toast("저장했습니다. 일정 화면에 반영됩니다.");
+      } catch (e) { handleError(e); }
+      btn.textContent = "저장";
+      btn.disabled = !dirty();
+    });
+  }
+
   async function openAdmin() {
-    if (!isAdmin()) return show("searchView");
+    if (!isAdmin()) return openMySettings();
     show("adminView");
     $("adminBody").innerHTML = '<p class="hint pad">권한 정보를 불러오는 중…</p>';
     try {
@@ -1965,7 +2021,7 @@
       const u = await gdFetch("https://www.googleapis.com/oauth2/v3/userinfo");
       const em = String(u.email || "").toLowerCase();
       if (!em) throw new Error("구글 계정 이메일을 읽지 못했습니다.");
-      if (gAccount() && gAccount() !== em) { base = null; appDir = null; scanCache = null; listCache = null; }
+      if (gAccount() && gAccount() !== em) { base = null; appDir = null; scanCache = null; listCache = null; myPrefs = null; myDir = null; }
       try { localStorage.setItem(GACC_KEY, em); } catch (e) { /* 이번만 */ }
       startApp();
     } catch (e) {
@@ -2060,15 +2116,15 @@
     const b = ev.target.closest("[data-open]");
     if (b) { ev.preventDefault(); openFileDirect(b.dataset.open); }
   });
-  // 검색 범위 버튼: 전체 + config.lists 순서대로
-  $("modes").innerHTML = `<button type="button" data-mode="all" class="on">전체</button>` +
-    CFG.lists.filter((l) => !l.hidden).map((l) => `<button type="button" data-mode="${esc(l.id)}">${esc(l.label)}</button>`).join("");
-  $("modes").style.gridTemplateColumns = `repeat(${CFG.lists.filter((l) => !l.hidden).length + 1}, 1fr)`;
-  $("modes").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
-    mode = b.dataset.mode;
-    $("modes").querySelectorAll("button").forEach((x) => x.classList.toggle("on", x === b));
-    if ($("q").value.trim()) search($("q").value);
-  }));
+  // (검색 범위 버튼은 없앰: 항상 전체 검색, 결과는 계약 > 이관 > 따행 > DB > 추가 순 표시)
+  // 고객 화면 안 검색창 (결과가 없을 때 보임) → 상단 검색과 같은 동작
+  $("pageSearch").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const q = $("q2").value.trim();
+    if (!q) return;
+    $("q2").blur();
+    runTopSearch(q);
+  });
   // ---------- 구글 캘린더 (일정) ----------
   const GCFG = CFG.google || {};
   const GCAL = "https://www.googleapis.com/calendar/v3";
@@ -2148,12 +2204,56 @@
     return ((await gcal("/users/me/calendarList?minAccessRole=reader&maxResults=250")).items || [])
       .map((c) => ({ id: c.id, name: calName(c), color: c.backgroundColor, primary: !!c.primary }));
   }
-  // 관리자 설정에서 고른 캘린더 (없으면 config의 기본 이름: 1팀, 김현성, 최수진)
+  // 일정에 보일 캘린더
+  //   관리자: 관리자 설정에서 고른 캘린더 (모든 사용자의 기본값)
+  //   일반 사용자: 설정 메뉴에서 고른 '내 캘린더'. 고른 적 없으면 기본 이름(관리자 설정 이름 + config: 1팀, 김현성, 최수진)과 같은 내 캘린더
+  const defaultCalNames = () => [...new Set([...((appSettings.google || {}).calendars || []).map((c) => c.name), ...(GCFG.calendars || [])])];
   async function scheduleCalendars() {
+    if (!isAdmin()) {
+      const p = await loadMyPrefs();
+      if (p && Array.isArray(p.calendars) && p.calendars.length) return p.calendars;
+      const want = defaultCalNames();
+      return (await calendarList()).filter((c) => want.includes(c.name));
+    }
     const saved = ((appSettings.google || {}).calendars || []).filter((c) => c && c.id);
     if (saved.length) return saved;
     const want = GCFG.calendars || [];
     return (await calendarList()).filter((c) => want.includes(c.name));
+  }
+
+  // ---------- 내 설정 (일반 사용자): 내 드라이브 Claude/app/신한FC/설정/shlife-내설정.json (+ 이 기기 사본) ----------
+  const MY_FILE = "shlife-내설정.json";
+  let myPrefs = null, myDir = null;
+  const myCacheKey = () => "shlife.myprefs." + me();
+  async function resolveMyDir(create) {
+    if (myDir) return myDir;
+    await resolveBase();
+    if (base.owner || !GD) { await resolveAppDir(); return (myDir = appDir); }
+    let id = "root";
+    for (const part of CFG.appFolder.split("/").filter(Boolean)) {
+      const r = await gdQuery("'" + qv(id) + "' in parents and name='" + qv(part) + "' and mimeType='" + GD_FOLDER + "' and trashed=false");
+      if (r.length) { id = r[0].id; continue; }
+      if (!create) return null;
+      id = (await gdFetch(GDAPI + "/files?fields=id", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: part, mimeType: GD_FOLDER, parents: [id] }) })).id;
+    }
+    return (myDir = { id });
+  }
+  async function loadMyPrefs() {
+    if (myPrefs) return myPrefs;
+    try { myPrefs = JSON.parse(localStorage.getItem(myCacheKey()) || "null"); } catch (e) { myPrefs = null; }
+    try {
+      const d = await resolveMyDir(false);
+      const p = d ? await stReadJsonIn(d, MY_FILE) : null;
+      if (p) { myPrefs = p; try { localStorage.setItem(myCacheKey(), JSON.stringify(p)); } catch (e) { /* 무시 */ } }
+    } catch (e) { console.error(e); }
+    return myPrefs || {};
+  }
+  async function saveMyPrefs(p) {
+    myPrefs = p;
+    try { localStorage.setItem(myCacheKey(), JSON.stringify(p)); } catch (e) { /* 무시 */ }
+    const d = await resolveMyDir(true);
+    if (d && d.id) await stWriteJsonIn(d, MY_FILE, p);
   }
   const withAlias = (c) => ({ ...c, name: calAlias(c.id, c.name) });
   async function fetchEvents(from, to) {
@@ -2162,7 +2262,13 @@
     const q = `?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(from.toISOString())}&timeMax=${encodeURIComponent(to.toISOString())}`;
     schedCals = cals.map(withAlias);
     const lists = await Promise.all(schedCals.map(async (c) => {
-      const d = await gcal("/calendars/" + encodeURIComponent(c.id) + "/events" + q);
+      // 볼 권한이 없는 캘린더(다른 사람 캘린더 등)는 건너뜀
+      let d;
+      try { d = await gcal("/calendars/" + encodeURIComponent(c.id) + "/events" + q); } catch (e) {
+        if (e.message === "GOOGLE_AUTH") throw e;
+        console.warn("calendar skipped", c.name, e.message);
+        return [];
+      }
       return (d.items || []).filter((e) => e.status !== "cancelled").map((e) => ({
         id: c.id + "|" + e.id, cal: c, calId: c.id, eventId: e.id,
         title: String(e.summary || "(제목 없음)").trim(),

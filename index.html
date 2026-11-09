@@ -10,7 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest?v=2">
   <link rel="icon" href="favicon.png?v=2" type="image/png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
-  <link rel="stylesheet" href="style.css?v=55">
+  <link rel="stylesheet" href="style.css?v=56">
 </head>
 <body>
   <header class="topbar">
@@ -20,7 +20,7 @@
       <input id="q" type="search" placeholder="🔍 검색" autocomplete="off" enterkeyhint="search" aria-label="고객 검색 (이름·연락처·주소·미팅장소)">
       <ul id="recentList" class="recent" hidden></ul>
     </form>
-    <button id="logoutBtn" class="text-btn" hidden>로그아웃</button>
+    <button id="logoutBtn" class="text-btn icon-btn" hidden aria-label="로그아웃" title="로그아웃">🚪</button>
   </header>
 
   <main>
@@ -39,8 +39,15 @@
     <!-- 고객 검색 화면 -->
     <section id="searchView" class="view" hidden>
 
-      <div id="modes" class="modes" role="group" aria-label="검색 범위"></div>
       <p id="scopeHint" class="hint"></p>
+      <!-- 검색 결과가 없을 때(처음 들어왔을 때 포함) 화면 안 검색창 -->
+      <form id="pageSearch" class="card page-search" role="search">
+        <p class="hint">고객 이름·연락처·주소·미팅장소로 검색하세요.</p>
+        <div class="search">
+          <input id="q2" type="search" placeholder="고객 검색" autocomplete="off" enterkeyhint="search" aria-label="고객 검색">
+          <button class="primary" type="submit">검색</button>
+        </div>
+      </form>
       <p id="searchStatus" class="hint"></p>
       <ul id="results" class="list"></ul>
     </section>
@@ -77,7 +84,7 @@
   <nav id="mainNav" class="mainnav" hidden>
     <button type="button" data-section="schedule"><span class="ni">📅</span>일정</button>
     <button type="button" data-section="customer"><span class="ni">👤</span>고객</button>
-    <button type="button" data-section="admin" id="navAdmin" hidden><span class="ni">⚙️</span>관리자</button>
+    <button type="button" data-section="admin" id="navAdmin" hidden><span class="ni">⚙️</span><span id="navAdminLabel">설정</span></button>
   </nav>
 
   <!-- 프로필 사진 자르기 (원 안에 맞추기) -->
@@ -102,7 +109,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="config.js?v=55"></script>
-  <script src="app.js?v=55"></script>
+  <script src="config.js?v=56"></script>
+  <script src="app.js?v=56"></script>
 </body>
 </html>
