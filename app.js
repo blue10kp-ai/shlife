@@ -1931,16 +1931,19 @@
   }
 
   // ---------- Google Drive 공유 (관리자: 고객 폴더 = 편집, 설정 폴더 = 보기) ----------
-  async function gdPermList(fileId) {
-    const d = await gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions?supportsAllDrives=true&fields=" + encodeURIComponent("permissions(id,emailAddress,role,type)"));
-    return (d.permissions || []).filter((p) => p.type === "user" && p.emailAddress).map((p) => ({ id: p.id, email: p.emailAddress.toLowerCase(), role: p.role }));
+  // directOnly: 상위 폴더에서 물려받은 권한(고객 폴더 전체 공유 등)은 제외하고 이 폴더에 직접 준 권한만
+  async function gdPermList(fileId, directOnly) {
+    const d = await gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions?supportsAllDrives=true&fields=" + encodeURIComponent("permissions(id,emailAddress,role,type,permissionDetails(inherited))"));
+    return (d.permissions || []).filter((p) => p.type === "user" && p.emailAddress)
+      .filter((p) => !directOnly || !(p.permissionDetails || []).length || (p.permissionDetails || []).some((x) => !x.inherited))
+      .map((p) => ({ id: p.id, email: p.emailAddress.toLowerCase(), role: p.role }));
   }
   async function loadShares(fcIds) {
     await resolveAppDir();
     const ids = fcIds || (adminState && adminState.fcIds) || {};
     const [cust, app] = await Promise.all([gdPermList(base.id), appDir.id ? gdPermList(appDir.id) : []]);
     const fc = {}; // FC 폴더별 공유
-    await Promise.all(Object.entries(ids).map(async ([name, id]) => { fc[name] = await gdPermList(id).catch(() => []); }));
+    await Promise.all(Object.entries(ids).map(async ([name, id]) => { fc[name] = await gdPermList(id, true).catch(() => []); }));
     return { cust, app, fc };
   }
   // 공유 상태: "ok" (고객 편집 + 설정 보기 이상) / "part" / "none"
@@ -2106,7 +2109,7 @@
             <td><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"></td>
             ${fcs.map((fc) => `<td><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}">
               <label class="ro-lbl" title="보기만 (수정 불가)"><input type="checkbox" class="cb ro" data-ro="${esc(fc)}" ${isRo(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 보기만">보기만</label></td>`).join("")}
-            <td><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></td>
+            <td><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>이 줄만 저장</button> <button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></td>
           </tr>`).join("")}
         </table></div>
         ${users.length ? "" : '<p class="hint">아직 권한을 준 사용자가 없습니다. 아래에서 이메일을 추가하세요.</p>'}
@@ -2144,9 +2147,12 @@
         return b.dataset.fc + (ro && ro.checked ? ":r" : "");
       });
     };
-    const changed = () => rows.filter((r) => !same(sel(r), listOf(r.dataset.em)));
+    // 체크가 바뀐 줄 + Drive 공유가 체크 상태와 다른 줄(예: 예전 방식 공유)도 '변경 저장' 대상으로 표시
+    const needsShare = (r) => GD && adminState.shares && sel(r).length > 0 && !shareMatches(r.dataset.em, sel(r));
+    const isDiff = (r) => !same(sel(r), listOf(r.dataset.em)) || needsShare(r);
+    const changed = () => rows.filter(isDiff);
     const refresh = () => {
-      rows.forEach((r) => r.classList.toggle("changed", !same(sel(r), listOf(r.dataset.em))));
+      rows.forEach((r) => { r.classList.toggle("changed", isDiff(r)); const rb = r.querySelector("[data-rowsave]"); if (rb) rb.hidden = !isDiff(r); });
       const n = changed().length;
       $("savePerms").disabled = !n;
       $("resetPerms").disabled = !n;
@@ -2179,6 +2185,7 @@
     collectPending = collectRows;
     applyPending = applyRows;
     $("savePerms").addEventListener("click", () => savePerms(changed().map((r) => [r.dataset.em, sel(r)])));
+    rows.forEach((r) => { const rb = r.querySelector("[data-rowsave]"); if (rb) rb.addEventListener("click", () => savePerms([[r.dataset.em, sel(r)]])); }); // 이 계정만 저장 (다른 계정은 그대로)
 
     // 사용자 추가 시 저장 전 체크 상태 보존용
     function collectRows() { return rows.map((r) => [r.dataset.em, sel(r)]); }
