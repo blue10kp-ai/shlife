@@ -15,7 +15,7 @@ window.APP_CONFIG = {
   owner: { driveId: "1C9CB085D01137F9", baseId: "1C9CB085D01137F9!sf69cb45e11a746d390c1d72f1911c277", appDirId: "1C9CB085D01137F9!sfbb7913784a04d6ca4efee053d78d36f" },
 
   // 저장소: "onedrive" 또는 "google" (주소 끝 ?drive=google 로 이 기기만 먼저 바꿔 시험할 수 있음)
-  storage: "onedrive",
+  storage: "google", // 2026-11-09 Google Drive로 전환 (OneDrive Claude 폴더는 백업)
   // Google Drive 모드: 관리자는 내 드라이브의 Claude/고객 을 경로로 찾음.
   //   다른 사용자는 관리자가 공유해 준 폴더를 아래 ID로 찾음 (폴더 주소 drive.google.com/drive/folders/<ID>)
   gdrive: { baseId: "1IaRf-UbNqNCaI9Q_XdV3_Tt8bQVHnuNM", appDirId: "1ERsiC6gUGh0LljPSKxRx04Z5dZUGJGC0" },

@@ -86,9 +86,10 @@
   //   기본은 config.storage. 주소 끝에 ?drive=google / ?drive=onedrive 를 붙이면 이 기기에서 그 저장소로 바뀜(시험·전환용)
   const DRIVE = (() => {
     const q = new URLSearchParams(location.search).get("drive");
-    if (q) { try { localStorage.setItem("shlife.drive", q); } catch (e) { /* 이번만 적용 */ } }
+    // (시험 때 쓴 예전 키 shlife.drive 는 무시: 전환 후 모든 기기가 config 기본값을 따름)
+    if (q) { try { localStorage.setItem("shlife.drive2", q); } catch (e) { /* 이번만 적용 */ } }
     let v = q;
-    if (!v) { try { v = localStorage.getItem("shlife.drive"); } catch (e) { v = null; } }
+    if (!v) { try { v = localStorage.getItem("shlife.drive2"); } catch (e) { v = null; } }
     return (v || CFG.storage || "onedrive") === "google" ? "google" : "onedrive";
   })();
   const GD = DRIVE === "google";
@@ -1966,7 +1967,7 @@
   $("photoMenuClose").addEventListener("click", () => { $("photoMenu").hidden = true; });
   $("photoDel").addEventListener("click", async () => {
     $("photoMenu").hidden = true;
-    if (!confirm("이 고객의 프로필 사진을 삭제할까요? (OneDrive 휴지통으로 이동)")) return;
+    if (!confirm("이 고객의 프로필 사진을 삭제할까요? (" + DRIVE_NAME + " 휴지통으로 이동)")) return;
     try { await deleteProfilePhotos(); toast("사진을 삭제했습니다."); } catch (e) { saveError(e); }
   });
   $("photoInput").addEventListener("change", async () => {
