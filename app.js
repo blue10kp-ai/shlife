@@ -57,7 +57,7 @@
   // ---------- 관리자 ----------
   // 관리자: 공유 권한을 바꾸려면 쓰기 권한이 필요 (관리자만 요청)
   const ADMIN_SCOPES = ["Files.ReadWrite.All", "User.Read"];
-  const account = () => msal.getAllAccounts()[0];
+  const account = () => GD ? (gAccount() ? { username: gAccount() } : undefined) : msal.getAllAccounts()[0];
   const isAdmin = () => !!account() &&
     (CFG.admins || []).map((a) => a.toLowerCase()).includes(String(account().username).toLowerCase());
 
@@ -80,6 +80,124 @@
     });
     if (!res.ok) throw new Error("Graph " + res.status + ": " + (await res.text()).slice(0, 200));
     return res.status === 204 ? null : res.json();
+  }
+
+  // ---------- 저장소: OneDrive 또는 Google Drive ----------
+  //   기본은 config.storage. 주소 끝에 ?drive=google / ?drive=onedrive 를 붙이면 이 기기에서 그 저장소로 바뀜(시험·전환용)
+  const DRIVE = (() => {
+    const q = new URLSearchParams(location.search).get("drive");
+    if (q) { try { localStorage.setItem("shlife.drive", q); } catch (e) { /* 이번만 적용 */ } }
+    let v = q;
+    if (!v) { try { v = localStorage.getItem("shlife.drive"); } catch (e) { v = null; } }
+    return (v || CFG.storage || "onedrive") === "google" ? "google" : "onedrive";
+  })();
+  const GD = DRIVE === "google";
+  const DRIVE_NAME = GD ? "Google Drive" : "OneDrive";
+  const GDCFG = CFG.gdrive || {};
+  const GDAPI = "https://www.googleapis.com/drive/v3";
+  const GDUP = "https://www.googleapis.com/upload/drive/v3";
+  const GD_FIELDS = "id,name,mimeType,size,modifiedTime,webViewLink";
+  const GD_FOLDER = "application/vnd.google-apps.folder";
+  const GACC_KEY = "shlife.gaccount";
+  function gAccount() { try { return localStorage.getItem(GACC_KEY) || ""; } catch (e) { return ""; } }
+  // Google Drive 파일 정보를 OneDrive(Graph)와 같은 모양으로
+  const gdNorm = (f) => ({
+    id: f.id, name: f.name, size: Number(f.size || 0), lastModifiedDateTime: f.modifiedTime, webUrl: f.webViewLink,
+    folder: f.mimeType === GD_FOLDER ? {} : undefined, file: f.mimeType === GD_FOLDER ? undefined : { mimeType: f.mimeType }
+  });
+  async function gdFetch(url, opt, asBuffer) {
+    const t = storedGToken() || gTokenMem;
+    if (!t) throw new Error("GOOGLE_AUTH");
+    const o = opt || {};
+    const res = await fetch(url, { ...o, headers: { Authorization: "Bearer " + t, ...(o.headers || {}) }, cache: "no-store" });
+    if (res.status === 401) { clearGToken(); throw new Error("GOOGLE_AUTH"); }
+    if (!res.ok) throw new Error("Drive " + res.status + ": " + (await res.text()).slice(0, 200));
+    if (res.status === 204) return null;
+    return asBuffer ? res.arrayBuffer() : res.json();
+  }
+  const qv = (s) => String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'"); // 검색식 안 문자열
+  async function gdQuery(q) {
+    const out = [];
+    let page = "";
+    do {
+      const d = await gdFetch(GDAPI + "/files?pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=" +
+        encodeURIComponent("nextPageToken,files(" + GD_FIELDS + ")") + "&q=" + encodeURIComponent(q) + (page ? "&pageToken=" + encodeURIComponent(page) : ""));
+      out.push(...(d.files || []).map(gdNorm));
+      page = d.nextPageToken || "";
+    } while (page);
+    return out;
+  }
+  async function gdFindIn(dirId, name) {
+    return (await gdQuery("'" + qv(dirId) + "' in parents and name='" + qv(name) + "' and trashed=false"))[0] || null;
+  }
+
+  // 폴더 안 목록
+  async function stList(id) {
+    return GD ? gdQuery("'" + qv(id) + "' in parents and trashed=false") : listChildren(itemPath(id) + "/children");
+  }
+  // 파일 내용 (ArrayBuffer)
+  async function stGet(id) {
+    return GD ? gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?alt=media&supportsAllDrives=true", null, true)
+      : graph(itemPath(id) + "/content", true);
+  }
+  // 파일 내용 바꾸기
+  async function stPut(id, data, mime) {
+    if (!GD) return gx("PUT", itemPath(id) + "/content", data, mime);
+    return gdNorm(await gdFetch(GDUP + "/files/" + encodeURIComponent(id) + "?uploadType=media&supportsAllDrives=true&fields=" + GD_FIELDS,
+      { method: "PATCH", headers: { "Content-Type": mime }, body: data }));
+  }
+  // 폴더(dir = {id, driveId?}) 안에 이름으로 저장 (같은 이름이 있으면 그 파일을 고침)
+  async function stPutIn(dir, name, data, mime) {
+    if (!GD) return gx("PUT", "/drives/" + (dir.driveId || base.driveId) + "/items/" + dir.id + ":/" + encodeURIComponent(name) + ":/content", data, mime);
+    const ex = await gdFindIn(dir.id, name);
+    if (ex) return stPut(ex.id, data, mime);
+    const b = "shlife" + Date.now();
+    const body = new Blob([
+      "--" + b + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify({ name, parents: [dir.id] }) +
+      "\r\n--" + b + "\r\nContent-Type: " + mime + "\r\n\r\n", data, "\r\n--" + b + "--"]);
+    return gdNorm(await gdFetch(GDUP + "/files?uploadType=multipart&supportsAllDrives=true&fields=" + GD_FIELDS,
+      { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body }));
+  }
+  // 삭제 (휴지통으로)
+  async function stDel(id) {
+    if (!GD) return gx("DELETE", itemPath(id));
+    return gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?supportsAllDrives=true&fields=id",
+      { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trashed: true }) });
+  }
+  // 내 드라이브 기준 폴더 경로("Claude/고객") → { id, driveId } / 없으면 null
+  async function stFindPath(path) {
+    if (!GD) {
+      try {
+        const it = await graph("/me/drive/root:/" + path.split("/").map(encodeURIComponent).join("/") + "?$select=id,parentReference");
+        return { id: it.id, driveId: it.parentReference.driveId };
+      } catch (e) {
+        if (String(e.message).includes("404")) return null;
+        throw e;
+      }
+    }
+    let id = "root";
+    for (const part of path.split("/").filter(Boolean)) {
+      const r = await gdQuery("'" + qv(id) + "' in parents and name='" + qv(part) + "' and mimeType='" + GD_FOLDER + "' and trashed=false");
+      if (!r.length) return null;
+      id = r[0].id;
+    }
+    return { id };
+  }
+  // 폴더 안 JSON 파일 읽기 / 쓰기 (없으면 null)
+  async function stReadJsonIn(dir, name) {
+    if (!dir || !dir.id) return null;
+    if (!GD) {
+      try { return await graph("/drives/" + dir.driveId + "/items/" + dir.id + ":/" + encodeURIComponent(name) + ":/content?x=" + Date.now()); } catch (e) {
+        if (String(e.message).includes("404")) return null;
+        throw e;
+      }
+    }
+    const f = await gdFindIn(dir.id, name);
+    if (!f) return null;
+    return JSON.parse(new TextDecoder().decode(await stGet(f.id)).replace(/^﻿/, ""));
+  }
+  async function stWriteJsonIn(dir, name, obj) {
+    return stPutIn(dir, name, new TextEncoder().encode(JSON.stringify(obj, null, 2)), "application/json");
   }
 
   // ---------- 화면 전환 ----------
@@ -121,12 +239,11 @@
   let base = null; // { driveId, id, owner }
   async function resolveBase() {
     if (base) return base;
-    try {
-      const path = "/me/drive/root:/" + CFG.baseFolder.split("/").map(encodeURIComponent).join("/");
-      const it = await graph(path + "?$select=id,parentReference");
-      return (base = { driveId: it.parentReference.driveId, id: it.id, owner: true });
-    } catch (e) {
-      if (!String(e.message).includes("404")) throw e;
+    const mine = await stFindPath(CFG.baseFolder);
+    if (mine) return (base = { driveId: mine.driveId, id: mine.id, owner: true });
+    if (GD) {
+      if (!GDCFG.baseId) throw new Error("NO_SHARE");
+      return (base = { id: GDCFG.baseId, owner: false });
     }
     return (base = { driveId: CFG.owner.driveId, id: CFG.owner.baseId, owner: false });
   }
@@ -142,47 +259,39 @@
   async function resolveAppDir() {
     if (appDir) return appDir;
     await resolveBase();
-    try {
-      const path = "/me/drive/root:/" + CFG.appFolder.split("/").map(encodeURIComponent).join("/");
-      const it = await graph(path + "?$select=id,parentReference");
-      return (appDir = { driveId: it.parentReference.driveId, id: it.id });
-    } catch (e) {
-      if (!String(e.message).includes("404")) throw e;
-    }
+    const mine = await stFindPath(CFG.appFolder);
+    if (mine) return (appDir = mine);
+    if (GD) return (appDir = { id: GDCFG.appDirId || "" });
     return (appDir = { driveId: CFG.owner.driveId, id: CFG.owner.appDirId });
   }
-  const appFilePath = (name) => "/drives/" + appDir.driveId + "/items/" + appDir.id + ":/" + encodeURIComponent(name) + ":/content";
 
   // ---------- 관리자 설정 (앱 저장 폴더의 설정 파일, 모든 사용자가 같은 설정 사용) ----------
   //   { companyAddress, dataSaver, google: { account, calendars: [] } }
   const SETTINGS_FILE = CFG.settingsFile || "shlife-설정.json";
   let appSettings = { companyAddress: "", dataSaver: false, google: { account: "", calendars: [] } };
-  const settingsPath = () => appFilePath(SETTINGS_FILE);
   async function loadSettings() {
     try {
       await resolveAppDir();
-      const s = await graph(settingsPath() + "?x=" + Date.now());
-      appSettings = { ...appSettings, ...s, google: { ...appSettings.google, ...(s.google || {}) } };
-    } catch (e) { /* 설정 파일이 아직 없으면 기본값 */ }
+      const s = await stReadJsonIn(appDir, SETTINGS_FILE);
+      if (s) appSettings = { ...appSettings, ...s, google: { ...appSettings.google, ...(s.google || {}) } };
+    } catch (e) { /* 설정 파일을 못 읽으면 기본값 */ }
     return appSettings;
   }
   async function saveSettings(next) {
     await resolveAppDir();
-    await gx("PUT", settingsPath(), next);
+    await stWriteJsonIn(appDir, SETTINGS_FILE, next);
     appSettings = next;
   }
-  const permPath = () => appFilePath(PERM_FILE);
+  async function writePerms(perms) {
+    await resolveAppDir();
+    await stWriteJsonIn(appDir, PERM_FILE, perms);
+  }
   const me = () => String((account() || {}).username || "").toLowerCase();
 
   async function readPerms() {
     await resolveAppDir();
-    try {
-      const p = await graph(permPath() + "?x=" + Date.now());
-      return { users: (p && p.users) || {} };
-    } catch (e) {
-      if (String(e.message).includes("404")) return { users: {} };
-      throw e;
-    }
+    const p = await stReadJsonIn(appDir, PERM_FILE);
+    return { users: (p && p.users) || {} };
   }
 
   // 지금 로그인한 아이디가 볼 수 있는 FC: "*" 또는 FC 이름 목록
@@ -206,14 +315,14 @@
       const ok = (name) => allowed === "*" || allowed.includes(name);
       const folders = [], files = [];
       async function scan(id, fc) {
-        const items = await listChildren(itemPath(id) + "/children");
+        const items = await stList(id);
         // FC 폴더 바깥(고객 폴더 바로 아래) 파일·분류폴더는 '전체' 권한만
         const rootOk = !!fc || allowed === "*";
         if (rootOk) items.filter((i) => i.file && i.name !== PERM_FILE).forEach((f) => files.push({ ...f, fc }));
         await Promise.all(items.filter((i) => i.folder).map(async (d) => {
           if (d.name.startsWith("_")) {
             if (!rootOk) return;
-            (await listChildren(itemPath(d.id) + "/children"))
+            (await stList(d.id))
               .filter((i) => i.folder)
               .forEach((f) => folders.push({ ...f, group: d.name.slice(1), fc }));
           } else if (!fc && ok(d.name)) {
@@ -241,7 +350,7 @@
   const bookCache = {};
   async function readBook(id) {
     if (!bookCache[id]) {
-      bookCache[id] = graph(itemPath(id) + "/content", true).then((buf) => XLSX.read(buf, { type: "array" }));
+      bookCache[id] = stGet(id).then((buf) => XLSX.read(buf, { type: "array" }));
     }
     return bookCache[id];
   }
@@ -328,7 +437,7 @@
     const byFile = new Map();
     entries.filter((e) => e.src).forEach((e) => { if (!byFile.has(e.src.fileId)) byFile.set(e.src.fileId, []); byFile.get(e.src.fileId).push(e); });
     for (const [fileId, list] of byFile) {
-      const wb = XLSX.read(await graph(itemPath(fileId) + "/content", true), { type: "array" }); // 최신 파일
+      const wb = XLSX.read(await stGet(fileId), { type: "array" }); // 최신 파일
       for (const e of list) {
         const ws = wb.Sheets[e.src.sheet];
         if (!ws) continue;
@@ -368,7 +477,7 @@
           if (PHONE_COLS.includes(k)) e.phone = String(v);
         }
       }
-      await gx("PUT", itemPath(fileId) + "/content", XLSX.write(wb, { type: "array", bookType: "xlsx" }),
+      await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx" }),
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       delete bookCache[fileId];
     }
@@ -559,10 +668,10 @@
 
   async function readExtra() {
     await resolveBase();
-    const items = await listChildren(itemPath(base.id) + "/children");
+    const items = await stList(base.id);
     const file = items.find((i) => i.file && /\.xlsx$/i.test(i.name) && nospace(i.name).includes(nospace(EXTRA.fileKeyword)));
     if (!file) return null;
-    const wb = XLSX.read(await graph(itemPath(file.id) + "/content", true), { type: "array" });
+    const wb = XLSX.read(await stGet(file.id), { type: "array" });
     const sheetName = wb.SheetNames.includes(EXTRA.sheet) ? EXTRA.sheet : wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: true });
@@ -680,7 +789,7 @@
 
   async function uploadExtra(x) {
     const out = XLSX.write(x.wb, { type: "array", bookType: "xlsx" });
-    await gx("PUT", itemPath(x.file.id) + "/content", out,
+    await stPut(x.file.id, out,
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     delete bookCache[x.file.id];
   }
@@ -783,7 +892,7 @@
     const w = window.open("", "_blank"); // 팝업 차단을 피하려고 먼저 창을 엶
     if (w) w.document.write('<p style="font-family:sans-serif;padding:24px">PDF를 여는 중…</p>');
     try {
-      const buf = await graph(itemPath(id) + "/content", true);
+      const buf = await stGet(id);
       const url = URL.createObjectURL(new Blob([buf], { type: "application/pdf" }));
       if (w) w.location.href = url; else location.href = url;
       setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
@@ -878,7 +987,7 @@
 
   // 고객 폴더 안 파일 (하위 폴더 2단계까지)
   async function collectFiles(id, prefix, depth) {
-    const items = await listChildren(itemPath(id) + "/children");
+    const items = await stList(id);
     let out = [];
     for (const it of items) {
       if (it.folder && depth < 2) {
@@ -1292,8 +1401,7 @@
     const ymd = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
     const fc = current.fc || folder.fc || "";
     const name = `${ymd} - ${fc} - ${current.cust.name} - 프로필사진.jpg`.replace(/[\\/:*?"<>|]/g, "");
-    const item = await gx("PUT", itemPath(folder.id) + ":/" + encodeURIComponent(name) + ":/content",
-      await blob.arrayBuffer(), "image/jpeg");
+    const item = await stPutIn(folder, name, await blob.arrayBuffer(), "image/jpeg");
     current.files = current.files.filter((f) => f.id !== item.id).concat({ ...item, path: item.name });
     current.profilePhoto = item;
     if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
@@ -1304,7 +1412,7 @@
   // 프로필 사진 삭제 (이 고객 폴더의 '프로필사진' 이미지 모두 → OneDrive 휴지통)
   async function deleteProfilePhotos() {
     const list = current.files.filter((f) => /프로필사진/.test(f.name) && /\.(jpe?g|png|heic|webp)$/i.test(f.name));
-    for (const f of list) await gx("DELETE", itemPath(f.id));
+    for (const f of list) await stDel(f.id);
     current.files = current.files.filter((f) => !list.includes(f));
     current.profilePhoto = null;
     if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
@@ -1322,7 +1430,7 @@
     const c = current;
     if (!c.profilePhoto) return;
     try {
-      const buf = await graph(itemPath(c.profilePhoto.id) + "/content", true);
+      const buf = await stGet(c.profilePhoto.id);
       if (c !== current) return; // 다른 고객으로 넘어감
       c.photoUrl = URL.createObjectURL(new Blob([buf], { type: "image/jpeg" }));
       setAvatarPhoto();
@@ -1600,7 +1708,7 @@
 
   async function loadAdminState() {
     await resolveBase();
-    const items = await listChildren(itemPath(base.id) + "/children");
+    const items = await stList(base.id);
     const fcs = items.filter((i) => i.folder && !i.name.startsWith("_")).map((f) => f.name)
       .sort((a, b) => a.localeCompare(b, "ko"));
     const perms = await readPerms();
@@ -1720,7 +1828,7 @@
       const perms = await readPerms();
       delete perms.users[em];
       extraUsers.delete(em);
-      await gx("PUT", permPath(), perms);
+      await writePerms(perms);
       adminState.perms = perms;
       toast(`${em} 아이디를 삭제했습니다.`);
       renderAdmin();
@@ -1740,7 +1848,7 @@
       changes.forEach(([em, list]) => {
         if (list.length) perms.users[em] = list; else { delete perms.users[em]; extraUsers.delete(em); }
       });
-      await gx("PUT", permPath(), perms);
+      await writePerms(perms);
       toast(`저장했습니다 (${changes.length}개 아이디).`);
       adminState.perms = perms;
       renderAdmin();
@@ -1756,18 +1864,50 @@
     console.error(e);
     const m = String(e && e.message);
     if (m === "NOT_SIGNED_IN") return show("loginView");
+    if (GD && m === "GOOGLE_AUTH") { showGLogin(); return toast("구글 연결 시간이 지났습니다. 다시 연결해 주세요."); }
+    if (GD && /Drive 403/.test(m) && /accessNotConfigured|has not been used|disabled/i.test(m)) return toast("Google Drive API가 켜져 있지 않습니다. 관리자에게 알려 주세요.");
     if (m === "NO_SHARE") {
-      $("scopeHint").textContent = "아직 고객 폴더에 접근할 수 없습니다. 관리자에게 OneDrive '고객' 폴더 공유를 요청하세요.";
+      $("scopeHint").textContent = "아직 고객 폴더에 접근할 수 없습니다. 관리자에게 " + DRIVE_NAME + " '고객' 폴더 공유를 요청하세요.";
       return toast("고객 폴더 공유가 필요합니다. 관리자에게 요청하세요.");
     }
-    if (m.includes("404")) return toast("OneDrive에서 '" + CFG.baseFolder + "' 폴더를 찾을 수 없습니다.");
+    if (m.includes("404")) return toast(DRIVE_NAME + "에서 '" + CFG.baseFolder + "' 폴더를 찾을 수 없습니다.");
     if (m.includes("403")) return toast("권한이 없습니다. 관리자에게 요청하세요.");
     toast("오류: " + m.slice(0, 120));
   }
 
   // ---------- 시작 ----------
-  $("loginBtn").addEventListener("click", () => msal.loginRedirect({ scopes: SCOPES }));
-  $("logoutBtn").addEventListener("click", () => msal.logoutRedirect());
+  // Google Drive 모드: 구글 로그인 창(팝업) 하나로 Drive·캘린더 권한을 함께 받음 (토큰 1시간, 지나면 버튼 한 번)
+  function showGLogin() {
+    const em = gAccount();
+    $("loginBtn").textContent = em ? "Google 다시 연결 (" + em + ")" : "Google 계정으로 로그인";
+    const lead = document.querySelector("#loginView .lead");
+    if (lead) lead.innerHTML = "<b>신한FC</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.";
+    const hint = document.querySelector("#loginView .hint");
+    if (hint) hint.textContent = "고객 정보는 Google Drive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.";
+    show("loginView");
+  }
+  async function googleLogin() {
+    try {
+      await requestGToken();
+      const u = await gdFetch("https://www.googleapis.com/oauth2/v3/userinfo");
+      const em = String(u.email || "").toLowerCase();
+      if (!em) throw new Error("구글 계정 이메일을 읽지 못했습니다.");
+      if (gAccount() && gAccount() !== em) { base = null; appDir = null; scanCache = null; listCache = null; }
+      try { localStorage.setItem(GACC_KEY, em); } catch (e) { /* 이번만 */ }
+      startApp();
+    } catch (e) {
+      if (e.message !== "GOOGLE_AUTH") toast(e.message); else handleError(e);
+    }
+  }
+  $("loginBtn").addEventListener("click", () => (GD ? googleLogin() : msal.loginRedirect({ scopes: SCOPES })));
+  $("logoutBtn").addEventListener("click", () => {
+    if (!GD) return msal.logoutRedirect();
+    const t = storedGToken() || gTokenMem;
+    clearGToken();
+    try { localStorage.removeItem(GACC_KEY); } catch (e) { /* 무시 */ }
+    try { if (t && window.google && google.accounts.oauth2) google.accounts.oauth2.revoke(t, () => {}); } catch (e) { /* 무시 */ }
+    location.reload();
+  });
   // 상단 검색창: 어느 화면에서든 검색 → 고객 검색 결과 화면으로
   function runTopSearch(q) {
     $("q").value = q;
@@ -1860,11 +2000,19 @@
   const GCFG = CFG.google || {};
   const GCAL = "https://www.googleapis.com/calendar/v3";
   const GTOKEN_KEY = "shlife.gtoken";
+  // v2 = 캘린더(읽기·수정) / v3 = Google Drive 모드: Drive + 캘린더 + 이메일
+  const GTOKEN_V = GD ? 3 : 2;
+  const GSCOPE = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events" +
+    (GD ? " https://www.googleapis.com/auth/drive openid email" : "");
   function storedGToken() {
     try {
       const t = JSON.parse(localStorage.getItem(GTOKEN_KEY) || "null");
-      return t && t.exp > Date.now() + 60000 && t.v === 2 ? t.token : null; // v2 = 일정 수정 권한 포함
+      return t && t.exp > Date.now() + 60000 && t.v === GTOKEN_V ? t.token : null;
     } catch (e) { return null; }
+  }
+  function clearGToken() {
+    try { localStorage.removeItem(GTOKEN_KEY); } catch (e) { /* 무시 */ }
+    gTokenMem = null;
   }
   // 구글 로그인 창(팝업) → 캘린더 읽기 권한 토큰 (1시간 유효, 버튼을 눌렀을 때만 호출)
   function requestGToken(prompt) {
@@ -1873,11 +2021,12 @@
       if (!g) return reject(new Error("구글 로그인 모듈을 불러오지 못했습니다. 잠시 후 다시 시도하세요."));
       const client = g.initTokenClient({
         client_id: GCFG.clientId,
-        scope: "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events",
-        hint: (appSettings.google && appSettings.google.account) || undefined,
+        scope: GSCOPE,
+        hint: (GD ? gAccount() : appSettings.google && appSettings.google.account) || undefined,
         callback: (r) => {
           if (r.error) return reject(new Error("구글 연결 실패: " + r.error));
-          try { localStorage.setItem(GTOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, v: 2 })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ }
+          if (GD && !google.accounts.oauth2.hasGrantedAllScopes(r, "https://www.googleapis.com/auth/drive")) return reject(new Error("Google Drive 권한을 허용해야 합니다. 다시 로그인하면서 모든 항목에 체크해 주세요."));
+          try { localStorage.setItem(GTOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, v: GTOKEN_V })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ }
           gTokenMem = r.access_token;
           resolve(r.access_token);
         },
@@ -2519,20 +2668,26 @@
       toast("config.js에 clientId를 넣어 주세요.");
       return;
     }
+    if (GD) {
+      // 구글 토큰이 살아 있으면 바로 시작, 아니면 로그인(다시 연결) 버튼 (팝업은 버튼을 눌러야 열림)
+      if (gAccount() && storedGToken()) startApp(); else showGLogin();
+      return;
+    }
     await msal.initialize();
     try { await msal.handleRedirectPromise(); } catch (e) { handleError(e); }
-    if (msal.getAllAccounts().length) {
-      if (sessionStorage.getItem("openAdmin") && isAdmin()) {
-        sessionStorage.removeItem("openAdmin");
-        openAdmin();
-      } else {
-        schedMode = "day"; schedDate = dayStart(new Date());
-        loadSettings().then(() => openSchedule()); // 첫 화면: 일정 Today (설정을 읽은 뒤)
-      }
-      loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
-      loadLists().then(showScope).catch(handleError); // 미리 불러오기
-    } else {
-      show("loginView");
-    }
+    if (msal.getAllAccounts().length) startApp();
+    else show("loginView");
   })();
+
+  function startApp() {
+    if (!GD && sessionStorage.getItem("openAdmin") && isAdmin()) {
+      sessionStorage.removeItem("openAdmin");
+      openAdmin();
+    } else {
+      schedMode = "day"; schedDate = dayStart(new Date());
+      loadSettings().then(() => openSchedule()); // 첫 화면: 일정 Today (설정을 읽은 뒤)
+    }
+    loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
+    loadLists().then(showScope).catch(handleError); // 미리 불러오기
+  }
 })();
