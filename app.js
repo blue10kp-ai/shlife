@@ -961,6 +961,7 @@
     $("tabs").innerHTML = "";
     history.pushState({ v: "customer" }, "");
     current = { cust, folders: [], files: [], phones: null, contracts: [], fc: "", extra: { values: {} }, profilePhoto: null, photoUrl: null };
+    showCachedPhoto(current); // 기기에 저장된 사진이 있으면 바로
     try {
       const names = new Set(cust.entries.map((e) => norm(e.name)).concat(norm(cust.name)));
       const byName = (await loadCustomerFolders()).filter((f) => names.has(norm(custPart(f.name))));
@@ -973,7 +974,14 @@
       current.folders = folders;
       current.files = files;
       current.profilePhoto = findProfilePhoto(files);
-      if (current.profilePhoto && !appSettings.dataSaver) loadProfilePhoto(); // 머리 부분 동그라미에 사진 표시 (데이터 절약 모드면 안 함)
+      if (current.profilePhoto) loadProfilePhoto(); // 머리 부분 동그라미에 사진 (기기 저장 사진 확인 → 필요할 때만 받음)
+      else if (current.cachedPhoto) { // 사진이 지워짐 → 기기 저장도 지움
+        photoCacheDel(photoKey(current.cust));
+        current.cachedPhoto = null;
+        if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
+        current.photoUrl = null;
+        const a = $("avatar"); a.style.backgroundImage = ""; a.classList.remove("has-photo"); a.textContent = current.cust.name[0];
+      }
       current.fc = fcs[0] || (folders[0] && folders[0].fc) || "";
       const [contracts, extra] = await Promise.all([
         loadContracts().catch((e) => { console.error(e); return []; }),
@@ -1415,7 +1423,61 @@
     current.profilePhoto = item;
     if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
     current.photoUrl = URL.createObjectURL(blob);
+    current.photoFullUrl = current.photoUrl;
     setAvatarPhoto();
+    // 기기 저장 (작은 사진)
+    const small = await shrinkImage(blob, PHOTO_SIZE, 0.85).catch(() => blob);
+    current.cachedPhoto = { id: item.id, mod: item.lastModifiedDateTime || "", blob: small };
+    photoCachePut(photoKey(current.cust), current.cachedPhoto);
+  }
+
+  // ---------- 고객 사진 기기 저장: 작은 사진(320px)을 이 기기 브라우저(IndexedDB)에 보관 → 다음부터 바로 표시 ----------
+  //   사진이 바뀌면(파일 ID·수정 시각이 다르면) 새로 받음. 로그아웃하면 모두 지움.
+  const PHOTO_DB = "shlife-photos", PHOTO_SIZE = 320;
+  function photoDb() {
+    if (!photoDb.p) photoDb.p = new Promise((res, rej) => {
+      const r = indexedDB.open(PHOTO_DB, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("p");
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    return photoDb.p;
+  }
+  async function photoCacheGet(key) {
+    try {
+      const db = await photoDb();
+      return await new Promise((res) => { const q = db.transaction("p").objectStore("p").get(key); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); });
+    } catch (e) { return null; }
+  }
+  async function photoCacheSet(key, val) {
+    try {
+      const db = await photoDb();
+      await new Promise((res) => { const t = db.transaction("p", "readwrite"); const s = t.objectStore("p"); if (val) s.put(val, key); else s.delete(key); t.oncomplete = res; t.onerror = res; });
+    } catch (e) { /* 저장 못 해도 화면엔 표시 */ }
+  }
+  const photoCachePut = (key, val) => photoCacheSet(key, val);
+  const photoCacheDel = (key) => photoCacheSet(key, null);
+  async function photoCacheClear() {
+    try { if (photoDb.p) (await photoDb.p).close(); } catch (e) { /* 무시 */ }
+    photoDb.p = null;
+    await new Promise((res) => {
+      try { const r = indexedDB.deleteDatabase(PHOTO_DB); r.onsuccess = r.onerror = r.onblocked = () => res(); } catch (e) { res(); }
+      setTimeout(res, 1500);
+    });
+  }
+  const photoKey = (cust) => me() + "|" + norm(baseName(cust.name)) + "|" + String(cust.birth || "").replace(/\D/g, "");
+  // 고객 화면을 열자마자: 기기에 저장된 사진이 있으면 바로 표시 (폴더 목록을 읽기 전)
+  async function showCachedPhoto(c) {
+    const v = await photoCacheGet(photoKey(c.cust));
+    if (!v || !v.blob || c !== current || c.photoUrl) return;
+    c.cachedPhoto = v;
+    c.photoUrl = URL.createObjectURL(v.blob);
+    setAvatarPhoto();
+    showPhotoThumb();
+  }
+  function showPhotoThumb() {
+    const t = $("photoThumb");
+    if (t && current.photoUrl && !t.querySelector("img")) t.innerHTML = `<img src="${current.photoUrl}" alt="프로필 사진">`;
   }
 
   // 프로필 사진 삭제 (이 고객 폴더의 '프로필사진' 이미지 모두 → OneDrive 휴지통)
@@ -1425,7 +1487,8 @@
     current.files = current.files.filter((f) => !list.includes(f));
     current.profilePhoto = null;
     if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
-    current.photoUrl = null;
+    current.photoUrl = null; current.photoFullUrl = null; current.cachedPhoto = null;
+    photoCacheDel(photoKey(current.cust));
     const a = $("avatar");
     a.style.backgroundImage = ""; a.classList.remove("has-photo"); a.textContent = current.cust.name[0];
   }
@@ -1435,16 +1498,27 @@
       .sort((a, b) => (b.name > a.name ? 1 : -1) || (new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime)))[0] || null;
   }
 
+  // 폴더 목록을 읽은 뒤: 기기 저장 사진이 최신이면 그대로, 아니면 Drive에서 받아 작게 줄여 기기에 저장
   async function loadProfilePhoto() {
-    const c = current;
-    if (!c.profilePhoto) return;
+    const c = current, p = c.profilePhoto;
+    if (!p) return;
+    const mod = p.lastModifiedDateTime || "";
+    if (c.cachedPhoto && c.cachedPhoto.id === p.id && c.cachedPhoto.mod === mod) { showPhotoThumb(); return; }
+    if (appSettings.dataSaver) return; // 데이터 절약 모드: 기기에 없는 사진은 받지 않음
     try {
-      const buf = await stGet(c.profilePhoto.id);
+      const full = new Blob([await stGet(p.id)], { type: "image/jpeg" });
       if (c !== current) return; // 다른 고객으로 넘어감
-      c.photoUrl = URL.createObjectURL(new Blob([buf], { type: "image/jpeg" }));
-      setAvatarPhoto();
+      c.photoFullUrl = URL.createObjectURL(full);
+      const small = await shrinkImage(full, PHOTO_SIZE, 0.85).catch(() => full);
+      c.cachedPhoto = { id: p.id, mod, blob: small };
+      photoCachePut(photoKey(c.cust), c.cachedPhoto);
+      if (c !== current) return;
+      if (c.photoUrl) URL.revokeObjectURL(c.photoUrl);
+      c.photoUrl = URL.createObjectURL(small);
       const t = $("photoThumb");
-      if (t && !t.querySelector("img")) t.innerHTML = `<img src="${c.photoUrl}" alt="프로필 사진">`;
+      if (t) t.innerHTML = "";
+      setAvatarPhoto();
+      showPhotoThumb();
     } catch (e) { console.error(e); }
   }
 
@@ -2040,7 +2114,8 @@
     }
   }
   $("loginBtn").addEventListener("click", () => (GD ? googleLogin() : msal.loginRedirect({ scopes: SCOPES })));
-  $("logoutBtn").addEventListener("click", () => {
+  $("logoutBtn").addEventListener("click", async () => {
+    await photoCacheClear(); // 기기에 저장한 고객 사진 지우기
     if (!GD) return msal.logoutRedirect();
     const t = storedGToken() || gTokenMem;
     clearGToken();
@@ -2098,8 +2173,16 @@
       return $("photoInput").click();
     }
     if (!current.photoUrl) return;
-    $("photoViewerImg").src = current.photoUrl;
+    // 크게 보기: 원본이 있으면 원본, 없으면 작은 사진을 먼저 보여 주고 원본을 받아 바꿈
+    $("photoViewerImg").src = current.photoFullUrl || current.photoUrl;
     $("photoViewer").hidden = false;
+    const c = current;
+    if (!c.photoFullUrl && c.profilePhoto && !appSettings.dataSaver) {
+      stGet(c.profilePhoto.id).then((buf) => {
+        c.photoFullUrl = URL.createObjectURL(new Blob([buf], { type: "image/jpeg" }));
+        if (c === current && !$("photoViewer").hidden) $("photoViewerImg").src = c.photoFullUrl;
+      }).catch((e) => console.error(e));
+    }
   });
   $("editBtn").addEventListener("click", () => { if (current) setEditMode(!editMode); });
   $("photoPick").addEventListener("click", () => { $("photoMenu").hidden = true; $("photoInput").click(); });
