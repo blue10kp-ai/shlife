@@ -369,3 +369,6 @@ details.fold[open] summary { margin-bottom: 8px; }
 .ev-edit-acts .ev-edit { margin-left: 0; padding: 4px 10px; font-size: 13px; }
 .ev-edit.ev-done { background: var(--brand); border-color: var(--brand); color: #fff; }
 .ev-card.editing { outline: 2px solid var(--brand); }
+/* 수정 중인 일정: 제목 줄(취소 · 완료)이 화면 위에 붙어 있게 */
+.ev-card.editing .ev-top { position: sticky; top: calc(56px + env(safe-area-inset-top)); z-index: 3; background: var(--card); margin: -16px -16px 0; padding: 12px 16px 10px; border-radius: 14px 14px 0 0; border-bottom: 1px solid var(--line); }
+.fld select { width: 100%; padding: 10px 12px; font: inherit; font-size: 16px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
