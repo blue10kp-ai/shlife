@@ -2003,16 +2003,21 @@
       await apply(base.id, c, "writer");
     } else {
       const ids = adminState.fcIds || {};
-      for (const g of list) { // 먼저 FC 폴더를 공유하고 (실패하면 여기서 멈춰 예전 권한을 지우지 않음)
-        const fc = grantFc(g);
-        if (!ids[fc]) throw new Error("FC 폴더를 찾을 수 없습니다: " + fc);
-        await apply(ids[fc], ((st.fc || {})[fc] || []).find((p) => p.email === em), grantRo(g) ? "reader" : "writer");
+      for (const g of list) if (!ids[grantFc(g)]) throw new Error("FC 폴더를 찾을 수 없습니다: " + grantFc(g));
+      // 예전 방식(고객 폴더 전체 공유)이 있으면 먼저 해제: 물려받은 편집 권한이 남아 있으면 FC 폴더에 '보기만'을 줘도 소용없고 직접 권한도 만들어지지 않음.
+      // FC 폴더 공유가 실패하면 예전 공유를 다시 복구한다.
+      const hadBase = c && c.role !== "owner";
+      if (hadBase) await del(base.id, c.id);
+      try {
+        for (const g of list) await apply(ids[grantFc(g)], ((st.fc || {})[grantFc(g)] || []).find((p) => p.email === em), grantRo(g) ? "reader" : "writer");
+      } catch (e) {
+        if (hadBase) { try { await add(base.id, c.role === "owner" ? "writer" : c.role); } catch (e2) { console.error(e2); } }
+        throw e;
       }
       for (const [fc, ps] of Object.entries(st.fc || {})) { // 목록에서 빠진 FC 폴더 공유 해제
         const mine = ps.find((p) => p.email === em);
         if (mine && mine.role !== "owner" && !list.some((g) => grantFc(g) === fc)) await del(ids[fc], mine.id);
       }
-      if (c && c.role !== "owner") await del(base.id, c.id); // 예전 방식(고객 폴더 전체 공유) 정리
     }
     if (appDir.id && !st.app.find((p) => p.email === em)) await add(appDir.id, "reader");
   }
