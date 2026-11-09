@@ -1786,7 +1786,7 @@
         kakaoRestKey: $("setKakao").value.trim(),
         google: g ? { ...(appSettings.google || {}), ...g } : appSettings.google };
     };
-    const calKey = (g) => JSON.stringify([((g || {}).calendars || []).map((c) => c.id).sort(), (((g || {}).sales) || {}).id || ""]);
+    const calKey = (g) => JSON.stringify([((g || {}).calendars || []).map((c) => c.id).sort(), salesArr((g || {}).sales).map((c) => c.id).sort()]);
     const dirty = () => { const v = read(); return v.companyAddress !== (appSettings.companyAddress || "") || v.kakaoRestKey !== (appSettings.kakaoRestKey || "") || v.dataSaver !== !!appSettings.dataSaver || calKey(v.google) !== calKey(appSettings.google); };
     ["input", "change"].forEach((ev) => $("settingsCard").addEventListener(ev, () => { btn.disabled = !dirty(); }));
     btn.addEventListener("click", async () => {
@@ -1907,10 +1907,10 @@
     const isOn = (c) => (saved.length ? saved.includes(c.id) : want.includes(c.name));
     const box = $("myCalBox");
     box.innerHTML = cals.length ? calPickerHtml(cals, isOn) : '<p class="hint">볼 수 있는 캘린더가 없습니다.</p>';
-    if (cals.length) bindCalPicker(box, cals, (prefs.sales && prefs.sales.id) || defaultSalesId(cals));
+    if (cals.length) bindCalPicker(box, cals, salesArr(prefs.sales).length ? salesArr(prefs.sales).map((c) => c.id) : defaultSalesIds(cals));
     $("mySaver").checked = saverOn();
-    const read = () => ({ ...(cals.length ? readCalPicker(box, cals) : { calendars: [], sales: null }), dataSaver: $("mySaver").checked });
-    const key = (v) => JSON.stringify([v.calendars.map((c) => c.id).sort(), (v.sales || {}).id || "", !!v.dataSaver]);
+    const read = () => ({ ...(cals.length ? readCalPicker(box, cals) : { calendars: [], sales: [] }), dataSaver: $("mySaver").checked });
+    const key = (v) => JSON.stringify([(v.calendars || []).map((c) => c.id).sort(), salesArr(v.sales).map((c) => c.id).sort(), !!v.dataSaver]);
     let base0 = saved.length ? key({ calendars: prefs.calendars, sales: prefs.sales, dataSaver: saverOn() }) : "";
     const btn = $("myCalSave");
     const dirty = () => key(read()) !== base0;
@@ -2384,8 +2384,8 @@
     if (!cals.length) throw new Error("NO_CALENDAR");
     const q = `?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(from.toISOString())}&timeMax=${encodeURIComponent(to.toISOString())}`;
     schedCals = cals.map(withAlias);
-    const sp = isAdmin() ? (appSettings.google || {}).sales : (myPrefs || {}).sales;
-    schedSalesId = sp && schedCals.some((c) => c.id === sp.id) ? sp.id : defaultSalesId(schedCals);
+    const sp = salesArr(isAdmin() ? (appSettings.google || {}).sales : (myPrefs || {}).sales).map((c) => c.id).filter((id) => schedCals.some((c) => c.id === id));
+    schedSalesIds = new Set(sp.length ? sp : defaultSalesIds(schedCals));
     const lists = await Promise.all(schedCals.map(async (c) => {
       // 볼 권한이 없는 캘린더(다른 사람 캘린더 등)는 건너뜀
       let d;
@@ -2650,8 +2650,8 @@
 
   // 고객 정보·이동 시간은 팀 캘린더(1팀) 일정만. 개인 일정(김현성·최수진)은 일정 내용만
   // 영업일정 캘린더 일정만 고객 매칭·거리·시간 (설정에서 지정, 없으면 1팀과 같은 이름)
-  let schedSalesId = "";
-  const isTeamEvent = (e) => !e.allDay && !!schedSalesId && e.cal.id === schedSalesId;
+  let schedSalesIds = new Set();
+  const isTeamEvent = (e) => !e.allDay && schedSalesIds.has(e.cal.id);
 
   // 동명이인 확인: 일정에 주소를 입력한 고객으로 지정 (이 기기에 저장, '초기화'로 지움)
   const PICK_KEY = "shlife.eventPick";
@@ -2947,7 +2947,7 @@
       <p class="hint">관리자 일정 화면의 캘린더입니다. 다른 사용자는 '설정'에서 각자 고르며, 고르기 전에는 같은 이름의 캘린더가 기본으로 보입니다.</p>
       ${calPickerHtml(cals, isOn)}`;
     box._cals = cals;
-    bindCalPicker(box, cals, (g.sales && g.sales.id) || defaultSalesId(cals));
+    bindCalPicker(box, cals, salesArr(g.sales).length ? salesArr(g.sales).map((c) => c.id) : defaultSalesIds(cals));
     if ($("gSwitch")) $("gSwitch").addEventListener("click", async () => {
       try { await requestGToken("select_account"); loadCalendarChoices(); } catch (e) { toast(e.message); }
     });
@@ -2960,42 +2960,44 @@
   }
 
   // ---------- 캘린더 고르기 (관리자 설정·사용자 설정 공통) ----------
-  //   보여질 캘린더(여러 개) + 영업일정 캘린더(보여질 캘린더 중 하나: 약속 장소 사이 거리·예상 시간, 고객 정보)
+  //   보여질 캘린더(여러 개) + 영업일정 캘린더(보여질 캘린더 중 여러 개: 약속 장소 사이 거리·예상 시간, 고객 정보)
   //   보여질 캘린더를 하나도 고르지 않으면 영업일정 캘린더도 고를 수 없음
+  //   저장 모양: sales = [{ id, name }]  (예전 { id, name } 하나도 읽음)
+  const salesArr = (s) => (Array.isArray(s) ? s : s && s.id ? [s] : []);
   function calPickerHtml(cals, isOn) {
     return `<p class="sub-label">보여질 캘린더</p>
       ${cals.map((c, i) => `<label class="chk-line"><input type="checkbox" data-pcal="${i}" ${isOn(c) ? "checked" : ""}>
         <span>${calDot({ cal: c })}${esc(c.name)}</span></label>`).join("")}
-      <label class="fld"><span>영업일정 캘린더 <span class="hint">(약속 장소 사이 거리·예상 시간과 고객 정보를 보여 줄 캘린더)</span></span>
-        <select data-psales></select></label>`;
+      <p class="sub-label">영업일정 캘린더 <span class="hint">(약속 장소 사이 거리·예상 시간과 고객 정보를 보여 줄 캘린더, 여러 개 가능)</span></p>
+      <div data-psales></div>`;
   }
-  function bindCalPicker(root, cals, salesId) {
-    const sel = root.querySelector("[data-psales]");
-    let want = salesId || "";
+  function bindCalPicker(root, cals, salesIds) {
+    const box = root.querySelector("[data-psales]");
+    let want = new Set(salesIds || []);
     const fill = () => {
       const on = [...root.querySelectorAll("[data-pcal]")].filter((x) => x.checked).map((x) => cals[+x.dataset.pcal]);
-      if (sel.value) want = sel.value;
-      sel.innerHTML = on.length
-        ? '<option value="">(없음)</option>' + on.map((c) => `<option value="${esc(c.id)}" ${c.id === want ? "selected" : ""}>${esc(c.name)}</option>`).join("")
-        : '<option value="">먼저 보여질 캘린더를 고르세요</option>';
-      sel.disabled = !on.length;
+      box.innerHTML = on.length
+        ? on.map((c) => `<label class="chk-line"><input type="checkbox" data-scal="${esc(c.id)}" ${want.has(c.id) ? "checked" : ""}>
+            <span>${calDot({ cal: c })}${esc(c.name)}</span></label>`).join("")
+        : '<p class="hint">먼저 보여질 캘린더를 고르세요.</p>';
+      box.querySelectorAll("[data-scal]").forEach((x) => x.addEventListener("change", () => {
+        if (x.checked) want.add(x.dataset.scal); else want.delete(x.dataset.scal);
+      }));
     };
     root.querySelectorAll("[data-pcal]").forEach((x) => x.addEventListener("change", fill));
-    sel.addEventListener("change", () => { want = sel.value; });
     fill();
   }
   function readCalPicker(root, cals) {
     const list = [...root.querySelectorAll("[data-pcal]")].filter((x) => x.checked).map((x) => cals[+x.dataset.pcal])
       .map((c) => ({ id: c.id, name: c.name, color: c.color }));
-    const sel = root.querySelector("[data-psales]");
-    const s = list.find((c) => c.id === (sel && sel.value));
-    return { calendars: list, sales: s ? { id: s.id, name: s.name } : null };
+    const ids = [...root.querySelectorAll("[data-scal]")].filter((x) => x.checked).map((x) => x.dataset.scal);
+    return { calendars: list, sales: list.filter((c) => ids.includes(c.id)).map((c) => ({ id: c.id, name: c.name })) };
   }
-  // 고른 적 없을 때 영업일정 캘린더: 관리자가 정한 영업일정 캘린더 이름 → config 기본(1팀)과 같은 이름
-  function defaultSalesId(cals) {
-    const nm = (((appSettings.google || {}).sales) || {}).name || GCFG.teamCalendar || "1팀";
-    const c = cals.find((x) => x.name === nm);
-    return c ? c.id : "";
+  // 고른 적 없을 때 영업일정 캘린더: 관리자가 정한 영업일정 캘린더 이름들 → config 기본(1팀)과 같은 이름
+  function defaultSalesIds(cals) {
+    const names = salesArr((appSettings.google || {}).sales).map((s) => s.name);
+    const want = names.length ? names : [GCFG.teamCalendar || "1팀"];
+    return cals.filter((x) => want.includes(x.name)).map((x) => x.id);
   }
   // 데이터 절약 모드: 일반 사용자는 자기 설정, 없으면 관리자 설정
   const saverOn = () => (!isAdmin() && myPrefs && typeof myPrefs.dataSaver === "boolean" ? myPrefs.dataSaver : !!appSettings.dataSaver);
