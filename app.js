@@ -2741,7 +2741,8 @@
   }
 
   const putBtn = (i, j, kind) => `<button type="button" class="put-btn" data-put="${i}-${j}-${kind}" aria-label="일정 장소에 입력">입력</button>`;
-  function custBlockHtml(c, i, j, multi) {
+  // multi: 동명이인 여러 명 → '선택' / pinned: 동명이인 중 한 명으로 묶인 상태 → '다시 선택'(되돌리기)
+  function custBlockHtml(c, i, j, multi, pinned) {
     const phone = (c.entries.find((x) => x.phone) || {}).phone || "";
     const addr = currentValue(c, ["주소"]);
     const types = [...new Set(c.entries.map((x) => x.type))];
@@ -2750,6 +2751,7 @@
         <button type="button" class="ev-name" data-open="${i}-${j}"><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>
           ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button>
         ${multi ? `<button type="button" class="pick-btn" data-pick="${i}-${j}">선택</button>` : ""}
+        ${pinned ? `<button type="button" class="pick-btn" data-unpick="${i}">다시 선택</button>` : ""}
         <dl class="ev-info">
           ${c.birth ? `<dt>생년월일</dt><dd>${esc(c.birth)}${g ? ` (${esc(g)})` : ""}</dd>` : ""}
           ${phone ? `<dt>연락처</dt><dd><a class="nowrap" href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${esc(phone)}</a></dd>` : ""}
@@ -2765,7 +2767,7 @@
         <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
       <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}>📍 ${esc(e.location)}</p>
       <div id="evForm${i}"></div>
-      ${it.custs.map((c, j) => custBlockHtml(c, i, j, it.custs.length > 1)).join("")}</div>`;
+      ${it.custs.map((c, j) => custBlockHtml(c, i, j, it.custs.length > 1, it.custs.length === 1 && it.all.length > 1)).join("")}</div>`;
   }
   function bindDayCard(it, i, req) {
     it.custs.forEach((c, j) => {
@@ -2778,6 +2780,8 @@
       if (put) { const [, j, kind] = put.dataset.put.split("-"); putLocation(it, i, +j, kind, put); }
       const pk = ev.target.closest("[data-pick]");
       if (pk) pickCustomer(it, it.custs[+pk.dataset.pick.split("-")[1]], pk);
+      const up = ev.target.closest("[data-unpick]");
+      if (up) unpickCustomer(it, up);
     });
     card.querySelector("[data-evedit]").addEventListener("click", () => toggleEventForm(it, i));
   }
@@ -2809,6 +2813,20 @@
       it.e.pick = key;
     } catch (e) {
       console.warn("pick saved on this device only", e.message); // 수정 권한이 없는 캘린더 등: 이 기기에만
+    }
+    renderSchedule();
+  }
+
+  // '다시 선택': 이 일정의 고객 지정을 풀고 동명이인을 모두 다시 보여 줌 (일정 장소는 그대로)
+  async function unpickCustomer(it, btn) {
+    btn.disabled = true; btn.textContent = "푸는 중";
+    savePick(it.e.id, "");
+    if (it.e.pick) {
+      try {
+        await ensureGWrite();
+        await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: "" } } });
+      } catch (e) { console.warn("unpick on this device only", e.message); }
+      it.e.pick = "";
     }
     renderSchedule();
   }
