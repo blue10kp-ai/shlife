@@ -428,5 +428,22 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 .app-ver { position: fixed; left: 8px; bottom: 2px; font-size: 10px; color: var(--muted, #9aa0a6); opacity: .6; pointer-events: none; z-index: 1; }
 .tag.t-피보험자, .cust-card .tag.t-피보험자 { background: #eceff3; color: #5d6875; }
 
-.ro-lbl { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; }
-.ro-lbl input { margin-right: 2px; transform: scale(.85); }
+
+/* 관리자: 사용 FC 현황 (계정별 카드) */
+.perm-list { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 12px; }
+.perm-admin { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border: 1px dashed var(--line, #d5dbe3); border-radius: 12px; font-size: 13px; }
+.perm-row { border: 1px solid var(--line, #d5dbe3); border-radius: 12px; padding: 10px 12px; background: var(--card); }
+.perm-row.changed { background: #fff7e0; border-color: #e6c35a; }
+@media (prefers-color-scheme: dark) { .perm-row.changed { background: #3a3220; border-color: #8a6d1d; } }
+.perm-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.perm-em { font-size: 14px; font-weight: 600; word-break: break-all; min-width: 0; }
+.perm-btns { display: flex; gap: 6px; flex: none; }
+.perm-btns .row-save { padding: 4px 14px; font-size: 13px; font-weight: 700; border-radius: 8px; }
+.perm-btns [hidden] { display: none; }
+.perm-fcs { display: flex; flex-wrap: wrap; gap: 8px; }
+.perm-fcs .chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line, #d5dbe3); border-radius: 999px; padding: 5px 12px; font-size: 14px; }
+.perm-fcs .chip label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.perm-fcs .chip-all { background: var(--bg); font-weight: 600; }
+.perm-fcs .ro-lbl { display: inline-flex; font-size: 12px; color: var(--muted); padding-left: 8px; border-left: 1px solid var(--line, #d5dbe3); white-space: nowrap; }
+.perm-fcs .cb { width: 18px; height: 18px; accent-color: var(--brand); }
+.perm-fcs .ro-lbl .cb { width: 15px; height: 15px; }

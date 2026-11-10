@@ -2105,18 +2105,19 @@
       <div class="card">
         <h3 class="sec-title">사용 FC 현황</h3>
         <p class="hint">체크박스로 바로 바꾸고 '변경 저장'을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
-        <div class="table-wrap"><table class="matrix">
-          <tr><th>${ACC}</th><th>전체</th>${fcs.map((fc) => `<th>${esc(fc)}</th>`).join("")}<th></th></tr>
-          ${(CFG.admins || []).map((a) => `<tr class="admin-row"><td>${esc(a)} <span class="tag">관리자</span></td>
-            <td class="ok">●</td>${fcs.map(() => `<td class="ok">●</td>`).join("")}<td></td></tr>`).join("")}
-          ${users.map((em) => `<tr class="perm-row" data-em="${esc(em)}">
-            <td>${esc(em)}</td>
-            <td><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"></td>
-            ${fcs.map((fc) => `<td><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}">
-              <label class="ro-lbl" title="보기만 (수정 불가)"><input type="checkbox" class="cb ro" data-ro="${esc(fc)}" ${isRo(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 보기만">보기만</label></td>`).join("")}
-            <td><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>이 줄만 저장</button> <button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></td>
-          </tr>`).join("")}
-        </table></div>
+        <div class="perm-list">
+          ${(CFG.admins || []).map((a) => `<div class="perm-admin"><span class="perm-em">${esc(a)}</span> <span class="tag">관리자</span> <span class="hint">전체 FC</span></div>`).join("")}
+          ${users.map((em) => `<div class="perm-row" data-em="${esc(em)}">
+            <div class="perm-head">
+              <span class="perm-em">${esc(em)}</span>
+              <span class="perm-btns"><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>저장</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></span>
+            </div>
+            <div class="perm-fcs">
+              <label class="chip chip-all"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체</label>
+              ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC는 보기만 가능"><input type="checkbox" class="cb ro" data-ro="${esc(fc)}" ${isRo(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 보기만"> 보기만</label></span>`).join("")}
+            </div>
+          </div>`).join("")}
+        </div>
         ${users.length ? "" : '<p class="hint">아직 권한을 준 사용자가 없습니다. 아래에서 이메일을 추가하세요.</p>'}
         <div class="file-actions">
           <button class="secondary" id="resetPerms" disabled>되돌리기</button>
