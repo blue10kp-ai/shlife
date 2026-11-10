@@ -617,3 +617,6 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .fld-sec { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
 .fld select { width: 100%; padding: 10px 12px; font: inherit; font-size: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); }
 .ddaonly { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin: 0 2px 6px; }
+
+/* v96: 관리자 표의 '전체(폐지 예정)' 칸 — hidden 속성이 .chip의 display에 덮여 모든 줄에 보이던 것을 숨김. 예전 '*' 권한이 남아 있는 줄에서만(hidden 속성이 없을 때) 보여 해제할 수 있음 */
+.chip-all[hidden] { display: none; }

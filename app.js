@@ -2139,8 +2139,8 @@
   async function shareFolders(em) {
     if (!confirm(`${em} 계정에 Google Drive 폴더를 공유할까요?\n· 고객 폴더: 편집 (메모·미팅장소·사진 저장)\n· 설정 폴더: 보기\n공유 알림 메일이 그 계정으로 갑니다.`)) return;
     try {
-      await grantFolders(em, adminState.perms.users[em]);
-      adminState.shares = await loadShares();
+      const tt = await grantFolders(em, adminState.perms.users[em]);
+      await refreshSharesFor(tt);
       toast(`${em} 계정에 폴더를 공유했습니다.`);
       const pending = collectPending();
       renderAdmin();
@@ -2171,42 +2171,82 @@
     const del = (id, pid) => gdFetch(permUrl(id, pid), { method: "DELETE" });
     const ids = adminState.fcIds || {};
     for (const g of list) if (!ids[grantFc(g)]) throw new Error("FC 폴더를 찾을 수 없습니다: " + grantFc(g));
-    const undo = [];
-    const remove = async (id, perm) => { await retry(() => del(id, perm.id)); undo.push(() => add(id, perm.role === "owner" ? "writer" : perm.role)); };
-    // 이 폴더에 이 계정의 '직접' 권한이 role대로 생길 때까지 (반영 지연이면 몇 번 다시 시도)
+    // v96: 단계 순서(상위 해제 → 고객 루트 해제 → FC 공유 → 빠진 FC 해제 → 설정 폴더 보기)는 그대로, 같은 단계 안에서만 병렬(동시 3개).
+    //       고정 2.5초 대기 대신 0.8초 간격 확인. 해제한 공유는 실제로 사라진 것을 확인한 뒤에만 FC 공유 진행. 실패하면 지운 공유를 모두 되돌림
+    const undo = []; // { label, fn } — 지운 공유를 다시 주는 함수
+    const remove = async (id, perm, label) => { await retry(() => del(id, perm.id)); undo.push({ label, fn: () => add(id, perm.role === "owner" ? "writer" : perm.role) }); };
+    const mineIn = async (id) => (await gdPermList(id, true)).find((p) => p.email === em);
+    const roleOk = (m, role) => !!m && (m.role === role || (role === "writer" && m.role === "owner"));
+    const waitGone = async (id) => { // 이 폴더의 '직접' 공유가 실제로 사라질 때까지 (0.8초 간격, 최대 약 6.4초)
+      for (let k = 0; k < 8; k++) { if (!(await mineIn(id))) return; await sleep(800); }
+      throw new Error("공유 해제가 반영되지 않았습니다: " + id);
+    };
+    // 이 폴더에 이 계정의 '직접' 권한이 role대로 생길 때까지 (요청 후 0.8초 간격 확인, 최대 약 6.4초, 안 되면 처음부터 다시 최대 3번)
     const ensureDirect = async (id, role) => {
-      for (let k = 0; k < 5; k++) {
-        const mine = (await gdPermList(id, true)).find((p) => p.email === em);
-        if (mine && (mine.role === role || (role === "writer" && mine.role === "owner"))) return;
+      for (let a = 0; a < 3; a++) {
+        const mine = await mineIn(id);
+        if (roleOk(mine, role)) return;
         if (mine && mine.role !== "owner") await retry(() => patch(id, mine.id, role)); else await retry(() => add(id, role));
-        await sleep(2500);
+        for (let k = 0; k < 8; k++) { await sleep(800); if (roleOk(await mineIn(id), role)) return; }
       }
       throw new Error("공유가 반영되지 않았습니다: " + id);
     };
+    const failIfAny = (rs) => { const bad = rs.find((r) => r && !r.ok); if (bad) throw bad.e; };
+    const touched = { cust: false, app: false, fc: [], anc: [] }; // 바뀐(바뀌었을 수 있는) 폴더 — 저장 후 이 폴더의 공유 목록만 다시 읽음
     try {
-      for (const a of ancShares(em)) await remove(a.folderId, a.perm);          // 1 상위 폴더 공유 해제 (예: Claude)
+      const ancs = ancShares(em);
+      for (const a of ancs) { await remove(a.folderId, a.perm, "상위 폴더 " + a.folder); touched.anc.push(a.folderId); }      // 1 상위 폴더 공유 해제 (예: Claude)
       const c = st.cust.find((p) => p.email === em);
-      if (c && c.role !== "owner") await remove(base.id, c);                   // 2 고객 루트 직접 공유 해제
-      for (const g of list) await ensureDirect(ids[grantFc(g)], grantRo(g) ? "reader" : "writer"); // 3 FC 폴더 공유
-      for (const [fc, ps] of Object.entries(st.fc || {})) {                    // 4 목록에서 빠진 FC 폴더 해제
-        const mine = ps.find((p) => p.email === em);
-        if (mine && mine.role !== "owner" && !list.some((g) => grantFc(g) === fc)) await remove(ids[fc], mine);
-      }
-      if (appDir.id) await ensureDirect(appDir.id, "reader");                  // 5 설정 폴더 보기 (상위 공유가 사라져도 직접 권한 유지)
+      if (c && c.role !== "owner") { await remove(base.id, c, "고객 루트"); touched.cust = true; }                         // 2 고객 루트 직접 공유 해제
+      for (const a of ancs) await waitGone(a.folderId);                                                                    //   해제가 실제로 반영된 뒤에만 다음 단계
+      if (touched.cust) await waitGone(base.id);
+      const want = list.map((g) => [grantFc(g), grantRo(g) ? "reader" : "writer"]);                                        // 3 FC 폴더 공유 (동시 3개)
+      want.forEach(([n]) => touched.fc.push(n));
+      failIfAny(await runLimited(want.map(([n, role]) => () => ensureDirect(ids[n], role)), 3));
+      const extra = Object.entries(st.fc || {}).filter(([fc, ps]) => ps.some((p) => p.email === em && p.role !== "owner") && !list.some((g) => grantFc(g) === fc));
+      extra.forEach(([fc]) => touched.fc.push(fc));                                                                         // 4 목록에서 빠진 FC 폴더 해제 (동시 3개)
+      failIfAny(await runLimited(extra.map(([fc, ps]) => () => remove(ids[fc], ps.find((p) => p.email === em), "FC " + fc)), 3));
+      if (appDir.id) { await ensureDirect(appDir.id, "reader"); touched.app = true; }                                       // 5 설정 폴더 보기 (상위 공유가 사라져도 직접 권한 유지)
     } catch (e) {
-      for (const u of undo.reverse()) { try { await u(); } catch (e2) { console.error("복구 실패", e2); } }
+      const failed = [];
+      for (const u of undo.reverse()) { try { await u.fn(); } catch (e2) { console.error("복구 실패", e2); failed.push(u.label); } }
+      if (failed.length) e.message += " (되돌리지 못한 공유: " + failed.join(", ") + ")";
       throw e;
     }
+    return touched;
+  }
+  // 동시에 최대 limit개씩 실행하고, 진행 중인 것이 모두 끝난 뒤(실패 포함) 결과 배열 [{ok, v|e}] 반환 (실패 뒤에는 새로 시작하지 않아 시작 안 한 칸은 undefined)
+  async function runLimited(tasks, limit) {
+    const res = new Array(tasks.length);
+    let i = 0;
+    await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, async () => {
+      while (i < tasks.length && !res.some((r) => r && !r.ok)) { const k = i++; try { res[k] = { ok: true, v: await tasks[k]() }; } catch (e) { res[k] = { ok: false, e }; } } // 하나라도 실패하면 새 작업은 시작하지 않고 진행 중인 것만 끝까지 기다림
+    }));
+    return res;
+  }
+  // 저장 후: 바뀐 폴더의 공유 목록만 다시 읽어 adminState.shares 갱신 (전체 재조회 대신)
+  async function refreshSharesFor(tl) {
+    const s = adminState && adminState.shares;
+    if (!s) return;
+    const ids = adminState.fcIds || {};
+    const jobs = [];
+    if (tl.cust) jobs.push(gdPermList(base.id, true).then((p) => { s.cust = p; }));
+    if (tl.app && appDir.id) jobs.push(gdPermList(appDir.id, true).then((p) => { s.app = p; }));
+    new Set(tl.fc).forEach((n) => { if (ids[n]) jobs.push(gdPermList(ids[n], true).then((p) => { s.fc[n] = p; })); });
+    new Set(tl.anc).forEach((id) => { const a = (s.anc || []).find((x) => x.id === id); if (a) jobs.push(gdPermList(id, true).then((p) => { a.perms = p; })); });
+    await Promise.all(jobs);
   }
   async function unshareFolders(em) {
     const st = adminState && adminState.shares;
     if (!st) return;
     const del = (fileId, p) => gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions/" + encodeURIComponent(p.id) + "?supportsAllDrives=true", { method: "DELETE" });
-    for (const a of ancShares(em)) await del(a.folderId, a.perm);
-    for (const p of st.cust.filter((x) => x.email === em && x.role !== "owner")) await del(base.id, p);
-    for (const p of st.app.filter((x) => x.email === em && x.role !== "owner")) await del(appDir.id, p);
-    for (const [fc, ps] of Object.entries(st.fc || {})) for (const p of ps.filter((x) => x.email === em && x.role !== "owner")) await del((adminState.fcIds || {})[fc], p);
-    adminState.shares = await loadShares();
+    const touched = { cust: false, app: false, fc: [], anc: [] };
+    for (const a of ancShares(em)) { await del(a.folderId, a.perm); touched.anc.push(a.folderId); }
+    for (const p of st.cust.filter((x) => x.email === em && x.role !== "owner")) { await del(base.id, p); touched.cust = true; }
+    for (const p of st.app.filter((x) => x.email === em && x.role !== "owner")) { await del(appDir.id, p); touched.app = true; }
+    for (const [fc, ps] of Object.entries(st.fc || {})) for (const p of ps.filter((x) => x.email === em && x.role !== "owner")) { await del((adminState.fcIds || {})[fc], p); touched.fc.push(fc); }
+    await refreshSharesFor(touched); // v96: 전체 재조회 대신 바뀐 폴더만
+    return touched;
   }
   // 표에서 아직 저장 안 한 체크 상태 (다시 그릴 때 유지)
   let collectPending = () => [];
@@ -2411,8 +2451,9 @@
         all.checked = list.includes("*");
         row.querySelectorAll("input[data-fc]").forEach((b) => (b.checked = all.checked || list.some((g) => grantFc(g) === b.dataset.fc)));
         row.querySelector("[data-name]").value = nm || "";
-        all.dispatchEvent(new Event("change"));
-        if (!all.checked) row.querySelectorAll("input[data-fc]").forEach((b) => b.dispatchEvent(new Event("change")));
+        // v96: '전체'가 꺼진 줄에서 all의 change를 보내면 방금 복원한 FC 체크를 모두 지워 버렸음(사용자 추가 시 다른 줄 체크가 풀리던 문제) → '전체'가 켜진 줄만 보냄
+        if (all.checked) all.dispatchEvent(new Event("change"));
+        else row.querySelectorAll("input[data-fc]").forEach((b) => b.dispatchEvent(new Event("change")));
         row.querySelectorAll("input[data-edit]").forEach((e) => { if (!all.checked) e.checked = list.includes(e.dataset.edit); e.dispatchEvent(new Event("change")); });
       });
     }
@@ -2468,10 +2509,12 @@
       perms.fcFolders = adminState.fcIds || perms.fcFolders || {}; // 사용자 앱이 FC 폴더를 ID로 바로 열 수 있게
       await writePerms(perms);
       adminState.perms = perms;
-      const failed = [];
-      for (const em of toShare) { try { await grantFolders(em, listOfChange(em)); } catch (e) { console.error(e); failed.push(em); } }
+      const failed = [], tAll = { cust: false, app: false, fc: [], anc: [] };
+      for (const em of toShare) { try { const tt = await grantFolders(em, listOfChange(em)); tAll.cust = tAll.cust || tt.cust; tAll.app = tAll.app || tt.app; tAll.fc.push(...tt.fc); tAll.anc.push(...tt.anc); } catch (e) { console.error(e); failed.push(em); } }
       for (const em of toUnshare) { try { await unshareFolders(em); } catch (e) { console.error(e); failed.push(em); } }
-      if (toShare.length || toUnshare.length) adminState.shares = await loadShares();
+      if (toShare.length || toUnshare.length) { // 실패가 있으면 상태를 확실히 알 수 없으니 전체를 다시 읽고, 모두 성공이면 바뀐 폴더만 갱신
+        if (failed.length) adminState.shares = await loadShares(); else await refreshSharesFor(tAll);
+      }
       toast(failed.length ? `저장했습니다. 공유하지 못한 계정: ${failed.join(", ")} (구글 계정 이메일인지 확인)` : `저장했습니다 (${changes.length}개 계정${toShare.length ? ", 폴더 공유 " + toShare.length : ""}${toUnshare.length ? ", 공유 해제 " + toUnshare.length : ""}).`);
       renderAdmin();
     } catch (e) {
