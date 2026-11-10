@@ -3691,14 +3691,15 @@
       if (fieldOf(e, "따행대상") !== "예") return; // 배정월·방문 완료 여부와 상관없이 따행대상=예 전체
       seen.add(id);
       const cts = data.contracts.filter((c) => String(c.row["계약자ID"] || "").trim() === id && !DEAD_STATUS.includes(c.row["계약상태"] || c.row["상태"] || ""));
-      const names = [...new Set(cts.map((c) => productName(c.row["상품명"])).filter(Boolean))];
-      const fee = cts.reduce((s, c) => s + (parseInt(String(c.row["합계보험료"] || "0").replace(/\D/g, ""), 10) || 0), 0);
+      const prods = cts.map((c) => ({ name: productName(c.row["상품명"]), fee: c.row["합계보험료"] || c.row["보험료"] || "" })).filter((p) => p.name);
+      const recFcs = [...new Set(cts.map((c) => String(c.row["모집FC"] || "").trim()).filter(Boolean))];
+      const fee = prods.length === 1 ? prods[0].fee : "";
       const cd = cts.map((c) => c.row["최초계약일"] || c.row["계약일"] || "").sort((a, b) => dateKey(b).localeCompare(dateKey(a)))[0] || "";
       out.push({
         key: "u:" + id, cid: "", custId: id, fc: e.fc, srcFc: e.fc, ref: false, fileId: e.src && e.src.fileId, holder: e.name, ins: "",
-        product: names.length ? names.slice(0, 2).join(", ") + (names.length > 2 ? ` 외 ${names.length - 2}건` : "") : "가망(계약 없음)",
-        fee: fee || "", cdate: cd, bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
-        job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC"), status: "",
+        prods, product: prods.length === 1 ? prods[0].name : prods.length ? "" : "가망(계약 없음)", // 계약 2건 이상이면 이름 아래 줄마다 상품명·보험료
+        fee, cdate: cd, bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
+        job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC") || recFcs.join(", "), status: "",
         dda: { send: fieldOf(e, "설문발송일"), resp: fieldOf(e, "설문응답일"), coupon: fieldOf(e, "쿠폰발송일"), assign: fieldOf(e, "따행배정일"), apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달") }
       });
     });
@@ -3721,8 +3722,9 @@
       const dda = r.dda ? `<div class="sline sub detail">설문발송일 ${esc(r.dda.send || "-")} · 설문응답일 ${esc(r.dda.resp || "-")} · 쿠폰발송일 ${esc(r.dda.coupon || "-")}</div>` : "";
       return `<div class="srow${r.ref ? " ref" : ""}${r.dda ? (r.dda.done ? " d-done" : " d-open") + " fold" + (openSet && openSet.has(r.key) ? " open" : "") : ""}" data-fold="${esc(r.key)}">
         <div class="sline l1"><span class="no">${idx + 1}</span>${it("nm", "", r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder))}${it("", "피보", esc(r.ins))}${it("pd", "", esc(r.product) + (st ? " " + st : ""))}${it("fe", "", esc(r.fee ? wonText(r.fee) : ""))}${r.dda ? `<span class="dchip ${r.dda.done ? "done" : "open"}">${r.dda.done ? "방문완료" : "미완료"}</span><span class="chev">▾</span>` : ""}</div>
-        <div class="sline l2">${it("", "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span>${it("", "직업", esc(r.job))}</div>
-        <div class="sline l3">${it("ad", "", esc(r.addr))}${it("", "모집", esc(r.recFc))}</div>
+        ${r.prods && r.prods.length >= 2 ? r.prods.map((p) => `<div class="sline prod"><span class="si pd">${esc(p.name)}</span><span class="si fe">${esc(p.fee ? wonText(p.fee) : "")}</span></div>`).join("") : ""}
+        <div class="sline l2">${it("", "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span>${it("", "직업", esc(r.job))}${r.dda ? it("", "모집", esc(r.recFc)) : ""}</div>
+        <div class="sline l3">${it("ad", "", esc(r.addr))}${r.dda ? "" : it("", "모집", esc(r.recFc))}</div>
         ${times ? `<div class="sline sub ok">${times}</div>` : ""}${dda}</div>`;
     }).join("") + `</div>`;
   }

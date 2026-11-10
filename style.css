@@ -564,3 +564,11 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .srow.fold.open .detail { display: block; }
 .chev { color: var(--muted); font-size: 12px; transition: transform .15s; }
 .srow.fold.open .chev { transform: rotate(180deg); }
+
+/* v90 따행: 계약별 상품·보험료 줄, 보험료 오른쪽 정렬 */
+.sline .fe { min-width: 6.5em; justify-content: flex-end; text-align: right; font-variant-numeric: tabular-nums; margin-left: auto; }
+.sline.prod { padding-left: 1.9em; flex-wrap: nowrap; justify-content: space-between; }
+.sline.prod .pd { flex: 1 1 auto; }
+.sline.l1 { flex-wrap: nowrap; align-items: baseline; }
+.sline.l1 .pd { flex: 1 1 auto; min-width: 0; }
+.sline.l1 .chev, .sline.l1 .dchip { flex: none; }
