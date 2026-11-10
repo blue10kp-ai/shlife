@@ -2115,7 +2115,7 @@
     const ACC = GD ? "구글 계정" : "아이디";
 
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
-    $("adminBody").innerHTML = settingsCardHtml() + `
+    $("adminBody").innerHTML = `
       <div class="card">
         <h3 class="sec-title">사용 FC 현황</h3>
         <p class="hint">이름(FC명)을 적고, 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다. 저장을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
@@ -2146,7 +2146,7 @@
           <button class="primary" type="submit">추가</button>
         </form>
         <p class="hint">추가하면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 '변경 저장'을 누르세요.</p>
-      </div>`;
+      </div>` + settingsCardHtml();
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
