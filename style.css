@@ -447,3 +447,9 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 .perm-fcs .ro-lbl { display: inline-flex; font-size: 12px; color: var(--muted); padding-left: 8px; border-left: 1px solid var(--line, #d5dbe3); white-space: nowrap; }
 .perm-fcs .cb { width: 18px; height: 18px; accent-color: var(--brand); }
 .perm-fcs .ro-lbl .cb { width: 15px; height: 15px; }
+
+.perm-id { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.perm-name { font-size: 16px; font-weight: 700; border: 1px solid transparent; border-bottom: 1px dashed var(--line); border-radius: 6px; background: transparent; color: var(--text); padding: 2px 4px; width: 100%; max-width: 180px; }
+.perm-name:focus { border-color: var(--brand); outline: none; background: var(--bg); }
+.perm-name::placeholder { color: var(--muted); font-weight: 400; }
+.perm-mail { font-size: 12px; color: var(--muted); word-break: break-all; padding-left: 4px; }

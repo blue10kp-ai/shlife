@@ -297,12 +297,13 @@
   async function readPerms() {
     await resolveAppDir();
     const p = await stReadJsonIn(appDir, PERM_FILE);
-    return { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {} };
+    return { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {} };
   }
-  // 권한 항목: "최수진"(보기+수정) / "최수진:r"(보기만) / "*"(전체)
+  // 권한 항목: "최수진"(보기+수정) / "최수진:r"(보기만) / "*"(전체 FC, 보기+수정)
+  // names: { 이메일: "FC 이름" } — 관리자 화면에서 아이디와 이름을 짝지음(화면에는 이름을 먼저 보여 줌)
   const grantFc = (s) => String(s).replace(/:r$/, "");
   const grantRo = (s) => /:r$/.test(String(s));
-  let roFcs = new Set(); // 내가 '보기만' 권한인 FC (더 이상 쓰지 않음: 옛 ":r" 항목은 편집으로 해석)
+  let roFcs = new Set(); // 내가 '보기만' 권한인 FC (화면에서 수정 버튼 숨김 — 실제 막는 것은 Drive 공유 권한)
   let fcFolderIds = {}; // FC 이름 → Drive 폴더 ID (관리자가 변경 저장할 때 권한 파일에 기록)
   const isRO = (fc) => !!fc && roFcs.has(fc);
 
@@ -313,7 +314,8 @@
     fcFolderIds = perms.fcFolders || {};
     const list = perms.users[me()] || [];
     if (list.includes("*")) return "*";
-    return list.map(grantFc); // 옛 ":r"(보기만) 항목은 편집으로 해석
+    roFcs = new Set(list.filter(grantRo).map(grantFc));
+    return list.map(grantFc);
   }
 
   // 고객 폴더 구조 읽기
@@ -499,6 +501,7 @@
 
   // entries의 원래 줄(파일·시트·행)에 values({열이름: 값})를 기록. 열이 없으면 머리글 끝에 새로 만듦
   async function writeEntryCells(entries, values) {
+    if (entries.some((e) => isRO(e.fc))) throw new Error("보기 전용 권한이라 수정할 수 없습니다.");
     if (entries.some((e) => isRO(e.fc))) throw new Error("보기 전용 권한이라 수정할 수 없습니다.");
     const byFile = new Map();
     entries.filter((e) => e.src).forEach((e) => { if (!byFile.has(e.src.fileId)) byFile.set(e.src.fileId, []); byFile.get(e.src.fileId).push(e); });
@@ -1070,6 +1073,7 @@
         const a = $("avatar"); a.style.backgroundImage = ""; a.classList.remove("has-photo"); a.textContent = current.cust.name[0];
       }
       current.fc = fcs[0] || (folders[0] && folders[0].fc) || "";
+      $("editBtn").hidden = isRO(current.fc); // 보기만 권한 FC는 수정 버튼 숨김
       $("editBtn").hidden = isRO(current.fc); // 보기 전용 FC는 수정 버튼 숨김
       const [contracts, extra] = await Promise.all([
         loadContracts().catch((e) => { console.error(e); return []; }),
@@ -1977,7 +1981,7 @@
       const mine = (s.fc[name] || []).find((p) => p.email === em);
       const want = list.find((x) => grantFc(x) === name);
       if (!want) return !mine;
-      return !!mine && (mine.role === "writer" || mine.role === "owner");
+      return !!mine && (grantRo(want) ? mine.role === "reader" : mine.role === "writer" || mine.role === "owner");
     });
   }
   async function shareFolders(em) {
@@ -2018,7 +2022,7 @@
       const hadBase = c && c.role !== "owner";
       if (hadBase) await del(base.id, c.id);
       try {
-        for (const g of list) await apply(ids[grantFc(g)], ((st.fc || {})[grantFc(g)] || []).find((p) => p.email === em), "writer");
+        for (const g of list) await apply(ids[grantFc(g)], ((st.fc || {})[grantFc(g)] || []).find((p) => p.email === em), grantRo(g) ? "reader" : "writer");
       } catch (e) {
         if (hadBase) { try { await add(base.id, c.role === "owner" ? "writer" : c.role); } catch (e2) { console.error(e2); } }
         throw e;
@@ -2106,23 +2110,25 @@
     const listOf = (em) => perms.users[em] || [];
     const isAll = (em) => listOf(em).includes("*");
     const has = (em, fc) => isAll(em) || listOf(em).some((g) => grantFc(g) === fc);
+    const canEdit = (em, fc) => isAll(em) || listOf(em).includes(fc); // 'FC' = 수정 가능, 'FC:r' = 보기만
+    const nameOfEm = (em) => (perms.names || {})[em] || "";
     const ACC = GD ? "구글 계정" : "아이디";
 
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
     $("adminBody").innerHTML = `
       <div class="card">
         <h3 class="sec-title">사용 FC 현황</h3>
-        <p class="hint">체크박스로 바로 바꾸고 '변경 저장'을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
+        <p class="hint">이름(FC명)을 적고, 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다. 저장을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
         <div class="perm-list">
-          ${(CFG.admins || []).map((a) => `<div class="perm-admin"><span class="perm-em">${esc(a)}</span> <span class="tag">관리자</span> <span class="hint">전체 FC</span></div>`).join("")}
+          ${(CFG.admins || []).map((a) => `<div class="perm-admin"><span class="perm-em">${esc(nameOfEm(a) || a)}</span> <span class="tag">관리자</span> <span class="hint">${nameOfEm(a) ? esc(a) + " · " : ""}전체 FC</span></div>`).join("")}
           ${users.map((em) => `<div class="perm-row" data-em="${esc(em)}">
             <div class="perm-head">
-              <span class="perm-em">${esc(em)}</span>
+              <span class="perm-id"><input type="text" class="perm-name" data-name placeholder="이름(FC명) 입력" value="${esc(nameOfEm(em))}" maxlength="20" aria-label="${esc(em)} 이름"><span class="perm-mail">${esc(em)}</span></span>
               <span class="perm-btns"><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>저장</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></span>
             </div>
             <div class="perm-fcs">
               <label class="chip chip-all"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체</label>
-              ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label></span>`).join("")}
+              ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC 고객 정보를 수정할 수 있음 (체크 안 하면 보기만)"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 수정"> 수정</label></span>`).join("")}
             </div>
           </div>`).join("")}
         </div>
@@ -2135,6 +2141,7 @@
       <div class="card">
         <h3 class="sec-title">사용자 추가</h3>
         <form id="addUserForm" class="search">
+          <input id="newName" type="text" placeholder="이름(FC명)" autocomplete="off" maxlength="20" style="max-width:130px">
           <input id="newUser" type="email" placeholder="${GD ? "구글 계정 이메일 (예: name@gmail.com)" : "Microsoft 계정 이메일"}" autocomplete="off" required>
           <button class="primary" type="submit">추가</button>
         </form>
@@ -2147,20 +2154,26 @@
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return toast("이메일 형식을 확인해 주세요.");
       if ((CFG.admins || []).map((a) => a.toLowerCase()).includes(em)) return toast("관리자는 이미 모든 폴더를 볼 수 있습니다.");
       const pending = collectRows(); // 표에서 아직 저장 안 한 체크 상태 유지
+      const nm = $("newName").value.trim();
       extraUsers.add(em);
       renderAdmin();
       applyRows(pending);
+      if (nm) { const nr = $("adminBody").querySelector(`.perm-row[data-em="${CSS.escape(em)}"] [data-name]`); if (nr) { nr.value = nm; nr.dispatchEvent(new Event("input", { bubbles: true })); } }
     });
 
     const rows = [...$("adminBody").querySelectorAll(".perm-row")];
     const same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
     const sel = (row) => {
       const all = row.querySelector("input[data-all]");
-      return all.checked ? ["*"] : [...row.querySelectorAll("input[data-fc]")].filter((b) => b.checked).map((b) => b.dataset.fc);
+      return all.checked ? ["*"] : [...row.querySelectorAll("input[data-fc]")].filter((b) => b.checked).map((b) => {
+        const ed = row.querySelector(`input[data-edit="${CSS.escape(b.dataset.fc)}"]`);
+        return b.dataset.fc + (ed && ed.checked ? "" : ":r"); // 수정 체크 없으면 보기만
+      });
     };
+    const nameVal = (row) => row.querySelector("[data-name]").value.trim();
     // 체크가 바뀐 줄 + Drive 공유가 체크 상태와 다른 줄(예: 예전 방식 공유)도 '변경 저장' 대상으로 표시
     const needsShare = (r) => GD && adminState.shares && sel(r).length > 0 && !shareMatches(r.dataset.em, sel(r));
-    const isDiff = (r) => !same(sel(r), listOf(r.dataset.em)) || needsShare(r);
+    const isDiff = (r) => !same(sel(r), listOf(r.dataset.em)) || needsShare(r) || nameVal(r) !== nameOfEm(r.dataset.em);
     const changed = () => rows.filter(isDiff);
     const refresh = () => {
       rows.forEach((r) => { r.classList.toggle("changed", isDiff(r)); const rb = r.querySelector("[data-rowsave]"); if (rb) rb.hidden = !isDiff(r); });
@@ -2172,13 +2185,20 @@
     rows.forEach((row) => {
       const all = row.querySelector("input[data-all]");
       const boxes = [...row.querySelectorAll("input[data-fc]")];
-      const syncAll = () => { all.indeterminate = !all.checked && boxes.some((b) => b.checked); };
+      const eds = [...row.querySelectorAll("input[data-edit]")];
+      const syncEd = () => eds.forEach((e) => {
+        const fb = boxes.find((b) => b.dataset.fc === e.dataset.edit);
+        if (all.checked) { e.checked = true; e.disabled = true; } // 전체 = 보기+수정
+        else { e.disabled = !(fb && fb.checked); if (e.disabled) e.checked = false; }
+      });
+      const syncAll = () => { all.indeterminate = !all.checked && boxes.some((b) => b.checked); syncEd(); };
       all.addEventListener("change", () => { boxes.forEach((b) => (b.checked = all.checked)); syncAll(); refresh(); });
       boxes.forEach((b) => b.addEventListener("change", () => {
-        if (!b.checked) all.checked = false;
-        else if (boxes.every((x) => x.checked)) all.checked = true;
+        if (!b.checked) all.checked = false; // (모든 FC를 체크해도 '전체'로 바뀌지 않음 — '전체'는 앞으로 생길 FC까지 열림)
         syncAll(); refresh();
       }));
+      eds.forEach((e) => e.addEventListener("change", refresh));
+      row.querySelector("[data-name]").addEventListener("input", refresh);
       syncAll();
     });
     refresh();
@@ -2188,20 +2208,22 @@
     $("adminBody").querySelectorAll("[data-share]").forEach((b) => b.addEventListener("click", () => shareFolders(b.dataset.share)));
     collectPending = collectRows;
     applyPending = applyRows;
-    $("savePerms").addEventListener("click", () => savePerms(changed().map((r) => [r.dataset.em, sel(r)])));
-    rows.forEach((r) => { const rb = r.querySelector("[data-rowsave]"); if (rb) rb.addEventListener("click", () => savePerms([[r.dataset.em, sel(r)]])); }); // 이 계정만 저장 (다른 계정은 그대로)
+    $("savePerms").addEventListener("click", () => savePerms(changed().map((r) => [r.dataset.em, sel(r), nameVal(r)])));
+    rows.forEach((r) => { const rb = r.querySelector("[data-rowsave]"); if (rb) rb.addEventListener("click", () => savePerms([[r.dataset.em, sel(r), nameVal(r)]])); }); // 이 계정만 저장 (다른 계정은 그대로)
 
     // 사용자 추가 시 저장 전 체크 상태 보존용
-    function collectRows() { return rows.map((r) => [r.dataset.em, sel(r)]); }
+    function collectRows() { return rows.map((r) => [r.dataset.em, sel(r), nameVal(r)]); }
     function applyRows(pending) {
-      pending.forEach(([em, list]) => {
+      pending.forEach(([em, list, nm]) => {
         const row = $("adminBody").querySelector(`.perm-row[data-em="${CSS.escape(em)}"]`);
         if (!row) return;
         const all = row.querySelector("input[data-all]");
         all.checked = list.includes("*");
         row.querySelectorAll("input[data-fc]").forEach((b) => (b.checked = all.checked || list.some((g) => grantFc(g) === b.dataset.fc)));
+        row.querySelector("[data-name]").value = nm || "";
         all.dispatchEvent(new Event("change"));
         if (!all.checked) row.querySelectorAll("input[data-fc]").forEach((b) => b.dispatchEvent(new Event("change")));
+        row.querySelectorAll("input[data-edit]").forEach((e) => { if (!all.checked) e.checked = list.includes(e.dataset.edit); e.dispatchEvent(new Event("change")); });
       });
     }
   }
@@ -2214,6 +2236,7 @@
     try {
       const perms = await readPerms();
       delete perms.users[em];
+      if (perms.names) delete perms.names[em];
       extraUsers.delete(em);
       await writePerms(perms);
       adminState.perms = perms;
@@ -2244,8 +2267,10 @@
     try {
       // 저장 직전에 최신 파일을 다시 읽고, 바뀐 아이디만 반영 (다른 설정 보존)
       const perms = await readPerms();
-      changes.forEach(([em, list]) => {
-        if (list.length) perms.users[em] = list; else { delete perms.users[em]; extraUsers.delete(em); }
+      perms.names = perms.names || {};
+      changes.forEach(([em, list, nm]) => {
+        if (list.length) { perms.users[em] = list; if (nm !== undefined) { if (nm) perms.names[em] = nm; else delete perms.names[em]; } }
+        else { delete perms.users[em]; delete perms.names[em]; extraUsers.delete(em); }
       });
       perms.fcFolders = adminState.fcIds || perms.fcFolders || {}; // 사용자 앱이 FC 폴더를 ID로 바로 열 수 있게
       await writePerms(perms);
