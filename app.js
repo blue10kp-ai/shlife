@@ -502,6 +502,7 @@
 
   // entries의 원래 줄(파일·시트·행)에 values({열이름: 값})를 기록. 열이 없으면 머리글 끝에 새로 만듦
   async function writeEntryCells(entries, values) {
+    entries = ownEntries(entries); // 담당 FC 행에만 저장
     if (entries.some((e) => isRO(e.fc))) throw new Error("보기 전용 권한이라 수정할 수 없습니다.");
     if (entries.some((e) => isRO(e.fc))) throw new Error("보기 전용 권한이라 수정할 수 없습니다.");
     const byFile = new Map();
@@ -567,6 +568,35 @@
   const custPart = (n) => n.split(" - ")[0]; // 폴더명 "고객명 - 담당자명"
   // 동명이인 표시를 뺀 이름: "이영숙(640927)" → "이영숙" (일정 제목·계약 매칭은 이 이름으로)
   const baseName = (n) => String(n || "").replace(/\(\d{6}\)\s*$/, "").trim();
+  // ---- 새 구조: 고객ID·담당FC ----
+  const fieldOf = (e, k) => { const f = (e.fields || []).find(([x]) => x.trim() === k); return f ? String(f[1]).trim() : ""; };
+  const idOf = (e) => fieldOf(e, "고객ID");
+  // 이 고객의 담당 FC: '담당FC' 칸이 자기 파일의 FC와 같은 행의 FC (없으면 첫 행의 FC)
+  function primaryFc(entries) {
+    const p = entries.find((e) => { const f = fieldOf(e, "담당FC") || fieldOf(e, "담당 FC"); return f && e.fc === f; });
+    return ((p || entries[0] || {}).fc) || "";
+  }
+  // 저장은 담당 FC의 행에만 (다른 FC 파일에 같은 사람이 있어도 거기엔 쓰지 않음)
+  function ownEntries(entries) {
+    const fc = primaryFc(entries), own = entries.filter((e) => e.fc === fc);
+    return own.length ? own : entries;
+  }
+  // 같은 사람 묶기: 고객ID가 같으면 같은 사람(한 FC 파일에만 보이는 행끼리만 묶임), ID가 없는 옛 행은 이름+생년월일(YYMMDD)
+  function groupCustomers(rs) {
+    const ymd = (b) => { const x = String(b || "").replace(/\D/g, ""); return /^(19|20)\d{6}/.test(x) ? x.slice(2, 8) : x.slice(0, 6); };
+    const groups = [], byId = new Map(), byNb = new Map();
+    rs.forEach((r) => {
+      const id = idOf(r), nb = norm(baseName(r.name)) + "|" + ymd(r.birth);
+      let g = id ? byId.get(id) : null;
+      if (!g && !id) g = byNb.get(nb); // ID 없는 행: 같은 이름+생년월일 그룹(ID 그룹 포함)에 합류
+      if (!g) { g = { name: r.name, birth: r.birth, entries: [] }; groups.push(g); if (id) byId.set(id, g); }
+      if (id && !byId.has(id)) byId.set(id, g);
+      if (!byNb.has(nb) || ymd(r.birth)) { if (!byNb.has(nb)) byNb.set(nb, g); }
+      g.entries.push(r);
+      if (!g.birth && r.birth) g.birth = r.birth;
+    });
+    return groups;
+  }
   // 시트 우선순위: config.lists 순서 (계약 > 이관 > 따행 > DB > 추가 > 진행)
   const LIST_PRIORITY = CFG.lists.map((l) => l.label);
   const prio = (type) => { const i = LIST_PRIORITY.indexOf(type); return i < 0 ? 99 : i; };
@@ -656,19 +686,11 @@
         if (nq.length < 2) return false;
         return norm(entryAddr(r)).includes(nq) || norm(meetOf(r)).includes(nq);
       });
-      // 같은 이름 + 같은 생년월일은 한 고객으로 묶기
-      const map = new Map();
-      hits.forEach((r) => {
-        // 생년월일 형식 통일: "1980-10-21" → 801021, "851002-1" → 851002
-        const d = String(r.birth).replace(/\D/g, "");
-        const ymd = /^(19|20)\d{6}/.test(d) ? d.slice(2, 8) : d.slice(0, 6);
-        const key = norm(baseName(r.name)) + "|" + ymd; // "이영숙(640927)"도 같은 사람으로 묶음
-        if (!map.has(key)) map.set(key, { name: r.name, birth: r.birth, entries: [] });
-        map.get(key).entries.push(r);
-      });
-      // 고객 안의 시트는 우선순위 순 (계약 > 이관 > 따행 > DB > 추가)
-      map.forEach((c) => { c.entries.sort((a, b) => prio(a.type) - prio(b.type)); c.name = c.entries[0].name; });
-      const custs = [...map.values()].sort((a, b) => baseName(a.name).localeCompare(baseName(b.name), "ko") || a.name.localeCompare(b.name, "ko"));
+      // 같은 사람 묶기: 고객ID가 같으면 한 고객, ID가 없는 옛 행은 같은 이름 + 같은 생년월일
+      const groups = groupCustomers(hits);
+      // 고객 안의 시트는 우선순위 순 (계약 > 이관 > 따행 > DB > 가망)
+      groups.forEach((c) => { c.entries.sort((a, b) => prio(a.type) - prio(b.type)); c.name = c.entries[0].name; });
+      const custs = groups.sort((a, b) => baseName(a.name).localeCompare(baseName(b.name), "ko") || a.name.localeCompare(b.name, "ko"));
       const label = want ? want.label + " " : "";
       status.textContent = custs.length ? label + custs.length + "명 찾음" : "'" + q + "' " + label + "고객이 없습니다.";
       $("pageSearch").hidden = custs.length > 0; // 못 찾으면 화면 안 검색창으로 다시 검색
@@ -855,14 +877,26 @@
     return out.sort((a, b) => b.key - a.key || a.row - b.row); // 최근 날짜·시간이 위로 (같으면 엑셀 순서)
   }
 
-  async function loadExtraFor(fc, name) {
+  // 새 구조: 메모·통신사·차량번호 등은 '고객' 시트의 같은 이름 열이 있으면 거기서 읽고 쓴다 (없는 값은 옛 고객추가정보 파일에서)
+  const sheetExtraKeys = () => [...new Set([...EXTRA.primary, EXTRA.carrierCol, ...EXTRA.afterAddress])].filter(Boolean);
+  const sheetEntriesOf = (cust) => (cust ? ownEntries(cust.entries).filter((e) => e.sheet === CUST_SHEET && e.src) : []);
+  async function loadExtraFor(fc, name, cust) {
     const x = await readExtra();
-    if (!x) return { missing: true, fields: [], values: {}, consults: [] };
-    const r = extraRowIndex(x, fc, name);
-    const fields = extraCols(x);
-    const values = {};
-    fields.forEach((k) => { const c = x.head.indexOf(k); values[k] = r > 0 ? String(x.rows[r][c] ?? "").trim() : ""; });
-    return { found: r > 0, fields, values, fileName: x.file.name, consults: readConsults(x.wb, fc, name) };
+    let base;
+    if (!x) base = { missing: true, fields: [], values: {}, consults: [] };
+    else {
+      const r = extraRowIndex(x, fc, name);
+      const fields = extraCols(x);
+      const values = {};
+      fields.forEach((k) => { const c = x.head.indexOf(k); values[k] = r > 0 ? String(x.rows[r][c] ?? "").trim() : ""; });
+      base = { found: r > 0, fields, values, fileName: x.file.name, consults: readConsults(x.wb, fc, name) };
+    }
+    const own = sheetEntriesOf(cust);
+    if (!own.length) return base;
+    const keys = [...new Set([...sheetExtraKeys(), ...base.fields])];
+    const values = { ...base.values };
+    keys.forEach((k) => { const sv = own.map((e) => fieldOf(e, k)).find(Boolean); if (sv) values[k] = sv; else if (!(k in values)) values[k] = ""; });
+    return { ...base, found: true, missing: false, fields: keys, values, sheetMode: true };
   }
 
   // 날짜처럼 보이는 값(2026-12-01, 26-12-01)은 엑셀 날짜로 저장 (월일 열은 'MMDD' 글자 그대로)
@@ -886,6 +920,13 @@
   }
 
   async function saveExtraFor(fc, name, values, before) {
+    const own = sheetEntriesOf(current && current.cust && current.cust.name === name ? current.cust : null);
+    if (own.length) { // 새 구조: 바뀐 칸만 '고객' 시트(담당 FC 행)에 저장
+      const changed = {};
+      Object.keys(values).forEach((k) => { if ((values[k] ?? "") !== (before[k] ?? "")) changed[k] = values[k] ?? ""; });
+      if (Object.keys(changed).length) await writeEntryCells(own, changed);
+      return;
+    }
     const x = await readExtra(); // 저장 직전 최신 파일을 다시 읽어 이 고객 줄의 바뀐 칸만 수정
     if (!x) throw new Error("NO_EXTRA_FILE");
     let r = extraRowIndex(x, fc, name);
@@ -1075,15 +1116,18 @@
         current.photoUrl = null;
         const a = $("avatar"); a.style.backgroundImage = ""; a.classList.remove("has-photo"); a.textContent = current.cust.name[0];
       }
-      current.fc = fcs[0] || (folders[0] && folders[0].fc) || "";
+      current.fc = primaryFc(cust.entries) || fcs[0] || (folders[0] && folders[0].fc) || "";
       $("editBtn").hidden = isRO(current.fc); // 보기만 권한 FC는 수정 버튼 숨김
       $("editBtn").hidden = isRO(current.fc); // 보기 전용 FC는 수정 버튼 숨김
       const [contracts, extra] = await Promise.all([
         loadContracts().catch((e) => { console.error(e); return []; }),
-        loadExtraFor(current.fc, cust.name).catch((e) => { console.error(e); return { error: true, values: {} }; })
+        loadExtraFor(current.fc, cust.name, cust).catch((e) => { console.error(e); return { error: true, values: {} }; })
       ]);
       const phones = new Set(cust.entries.map((e) => String(e.phone || "").replace(/\D/g, "")).filter(Boolean));
+      const custIds = new Set(cust.entries.map(idOf).filter(Boolean));
       current.contracts = contracts.filter((c) => {
+        const rid = [c.row["계약자ID"], c.row["주피보험자ID"]].filter(Boolean);
+        if (custIds.size && rid.length) return rid.some((x) => custIds.has(String(x).trim())); // 새 구조: 고객ID로 정확히 연결
         if (!c.names.includes(norm(baseName(cust.name)))) return false;
         if (fcs.length && !fcs.includes(c.fc) && !fcs.includes(c.srcFc)) return false;
         const cp = String(c.row["연락처"] || "").replace(/\D/g, "");
@@ -1096,6 +1140,13 @@
     renderTabs();
     selectTab("basic");
   }
+
+  document.addEventListener("change", (ev) => {
+    if (ev.target && ev.target.id === "hideRef") {
+      try { localStorage.setItem("shlife.hideRefContracts", ev.target.checked ? "1" : "0"); } catch (e) { /* 무시 */ }
+      if (current) selectTab("contract");
+    }
+  });
 
   // 고객 폴더 안 파일 (하위 폴더 2단계까지)
   async function collectFiles(id, prefix, depth) {
@@ -1122,8 +1173,9 @@
     $("tabs").innerHTML = CFG.tabs.map((t) => {
       const n = t.id === "contact" || t.id === "all" || t.id === "basic" ? "" :
         t.id === "consult" ? ((current.extra && current.extra.consults) || []).length :
-        filesForTab(t).length + (t.id === "contract" ? current.contracts.length : 0);
-      return `<button data-tab="${t.id}">${esc(t.label)}${n !== "" ? `<small>${n}</small>` : ""}</button>`;
+        filesForTab(t).length + (t.id === "contract" ? ownContracts().length : 0);
+      const refN = t.id === "contract" ? refContracts().length : 0;
+      return `<button data-tab="${t.id}">${esc(t.label)}${n !== "" ? `<small>${n}${refN ? ` (+참고 ${refN})` : ""}</small>` : ""}</button>`;
     }).join("");
     $("tabs").querySelectorAll("button").forEach((b) =>
       b.addEventListener("click", async () => {
@@ -1780,8 +1832,19 @@
   // 상품명에서 '무배당'이 들어간 괄호 삭제: "신한통합건강보험 원(ONE)(무배당, 해약환급금 미지급형)" → "신한통합건강보험 원(ONE)"
   const productName = (s) => String(s || "").replace(/\s*[(（][^()（）]*무배당[^()（）]*[)）]/g, "").replace(/\s{2,}/g, " ").trim();
 
+  // 담당 FC가 지금 보는 고객의 담당과 다른 계약 = 참고용(다른 FC 담당)
+  const isRefContract = (c) => !!(c.fc && current.fc && c.fc !== current.fc);
+  const ownContracts = () => current.contracts.filter((c) => !isRefContract(c));
+  const refContracts = () => current.contracts.filter(isRefContract);
+  const hideRefOn = () => { try { return localStorage.getItem("shlife.hideRefContracts") === "1"; } catch (e) { return false; } };
   function contractHtml() {
-    const list = current.contracts;
+    const all = current.contracts;
+    const list = hideRefOn() ? ownContracts() : all;
+    const refN = refContracts().length;
+    const toggle = refN ? `<label class="ref-toggle"><input type="checkbox" id="hideRef" ${hideRefOn() ? "checked" : ""}> 참고 계약 숨기기 <span class="hint">(담당이 다른 FC ${refN}건)</span></label>` : "";
+    return toggle + contractListHtml(list);
+  }
+  function contractListHtml(list) {
     if (!list.length) {
       const lines = [...new Set(current.cust.entries.flatMap((e) =>
         e.fields.filter(([k]) => k.includes("상품명")).flatMap(([, v]) => v.split(/\n/)).map((s) => s.trim()).filter(Boolean)))];
@@ -1797,10 +1860,12 @@
       const shown = CONTRACT_SHOW.map(([label, cols]) => [label, val(cols)]).filter(([, v]) => v)
         .map(([k, v]) => [k, k === "합계보험료" ? wonText(v) : v]); // 79644 / 79,644 → 79,644원
       const pdf = findContractPdf(val(["최초계약일", "계약일"]), c.row["상품명"]);
-      return `<div class="card">
+      const ref = isRefContract(c);
+      return `<div class="card${ref ? " ref-card" : ""}">
         <div class="entry-head"><span class="tag t-${esc(c.type)}">${esc(c.type)}</span>
           ${status ? `<span class="tag">${esc(status)}</span>` : ""}
-          <span class="hint">${esc([c.fc, c.row["이관일자"] ? "이관 " + c.row["이관일자"] : ""].filter(Boolean).join(" · "))}</span></div>
+          ${ref ? `<span class="tag ref-tag">담당 ${esc(c.fc)} · 참고</span>` : ""}
+          <span class="hint">${esc([ref ? "" : c.fc, c.row["이관일자"] ? "이관 " + c.row["이관일자"] : ""].filter(Boolean).join(" · "))}</span></div>
         <div class="contract-title">${esc(productName(c.row["상품명"]) || "(상품명 없음)")}</div>
         <dl class="kv">${shown.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
         ${pdfButton(pdf)}
@@ -2687,15 +2752,8 @@
       if (!a) return 1 + fcMiss;
       return (custRegionCity(regionFromAddress(a)) === city ? 0 : 2) + fcMiss;
     };
-    // 같은 사람(이름+생년월일)으로 묶기
-    const groups = new Map();
-    recs.forEach((r) => {
-      const d = String(r.birth).replace(/\D/g, "");
-      const key = /^(19|20)\d{6}/.test(d) ? d.slice(2, 8) : d.slice(0, 6);
-      if (!groups.has(key)) groups.set(key, { name: r.name, birth: r.birth, entries: [] });
-      groups.get(key).entries.push(r);
-    });
-    const list = [...groups.values()];
+    // 같은 사람 묶기: 고객ID가 같으면 한 사람, ID가 없는 옛 행은 이름+생년월일
+    const list = groupCustomers(recs);
     list.forEach((g) => {
       g.entries.sort((a, b) => prio(a.type) - prio(b.type) || score(a) - score(b));
       g.name = g.entries[0].name;
@@ -2968,7 +3026,7 @@
     await Promise.all(items.map(async (it, i) => {
       await Promise.all(it.custs.map(async (c, j) => {
         const fc = (c.entries.find((e) => e.fc) || {}).fc || "";
-        try { c.extra = await loadExtraFor(fc, c.name); } catch (e) { c.extra = null; }
+        try { c.extra = await loadExtraFor(fc, c.name, c); } catch (e) { c.extra = null; }
         if (req !== schedReq) return;
         fillCust(it, c, i, j);
       }));

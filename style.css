@@ -462,3 +462,10 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 @media (prefers-color-scheme: dark) { .tag.t-가망 { background: #3b2f14; color: #f0c06b; } }
 .perm-warn { border: 1px solid #e6a23c; background: #fff7e0; color: #7a4a00; border-radius: 12px; padding: 10px 12px; font-size: 13px; margin: 8px 0; }
 @media (prefers-color-scheme: dark) { .perm-warn { background: #3a3220; color: #f0c06b; border-color: #8a6d1d; } }
+
+/* 담당 FC가 다른 계약(참고) */
+.ref-card { opacity: .72; background: var(--bg); border: 1px dashed var(--line); }
+.tag.ref-tag { background: #eceff3; color: #5d6875; }
+@media (prefers-color-scheme: dark) { .tag.ref-tag { background: #2b333d; color: #aab4c0; } }
+.ref-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 4px 10px; }
+.ref-toggle input { width: 18px; height: 18px; accent-color: var(--brand); }
