@@ -458,3 +458,7 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 #pageSearch { position: fixed; left: 16px; right: 16px; bottom: calc(96px + env(safe-area-inset-bottom)); max-width: 608px; margin: 0 auto; z-index: 8;
   box-shadow: 0 4px 16px rgba(0,0,0,.14); }
 #pageSearch[hidden] { display: none; }
+.tag.t-가망 { background: #fff1d6; color: #a86b00; }
+@media (prefers-color-scheme: dark) { .tag.t-가망 { background: #3b2f14; color: #f0c06b; } }
+.perm-warn { border: 1px solid #e6a23c; background: #fff7e0; color: #7a4a00; border-radius: 12px; padding: 10px 12px; font-size: 13px; margin: 8px 0; }
+@media (prefers-color-scheme: dark) { .perm-warn { background: #3a3220; color: #f0c06b; border-color: #8a6d1d; } }

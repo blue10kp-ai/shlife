@@ -312,8 +312,7 @@
     if (isAdmin() || base.owner) return "*";
     const perms = await readPerms();
     fcFolderIds = perms.fcFolders || {};
-    const list = perms.users[me()] || [];
-    if (list.includes("*")) return "*";
+    const list = (perms.users[me()] || []).filter((g) => g !== "*"); // 전체("*")는 관리자 전용 — 일반 계정은 FC 이름 목록만 인정
     roFcs = new Set(list.filter(grantRo).map(grantFc));
     return list.map(grantFc);
   }
@@ -338,6 +337,8 @@
         await Promise.all(items.filter((i) => i.folder).map(async (d) => {
           if (d.name.startsWith("_")) {
             if (!rootOk) return;
+            // 고객 폴더가 들어 있는 분류 폴더만 읽음 (_고객 = 새 규칙, _계약·_이관·_진행·_DB = 옛 구조). _결과·_전환중복 같은 정리용 폴더는 고객으로 보지 않음
+            if (CFG.customerFolderGroups && !CFG.customerFolderGroups.includes(d.name.slice(1))) return;
             (await stList(d.id))
               .filter((i) => i.folder)
               .forEach((f) => folders.push({ ...f, group: d.name.slice(1), fc }));
@@ -389,14 +390,14 @@
   // <schema> 새 데이터 구조(고객·계약·이력·관계 4시트) 이중 읽기 — '고객' 시트에 '고객ID' 열이 있는 파일만 새 구조로 읽고, 아니면 예전 시트(계약고객·이관고객…)를 그대로 읽음
   const CUST_SHEET = "고객", ID_COL = "고객ID";
   // 현재단계 → 예전 type(화면 태그·우선순위·검색 범위 버튼)
-  const STAGE_TYPE = { "계약": "계약", "이관관리": "이관", "이관": "이관", "진행": "진행", "가망": "추가", "DB": "DB", "피보험자": "피보험자" };
+  const STAGE_TYPE = { "계약": "계약", "이관관리": "이관", "이관": "이관", "진행": "진행", "가망": "가망", "DB": "DB", "피보험자": "피보험자" };
   const sheetRows = (wb, name) => {
     const sn = wb.SheetNames.find((n) => n.trim() === name);
     return sn ? XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "", raw: false, blankrows: true }) : null;
   };
   const headIndex = (rows, col) => (rows || []).findIndex((r) => r.some((c) => String(c).trim() === col));
   const isNewStruct = (wb) => { const rows = sheetRows(wb, CUST_SHEET); return !!rows && headIndex(rows, ID_COL) >= 0; };
-  const stageType = (row) => STAGE_TYPE[String(row["현재단계"] || "").trim()] || "추가";
+  const stageType = (row) => STAGE_TYPE[String(row["현재단계"] || "").trim()] || "가망";
   // 고객ID → 이름 (새 구조의 계약 시트가 이름 대신 ID를 가지고 있어서 이름으로 풀어 줌)
   function idNameMap(wb) {
     const rows = sheetRows(wb, CUST_SHEET) || [];
@@ -1058,7 +1059,9 @@
       // 같은 이름이 여러 FC에 있으면 이 고객의 담당 FC 폴더만
       const fcs = cust.entries.map((e) => e.fc).filter(Boolean);
       const sameFc = byName.filter((f) => f.fc && fcs.includes(f.fc));
-      const folders = sameFc.length ? sameFc : byName;
+      // 새 규칙(_고객)의 폴더를 먼저, 그다음 FC 바로 아래, 옛 분류 폴더 순 (사진 올리기 등은 첫 폴더에 저장)
+      const gRank = (f) => (f.group === "고객" ? 0 : f.group === "" ? 1 : 2);
+      const folders = [...(sameFc.length ? sameFc : byName)].sort((a, b) => gRank(a) - gRank(b));
       let files = [];
       for (const f of folders) files = files.concat(await collectFiles(f.id, folders.length > 1 ? f.name + "/" : "", 0));
       current.folders = folders;
@@ -1558,6 +1561,7 @@
   // 고객 폴더에 "날짜 - FC명 - 고객명 - 프로필사진.jpg"로 저장 (같은 날 다시 올리면 덮어씀)
   async function uploadProfilePhoto(blob) {
     const folder = current.folders[0];
+    if (!folder) throw new Error("이 고객의 폴더를 찾을 수 없어 사진을 저장할 수 없습니다.");
     const d = new Date();
     const ymd = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
     const fc = current.fc || folder.fc || "";
@@ -1951,14 +1955,33 @@
       .filter((p) => !directOnly || !(p.permissionDetails || []).length || (p.permissionDetails || []).some((x) => !x.inherited))
       .map((p) => ({ id: p.id, email: p.emailAddress.toLowerCase(), role: p.role }));
   }
+  // 고객 폴더의 상위 폴더들(예: Claude 폴더)과 거기에 직접 준 공유 — 상위에 공유돼 있으면 하위 폴더 권한을 바꿀 수 없다
+  async function loadAncestors() {
+    const out = [];
+    let id = base.id;
+    for (let i = 0; i < 5; i++) {
+      const f = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=id,name,parents&supportsAllDrives=true").catch(() => null);
+      const pid = f && (f.parents || [])[0];
+      if (!pid) break;
+      const pf = await gdFetch(GDAPI + "/files/" + encodeURIComponent(pid) + "?fields=id,name,parents&supportsAllDrives=true").catch(() => null);
+      if (!pf) break;
+      out.push({ id: pid, name: pf.name, perms: await gdPermList(pid, true).catch(() => []) });
+      if (!(pf.parents || []).length) break;
+      id = pid;
+    }
+    return out;
+  }
   async function loadShares(fcIds) {
     await resolveAppDir();
     const ids = fcIds || (adminState && adminState.fcIds) || {};
-    const [cust, app] = await Promise.all([gdPermList(base.id), appDir.id ? gdPermList(appDir.id) : []]);
+    const [cust, app, anc] = await Promise.all([gdPermList(base.id, true), appDir.id ? gdPermList(appDir.id, true) : [], loadAncestors().catch(() => [])]);
     const fc = {}; // FC 폴더별 공유
     await Promise.all(Object.entries(ids).map(async ([name, id]) => { fc[name] = await gdPermList(id, true).catch(() => []); }));
-    return { cust, app, fc };
+    return { cust, app, fc, anc };
   }
+  // 이 계정에게 직접 준 상위 폴더 공유 (소유자 제외)
+  const ancShares = (em) => ((adminState && adminState.shares && adminState.shares.anc) || [])
+    .flatMap((a) => a.perms.filter((p) => p.email === em && p.role !== "owner").map((p) => ({ folderId: a.id, folder: a.name, perm: p })));
   // 공유 상태: "ok" (고객 편집 + 설정 보기 이상) / "part" / "none"
   function shareState(em) {
     const s = adminState && adminState.shares;
@@ -1968,13 +1991,14 @@
     const cOk = c && (c.role === "writer" || c.role === "owner");
     const anyFc = Object.values(s.fc || {}).some((l) => l.some((p) => p.email === em));
     if (cOk && a) return "ok";
-    return c || a || anyFc ? "part" : "none";
+    return c || a || anyFc || ancShares(em).length ? "part" : "none";
   }
   // 이 계정의 FC 권한 목록(list)이 Drive 공유와 정확히 맞는지: 전체("*")는 고객 폴더 편집, 그 외는 FC 폴더별 편집/보기 + 설정 폴더 보기
   function shareMatches(em, list) {
     const s = adminState && adminState.shares;
     if (!s) return true;
     if (!s.app.find((p) => p.email === em)) return false;
+    if (ancShares(em).length) return false; // 상위 폴더(예: Claude)가 이 계정에 공유돼 있으면 FC 제한이 Drive에서 안 걸림
     if (list.includes("*")) { const c = s.cust.find((p) => p.email === em); return !!c && (c.role === "writer" || c.role === "owner"); }
     if (s.cust.find((p) => p.email === em && p.role !== "owner")) return false; // 예전 방식(고객 폴더 전체 공유)이면 FC 단위로 바꿔야 함
     return Object.keys(s.fc || {}).every((name) => {
@@ -1997,47 +2021,60 @@
       handleError(/Drive 400/.test(e.message) ? new Error("공유하지 못했습니다. 구글 계정 이메일이 맞는지 확인해 주세요.") : e);
     }
   }
-  // 공유 맞추기: 전체("*")는 고객 폴더 편집, 그 외는 FC 폴더별 편집/보기(:r) — 목록에 없는 FC 폴더·예전 고객 폴더 전체 공유는 해제. 설정 폴더는 보기.
+  // 공유 맞추기(FC 단위): 상위 폴더(Claude 등) 직접 공유 해제 → 고객 루트 직접 공유 해제 → 체크한 FC 폴더 편집/보기 → 빠진 FC 폴더 해제 → 설정 폴더 보기.
+  // 중간에 실패하면 지운 공유를 모두 복구하고, 만든 뒤에는 실제로 직접 권한이 생겼는지 다시 확인(Drive 반영 지연 대비 재시도).
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function retry(fn, tries) {
+    let last;
+    for (let k = 0; k < (tries || 3); k++) {
+      try { return await fn(); } catch (e) { last = e; if (!/Drive (5\d\d|429)|Failed to fetch|NetworkError/.test(String(e.message))) throw e; await sleep(2500); }
+    }
+    throw last;
+  }
   async function grantFolders(em, list) {
     const st = adminState.shares;
-    list = list && list.length ? list : ["*"];
+    list = (list || []).filter((g) => g !== "*");
+    if (!list.length) throw new Error("FC를 하나 이상 체크하세요. (전체(*)는 지원하지 않습니다)");
     const permUrl = (id, pid) => GDAPI + "/files/" + encodeURIComponent(id) + "/permissions" + (pid ? "/" + encodeURIComponent(pid) : "") + "?supportsAllDrives=true";
     const hadAny = st.cust.some((p) => p.email === em) || st.app.some((p) => p.email === em) || Object.values(st.fc || {}).some((l) => l.some((p) => p.email === em));
     const add = (id, role) => gdFetch(permUrl(id) + "&sendNotificationEmail=" + (hadAny ? "false" : "true"),
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role, emailAddress: em }) });
     const patch = (id, pid, role) => gdFetch(permUrl(id, pid), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) });
     const del = (id, pid) => gdFetch(permUrl(id, pid), { method: "DELETE" });
-    const c = st.cust.find((p) => p.email === em);
-    const apply = async (id, mine, role) => {
-      if (!mine) await add(id, role);
-      else if (mine.role !== role && mine.role !== "owner") await patch(id, mine.id, role);
+    const ids = adminState.fcIds || {};
+    for (const g of list) if (!ids[grantFc(g)]) throw new Error("FC 폴더를 찾을 수 없습니다: " + grantFc(g));
+    const undo = [];
+    const remove = async (id, perm) => { await retry(() => del(id, perm.id)); undo.push(() => add(id, perm.role === "owner" ? "writer" : perm.role)); };
+    // 이 폴더에 이 계정의 '직접' 권한이 role대로 생길 때까지 (반영 지연이면 몇 번 다시 시도)
+    const ensureDirect = async (id, role) => {
+      for (let k = 0; k < 5; k++) {
+        const mine = (await gdPermList(id, true)).find((p) => p.email === em);
+        if (mine && (mine.role === role || (role === "writer" && mine.role === "owner"))) return;
+        if (mine && mine.role !== "owner") await retry(() => patch(id, mine.id, role)); else await retry(() => add(id, role));
+        await sleep(2500);
+      }
+      throw new Error("공유가 반영되지 않았습니다: " + id);
     };
-    if (list.includes("*")) {
-      await apply(base.id, c, "writer");
-    } else {
-      const ids = adminState.fcIds || {};
-      for (const g of list) if (!ids[grantFc(g)]) throw new Error("FC 폴더를 찾을 수 없습니다: " + grantFc(g));
-      // 예전 방식(고객 폴더 전체 공유)이 있으면 먼저 해제: 물려받은 편집 권한이 남아 있으면 FC 폴더에 '보기만'을 줘도 소용없고 직접 권한도 만들어지지 않음.
-      // FC 폴더 공유가 실패하면 예전 공유를 다시 복구한다.
-      const hadBase = c && c.role !== "owner";
-      if (hadBase) await del(base.id, c.id);
-      try {
-        for (const g of list) await apply(ids[grantFc(g)], ((st.fc || {})[grantFc(g)] || []).find((p) => p.email === em), grantRo(g) ? "reader" : "writer");
-      } catch (e) {
-        if (hadBase) { try { await add(base.id, c.role === "owner" ? "writer" : c.role); } catch (e2) { console.error(e2); } }
-        throw e;
-      }
-      for (const [fc, ps] of Object.entries(st.fc || {})) { // 목록에서 빠진 FC 폴더 공유 해제
+    try {
+      for (const a of ancShares(em)) await remove(a.folderId, a.perm);          // 1 상위 폴더 공유 해제 (예: Claude)
+      const c = st.cust.find((p) => p.email === em);
+      if (c && c.role !== "owner") await remove(base.id, c);                   // 2 고객 루트 직접 공유 해제
+      for (const g of list) await ensureDirect(ids[grantFc(g)], grantRo(g) ? "reader" : "writer"); // 3 FC 폴더 공유
+      for (const [fc, ps] of Object.entries(st.fc || {})) {                    // 4 목록에서 빠진 FC 폴더 해제
         const mine = ps.find((p) => p.email === em);
-        if (mine && mine.role !== "owner" && !list.some((g) => grantFc(g) === fc)) await del(ids[fc], mine.id);
+        if (mine && mine.role !== "owner" && !list.some((g) => grantFc(g) === fc)) await remove(ids[fc], mine);
       }
+      if (appDir.id) await ensureDirect(appDir.id, "reader");                  // 5 설정 폴더 보기 (상위 공유가 사라져도 직접 권한 유지)
+    } catch (e) {
+      for (const u of undo.reverse()) { try { await u(); } catch (e2) { console.error("복구 실패", e2); } }
+      throw e;
     }
-    if (appDir.id && !st.app.find((p) => p.email === em)) await add(appDir.id, "reader");
   }
   async function unshareFolders(em) {
     const st = adminState && adminState.shares;
     if (!st) return;
     const del = (fileId, p) => gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions/" + encodeURIComponent(p.id) + "?supportsAllDrives=true", { method: "DELETE" });
+    for (const a of ancShares(em)) await del(a.folderId, a.perm);
     for (const p of st.cust.filter((x) => x.email === em && x.role !== "owner")) await del(base.id, p);
     for (const p of st.app.filter((x) => x.email === em && x.role !== "owner")) await del(appDir.id, p);
     for (const [fc, ps] of Object.entries(st.fc || {})) for (const p of ps.filter((x) => x.email === em && x.role !== "owner")) await del((adminState.fcIds || {})[fc], p);
@@ -2119,6 +2156,11 @@
       <div class="card">
         <h3 class="sec-title">사용 FC 현황</h3>
         <p class="hint">이름(FC명)을 적고, 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다. 저장을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
+        ${(() => {
+          const sh = adminState.shares, adm = (CFG.admins || []).map((a) => a.toLowerCase());
+          const hits = ((sh && sh.anc) || []).flatMap((a) => a.perms.filter((p) => p.role !== "owner" && !adm.includes(p.email)).map((p) => esc((perms.names || {})[p.email] || p.email) + " ← '" + esc(a.name) + "' 폴더(" + p.role + ")"));
+          return hits.length ? `<div class="perm-warn"><b>⚠ 상위 폴더 공유 감지</b><br>${hits.join("<br>")}<br><span class="hint">이 계정은 FC 체크와 상관없이 상위 폴더 전체를 Drive에서 열 수 있습니다. 해당 계정 카드의 [저장]을 누르면 상위 공유를 해제하고 FC 폴더만 공유합니다.</span></div>` : "";
+        })()}
         <div class="perm-list">
           ${(CFG.admins || []).map((a) => `<div class="perm-admin"><span class="perm-em">${esc(nameOfEm(a) || a)}</span> <span class="tag">관리자</span> <span class="hint">${nameOfEm(a) ? esc(a) + " · " : ""}전체 FC</span></div>`).join("")}
           ${users.map((em) => `<div class="perm-row" data-em="${esc(em)}">
@@ -2127,7 +2169,7 @@
               <span class="perm-btns"><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>저장</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></span>
             </div>
             <div class="perm-fcs">
-              <label class="chip chip-all"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체</label>
+              <label class="chip chip-all" ${isAll(em) ? "" : "hidden"} title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
               ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC 고객 정보를 수정할 수 있음 (체크 안 하면 보기만)"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 수정"> 수정</label></span>`).join("")}
             </div>
           </div>`).join("")}
@@ -2250,6 +2292,7 @@
 
   async function savePerms(changes) {
     if (!changes.length) return;
+    if (changes.some(([, l]) => l.includes("*"))) return toast("전체(*)는 더 이상 지원하지 않습니다. FC를 하나씩 체크해 주세요.");
     // Google Drive: FC를 체크한 계정은 폴더 공유, 체크를 모두 뺀 계정은 공유 해제 (변경 저장 한 번으로)
     const auto = GD && adminState.shares;
     const toShare = auto ? changes.filter(([em, list]) => list.length && !shareMatches(em, list)).map(([em]) => em) : [];
@@ -2257,7 +2300,9 @@
     const listOfChange = (em) => (changes.find((c) => c[0] === em) || [em, []])[1];
     if (toShare.length || toUnshare.length) {
       const msg = ["저장하면서 Google Drive 공유도 바꿉니다."];
-      if (toShare.length) msg.push("· 공유(전체: 고객 폴더 편집 / 그 외: 체크한 FC 폴더만 편집·보기만, 설정 폴더 보기): " + toShare.map((em) => em + " [" + listOfChange(em).join(", ") + "]").join(" / "));
+      if (toShare.length) msg.push("· 공유(체크한 FC 폴더만 편집·보기만, 설정 폴더 보기): " + toShare.map((em) => em + " [" + listOfChange(em).join(", ") + "]").join(" / "));
+      const ancMsg = [...toShare, ...toUnshare].flatMap((em) => ancShares(em).map((a) => em + " ← '" + a.folder + "' 폴더 공유(" + a.perm.role + ")"));
+      if (ancMsg.length) msg.push("· 상위 폴더에 직접 공유된 것도 함께 해제합니다(이 공유가 있으면 FC 제한이 Drive에서 안 걸림): " + ancMsg.join(", "));
       if (toUnshare.length) msg.push("· 공유 해제: " + toUnshare.join(", "));
       if (!confirm(msg.join("\n"))) return;
     }

@@ -24,6 +24,9 @@ window.APP_CONFIG = {
   // 아이디별 FC 권한을 저장하는 파일 (고객 폴더 안). 관리자 페이지에서 편집
   permFile: "shlife-권한.json",
 
+  // FC 폴더 안에서 고객 폴더가 들어 있는 '_' 분류 폴더: _고객(새 규칙: _고객/이름 (YYMMDD) - 고객ID), _계약·_이관·_진행·_DB(옛 구조, 이동 전·중에도 읽음)
+  customerFolderGroups: ["고객", "계약", "이관", "진행", "DB"],
+
   // 고객 검색 범위 버튼 (전체 + 아래 순서)
   //   FC 폴더 안 "날짜 - FC - 리스트.xlsx"의 시트를 읽음 (FC마다 가장 최근 날짜 파일 하나)
   //   순서 = 우선순위 (같은 고객이 여러 시트에 있으면 앞쪽 우선, 일정에서도 이 순서로 표시)
@@ -33,7 +36,7 @@ window.APP_CONFIG = {
     { id: "transfer", label: "이관", fileRegex: " - (리스트|계약)\\.xlsx$", sheet: "이관고객" },
     { id: "ddahaeng", label: "따행", fileRegex: " - 리스트\\.xlsx$", sheet: "따행고객" },
     { id: "db",       label: "DB",   fileRegex: " - 리스트\\.xlsx$", sheet: "DB고객" },
-    { id: "plan",     label: "추가", fileRegex: " - 리스트\\.xlsx$", sheet: "예정고객" },
+    { id: "plan",     label: "가망", fileRegex: " - 리스트\\.xlsx$", sheet: "예정고객" },
     { id: "progress", label: "진행", fileRegex: " - (리스트|기타)\\.xlsx$", sheet: "진행고객", hidden: true }
   ],
 
