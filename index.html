@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1f4e8c">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="신한FC 모바일">
-  <title>신한FC 모바일</title>
-  <link rel="manifest" href="manifest.webmanifest?v=3">
+  <meta name="apple-mobile-web-app-title" content="신한FC M">
+  <title>신한FC M</title>
+  <link rel="manifest" href="manifest.webmanifest?v=4">
   <link rel="icon" href="favicon.png?v=2" type="image/png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
-  <link rel="stylesheet" href="style.css?v=97">
+  <link rel="stylesheet" href="style.css?v=98">
 </head>
 <body>
   <header class="topbar">
@@ -27,10 +27,10 @@
     <!-- 로그인 화면 -->
     <section id="loginView" class="view" hidden>
       <div class="card center">
-        <p class="lead"><b>신한FC 모바일</b><br>OneDrive의 고객 정보를 찾아 보여줍니다.</p>
+        <p class="lead"><b>신한FC M</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.</p>
         <button id="loginBtn" class="primary big">Google 계정으로 로그인</button>
         <p><button id="loginOtherBtn" type="button" class="link-btn" hidden>다른 계정으로 로그인</button></p>
-        <p class="hint">고객 정보는 OneDrive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.</p>
+        <p class="hint">고객 정보는 Google Drive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.</p>
       </div>
     </section>
 
@@ -41,7 +41,6 @@
     <section id="searchView" class="view" hidden>
 
       <p id="scopeHint" class="hint"></p>
-      <label class="ddaonly"><input type="checkbox" id="ddaOnly"> 따행 대상만 검색</label>
       <!-- 검색 결과가 없을 때(처음 들어왔을 때 포함) 화면 안 검색창 -->
       <form id="pageSearch" class="card page-search" role="search">
         <p class="hint">고객 이름·연락처·주소·미팅장소로 검색하세요.</p>
@@ -50,6 +49,7 @@
           <button class="primary" type="submit">검색</button>
         </div>
       </form>
+      <div id="searchOpts" class="sopts" role="group" aria-label="고객 범위"><button type="button" data-opt="all" class="on">전체</button><button type="button" data-opt="contract">본인</button><button type="button" data-opt="transfer">이관</button><button type="button" data-opt="db">DB</button><button type="button" data-opt="ddahaeng">따행</button><button type="button" data-opt="plan">가망</button></div>
       <p id="searchStatus" class="hint"></p>
       <ul id="results" class="list"></ul>
     </section>
@@ -116,7 +116,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="config.js?v=97"></script>
-  <script src="app.js?v=97"></script>
+  <script src="config.js?v=98"></script>
+  <script src="app.js?v=98"></script>
 </body>
 </html>

@@ -8,6 +8,9 @@ window.APP_CONFIG = {
   // 앱이 저장하는 파일(설정·권한)의 폴더. 앱마다 Claude/app/앱이름/설정
   appFolder: "Claude/app/신한FC/설정",
 
+  // FC 선택 드롭다운 정렬 순서: 직급(ESL > SSL > GSL > FC) 먼저, 같은 직급은 사번순. 명단에 없는 FC는 맨 뒤(이름순). FC가 바뀌면 여기를 고침
+  fcOrder: ["김현성", "임지섭", "최수진", "박상선", "김경미", "오상만"],
+
   // 관리자 아이디 (이 계정으로 로그인하면 '관리자' 메뉴가 보임)
   admins: ["blue10kp@gmail.com"],
 

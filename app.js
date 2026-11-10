@@ -203,7 +203,7 @@
 
   // ---------- 화면 전환 ----------
   const views = ["loginView", "scheduleView", "searchView", "customerView", "salesView", "adminView"];
-  const APP_NAME = "신한FC 모바일";
+  const APP_NAME = "신한FC M";
   const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "관리자" };
   const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin" };
   function show(view, keepScroll) {
@@ -665,13 +665,23 @@
   }
   const digits = (v) => String(v || "").replace(/\D/g, "");
 
-  async function search(q) {
+  // 고객 범위 옵션: 전체 / 본인(계약) / 이관 / DB / 따행 / 가망. 본인부터는 다중 선택(고른 것 중 하나라도 해당하면 포함), 전체는 선택 해제.
+  const optSel = new Set();
+  const OPT_LABEL = { contract: "본인", transfer: "이관", db: "DB", ddahaeng: "따행", plan: "가망" };
+  function syncOpts() { document.querySelectorAll("#searchOpts [data-opt]").forEach((b) => b.classList.toggle("on", b.dataset.opt === "all" ? optSel.size === 0 : optSel.has(b.dataset.opt))); }
+  const typeOfOpt = (id) => (CFG.lists.find((l) => l.id === id) || {}).label;
+  const curQuery = () => ((($("q") && $("q").value) || ($("q2") && $("q2").value) || "")).trim();
+  // 검색 결과에서 같은 이름을 구분하도록 이름 옆에 작게: 생년 · 남/여 · 지역
+  function birthYear(b) { const x = String(b || "").replace(/D/g, ""); if (/^(19|20)d{2}($|d{4})/.test(x) && (x.length === 4 || x.length === 8)) return x.slice(0, 4); if (x.length >= 6) { const yy = +x.slice(0, 2), cy = new Date().getFullYear() % 100; return (yy > cy ? 1900 + yy : 2000 + yy) + ""; } return ""; }
+  const resultInfo = (c) => [birthYear(c.birth), genderOf(c), regionOf(c)].filter(Boolean).join(" · ");
+  async function search(q, force) {
     q = q.trim();
     const status = $("searchStatus");
     const list = $("results");
     list.innerHTML = "";
-    $("pageSearch").hidden = !!q;
-    if (!q) { status.textContent = ""; return; }
+    syncOpts();
+    $("pageSearch").hidden = !!q || !!force;
+    if (!q && !force) { status.textContent = ""; return; }
     $("q2").value = q;
     status.textContent = "찾는 중…";
     try {
@@ -689,10 +699,11 @@
       const meets = await loadMeetingPlaces().catch(() => []);
       const meetOf = (r) => meets.filter((m) => norm(m.name) === norm(r.name) && sameFc(m.fc, r.fc)).map((m) => m.mp)
         .concat(r.fields.filter(([k]) => k.trim() === "미팅장소").map(([, v]) => v)).join(" ");
-      const ddaOn = !!($("ddaOnly") && $("ddaOnly").checked); // 따행대상='예'(고객 시트 요약 필드)인 고객만
+      const optTypes = [...optSel]; // 고른 범위 (따행은 따행 시트 고객 + 고객 시트의 따행대상='예')
       const hits = records.filter((r) => {
         if (want && r.type !== want.label) return false;
-        if (ddaOn && fieldOf(r, "따행대상") !== "예") return false;
+        if (optTypes.length && !optTypes.some((id) => id === "ddahaeng" ? (r.type === typeOfOpt(id) || fieldOf(r, "따행대상") === "예") : r.type === typeOfOpt(id))) return false;
+        if (!q) return true;
         if (norm(r.name).includes(nq)) return true;
         if (dq.length >= 3 && dq === q.replace(/[\s-]/g, "") && digits(r.phone).includes(dq)) return true;
         if (nq.length < 2) return false;
@@ -703,15 +714,15 @@
       // 고객 안의 시트는 우선순위 순 (계약 > 이관 > 따행 > DB > 가망)
       groups.forEach((c) => { c.entries.sort((a, b) => prio(a.type) - prio(b.type)); c.name = c.entries[0].name; });
       const custs = groups.sort((a, b) => baseName(a.name).localeCompare(baseName(b.name), "ko") || a.name.localeCompare(b.name, "ko"));
-      const label = want ? want.label + " " : "";
-      status.textContent = custs.length ? label + custs.length + "명 찾음" : "'" + q + "' " + label + "고객이 없습니다.";
-      $("pageSearch").hidden = custs.length > 0; // 못 찾으면 화면 안 검색창으로 다시 검색
-      if (custs.length === 1) return openCustomer(custs[0]);
+      const label = (want ? want.label + " " : "") + (optTypes.length ? optTypes.map((id) => OPT_LABEL[id]).join("·") + " " : "");
+      status.textContent = custs.length ? label + custs.length + "명 찾음" : (q ? "'" + q + "' " : "") + label + "고객이 없습니다.";
+      $("pageSearch").hidden = custs.length > 0 || !!force; // 못 찾으면 화면 안 검색창으로 다시 검색
+      if (custs.length === 1 && q) return openCustomer(custs[0]);
       list.innerHTML = custs.map((c, i) => {
         const types = [...new Set(c.entries.map((e) => e.type))];
         const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
         return `<li><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
-          <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${regionOf(c) ? ` <span class="region">(${esc(regionOf(c))})</span>` : ""}</span><span class="r-sub">${esc([c.birth, fcs.join(", ")].filter(Boolean).join(" · "))}</span></span>
+          <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length ? `<span class="r-sub">${esc(fcs.join(", "))}</span>` : ""}</span>
           ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button></li>`;
       }).join("");
       list.querySelectorAll("button").forEach((b) =>
@@ -2546,7 +2557,7 @@
     const em = gAccount();
     $("loginBtn").textContent = em ? "Google 다시 연결 (" + em + ")" : "Google 계정으로 로그인";
     const lead = document.querySelector("#loginView .lead");
-    if (lead) lead.innerHTML = "<b>신한FC 모바일</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.";
+    if (lead) lead.innerHTML = "<b>신한FC M</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.";
     const hint = document.querySelector("#loginView .hint");
     if (hint) hint.textContent = "고객 정보는 Google Drive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.";
     $("loginOtherBtn").hidden = false;
@@ -4119,7 +4130,7 @@
       const myFc = await myFcName();
       if (req !== salesReq) return;
       // FC 선택: 접근 가능한 FC들(고객이 등록된 FC). 기본은 내 FC(권한 파일 이름), 없으면 첫 FC. 선택은 이 기기에 기억
-      const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc)].filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko"));
+      const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc)].filter(Boolean))].sort((a, b) => { const o = CFG.fcOrder || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, "ko"); }); // 직급 먼저 → 사번순(config.fcOrder)
       let saved = ""; try { saved = localStorage.getItem(salesFcKey()) || ""; } catch (e) { /* 무시 */ }
       if (!isAdmin()) SALES.fc = fcs.includes(myFc) ? myFc : fcs[0] || ""; // 일반 계정: 선택창 없이 본인 FC
       else if (!SALES.fc || !fcs.includes(SALES.fc)) SALES.fc = fcs.includes(saved) ? saved : fcs.includes(myFc) ? myFc : fcs[0] || "";
@@ -4197,9 +4208,16 @@
     const b = ev.target.closest && ev.target.closest("[data-fidx]");
     if (b && current && !$("customerView").hidden) { current.followIdx = +b.dataset.fidx; selectTab("basic"); }
   });
+  document.addEventListener("click", (ev) => { // 고객 범위 옵션 (전체 = 해제하고 바로 검색 / 본인·이관·DB·따행·가망 = 다중 선택)
+    const b = ev.target.closest && ev.target.closest("#searchOpts [data-opt]");
+    if (!b) return;
+    const id = b.dataset.opt;
+    if (id === "all") optSel.clear(); else if (optSel.has(id)) optSel.delete(id); else optSel.add(id);
+    syncOpts();
+    search(curQuery(), true);
+  });
   document.addEventListener("change", (ev) => {
     if (!ev.target) return;
-    if (ev.target.id === "ddaOnly") { const q = $("q2").value || $("q").value; if (q) search(q); }
     if (ev.target.id === "salesRef") { SALES.showRef = ev.target.checked; renderSales(); }
     if (ev.target.id === "dclsSel") { SALES.dcls = ev.target.value; renderSales(); }
     if (ev.target.dataset && ev.target.dataset.df) { SALES.df[ev.target.dataset.df] = ev.target.checked; renderSales(); }
