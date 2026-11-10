@@ -302,7 +302,7 @@
   // 권한 항목: "최수진"(보기+수정) / "최수진:r"(보기만) / "*"(전체)
   const grantFc = (s) => String(s).replace(/:r$/, "");
   const grantRo = (s) => /:r$/.test(String(s));
-  let roFcs = new Set(); // 내가 '보기만' 권한인 FC (화면에서 수정 버튼 숨김 — 실제 막는 것은 Drive 공유 권한)
+  let roFcs = new Set(); // 내가 '보기만' 권한인 FC (더 이상 쓰지 않음: 옛 ":r" 항목은 편집으로 해석)
   let fcFolderIds = {}; // FC 이름 → Drive 폴더 ID (관리자가 변경 저장할 때 권한 파일에 기록)
   const isRO = (fc) => !!fc && roFcs.has(fc);
 
@@ -313,8 +313,7 @@
     fcFolderIds = perms.fcFolders || {};
     const list = perms.users[me()] || [];
     if (list.includes("*")) return "*";
-    roFcs = new Set(list.filter(grantRo).map(grantFc));
-    return list.map(grantFc);
+    return list.map(grantFc); // 옛 ":r"(보기만) 항목은 편집으로 해석
   }
 
   // 고객 폴더 구조 읽기
@@ -328,7 +327,7 @@
       await resolveBase();
       const allowed = await myAllowedFcs();
       const ok = (name) => allowed === "*" || allowed.includes(name);
-      const folders = [], files = [];
+      const folders = [], files = [], done = new Set(); // done: 폴더 ID로 이미 읽은 FC (루트 목록에서 다시 읽지 않음)
       async function scan(id, fc) {
         const items = await stList(id);
         // FC 폴더 바깥(고객 폴더 바로 아래) 파일·분류폴더는 '전체' 권한만
@@ -340,7 +339,7 @@
             (await stList(d.id))
               .filter((i) => i.folder)
               .forEach((f) => folders.push({ ...f, group: d.name.slice(1), fc }));
-          } else if (!fc && ok(d.name)) {
+          } else if (!fc && ok(d.name) && !done.has(d.name)) {
             await scan(d.id, d.name); // 허용된 FC 폴더만
           } else if (fc) {
             folders.push({ ...d, group: "", fc }); // 새 구조: FC 폴더 바로 아래가 고객 폴더 (이름 (YYMMDD) - 고객ID)
@@ -348,9 +347,19 @@
         }));
       }
       try {
-        if (allowed !== "*" && allowed.length && allowed.every((f) => fcFolderIds[f])) {
-          // FC 폴더 단위로 공유받은 사용자: 폴더 ID로 바로 열기 (고객 루트 폴더 권한이 없어도 됨)
-          for (const f of allowed) await scan(fcFolderIds[f], f);
+        if (allowed !== "*" && allowed.length) {
+          // FC 폴더 단위로 공유받은 사용자: 폴더 ID로 바로 열기 (고객 루트 폴더 권한이 없어도 됨). Drive 권한이 없는 FC는 건너뜀
+          let opened = 0;
+          const rest = [];
+          for (const f of allowed) {
+            if (!fcFolderIds[f]) { rest.push(f); continue; }
+            try { await scan(fcFolderIds[f], f); done.add(f); opened++; }
+            catch (e) { if (!/40[34]/.test(String(e.message))) throw e; console.warn("FC 폴더 접근 없음, 건너뜀:", f); }
+          }
+          if (rest.length) { // 폴더 ID를 모르는 FC는 예전 방식(고객 루트 목록)으로
+            try { await scan(base.id, ""); opened++; } catch (e) { if (!/40[34]/.test(String(e.message))) throw e; }
+          }
+          if (!opened) throw new Error("NO_SHARE");
         } else await scan(base.id, "");
       } catch (e) {
         if (!base.owner && /40[34]/.test(String(e.message))) throw new Error("NO_SHARE");
@@ -1968,7 +1977,7 @@
       const mine = (s.fc[name] || []).find((p) => p.email === em);
       const want = list.find((x) => grantFc(x) === name);
       if (!want) return !mine;
-      return !!mine && (grantRo(want) ? mine.role === "reader" : mine.role === "writer" || mine.role === "owner");
+      return !!mine && (mine.role === "writer" || mine.role === "owner");
     });
   }
   async function shareFolders(em) {
@@ -2009,7 +2018,7 @@
       const hadBase = c && c.role !== "owner";
       if (hadBase) await del(base.id, c.id);
       try {
-        for (const g of list) await apply(ids[grantFc(g)], ((st.fc || {})[grantFc(g)] || []).find((p) => p.email === em), grantRo(g) ? "reader" : "writer");
+        for (const g of list) await apply(ids[grantFc(g)], ((st.fc || {})[grantFc(g)] || []).find((p) => p.email === em), "writer");
       } catch (e) {
         if (hadBase) { try { await add(base.id, c.role === "owner" ? "writer" : c.role); } catch (e2) { console.error(e2); } }
         throw e;
@@ -2097,7 +2106,6 @@
     const listOf = (em) => perms.users[em] || [];
     const isAll = (em) => listOf(em).includes("*");
     const has = (em, fc) => isAll(em) || listOf(em).some((g) => grantFc(g) === fc);
-    const isRo = (em, fc) => !isAll(em) && listOf(em).includes(fc + ":r");
     const ACC = GD ? "구글 계정" : "아이디";
 
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
@@ -2114,7 +2122,7 @@
             </div>
             <div class="perm-fcs">
               <label class="chip chip-all"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체</label>
-              ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC는 보기만 가능"><input type="checkbox" class="cb ro" data-ro="${esc(fc)}" ${isRo(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 보기만"> 보기만</label></span>`).join("")}
+              ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label></span>`).join("")}
             </div>
           </div>`).join("")}
         </div>
@@ -2148,10 +2156,7 @@
     const same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
     const sel = (row) => {
       const all = row.querySelector("input[data-all]");
-      return all.checked ? ["*"] : [...row.querySelectorAll("input[data-fc]")].filter((b) => b.checked).map((b) => {
-        const ro = row.querySelector(`input[data-ro="${CSS.escape(b.dataset.fc)}"]`);
-        return b.dataset.fc + (ro && ro.checked ? ":r" : "");
-      });
+      return all.checked ? ["*"] : [...row.querySelectorAll("input[data-fc]")].filter((b) => b.checked).map((b) => b.dataset.fc);
     };
     // 체크가 바뀐 줄 + Drive 공유가 체크 상태와 다른 줄(예: 예전 방식 공유)도 '변경 저장' 대상으로 표시
     const needsShare = (r) => GD && adminState.shares && sel(r).length > 0 && !shareMatches(r.dataset.em, sel(r));
@@ -2167,20 +2172,13 @@
     rows.forEach((row) => {
       const all = row.querySelector("input[data-all]");
       const boxes = [...row.querySelectorAll("input[data-fc]")];
-      const ros = [...row.querySelectorAll("input[data-ro]")];
-      const syncRo = () => ros.forEach((r) => {
-        const fb = boxes.find((b) => b.dataset.fc === r.dataset.ro);
-        r.disabled = all.checked || !(fb && fb.checked);
-        if (r.disabled) r.checked = false;
-      });
-      const syncAll = () => { all.indeterminate = !all.checked && boxes.some((b) => b.checked); syncRo(); };
+      const syncAll = () => { all.indeterminate = !all.checked && boxes.some((b) => b.checked); };
       all.addEventListener("change", () => { boxes.forEach((b) => (b.checked = all.checked)); syncAll(); refresh(); });
       boxes.forEach((b) => b.addEventListener("change", () => {
         if (!b.checked) all.checked = false;
         else if (boxes.every((x) => x.checked)) all.checked = true;
         syncAll(); refresh();
       }));
-      ros.forEach((r) => r.addEventListener("change", refresh));
       syncAll();
     });
     refresh();
@@ -2204,7 +2202,6 @@
         row.querySelectorAll("input[data-fc]").forEach((b) => (b.checked = all.checked || list.some((g) => grantFc(g) === b.dataset.fc)));
         all.dispatchEvent(new Event("change"));
         if (!all.checked) row.querySelectorAll("input[data-fc]").forEach((b) => b.dispatchEvent(new Event("change")));
-        row.querySelectorAll("input[data-ro]").forEach((r) => { r.checked = !all.checked && list.includes(r.dataset.ro + ":r"); });
       });
     }
   }
