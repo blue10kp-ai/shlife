@@ -1,6 +1,6 @@
 {
-  "name": "신한FC",
-  "short_name": "신한FC",
+  "name": "신한FC 모바일",
+  "short_name": "신한FC 모바일",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

@@ -203,7 +203,7 @@
 
   // ---------- 화면 전환 ----------
   const views = ["loginView", "scheduleView", "searchView", "customerView", "salesView", "adminView"];
-  const APP_NAME = "신한FC";
+  const APP_NAME = "신한FC 모바일";
   const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "관리자" };
   const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin" };
   function show(view, keepScroll) {
@@ -2546,7 +2546,7 @@
     const em = gAccount();
     $("loginBtn").textContent = em ? "Google 다시 연결 (" + em + ")" : "Google 계정으로 로그인";
     const lead = document.querySelector("#loginView .lead");
-    if (lead) lead.innerHTML = "<b>신한FC</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.";
+    if (lead) lead.innerHTML = "<b>신한FC 모바일</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.";
     const hint = document.querySelector("#loginView .hint");
     if (hint) hint.textContent = "고객 정보는 Google Drive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.";
     $("loginOtherBtn").hidden = false;
