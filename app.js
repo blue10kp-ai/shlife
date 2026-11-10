@@ -1388,7 +1388,7 @@
       <dl class="kv">
         <dt>따행분류</dt><dd>${v("따행분류")}</dd><dt>접촉현황</dt><dd>${v("접촉현황")}</dd><dt>캠페인대상</dt><dd>${v("캠페인대상여부")}</dd><dt>활동기한</dt><dd>${period}</dd>
         <dt>방문약속일</dt><dd>${v("방문약속일")}</dd><dt>방문완료일</dt><dd>${v("방문완료일")}</dd><dt>설문발송일</dt><dd>${v("설문발송일")}</dd><dt>설문응답일</dt><dd>${v("설문응답일")}</dd>
-        <dt>쿠폰발송</dt><dd>${esc(f["쿠폰발송일"] || f["쿠폰발송"] || "-")}</dd><dt>선물</dt><dd>${v("선물")}</dd><dt>전달여부</dt><dd>${v("전달여부")}</dd>
+        <dt>쿠폰발송</dt><dd>${esc(f["쿠폰발송일"] || "-")}</dd><dt>선물</dt><dd>${v("선물")}</dd><dt>전달여부</dt><dd>${v("전달여부")}</dd>
       </dl></div>`;
   }
   // 수정 모드의 따행 입력칸 (선택한 대상년월의 따행 행에 저장)
@@ -3781,7 +3781,7 @@
       seen.add(id);
       const r = base(e, id);
       r.fileId = f._fileId; r.follow = f;
-      r.dda = { done: f["방문완료일"] || (["방문완료", "설문발송", "설문응답", "쿠폰발송"].includes(String(f["접촉현황"] || "").trim()) ? "방문완료" : ""), send: f["설문발송일"], resp: f["설문응답일"], coupon: f["쿠폰발송일"] || f["쿠폰발송"], assign: "", apply: "", due: f["방문약속일"], gift: f["선물"], deliver: f["전달여부"], cls: f["따행분류"], active: f["캠페인대상여부"], contact: f["접촉현황"] };
+      r.dda = { done: f["방문완료일"] || (["방문완료", "설문발송", "설문응답", "쿠폰발송"].includes(String(f["접촉현황"] || "").trim()) ? "방문완료" : ""), send: f["설문발송일"], resp: f["설문응답일"], coupon: f["쿠폰발송일"], assign: "", apply: "", due: f["방문약속일"], gift: f["선물"], deliver: f["전달여부"], cls: f["따행분류"], active: f["캠페인대상여부"], contact: f["접촉현황"] };
       out.push(r);
     });
     // A: 따행 시트가 없는 파일 — 고객 시트의 따행 필드 (따행대상='예' 전체, 월 무관)
@@ -3898,7 +3898,7 @@
     if (f === "done") return { "방문완료일": value, "접촉현황": value ? "방문완료" : "미활동" };
     if (f === "send") return { "설문발송일": value };
     if (f === "resp") return { "설문응답일": value };
-    return { "쿠폰발송일": value, "쿠폰발송": value ? "쿠폰발송" : "" };
+    return { "쿠폰발송일": value }; // 쿠폰발송 열은 읽지도 쓰지도 않음 (활동 계획 화면의 버튼 글자)
   }
   // logs: [{ col: 따행 시트 열 이름, value: 새 값, prev: 이전 값 }] — 이력에 남길 변경
   async function writeFollowRow(row, cells, logs) {
@@ -4071,8 +4071,8 @@
       // 따행: 활동대상 → 접촉현황 → 따행분류 (SOL 조회 조건과 같은 기준: 대상년월 · 활동대상 기본)
       const bMode = SALES.tab === "dda" && baseRows.some((r) => r.follow);
       let allRows = baseRows, ddaTotals = null, classes = [];
-      if (SALES.tab === "dda") ({ rows: allRows, totals: ddaTotals, classes } = ddaFilter(baseRows, bMode, SALES));
-      const ymNote = bMode ? `<span class="ymlab">대상년월</span>` : "";
+      if (SALES.tab === "dda") ({ rows: allRows, totals: ddaTotals, classes } = ddaFilter(baseRows, bMode, { dct: "", dcls: "", dact: true })); // v94: 접촉현황·분류 전체, 활동대상 기본 고정 (화면에서 바꾸지 않음)
+      const ymNote = "";
       // 따행 필터: 설문발송·설문응답·쿠폰(체크한 것 모두 채워진 고객만, AND)
       const df = SALES.df, dfOn = SALES.tab === "dda" && (df.send || df.resp || df.coupon);
       const rows = dfOn ? allRows.filter((r) => (!df.send || r.dda.send) && (!df.resp || r.dda.resp) && (!df.coupon || r.dda.coupon)) : allRows;
@@ -4084,7 +4084,7 @@
       SALES.data = data;
       top.note = ymNote;
       box.innerHTML = top(isAdmin() && fcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${fcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : "") +
-        `<div id="salesBody">${bMode ? ddaBarHtml({ dct: SALES.dct, dcls: SALES.dcls, dact: SALES.dact, classes, totals: ddaTotals }) : ""}<div class="sales-info"><span>${SALES.tab === "dda" ? (bMode ? `${(SALES.dct || SALES.dcls || dfOn) ? `필터 ${rows.length}명` : `표시 ${rows.length}명`}` : `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}`) : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "transfer" ? `<span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span>` : ""}</div>` +
+        `<div id="salesBody">${SALES.tab === "dda" ? "" : `<div class="sales-info"><span>${SALES.tab === "dda" ? (bMode ? `${(SALES.dct || SALES.dcls || dfOn) ? `필터 ${rows.length}명` : `표시 ${rows.length}명`}` : `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}`) : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "transfer" ? `<span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span>` : ""}</div>`}` +
         (SALES.tab === "dda" ? `<div class="dfilter"><span class="dfl"><label><input type="checkbox" data-df="send" ${df.send ? "checked" : ""}> 설문발송</label><label><input type="checkbox" data-df="resp" ${df.resp ? "checked" : ""}> 설문응답</label><label><input type="checkbox" data-df="coupon" ${df.coupon ? "checked" : ""}> 쿠폰</label></span><button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></div>` : "") +
         (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.</p>`) +
         `<p class="hint pad">전화·문자는 버튼을 누른 '시도'만 기록됩니다(실제 통화·발송 여부는 알 수 없음).${readQueue().length ? ` 아직 저장 안 된 기록 ${readQueue().length}건은 앱이 다시 열리면 반영합니다.` : ""}</p></div>`;
@@ -4173,7 +4173,7 @@
       openAdmin();
     } else if (SALES_BOOT) { // 새로 로드됐을 때 영업 화면을 보던 중이었으면 그 탭·월·FC·필터·위치로
       const s = SALES_BOOT; SALES_BOOT = null;
-      Object.assign(SALES, { tab: s.tab || "transfer", ym: s.ym || "", fc: s.fc || "", dct: s.dct || "", dcls: s.dcls || "", dact: s.dact !== false, df: { send: !!(s.df || {}).send, resp: !!(s.df || {}).resp, coupon: !!(s.df || {}).coupon }, open: new Set(s.open || []), resume: s.a || null });
+      Object.assign(SALES, { tab: s.tab || "transfer", ym: s.ym || "", fc: s.fc || "", dct: "", dcls: "", dact: true, /* v94: 따행 필터는 이어보기에서도 기본값 */ df: { send: !!(s.df || {}).send, resp: !!(s.df || {}).resp, coupon: !!(s.df || {}).coupon }, open: new Set(s.open || []), resume: s.a || null });
       loadSettings().then(() => openSales());
     } else {
       schedMode = "day"; schedDate = dayStart(new Date());
