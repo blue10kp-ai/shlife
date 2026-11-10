@@ -202,10 +202,10 @@
   }
 
   // ---------- 화면 전환 ----------
-  const views = ["loginView", "scheduleView", "searchView", "customerView", "adminView"];
+  const views = ["loginView", "scheduleView", "searchView", "customerView", "salesView", "adminView"];
   const APP_NAME = "신한FC";
-  const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", adminView: "관리자" };
-  const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", adminView: "admin" };
+  const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "관리자" };
+  const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin" };
   function show(view) {
     views.forEach((v) => ($(v).hidden = v !== view));
     // 고객 정보 화면: "‹ 고객 정보" 전체가 뒤로 가기 버튼
@@ -743,7 +743,7 @@
             const names = CONTRACT_NAME_COLS.map((c) => row[c]).filter(Boolean).map(norm);
             // 줄에 담당FC가 있으면 그 FC로 표시 (다른 FC 파일에 같이 들어 있는 계약)
             const rowFc = String(row["담당FC"] || row["담당 FC"] || "").trim() || fc;
-            if (names.length) out.push({ type: s.label, fc: rowFc, srcFc: fc, sheet, row, fields, names });
+            if (names.length) out.push({ type: s.label, fc: rowFc, srcFc: fc, sheet, row, fields, names, src: { fileId: s.file.id, sheet } });
           });
         });
       }));
@@ -1069,7 +1069,7 @@
 
   let returnView = "searchView"; // 고객 정보에서 뒤로 가면 돌아갈 화면 (일정 / 고객 검색)
   async function openCustomer(cust) {
-    returnView = $("scheduleView").hidden ? "searchView" : "scheduleView";
+    returnView = !$("scheduleView").hidden ? "scheduleView" : !$("salesView").hidden ? "salesView" : "searchView";
     show("customerView");
     $("custName").textContent = cust.name;
     editMode = false;
@@ -2157,7 +2157,8 @@
         <h3 class="sec-title">구글 캘린더</h3>
         <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
       </div>
-      <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>`;
+      <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>` + smsCardHtml();
+    bindSmsCard();
     let cals;
     try { [cals] = await Promise.all([calendarList(), loadMyPrefs(), loadSettings()]); } catch (e) {
       $("myCalBox").innerHTML = "";
@@ -2253,7 +2254,7 @@
           <button class="primary" type="submit">추가</button>
         </form>
         <p class="hint">추가하면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 '변경 저장'을 누르세요.</p>
-      </div>` + settingsCardHtml();
+      </div>` + settingsCardHtml() + smsCardHtml();
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
@@ -2311,6 +2312,7 @@
     refresh();
     $("resetPerms").addEventListener("click", () => renderAdmin());
     bindSettings();
+    bindSmsCard();
     $("adminBody").querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => deleteUser(b.dataset.del)));
     $("adminBody").querySelectorAll("[data-share]").forEach((b) => b.addEventListener("click", () => shareFolders(b.dataset.share)));
     collectPending = collectRows;
@@ -3387,9 +3389,10 @@
     const s = b.dataset.section;
     if (s === "schedule") { schedMode = "day"; schedDate = dayStart(new Date()); openSchedule(); } // 항상 오늘 Today
     else if (s === "admin") openAdmin();
+    else if (s === "sales") openSales();
     else resetSearch(); // 고객: 검색을 지우고 처음 화면
   }));
-  window.addEventListener("popstate", () => { if (!$("customerView").hidden) { if (returnView === "scheduleView") openSchedule(); else show("searchView"); } });
+  window.addEventListener("popstate", () => { if (!$("customerView").hidden) { if (returnView === "scheduleView") openSchedule(); else if (returnView === "salesView") renderSales(); else show("searchView"); } });
 
   function resetSearch() {
     $("q").value = ""; $("q2").value = "";
@@ -3400,6 +3403,366 @@
 
   // (검색 가능한 FC 문구는 표시하지 않음)
   function showScope() { $("scopeHint").textContent = ""; }
+
+  // ---------- 문자 문구 (영업 화면의 [문자] 버튼에 미리 채움) ----------
+  //   내 문구: 내설정 파일(shlife-내설정.json)의 sms.{transfer,dda}(저장 안 했으면 config.js smsDefaults)
+  const SMS_VARS = "{고객명} {FC명} {상품명} {이관일}";
+  const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const smsDefault = (kind) => String((CFG.smsDefaults || {})[kind] || "");
+  // 개인이 저장한 값(지워서 빈 문구로 저장한 것 포함)이 있으면 그것, 아직 손대지 않았으면 config 기본 문구
+  const smsTemplate = (kind) => { const m = (myPrefs && myPrefs.sms) || {}; return typeof m[kind] === "string" ? m[kind] : smsDefault(kind); };
+  const idateText = (v) => { const k = dateKey(v); return k ? `${+k.slice(4, 6)}월 ${+k.slice(6, 8)}일` : ""; };
+  const fillSms = (tpl, r, fcName) => String(tpl || "")
+    .replace(/\{고객명\}/g, r.holder || "").replace(/\{FC명\}/g, r.fc || fcName || "").replace(/\{상품명\}/g, r.product || "").replace(/\{이관일\}/g, idateText(r.idate));
+  // 아이폰은 sms:번호&body=, 안드로이드·그 외는 sms:번호?body= (표준). 문구가 없으면 번호만.
+  const smsHref = (phone, body) => (body ? `sms:${phone}${isIOS() ? "&" : "?"}body=${encodeURIComponent(body)}` : `sms:${phone}`);
+  function smsCardHtml() {
+    const ta = (id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="4" maxlength="300"></textarea>
+        <span class="smsrow"><button type="button" class="link-btn" data-sms-reset="${id}">기본값으로 되돌리기</button><small class="cnt" data-for="${id}"></small></span></label>`;
+    return `<div class="card" id="smsCard"><h3 class="sec-title">문자 문구</h3>
+      <p class="hint">영업 화면에서 [문자]를 누르면 아래 문구가 채워진 문자 작성 화면이 열립니다. 기본 문구가 미리 들어 있고, 고치거나 지우면 내 설정으로 저장됩니다(지우면 문구 없이 작성 화면만 열림).<br>
+      쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)</p>
+      ${ta("smsMyTransfer", "이관 문자 문구")}
+      ${ta("smsMyDda", "따행 문자 문구")}
+      <p class="hint" id="smsPreview"></p>
+      <p class="hint">※ 문자는 [문자]를 눌러 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다.</p>
+      <div class="file-actions"><button type="button" class="primary" id="smsSave" disabled>문구 저장</button></div></div>`;
+  }
+  async function bindSmsCard() {
+    const KINDS = { smsMyTransfer: "transfer", smsMyDda: "dda" };
+    const ids = Object.keys(KINDS), el = (id) => $(id);
+    const sample = { holder: "홍길동", fc: "최수진", product: "종신보험", idate: "2026.11.09" };
+    const cnt = () => ids.forEach((id) => { const c = document.querySelector(`.cnt[data-for="${id}"]`); if (c) c.textContent = `${el(id).value.length}자` + (el(id).value.length > 45 ? " · 45자 초과(장문 문자)" : ""); });
+    const read = () => JSON.stringify(ids.map((id) => el(id).value.trim()));
+    const preview = (id) => { $("smsPreview").textContent = el(id).value.trim() ? "미리보기: " + fillSms(el(id).value, sample, "최수진") : ""; };
+    try { await loadMyPrefs(); } catch (e) { /* 기본값 */ }
+    if (!$("smsCard")) return;
+    ids.forEach((id) => { el(id).value = smsTemplate(KINDS[id]); });
+    let base = read(); cnt();
+    ids.forEach((id) => {
+      el(id).addEventListener("input", () => { cnt(); preview(id); $("smsSave").disabled = read() === base; });
+      el(id).addEventListener("focus", () => preview(id));
+    });
+    $("smsCard").querySelectorAll("[data-sms-reset]").forEach((b) => b.addEventListener("click", () => {
+      const id = b.dataset.smsReset; el(id).value = smsDefault(KINDS[id]); cnt(); preview(id); $("smsSave").disabled = read() === base;
+    }));
+    $("smsSave").addEventListener("click", async () => {
+      const b = $("smsSave"); b.disabled = true; b.textContent = "저장 중…";
+      try {
+        const sms = {};
+        ids.forEach((id) => { const v = el(id).value.trim(); if (v !== smsDefault(KINDS[id])) sms[KINDS[id]] = v; }); // 기본 문구와 같으면 저장하지 않음(나중에 기본이 바뀌면 따라감), 지우면 빈 문구로 저장
+        await saveMyPrefs({ ...(myPrefs || {}), sms });
+        base = read(); toast("문구를 저장했습니다.");
+      } catch (e) { handleError(e); }
+      b.textContent = "문구 저장"; b.disabled = read() === base;
+    });
+  }
+
+  // ---------- 영업 (이달 이관 · 이달 따행) + 전화·문자 '시도' 기록 ----------
+  //   이관: 계약 단위(계약 시트 최근통화일시·최근문자일시 + 이력 시트에 계약ID와 함께 한 줄) / 따행: 고객 단위(고객 시트 최근통화일시·최근문자일시 + 이력에 계약ID 비움)
+  const SALES = { tab: "transfer", ym: "", showRef: false, data: null };
+  const ymNow = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1); };
+  const ymShift = (ym, n) => { let y = +ym.slice(0, 4), m = +ym.slice(4) + n; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return y + pad2(m); };
+  const ymLabel = (ym) => ym.slice(0, 4) + "년 " + (+ym.slice(4)) + "월";
+  const monthOf = (v) => dateKey(v).slice(0, 6);
+  const firstPhone = (s) => { const m = String(s || "").match(/\+?\d[\d -]{7,}/); return m ? m[0].replace(/[^\d+]/g, "") : ""; };
+  const cleanAddr = (a) => String(a || "").replace(/^\s*\[[^\]]*\]\s*/, "").replace(/^\(?\d{5}\)?\s*/, "").trim();
+  const DEAD_STATUS = ["해약", "사고소멸", "순수보장만기소멸", "연금소멸"];
+  // 'YYYY-MM-DD HH:mm' 또는 엑셀 표시 문자열 → 비교용 숫자열 / 표시용 'M/D HH:mm'
+  const tsDigits = (v) => String(v || "").replace(/\D/g, "").slice(0, 12);
+  const tsShow = (v) => { const d = tsDigits(v); return d.length >= 8 ? `${+d.slice(4, 6)}/${+d.slice(6, 8)}` + (d.length >= 12 ? ` ${d.slice(8, 10)}:${d.slice(10, 12)}` : "") : ""; };
+  const nowStamp = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+
+  // 이력 시트 (읽기): 파일마다 한 번
+  let histCache = null;
+  function loadHistory() {
+    if (histCache) return histCache;
+    histCache = (async () => {
+      const { files } = await scanBase();
+      const spec = CFG.lists.find((l) => l.fileRegex || l.fileKeyword);
+      const out = [];
+      await Promise.all(pickSourceFiles(files, spec).map(async (f) => {
+        const wb = await readBook(f.id);
+        const rows = sheetRows(wb, "이력");
+        if (!rows) return;
+        const h = headIndex(rows, "고객ID");
+        if (h < 0) return;
+        const head = rows[h].map((c) => String(c).trim());
+        rows.slice(h + 1).forEach((r) => {
+          const o = {};
+          head.forEach((k, j) => { if (k) o[k] = r[j]; });
+          if (String(o["고객ID"] || "").trim()) out.push({ fc: f.fc, ...o });
+        });
+      }));
+      return out;
+    })();
+    histCache.catch(() => { histCache = null; });
+    return histCache;
+  }
+
+  // ---- 기기 대기 기록 (누르면 전화·문자 앱으로 넘어가 웹앱이 끊길 수 있어 먼저 기기에 저장 → 앱이 다시 보일 때 Drive에 반영) ----
+  const queueKey = () => "shlife.contactQueue." + me();
+  const readQueue = () => { try { return JSON.parse(localStorage.getItem(queueKey()) || "[]"); } catch (e) { return []; } };
+  const writeQueue = (q) => { try { localStorage.setItem(queueKey(), JSON.stringify(q)); } catch (e) { /* 무시 */ } };
+  let flushing = false;
+
+  // ---- 엑셀 편집 도우미 (최신 파일을 다시 읽어 바뀐 칸만) ----
+  function sheetInfo(wb, name, keyCol) {
+    const sn = wb.SheetNames.find((n) => n.trim() === name);
+    if (!sn) return null;
+    const ws = wb.Sheets[sn];
+    if (!ws || !ws["!ref"]) return null;
+    const enc = (r, c) => XLSX.utils.encode_cell({ r, c });
+    const info = { ws, enc, rg: XLSX.utils.decode_range(ws["!ref"]), hr: -1 };
+    info.txt = (r, c) => { const cell = ws[enc(r, c)]; return cell ? String(cell.w ?? cell.v).trim() : ""; };
+    for (let r = info.rg.s.r; r <= Math.min(info.rg.e.r, info.rg.s.r + 10); r++) {
+      for (let c = info.rg.s.c; c <= info.rg.e.c; c++) if (info.txt(r, c) === keyCol) { info.hr = r; break; }
+      if (info.hr >= 0) break;
+    }
+    if (info.hr < 0) return null;
+    info.colOf = (n) => { for (let c = info.rg.s.c; c <= info.rg.e.c; c++) if (info.txt(info.hr, c) === n) return c; return -1; };
+    return info;
+  }
+  function shiftColumns(info, at) {
+    const ws = info.ws, moves = [];
+    Object.keys(ws).forEach((k) => { if (k[0] === "!") return; const a = XLSX.utils.decode_cell(k); if (a.c >= at) moves.push([k, a]); });
+    moves.sort((x, y) => y[1].c - x[1].c).forEach(([k, a]) => { ws[XLSX.utils.encode_cell({ r: a.r, c: a.c + 1 })] = ws[k]; delete ws[k]; });
+    info.rg.e.c += 1;
+    ws["!ref"] = XLSX.utils.encode_range(info.rg);
+    if (ws["!cols"]) ws["!cols"].splice(at, 0, { wch: 14 });
+    if (ws["!merges"]) ws["!merges"].forEach((m) => { if (m.s.c >= at) m.s.c++; if (m.e.c >= at) m.e.c++; });
+  }
+  // 열이 없으면 만듦: after 열이 있으면 그 다음, 아니면 '입력일시' 앞(없으면 맨 끝)
+  function ensureColumn(info, name, after) {
+    let c = info.colOf(name);
+    if (c >= 0) return c;
+    const a = after ? info.colOf(after) : -1;
+    const sc = info.colOf(STAMP_COL);
+    const at = a >= 0 ? a + 1 : sc >= 0 ? sc : info.rg.e.c + 1;
+    if (at <= info.rg.e.c) shiftColumns(info, at); else { info.rg.e.c = at; info.ws["!ref"] = XLSX.utils.encode_range(info.rg); }
+    info.ws[info.enc(info.hr, at)] = { t: "s", v: name };
+    return at;
+  }
+  const stampCell = (digits) => { // 'YYYYMMDDHHmm' → 엑셀 날짜·시간 칸
+    const y = +digits.slice(0, 4), m = +digits.slice(4, 6), d = +digits.slice(6, 8), hh = +digits.slice(8, 10) || 0, mi = +digits.slice(10, 12) || 0;
+    return { t: "n", v: toExcelDateTime(new Date(y, m - 1, d, hh, mi)), z: "yyyy-mm-dd hh:mm" };
+  };
+  function setRowCells(info, keyCol, keyVal, values) {
+    const kc = info.colOf(keyCol);
+    if (kc < 0) return false;
+    let row = -1;
+    for (let r = info.hr + 1; r <= info.rg.e.r; r++) if (info.txt(r, kc) === keyVal) { row = r; break; }
+    if (row < 0) return false;
+    Object.entries(values).forEach(([k, v]) => { const c = ensureColumn(info, k); info.ws[info.enc(row, c)] = stampCell(tsDigits(v)); });
+    return true;
+  }
+  function appendRow(info, values) { // values: { 열이름: 문자열 | {stamp:'YYYYMMDDHHmm'} }
+    let last = info.hr;
+    for (let r = info.rg.e.r; r > info.hr; r--) { let any = false; for (let c = info.rg.s.c; c <= info.rg.e.c; c++) if (info.ws[info.enc(r, c)]) { any = true; break; } if (any) { last = r; break; } }
+    const row = last + 1;
+    Object.entries(values).forEach(([k, v]) => {
+      const c = ensureColumn(info, k, k === "계약ID" ? "고객ID" : undefined);
+      info.ws[info.enc(row, c)] = v && v.stamp ? stampCell(v.stamp) : { t: "s", v: String(v) };
+    });
+    if (row > info.rg.e.r) info.rg.e.r = row;
+    info.ws["!ref"] = XLSX.utils.encode_range(info.rg);
+    return row;
+  }
+  function histHas(info, v) { // 같은 일시·고객ID·계약ID·유형이 이미 있으면 true (재시도 중복 방지)
+    const cs = { t: info.colOf("일시"), u: info.colOf("고객ID"), k: info.colOf("계약ID"), y: info.colOf("유형") };
+    if (cs.t < 0 || cs.u < 0) return false;
+    for (let r = info.hr + 1; r <= info.rg.e.r; r++) {
+      if (tsDigits(info.txt(r, cs.t)) === tsDigits(v.일시) && info.txt(r, cs.u) === v.고객ID && (cs.k < 0 ? "" : info.txt(r, cs.k)) === (v.계약ID || "") && (cs.y < 0 ? "" : info.txt(r, cs.y)) === v.유형) return true;
+    }
+    return false;
+  }
+  async function writeContacts(fileId, items) {
+    const wb = XLSX.read(await stGet(fileId), { type: "array", cellNF: true }); // 최신 파일
+    const stamp = tsDigits(nowStamp());
+    const hist = sheetInfo(wb, "이력", "고객ID");
+    const ct = sheetInfo(wb, "계약", "계약ID");
+    const cu = sheetInfo(wb, CUST_SHEET, ID_COL);
+    for (const it of items) {
+      const colName = it.kind === "call" ? "최근통화일시" : "최근문자일시";
+      const v = { 일시: it.ts, 고객ID: it.custId || "", 계약ID: it.cid || "", 유형: it.kind === "call" ? "통화" : "문자" };
+      if (hist && !histHas(hist, v)) appendRow(hist, { 일시: { stamp: tsDigits(it.ts) }, 고객ID: v.고객ID, 계약ID: v.계약ID, 담당FC: it.fc || "", 유형: v.유형, 결과: "시도", 내용: it.src || "영업 화면", 입력일시: { stamp } });
+      if (it.cid && ct) setRowCells(ct, "계약ID", it.cid, { [colName]: it.ts });
+      if (!it.cid && it.custId && cu) setRowCells(cu, ID_COL, it.custId, { [colName]: it.ts });
+    }
+    await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx" }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[fileId];
+  }
+  async function flushContacts() {
+    if (flushing || !account()) return;
+    flushing = true;
+    try {
+      const q = readQueue().filter((it) => it.fileId);
+      if (!q.length) return;
+      const byFile = new Map();
+      q.forEach((it) => { if (!byFile.has(it.fileId)) byFile.set(it.fileId, []); byFile.get(it.fileId).push(it); });
+      let wrote = false;
+      for (const [fileId, items] of byFile) {
+        try {
+          await writeContacts(fileId, items);
+          const done = new Set(items.map((i) => i.uid));
+          writeQueue(readQueue().filter((i) => !done.has(i.uid)));
+          wrote = true;
+        } catch (e) { console.error("전화·문자 기록 반영 실패", e); }
+      }
+      if (wrote) { histCache = null; contractCache = null; listCache = null; }
+      if (!$("salesView").hidden) renderSales();
+    } finally { flushing = false; }
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(flushContacts, 1500); });
+  window.addEventListener("pageshow", () => setTimeout(flushContacts, 2500));
+
+  // ---- 데이터 → 목록 ----
+  async function loadSalesData() {
+    const [lists, contracts, hist] = await Promise.all([loadLists(), loadContracts(), loadHistory().catch(() => [])]);
+    const custById = new Map();
+    lists.forEach((e) => { const id = idOf(e); if (id) (custById.get(id) || custById.set(id, []).get(id)).push(e); });
+    return { lists, contracts, hist, custById };
+  }
+  // ym 달에 시도한 기록: key('c:계약ID' | 'u:고객ID') → { call: ts, sms: ts }
+  function contactMarks(data, ym) {
+    const m = new Map();
+    const put = (key, kind, ts) => {
+      if (!key || monthOf(ts) !== ym) return;
+      const cur = m.get(key) || {};
+      if (!cur[kind] || tsDigits(ts) > tsDigits(cur[kind])) cur[kind] = ts;
+      m.set(key, cur);
+    };
+    data.hist.forEach((h) => { const k = String(h["계약ID"] || "").trim() ? "c:" + String(h["계약ID"]).trim() : "u:" + String(h["고객ID"]).trim(); put(k, String(h["유형"]).trim() === "통화" ? "call" : String(h["유형"]).trim() === "문자" ? "sms" : "", h["일시"]); });
+    data.contracts.forEach((c) => { const id = String(c.row["계약ID"] || "").trim(); if (id) { put("c:" + id, "call", c.row["최근통화일시"]); put("c:" + id, "sms", c.row["최근문자일시"]); } });
+    data.lists.forEach((e) => { const id = idOf(e); if (id) { put("u:" + id, "call", fieldOf(e, "최근통화일시")); put("u:" + id, "sms", fieldOf(e, "최근문자일시")); } });
+    readQueue().forEach((it) => put(it.cid ? "c:" + it.cid : "u:" + it.custId, it.kind, it.ts)); // 아직 Drive에 못 올린 기록도 바로 표시
+    return m;
+  }
+  function transferRows(data, ym, showRef) {
+    const out = [];
+    data.contracts.forEach((c) => {
+      if (c.type !== "이관") return;
+      const rr = c.row, idate = rr["이관일자"] || rr["이관일"] || "";
+      if (monthOf(idate) !== ym) return;
+      const ref = !!(c.fc && c.srcFc && c.fc !== c.srcFc); // 담당 FC가 이 파일의 FC가 아니면 참고
+      if (ref && !showRef) return;
+      const cid = String(rr["계약자ID"] || "").trim();
+      const ce = cid && data.custById.get(cid) ? data.custById.get(cid).find((e) => e.fc === c.srcFc) || data.custById.get(cid)[0] : null;
+      const holder = rr["계약자"] || (ce && ce.name) || "";
+      const insured = rr["주피보험자"] || rr["피보"] || "";
+      out.push({
+        key: String(rr["계약ID"] || "").trim() ? "c:" + String(rr["계약ID"]).trim() : "", cid: String(rr["계약ID"] || "").trim(), custId: cid, fc: c.fc, ref,
+        fileId: c.src && c.src.fileId, holder, ins: norm(insured) && norm(insured) !== norm(holder) ? insured : "",
+        product: productName(rr["상품명"]), fee: rr["합계보험료"] || rr["보험료"] || "", cdate: rr["최초계약일"] || rr["계약일"] || "",
+        bday: (ce && fieldOf(ce, "생년월일")) || rr["생일"] || "", phone: firstPhone((ce && (ce.phone || fieldOf(ce, "연락처"))) || rr["연락처"]),
+        phoneText: (ce && (ce.phone || fieldOf(ce, "연락처"))) || rr["연락처"] || "", job: (ce && fieldOf(ce, "직업")) || rr["직업"] || "",
+        addr: cleanAddr((ce && fieldOf(ce, "주소")) || rr["주소"]), recFc: rr["모집FC"] || "", status: rr["계약상태"] || rr["상태"] || "", idate
+      });
+    });
+    out.sort((a, b) => a.holder.localeCompare(b.holder, "ko") || dateKey(b.cdate).localeCompare(dateKey(a.cdate)));
+    return out;
+  }
+  function ddaRows(data, ym) {
+    const out = [], seen = new Set();
+    data.lists.forEach((e) => {
+      const id = idOf(e);
+      if (!id || e.sheet !== CUST_SHEET || e.type === "피보험자" || seen.has(id)) return;
+      const mine = data.custById.get(id);
+      const own = mine.find((x) => x.fc === primaryFc(mine)) || e; // 담당 FC 행
+      if (own !== e) return;
+      if (fieldOf(e, "따행대상") !== "예" || monthOf(fieldOf(e, "따행배정일")) !== ym) return;
+      seen.add(id);
+      const cts = data.contracts.filter((c) => String(c.row["계약자ID"] || "").trim() === id && !DEAD_STATUS.includes(c.row["계약상태"] || c.row["상태"] || ""));
+      const names = [...new Set(cts.map((c) => productName(c.row["상품명"])).filter(Boolean))];
+      const fee = cts.reduce((s, c) => s + (parseInt(String(c.row["합계보험료"] || "0").replace(/\D/g, ""), 10) || 0), 0);
+      const cd = cts.map((c) => c.row["최초계약일"] || c.row["계약일"] || "").sort((a, b) => dateKey(b).localeCompare(dateKey(a)))[0] || "";
+      out.push({
+        key: "u:" + id, cid: "", custId: id, fc: e.fc, ref: false, fileId: e.src && e.src.fileId, holder: e.name, ins: "",
+        product: names.length ? names.slice(0, 2).join(", ") + (names.length > 2 ? ` 외 ${names.length - 2}건` : "") : "가망(계약 없음)",
+        fee: fee || "", cdate: cd, bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
+        job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC"), status: "",
+        dda: { apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달") }
+      });
+    });
+    out.sort((a, b) => (a.dda.done ? 1 : 0) - (b.dda.done ? 1 : 0) || (dateKey(a.dda.due) || "99999999").localeCompare(dateKey(b.dda.due) || "99999999") || a.holder.localeCompare(b.holder, "ko"));
+    return out;
+  }
+  // ---- 화면 ----
+  const salesBtn = (r, kind, mark, ctx) => {
+    const lab = kind === "call" ? "전화" : "문자", has = !!r.phone, ts = mark && mark[kind];
+    const href = has ? (kind === "call" ? `tel:${r.phone}` : smsHref(r.phone, fillSms((ctx && ctx.tpl) || "", r, ctx && ctx.fcName))) : "";
+    return `<a class="sbtn ${kind}${ts ? " done" : ""}${has ? "" : " off"}" ${has ? `href="${esc(href)}" data-contact="${kind}" data-key="${esc(r.key)}"` : ""}>${lab}${ts ? " ✓" : ""}</a>`;
+  };
+  function salesRowsHtml(rows, mark, ctx) {
+    const head = `<thead><tr><th class="c-no">No</th><th>계약자</th><th>피보</th><th class="c-prod">상품명</th><th>보험료</th><th>계약일</th><th>생일</th></tr></thead>`;
+    const body = rows.map((r, i) => {
+      const mk = mark.get(r.key) || {};
+      const st = r.status && r.status !== "유지" ? ` <span class="st">${esc(r.status === "납입면제" ? "납면" : r.status)}</span>` : "";
+      const times = [mk.call ? `전화 시도 ✓ ${tsShow(mk.call)}` : "", mk.sms ? `문자 시도 ✓ ${tsShow(mk.sms)}` : ""].filter(Boolean).join(" · ");
+      const dda = r.dda ? `<tr class="r4"><td colspan="7">따행 · 신청 ${esc(r.dda.apply || "-")} · 방문예정 ${esc(r.dda.due || "-")} · 방문완료 ${esc(r.dda.done || "-")}${r.dda.gift ? " · 선물 " + esc(r.dda.gift) : ""}${r.dda.deliver ? " · 전달 " + esc(r.dda.deliver) : ""}</td></tr>` : "";
+      return `<tbody class="${r.ref ? "ref" : ""}">
+        <tr class="r1"><td class="c-no">${i + 1}</td><td class="c-name">${r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder)}</td><td>${esc(r.ins)}</td><td class="c-prod">${esc(r.product)}${st}</td><td class="c-fee">${esc(r.fee ? wonText(r.fee) : "")}</td><td>${esc(r.cdate)}</td><td>${esc(r.bday)}</td></tr>
+        <tr class="r2"><td colspan="7"><span class="lb">연락처</span> ${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></td></tr>
+        <tr class="r3"><td colspan="7"><span class="lb">직업</span> ${esc(r.job) || "-"} <span class="sep">·</span> <span class="lb">모집FC</span> ${esc(r.recFc) || "-"}</td></tr>
+        <tr class="r3"><td colspan="7"><span class="lb">주소</span> ${esc(r.addr)}${times ? `<div class="ctimes">${times}</div>` : ""}</td></tr>${dda}</tbody>`;
+    }).join("");
+    return `<table class="stable">${head}${body}</table>`;
+  }
+  let salesReq = 0;
+  async function renderSales() {
+    const req = ++salesReq;
+    show("salesView");
+    const box = $("salesView");
+    if (!SALES.ym) SALES.ym = ymNow();
+    const ym = SALES.ym;
+    box.innerHTML = `<div class="sales-top">
+        <div class="seg"><button type="button" data-stab="transfer" class="${SALES.tab === "transfer" ? "on" : ""}">이달 이관</button><button type="button" data-stab="dda" class="${SALES.tab === "dda" ? "on" : ""}">이달 따행</button></div>
+        <div class="ymnav"><button type="button" data-ym="-1" aria-label="이전 달">‹</button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달">›</button></div></div>
+      <div id="salesBody"><p class="hint pad">불러오는 중…</p></div>`;
+    try {
+      const data = await loadSalesData();
+      if (req !== salesReq) return;
+      const rows = SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : ddaRows(data, ym);
+      const mark = contactMarks(data, ym);
+      await loadMyPrefs().catch(() => {});
+      let fcName = ""; try { fcName = ((await readPerms()).names || {})[me()] || ""; } catch (e) { /* 이름 없으면 계약의 담당FC */ }
+      const ctx = { tpl: smsTemplate(SALES.tab === "dda" ? "dda" : "transfer"), fcName };
+      const holders = new Set(rows.map((r) => r.custId || r.holder)).size;
+      const refN = SALES.tab === "transfer" ? data.contracts.filter((c) => c.type === "이관" && monthOf(c.row["이관일자"] || c.row["이관일"]) === ym && c.fc && c.srcFc && c.fc !== c.srcFc).length : 0;
+      SALES.data = data;
+      $("salesBody").innerHTML = `<div class="sales-info"><span>${rows.length}건 · ${holders}명</span>${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함 <span class="hint">(담당 다른 FC ${refN}건)</span></label>` : ""}</div>` +
+        (rows.length ? salesRowsHtml(rows, mark, ctx) : `<p class="hint pad">${ymLabel(ym)} ${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.</p>`) +
+        `<p class="hint pad">전화·문자는 버튼을 누른 '시도'만 기록됩니다(실제 통화·발송 여부는 알 수 없음).${readQueue().length ? ` 아직 저장 안 된 기록 ${readQueue().length}건은 앱이 다시 열리면 반영합니다.` : ""}</p>`;
+      box._rows = rows;
+    } catch (e) { if (req === salesReq) { $("salesBody").innerHTML = ""; handleError(e); } }
+  }
+  function openSales() { renderSales(); flushContacts(); }
+  $("salesView").addEventListener("click", (ev) => {
+    const st = ev.target.closest("[data-stab]");
+    if (st) { SALES.tab = st.dataset.stab; return renderSales(); }
+    const ym = ev.target.closest("[data-ym]");
+    if (ym) { SALES.ym = ymShift(SALES.ym || ymNow(), +ym.dataset.ym); return renderSales(); }
+    const cu = ev.target.closest("[data-cust]");
+    if (cu) {
+      ev.preventDefault();
+      const es = (SALES.data && SALES.data.custById.get(cu.dataset.cust)) || [];
+      if (es.length) { const g = groupCustomers(es); g.forEach((x) => { x.entries.sort((a, b) => prio(a.type) - prio(b.type)); x.name = x.entries[0].name; }); openCustomer(g[0]); }
+      return;
+    }
+    const ct = ev.target.closest("[data-contact]");
+    if (ct && !ct.classList.contains("off")) { // 전화·문자: 링크는 그대로 열리게 두고, 그 전에 기기에 대기 기록을 먼저 저장
+      const row = ((($("salesView")._rows) || []).find((r) => r.key === ct.dataset.key));
+      if (!row) return;
+      if (row.ref || !row.fileId || !row.key) { toast(row.ref ? "담당이 다른 FC 계약이라 기록하지 않습니다." : "새 구조 파일의 계약만 기록합니다."); return; }
+      const q = readQueue();
+      q.push({ uid: Date.now() + "-" + Math.random().toString(36).slice(2, 7), kind: ct.dataset.contact, ts: nowStamp(), cid: row.cid, custId: row.custId, fc: row.fc, fileId: row.fileId, src: SALES.tab === "dda" ? "영업 화면(따행)" : "영업 화면(이관)" });
+      writeQueue(q);
+      ct.classList.add("done");
+      if (!ct.textContent.includes("✓")) ct.textContent += " ✓";
+      setTimeout(flushContacts, 4000);
+    }
+  });
+  document.addEventListener("change", (ev) => { if (ev.target && ev.target.id === "salesRef") { SALES.showRef = ev.target.checked; renderSales(); } });
 
   (async function init() {
     if (CFG.clientId === "YOUR-CLIENT-ID") {
