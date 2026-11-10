@@ -3478,7 +3478,7 @@
 
   // ---------- 영업 (이달 이관 · 이달 따행) + 전화·문자 '시도' 기록 ----------
   //   이관: 계약 단위(계약 시트 최근통화일시·최근문자일시 + 이력 시트에 계약ID와 함께 한 줄) / 따행: 고객 단위(고객 시트 최근통화일시·최근문자일시 + 이력에 계약ID 비움)
-  const SALES = { tab: "transfer", ym: "", showRef: false, data: null };
+  const SALES = { tab: "transfer", ym: "", showRef: false, data: null, df: { send: false, resp: false, coupon: false }, open: new Set() };
   const ymNow = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1); };
   const ymShift = (ym, n) => { let y = +ym.slice(0, 4), m = +ym.slice(4) + n; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return y + pad2(m); };
   const ymLabel = (ym) => ym.slice(0, 4) + "년 " + (+ym.slice(4)) + "월";
@@ -3699,7 +3699,7 @@
         product: names.length ? names.slice(0, 2).join(", ") + (names.length > 2 ? ` 외 ${names.length - 2}건` : "") : "가망(계약 없음)",
         fee: fee || "", cdate: cd, bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
         job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC"), status: "",
-        dda: { assign: fieldOf(e, "따행배정일"), apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달") }
+        dda: { send: fieldOf(e, "설문발송일"), resp: fieldOf(e, "설문응답일"), coupon: fieldOf(e, "쿠폰발송일"), assign: fieldOf(e, "따행배정일"), apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달") }
       });
     });
     out.sort((a, b) => a.holder.localeCompare(b.holder, "ko") || dateKey(a.bday).localeCompare(dateKey(b.bday)) || dateKey(a.dda.assign).localeCompare(dateKey(b.dda.assign))); // 이름 오름차순(가나다), 같은 이름은 생년월일 → 배정일 빠른 순
@@ -3712,15 +3712,15 @@
     return `<a class="sbtn ${kind}${ts ? " done" : ""}${has ? "" : " off"}" ${has ? `href="${esc(href)}" data-contact="${kind}" data-key="${esc(r.key)}"` : ""}>${lab}${ts ? " ✓" : ""}</a>`;
   };
   // 한 건 = 3줄: ① 계약자 · 피보 · 상품명 · 보험료 ② 계약일 · 생일 · 연락처 [전화][문자] · 직업 ③ 주소 · 모집FC (줄 안에서 항목이 나란히, 길면 줄바꿈)
-  function salesRowsHtml(rows, mark, ctx) {
+  function salesRowsHtml(rows, mark, ctx, openSet) {
     const it = (cls, lb, v) => (v === "" || v == null ? "" : `<span class="si ${cls || ""}">${lb ? `<i class="lb">${lb}</i>` : ""}${v}</span>`);
-    return `<div class="slist">` + rows.map((r) => {
+    return `<div class="slist">` + rows.map((r, idx) => {
       const mk = mark.get(r.key) || {};
       const st = r.status && r.status !== "유지" ? `<span class="st">${esc(r.status === "납입면제" ? "납면" : r.status)}</span>` : "";
       const times = [mk.call ? `전화 시도 ✓ ${tsShow(mk.call)}` : "", mk.sms ? `문자 시도 ✓ ${tsShow(mk.sms)}` : ""].filter(Boolean).join(" · ");
-      const dda = r.dda ? `<div class="sline sub">따행 · 배정 ${esc(r.dda.assign || "-")} · 신청 ${esc(r.dda.apply || "-")} · 방문예정 ${esc(r.dda.due || "-")} · 방문완료 ${esc(r.dda.done || "-")}${r.dda.gift ? " · 선물 " + esc(r.dda.gift) : ""}${r.dda.deliver ? " · 전달 " + esc(r.dda.deliver) : ""}</div>` : "";
-      return `<div class="srow${r.ref ? " ref" : ""}${r.dda ? (r.dda.done ? " d-done" : " d-open") : ""}">
-        <div class="sline l1">${it("nm", "", r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder))}${it("", "피보", esc(r.ins))}${it("pd", "", esc(r.product) + (st ? " " + st : ""))}${it("fe", "", esc(r.fee ? wonText(r.fee) : ""))}${r.dda ? `<span class="dchip ${r.dda.done ? "done" : "open"}">${r.dda.done ? "방문완료" : "미완료"}</span>` : ""}</div>
+      const dda = r.dda ? `<div class="sline sub detail">설문발송일 ${esc(r.dda.send || "-")} · 설문응답일 ${esc(r.dda.resp || "-")} · 쿠폰발송일 ${esc(r.dda.coupon || "-")}</div>` : "";
+      return `<div class="srow${r.ref ? " ref" : ""}${r.dda ? (r.dda.done ? " d-done" : " d-open") + " fold" + (openSet && openSet.has(r.key) ? " open" : "") : ""}" data-fold="${esc(r.key)}">
+        <div class="sline l1"><span class="no">${idx + 1}</span>${it("nm", "", r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder))}${it("", "피보", esc(r.ins))}${it("pd", "", esc(r.product) + (st ? " " + st : ""))}${it("fe", "", esc(r.fee ? wonText(r.fee) : ""))}${r.dda ? `<span class="dchip ${r.dda.done ? "done" : "open"}">${r.dda.done ? "방문완료" : "미완료"}</span><span class="chev">▾</span>` : ""}</div>
         <div class="sline l2">${it("", "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span>${it("", "직업", esc(r.job))}</div>
         <div class="sline l3">${it("ad", "", esc(r.addr))}${it("", "모집", esc(r.recFc))}</div>
         ${times ? `<div class="sline sub ok">${times}</div>` : ""}${dda}</div>`;
@@ -3801,7 +3801,10 @@
       if (!isAdmin()) SALES.fc = fcs.includes(myFc) ? myFc : fcs[0] || ""; // 일반 계정: 선택창 없이 본인 FC
       else if (!SALES.fc || !fcs.includes(SALES.fc)) SALES.fc = fcs.includes(saved) ? saved : fcs.includes(myFc) ? myFc : fcs[0] || "";
       const fcSel = SALES.fc;
-      const rows = (SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : ddaRows(data)).filter((r) => !fcSel || r.srcFc === fcSel);
+      const allRows = (SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : ddaRows(data)).filter((r) => !fcSel || r.srcFc === fcSel);
+      // 따행 필터: 설문발송·설문응답·쿠폰(체크한 것 모두 채워진 고객만, AND)
+      const df = SALES.df, dfOn = SALES.tab === "dda" && (df.send || df.resp || df.coupon);
+      const rows = dfOn ? allRows.filter((r) => (!df.send || r.dda.send) && (!df.resp || r.dda.resp) && (!df.coupon || r.dda.coupon)) : allRows;
       const mark = contactMarks(data, ym);
       const ctx = { tpl: smsTemplate(SALES.tab === "dda" ? "dda" : "transfer"), fcName: fcSel || myFc };
       const holders = new Set(rows.map((r) => r.custId || r.holder)).size;
@@ -3809,14 +3812,21 @@
       const marked = rows.filter((r) => r.key && mark.get(r.key)).length;
       SALES.data = data;
       box.innerHTML = top(isAdmin() && fcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${fcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : "") +
-        `<div id="salesBody"><div class="sales-info"><span>${SALES.tab === "dda" ? `전체 ${rows.length}명(미완료 ${rows.filter((r) => !(r.dda && r.dda.done)).length}명)` : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span><span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span></div>` +
-        (rows.length ? salesRowsHtml(rows, mark, ctx) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.</p>`) +
+        `<div id="salesBody"><div class="sales-info"><span>${SALES.tab === "dda" ? `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}` : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "transfer" ? `<span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span>` : ""}</div>` +
+        (SALES.tab === "dda" ? `<div class="dfilter"><span class="dfl"><label><input type="checkbox" data-df="send" ${df.send ? "checked" : ""}> 설문발송</label><label><input type="checkbox" data-df="resp" ${df.resp ? "checked" : ""}> 설문응답</label><label><input type="checkbox" data-df="coupon" ${df.coupon ? "checked" : ""}> 쿠폰</label></span><button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></div>` : "") +
+        (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.</p>`) +
         `<p class="hint pad">전화·문자는 버튼을 누른 '시도'만 기록됩니다(실제 통화·발송 여부는 알 수 없음).${readQueue().length ? ` 아직 저장 안 된 기록 ${readQueue().length}건은 앱이 다시 열리면 반영합니다.` : ""}</p></div>`;
       box._rows = rows; box._mark = mark;
     } catch (e) { if (req === salesReq) { $("salesBody").innerHTML = ""; handleError(e); } }
   }
   function openSales() { renderSales(); flushContacts(); }
   $("salesView").addEventListener("click", (ev) => {
+    const fold = ev.target.closest(".srow.fold");
+    if (fold && !ev.target.closest("a, button, input, label, .sbtns")) { // 따행 행 접힘/펼침 (전화·문자 버튼과 이름 링크는 제외)
+      const k = fold.dataset.fold, on = fold.classList.toggle("open");
+      if (on) SALES.open.add(k); else SALES.open.delete(k);
+      return;
+    }
     const st = ev.target.closest("[data-stab]");
     if (st) { SALES.tab = st.dataset.stab; return renderSales(); }
     const ym = ev.target.closest("[data-ym]");
@@ -3845,6 +3855,7 @@
   document.addEventListener("change", (ev) => {
     if (!ev.target) return;
     if (ev.target.id === "salesRef") { SALES.showRef = ev.target.checked; renderSales(); }
+    if (ev.target.dataset && ev.target.dataset.df) { SALES.df[ev.target.dataset.df] = ev.target.checked; renderSales(); }
     if (ev.target.id === "salesFc") { SALES.fc = ev.target.value; try { localStorage.setItem(salesFcKey(), SALES.fc); } catch (e) { /* 무시 */ } renderSales(); }
   });
 

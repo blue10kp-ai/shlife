@@ -552,3 +552,15 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .dchip.open { background: #fff1d6; color: #a86b00; }
 .dchip.done { background: #e3f4ea; color: #1d7a46; }
 @media (prefers-color-scheme: dark) { .dchip.open { background: #3b2f14; color: #f0c06b; } .dchip.done { background: #1f3a2b; color: #6fd39a; } }
+
+/* v89 영업: 순번, 따행 필터줄, 접힘/펼침 */
+.sline .no { color: var(--muted); font-size: 12px; font-weight: 700; min-width: 1.6em; }
+.dfilter { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.dfl { display: flex; gap: 12px; flex-wrap: wrap; font-size: 14px; }
+.dfl label { display: inline-flex; align-items: center; gap: 4px; }
+.dfl input { width: 17px; height: 17px; accent-color: var(--brand); }
+.srow.fold { cursor: pointer; }
+.srow.fold .detail { display: none; }
+.srow.fold.open .detail { display: block; }
+.chev { color: var(--muted); font-size: 12px; transition: transform .15s; }
+.srow.fold.open .chev { transform: rotate(180deg); }
