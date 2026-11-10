@@ -3650,7 +3650,7 @@
       if (!cur[kind] || tsDigits(ts) > tsDigits(cur[kind])) cur[kind] = ts;
       m.set(key, cur);
     };
-    data.hist.forEach((h) => { if (String(h["결과"] || "").trim().startsWith("취소")) return; const k = String(h["계약ID"] || "").trim() ? "c:" + String(h["계약ID"]).trim() : "u:" + String(h["고객ID"]).trim(); put(k, String(h["유형"]).trim() === "통화" ? "call" : String(h["유형"]).trim() === "문자" ? "sms" : "", h["일시"]); });
+    data.hist.forEach((h) => { if (String(h["결과"] || "").trim() !== "시도") return; /* 앱의 '시도' 기록만 (실제 통화·상담 기록·취소(초기화)는 제외) */ const k = String(h["계약ID"] || "").trim() ? "c:" + String(h["계약ID"]).trim() : "u:" + String(h["고객ID"]).trim(); put(k, String(h["유형"]).trim() === "통화" ? "call" : String(h["유형"]).trim() === "문자" ? "sms" : "", h["일시"]); });
     data.contracts.forEach((c) => { const id = String(c.row["계약ID"] || "").trim(); if (id) { put("c:" + id, "call", c.row["최근통화일시"]); put("c:" + id, "sms", c.row["최근문자일시"]); } });
     data.lists.forEach((e) => { const id = idOf(e); if (id) { put("u:" + id, "call", fieldOf(e, "최근통화일시")); put("u:" + id, "sms", fieldOf(e, "최근문자일시")); } });
     readQueue().forEach((it) => put(it.cid ? "c:" + it.cid : "u:" + it.custId, it.kind, it.ts)); // 아직 Drive에 못 올린 기록도 바로 표시
@@ -3748,7 +3748,7 @@
       if (cs.t >= 0 && cs.u >= 0 && cs.res >= 0) {
         for (let r = hist.hr + 1; r <= hist.rg.e.r; r++) {
           const y = cs.y >= 0 ? hist.txt(r, cs.y) : "";
-          if (monthOf(hist.txt(r, cs.t)) !== ym || !["통화", "문자"].includes(y) || hist.txt(r, cs.res).startsWith("취소")) continue;
+          if (monthOf(hist.txt(r, cs.t)) !== ym || !["통화", "문자"].includes(y) || hist.txt(r, cs.res) !== "시도") continue; // 앱의 '시도' 행만 취소 처리 (다른 통화·상담 기록은 그대로)
           const kid = cs.k >= 0 ? hist.txt(r, cs.k) : "", uid = hist.txt(r, cs.u);
           if (targets.some((t) => (t.cid ? kid === t.cid : kid === "" && uid === t.custId))) { hist.ws[hist.enc(r, cs.res)] = { t: "s", v: "취소(초기화)" }; n++; }
         }
