@@ -206,7 +206,7 @@
   const APP_NAME = "신한FC";
   const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "관리자" };
   const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin" };
-  function show(view) {
+  function show(view, keepScroll) {
     views.forEach((v) => ($(v).hidden = v !== view));
     // 고객 정보 화면: "‹ 고객 정보" 전체가 뒤로 가기 버튼
     $("backBtn").hidden = view !== "customerView";
@@ -219,8 +219,9 @@
     $("navAdmin").hidden = !account();
     $("navAdminLabel").textContent = isAdmin() ? "관리자" : "설정";
     if (view === "searchView") $("pageSearch").hidden = $("results").children.length > 0; // 보이는 고객 목록이 없으면 화면 안 검색창
+    if (view !== "salesView" && view !== "customerView" && view !== "loginView") salesClearState(); // 영업 화면을 떠나면 이어보기 상태 삭제
     $("mainNav").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.section === SECTION[view]));
-    window.scrollTo(0, 0);
+    if (!keepScroll) window.scrollTo(0, 0);
   }
 
   function toast(msg) {
@@ -681,8 +682,10 @@
       const meets = await loadMeetingPlaces().catch(() => []);
       const meetOf = (r) => meets.filter((m) => norm(m.name) === norm(r.name) && sameFc(m.fc, r.fc)).map((m) => m.mp)
         .concat(r.fields.filter(([k]) => k.trim() === "미팅장소").map(([, v]) => v)).join(" ");
+      const ddaOn = !!($("ddaOnly") && $("ddaOnly").checked); // 따행대상='예'(고객 시트 요약 필드)인 고객만
       const hits = records.filter((r) => {
         if (want && r.type !== want.label) return false;
+        if (ddaOn && fieldOf(r, "따행대상") !== "예") return false;
         if (norm(r.name).includes(nq)) return true;
         if (dq.length >= 3 && dq === q.replace(/[\s-]/g, "") && digits(r.phone).includes(dq)) return true;
         if (nq.length < 2) return false;
@@ -1071,6 +1074,7 @@
 
   let returnView = "searchView"; // 고객 정보에서 뒤로 가면 돌아갈 화면 (일정 / 고객 검색)
   async function openCustomer(cust) {
+    if (!$("salesView").hidden) SALES.cardAnchor = salesAnchor(); // 영업 화면에서 열면 돌아올 때 이 위치로
     returnView = !$("scheduleView").hidden ? "scheduleView" : !$("salesView").hidden ? "salesView" : "searchView";
     show("customerView");
     $("custName").textContent = cust.name;
@@ -1136,6 +1140,11 @@
         return !cp || !phones.size || phones.has(cp); // 이관 계약은 계약자 연락처로 동명이인 구분
       });
       current.extra = extra;
+      try { // 따행 시트(B): 이 고객의 대상년월별 기록, 최신 월부터
+        const fw = await loadFollow(), ids = new Set(cust.entries.map(idOf).filter(Boolean));
+        current.follows = fw.rows.filter((r) => ids.has(r["고객ID"])).sort((a, b) => ymOfFollow(b["대상년월"]).localeCompare(ymOfFollow(a["대상년월"])));
+        current.followIdx = 0;
+      } catch (e) { current.follows = []; }
     } catch (e) {
       handleError(e);
     }
@@ -1364,7 +1373,33 @@
           ${/메모/.test(k) ? `<textarea data-pm="${esc(k)}" rows="3">${esc(ev[k] || "")}</textarea>`
             : `<input data-pm="${esc(k)}" value="${esc(k === "미팅장소" ? meetingOf(c, x) : ev[k] || "")}" autocomplete="off">`}</label>`).join("")}
           <div class="file-actions"><button type="button" class="primary" id="memoSave" disabled>저장</button></div></div>` : "";
-    return info + memo;
+    return info + memo + followSectionHtml();
+  }
+  // 정보 탭 '따행' 섹션: 따행 시트(B)의 대상년월별 기록 (월 선택 칩 + 항목). 수정 모드에서는 방문약속일·방문완료·선물·전달여부 입력.
+  const FOLLOW_VIEW = [["따행분류", "따행분류"], ["접촉현황", "접촉현황"], ["캠페인대상여부", "캠페인대상"], ["활동기한", ""], ["방문약속일", "방문약속일"], ["방문완료일", "방문완료일"], ["설문발송일", "설문발송일"], ["설문응답일", "설문응답일"], ["쿠폰발송", "쿠폰발송"], ["선물", "선물"], ["전달여부", "전달여부"]];
+  function followSectionHtml() {
+    const fl = current.follows || [];
+    if (!fl.length) return "";
+    const idx = Math.min(current.followIdx || 0, fl.length - 1), f = fl[idx];
+    const months = fl.length > 1 ? `<div class="fl-months">${fl.map((x, i) => `<button type="button" class="cls-chip${i === idx ? " on" : ""}" data-fidx="${i}">${esc(x["대상년월"])}</button>`).join("")}</div>` : "";
+    const v = (k) => esc(f[k] || "-");
+    const period = f["활동기한시작일"] || f["활동기한종료일"] ? `${esc(f["활동기한시작일"] || "-")} ~ ${esc(f["활동기한종료일"] || "-")}` : "-";
+    return `<div class="card" id="followCard"><div class="fl-head"><b>따행</b> <span class="hint">${esc(f["대상년월"])}</span></div>${months}
+      <dl class="kv">
+        <dt>따행분류</dt><dd>${v("따행분류")}</dd><dt>접촉현황</dt><dd>${v("접촉현황")}</dd><dt>캠페인대상</dt><dd>${v("캠페인대상여부")}</dd><dt>활동기한</dt><dd>${period}</dd>
+        <dt>방문약속일</dt><dd>${v("방문약속일")}</dd><dt>방문완료일</dt><dd>${v("방문완료일")}</dd><dt>설문발송일</dt><dd>${v("설문발송일")}</dd><dt>설문응답일</dt><dd>${v("설문응답일")}</dd>
+        <dt>쿠폰발송</dt><dd>${esc(f["쿠폰발송일"] || f["쿠폰발송"] || "-")}</dd><dt>선물</dt><dd>${v("선물")}</dd><dt>전달여부</dt><dd>${v("전달여부")}</dd>
+      </dl></div>`;
+  }
+  // 수정 모드의 따행 입력칸 (선택한 대상년월의 따행 행에 저장)
+  const FOLLOW_EDIT = [["방문약속일", "date"], ["방문완료일", "text"], ["선물", "text"], ["전달여부", "sel"]];
+  function followFormHtml() {
+    const fl = current.follows || [];
+    if (!fl.length) return "";
+    const f = fl[Math.min(current.followIdx || 0, fl.length - 1)];
+    return `<div class="fld-sec"><div class="fl-head"><b>따행</b> <span class="hint">${esc(f["대상년월"])} — 방문 정보</span></div>` + FOLLOW_EDIT.map(([k, ty]) => `<label class="fld"><span>${esc(k)}</span>${ty === "sel"
+      ? `<select data-fl="${esc(k)}"><option value=""></option>${["완료", "미완료"].map((o) => `<option${f[k] === o ? " selected" : ""}>${o}</option>`).join("")}</select>`
+      : `<input data-fl="${esc(k)}" type="${ty === "date" ? "date" : "text"}" value="${esc(f[k] || "")}" autocomplete="off"${k === "방문완료일" ? ' placeholder="날짜 또는 방문완료"' : ""}>`}</label>`).join("") + `</div>`;
   }
 
   function bindMemo() {
@@ -1440,6 +1475,7 @@
     return `<div class="card" id="infoForm">
         ${listFields}
         ${x.missing || x.error ? `<p class="hint">추가 정보 엑셀을 읽지 못해 통신사·차량번호·갱신일은 수정할 수 없습니다.</p>` : more.map(field).join("")}
+        ${followFormHtml()}
         <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
         <div class="file-actions">
           <button type="button" class="secondary" id="infoCancel">취소</button>
@@ -1481,7 +1517,11 @@
       const orig = { ...((current.extra && current.extra.values) || {}) };
       const v = { ...orig, ...Object.fromEntries(inputs.map((i) => [i.dataset.ex, i.value.trim()])) };
       const extraDirty = inputs.some((i) => i.value.trim() !== (orig[i.dataset.ex] || ""));
-      if (!Object.keys(listValues).length && !extraDirty) { done(); return true; }
+      // 따행 입력칸 (바뀐 칸만, 선택한 대상년월의 따행 행)
+      const fl = current.follows || [], fcur = fl[Math.min(current.followIdx || 0, Math.max(fl.length - 1, 0))];
+      const followChanges = {};
+      if (fcur) body.querySelectorAll("[data-fl]").forEach((i) => { if (i.value.trim() !== (fcur[i.dataset.fl] || "")) followChanges[i.dataset.fl] = i.value.trim(); });
+      if (!Object.keys(listValues).length && !extraDirty && !Object.keys(followChanges).length) { done(); return true; }
       btn.disabled = true; btn.textContent = "저장 중…";
       try {
         if (Object.keys(listValues).length) {
@@ -1492,6 +1532,13 @@
           await saveExtraFor(current.fc, c.name, v, orig);
           current.extra = { ...current.extra, found: true, values: v };
           meetCache = null;
+        }
+        if (Object.keys(followChanges).length) {
+          const row = { custId: idOf(c.entries[0]) || fcur["고객ID"], fc: current.fc, follow: fcur, fileId: fcur._fileId };
+          const before = {}; Object.keys(followChanges).forEach((k) => { before[k] = fcur[k] || ""; });
+          Object.assign(fcur, followChanges);
+          try { await writeFollowRow(row, followChanges, Object.keys(followChanges).map((k) => ({ col: k, value: followChanges[k], prev: before[k] }))); }
+          catch (err) { Object.assign(fcur, before); throw err; }
         }
         current.phones = null;
         toast("저장했습니다.");
@@ -2471,6 +2518,7 @@
     const t = storedGToken() || gTokenMem;
     clearGToken();
     try { localStorage.removeItem(GACC_KEY); } catch (e) { /* 무시 */ }
+    salesClearState();
     try { if (t && window.google && google.accounts.oauth2) google.accounts.oauth2.revoke(t, () => {}); } catch (e) { /* 무시 */ }
     location.reload();
   });
@@ -3412,7 +3460,7 @@
     else if (s === "sales") openSales();
     else resetSearch(); // 고객: 검색을 지우고 처음 화면
   }));
-  window.addEventListener("popstate", () => { if (!$("customerView").hidden) { if (returnView === "scheduleView") openSchedule(); else if (returnView === "salesView") renderSales(); else show("searchView"); } });
+  window.addEventListener("popstate", () => { if (!$("customerView").hidden) { if (returnView === "scheduleView") openSchedule(); else if (returnView === "salesView") renderSales(SALES.cardAnchor || true); else show("searchView"); } });
 
   function resetSearch() {
     $("q").value = ""; $("q2").value = "";
@@ -3480,7 +3528,7 @@
 
   // ---------- 영업 (이달 이관 · 이달 따행) + 전화·문자 '시도' 기록 ----------
   //   이관: 계약 단위(계약 시트 최근통화일시·최근문자일시 + 이력 시트에 계약ID와 함께 한 줄) / 따행: 고객 단위(고객 시트 최근통화일시·최근문자일시 + 이력에 계약ID 비움)
-  const SALES = { tab: "transfer", ym: "", showRef: false, data: null, df: { send: false, resp: false, coupon: false }, open: new Set() };
+  const SALES = { tab: "transfer", ym: "", showRef: false, data: null, df: { send: false, resp: false, coupon: false }, open: new Set(), dct: "", dcls: "", dact: true };
   const ymNow = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1); };
   const ymShift = (ym, n) => { let y = +ym.slice(0, 4), m = +ym.slice(4) + n; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return y + pad2(m); };
   const ymLabel = (ym) => ym.slice(0, 4) + "년 " + (+ym.slice(4)) + "월";
@@ -3519,6 +3567,35 @@
     histCache.catch(() => { histCache = null; });
     return histCache;
   }
+
+  // ---- 따행 시트 (B 구조): 고객ID × 대상년월 1행. 열 이름은 SOL 화면 이름 그대로 (대상년월·따행분류·접촉현황·캠페인대상여부·활동기한시작일/종료일·방문약속일·방문완료일·설문발송일·설문응답일·쿠폰발송·쿠폰발송일·선물·전달여부)
+  let followCache = null;
+  function loadFollow() {
+    if (followCache) return followCache;
+    followCache = (async () => {
+      const { files } = await scanBase();
+      const spec = CFG.lists.find((l) => l.fileRegex || l.fileKeyword);
+      const out = { files: new Set(), rows: [] };
+      await Promise.all(pickSourceFiles(files, spec).map(async (f) => {
+        const wb = await readBook(f.id);
+        const rows = sheetRows(wb, "따행");
+        if (!rows) return;
+        const h = headIndex(rows, "고객ID");
+        if (h < 0) return;
+        out.files.add(f.id); // 이 파일의 고객은 따행 시트 기준(B), 없는 파일은 고객 시트 필드 기준(A)
+        const head = rows[h].map((c) => String(c).trim());
+        rows.slice(h + 1).forEach((r) => {
+          const o = {};
+          head.forEach((k, j) => { if (k) o[k] = String(r[j] ?? "").trim(); });
+          if (o["고객ID"] && o["대상년월"]) out.rows.push({ ...o, _fc: f.fc, _fileId: f.id });
+        });
+      }));
+      return out;
+    })();
+    followCache.catch(() => { followCache = null; });
+    return followCache;
+  }
+  const ymOfFollow = (v) => monthOf(v); // '2026-11' → '202611'
 
   // ---- 기기 대기 기록 (누르면 전화·문자 앱으로 넘어가 웹앱이 끊길 수 있어 먼저 기기에 저장 → 앱이 다시 보일 때 Drive에 반영) ----
   const queueKey = () => "shlife.contactQueue." + me();
@@ -3630,7 +3707,7 @@
         } catch (e) { console.error("전화·문자 기록 반영 실패", e); }
       }
       if (wrote) { histCache = null; contractCache = null; listCache = null; }
-      if (!$("salesView").hidden) renderSales();
+      if (!$("salesView").hidden) renderSales(true);
     } finally { flushing = false; }
   }
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(flushContacts, 1500); });
@@ -3638,10 +3715,10 @@
 
   // ---- 데이터 → 목록 ----
   async function loadSalesData() {
-    const [lists, contracts, hist] = await Promise.all([loadLists(), loadContracts(), loadHistory().catch(() => [])]);
+    const [lists, contracts, hist, follow] = await Promise.all([loadLists(), loadContracts(), loadHistory().catch(() => []), loadFollow().catch(() => ({ files: new Set(), rows: [] }))]);
     const custById = new Map();
     lists.forEach((e) => { const id = idOf(e); if (id) (custById.get(id) || custById.set(id, []).get(id)).push(e); });
-    return { lists, contracts, hist, custById };
+    return { lists, contracts, hist, custById, follow };
   }
   // ym 달에 시도한 기록: key('c:계약ID' | 'u:고객ID') → { call: ts, sms: ts }
   function contactMarks(data, ym) {
@@ -3682,31 +3759,66 @@
     out.sort((a, b) => a.holder.localeCompare(b.holder, "ko") || dateKey(b.cdate).localeCompare(dateKey(a.cdate)));
     return out;
   }
-  function ddaRows(data) {
-    const out = [], seen = new Set();
-    data.lists.forEach((e) => {
-      const id = idOf(e);
-      if (!id || e.sheet !== CUST_SHEET || e.type === "피보험자" || seen.has(id)) return;
-      const mine = data.custById.get(id);
-      const own = mine.find((x) => x.fc === primaryFc(mine)) || e; // 담당 FC 행
-      if (own !== e) return;
-      if (fieldOf(e, "따행대상") !== "예") return; // 배정월·방문 완료 여부와 상관없이 따행대상=예 전체
-      seen.add(id);
+  function ddaRows(data, ym) {
+    const out = [], seen = new Set(), follow = data.follow || { files: new Set(), rows: [] };
+    const base = (e, id) => {
       const cts = data.contracts.filter((c) => String(c.row["계약자ID"] || "").trim() === id && !DEAD_STATUS.includes(c.row["계약상태"] || c.row["상태"] || ""));
       const prods = cts.map((c) => ({ name: productName(c.row["상품명"]), fee: c.row["합계보험료"] || c.row["보험료"] || "" })).filter((p) => p.name);
       const recFcs = [...new Set(cts.map((c) => String(c.row["모집FC"] || "").trim()).filter(Boolean))];
-      const fee = prods.length === 1 ? prods[0].fee : "";
       const cd = cts.map((c) => c.row["최초계약일"] || c.row["계약일"] || "").sort((a, b) => dateKey(b).localeCompare(dateKey(a)))[0] || "";
-      out.push({
-        key: "u:" + id, cid: "", custId: id, fc: e.fc, srcFc: e.fc, ref: false, fileId: e.src && e.src.fileId, holder: e.name, ins: "",
+      return {
+        key: "u:" + id, cid: "", custId: id, fc: e.fc, srcFc: e.fc, ref: false, ent: e, fileId: e.src && e.src.fileId, holder: e.name, ins: "",
         prods, product: prods.length === 1 ? prods[0].name : prods.length ? "" : "계약 정보 없음(조회 제한)", // 계약 2건 이상이면 이름 아래 줄마다 상품명·보험료
-        fee, cdate: cd, bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
-        job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC") || recFcs.join(", "), status: "",
-        dda: { send: fieldOf(e, "설문발송일"), resp: fieldOf(e, "설문응답일"), coupon: fieldOf(e, "쿠폰발송일"), assign: fieldOf(e, "따행배정일"), apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달") }
-      });
+        fee: prods.length === 1 ? prods[0].fee : "", cdate: cd, bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
+        job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC") || recFcs.join(", "), status: ""
+      };
+    };
+    const ownOf = (id) => { const mine = data.custById.get(id); return mine ? (mine.find((x) => x.fc === primaryFc(mine)) || mine[0]) : null; };
+    // B: 따행 시트가 있는 파일 — 선택한 대상년월의 행
+    follow.rows.filter((f) => ymOfFollow(f["대상년월"]) === ymOfFollow(ym)).forEach((f) => {
+      const id = f["고객ID"], e = ownOf(id);
+      if (!e || e.type === "피보험자" || seen.has(id)) return;
+      seen.add(id);
+      const r = base(e, id);
+      r.fileId = f._fileId; r.follow = f;
+      r.dda = { done: f["방문완료일"] || (["방문완료", "설문발송", "설문응답", "쿠폰발송"].includes(String(f["접촉현황"] || "").trim()) ? "방문완료" : ""), send: f["설문발송일"], resp: f["설문응답일"], coupon: f["쿠폰발송일"] || f["쿠폰발송"], assign: "", apply: "", due: f["방문약속일"], gift: f["선물"], deliver: f["전달여부"], cls: f["따행분류"], active: f["캠페인대상여부"], contact: f["접촉현황"] };
+      out.push(r);
+    });
+    // A: 따행 시트가 없는 파일 — 고객 시트의 따행 필드 (따행대상='예' 전체, 월 무관)
+    data.lists.forEach((e) => {
+      const id = idOf(e);
+      if (!id || e.sheet !== CUST_SHEET || e.type === "피보험자" || seen.has(id)) return;
+      if (follow.files.has(e.src && e.src.fileId)) return; // B 파일은 위에서 처리
+      const mine = data.custById.get(id);
+      const own = mine.find((x) => x.fc === primaryFc(mine)) || e; // 담당 FC 행
+      if (own !== e) return;
+      if (fieldOf(e, "따행대상") !== "예") return;
+      seen.add(id);
+      const r = base(e, id);
+      r.dda = { send: fieldOf(e, "설문발송일"), resp: fieldOf(e, "설문응답일"), coupon: fieldOf(e, "쿠폰발송일"), assign: fieldOf(e, "따행배정일"), apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달"), cls: "", active: "", contact: "" };
+      out.push(r);
     });
     out.sort((a, b) => a.holder.localeCompare(b.holder, "ko") || dateKey(a.bday).localeCompare(dateKey(b.bday)) || dateKey(a.dda.assign).localeCompare(dateKey(b.dda.assign))); // 이름 오름차순(가나다), 같은 이름은 생년월일 → 배정일 빠른 순
     return out;
+  }
+  // 따행 필터: 활동대상(기본) → 접촉현황(방문완료 칸 값 유무) → 따행분류. totals는 활동대상 기준 전체(SOL 조회와 같은 73·16·57), classes는 접촉현황 필터 후의 분류별 건수
+  function ddaFilter(baseRows, bMode, st) {
+    const afterAct = baseRows.filter((r) => !bMode || !st.dact || !r.dda.active || r.dda.active === "활동대상");
+    const afterCt = afterAct.filter((r) => !st.dct || (st.dct === "done" ? !!r.dda.done : !r.dda.done));
+    const cc = new Map(); afterCt.forEach((r) => { if (r.dda.cls) cc.set(r.dda.cls, (cc.get(r.dda.cls) || 0) + 1); });
+    return {
+      rows: st.dcls ? afterCt.filter((r) => r.dda.cls === st.dcls) : afterCt,
+      classes: [...cc.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0], "ko")),
+      totals: { all: afterAct.length, done: afterAct.filter((r) => r.dda.done).length, open: afterAct.filter((r) => !r.dda.done).length }
+    };
+  }
+  // 따행 필터 막대 (대상년월은 위 월 이동): 접촉현황 · 따행분류 · 활동대상 · 분류별 건수
+  function ddaBarHtml(st) { // st: { dct, dcls, dact, classes: [[이름, 건수]], totals }
+    const seg = [["", "전체"], ["done", "방문완료"], ["open", "미활동"]].map(([v, l]) => `<button type="button" data-dct="${v}" class="${st.dct === v ? "on" : ""}">${l}</button>`).join("");
+    const opts = [`<option value="">따행분류: 전체</option>`].concat(st.classes.map(([n, c]) => `<option value="${esc(n)}"${st.dcls === n ? " selected" : ""}>${esc(n)} (${c})</option>`)).join("");
+    const chips = st.classes.map(([n, c]) => `<button type="button" class="cls-chip${st.dcls === n ? " on" : ""}" data-dcls="${esc(n)}">${esc(n)} ${c}</button>`).join("");
+    return `<div class="dbar"><div class="dseg">${seg}</div><div class="drow"><select id="dclsSel" aria-label="따행분류">${opts}</select><button type="button" id="dactBtn" class="act-pill${st.dact ? " on" : ""}" aria-pressed="${st.dact ? "true" : "false"}">활동대상</button></div></div>` +
+      `<div class="dsum"><b>${st.totals.all}명</b> · 방문완료 <b>${st.totals.done}</b> · 미활동 <b>${st.totals.open}</b></div>` + (chips ? `<div class="dchips">${chips}</div>` : "");
   }
   // ---- 화면 ----
   const salesBtn = (r, kind, mark, ctx) => {
@@ -3715,20 +3827,120 @@
     return `<a class="sbtn ${kind}${ts ? " done" : ""}${has ? "" : " off"}" ${has ? `href="${esc(href)}" data-contact="${kind}" data-key="${esc(r.key)}"` : ""}>${lab}${ts ? " ✓" : ""}</a>`;
   };
   // 한 건 = 3줄: ① 계약자 · 피보 · 상품명 · 보험료 ② 계약일 · 생일 · 연락처 [전화][문자] · 직업 ③ 주소 · 모집FC (줄 안에서 항목이 나란히, 길면 줄바꿈)
+  // 따행 칩 4개 (필드 값이 있으면 ON): 방문완료=따행방문완료일 · 설문발송=설문발송일 · 설문응답=설문응답일 · 쿠폰발송=쿠폰발송일
+  const DCHIPS = [["done", "방문완료", "done", "따행방문완료일"], ["send", "설문발송", "send", "설문발송일"], ["resp", "설문응답", "resp", "설문응답일"], ["coupon", "쿠폰발송", "cpn", "쿠폰발송일"]];
+  // v93d 배치: ① 순번·이름(→피보) [이관 50% / 따행 30%] + 오른쪽 끝(이관 상태 칩 / 따행 칩 4개) ② 상품·보험료(아래 줄, 계약마다) ③ 계약일·생일·연락처[전화][문자]·직업(+따행은 모집FC) ④ 주소(+이관은 모집FC)
   function salesRowsHtml(rows, mark, ctx, openSet) {
     const it = (cls, lb, v) => (v === "" || v == null ? "" : `<span class="si ${cls || ""}">${lb ? `<i class="lb">${lb}</i>` : ""}${v}</span>`);
     return `<div class="slist">` + rows.map((r, idx) => {
       const mk = mark.get(r.key) || {};
+      const isD = !!r.dda, lock = isD && isRO(r.fc);
       const st = r.status && r.status !== "유지" ? `<span class="st">${esc(r.status === "납입면제" ? "납면" : r.status)}</span>` : "";
       const times = [mk.call ? `전화 시도 ✓ ${tsShow(mk.call)}` : "", mk.sms ? `문자 시도 ✓ ${tsShow(mk.sms)}` : ""].filter(Boolean).join(" · ");
-      const dda = r.dda ? `<div class="sline sub detail">설문발송일 ${esc(r.dda.send || "-")} · 설문응답일 ${esc(r.dda.resp || "-")} · 쿠폰발송일 ${esc(r.dda.coupon || "-")}</div>` : "";
-      return `<div class="srow${r.ref ? " ref" : ""}${r.dda ? (r.dda.done ? " d-done" : " d-open") + " fold" + (openSet && openSet.has(r.key) ? " open" : "") : ""}" data-fold="${esc(r.key)}">
-        <div class="sline l1"><span class="no">${idx + 1}</span>${it("nm", "", r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder))}${it("", "피보", esc(r.ins))}${it("pd", "", esc(r.product) + (st ? " " + st : ""))}${it("fe", "", esc(r.fee ? wonText(r.fee) : ""))}${r.dda ? `<span class="dchip ${r.dda.done ? "done" : "open"}">${r.dda.done ? "방문완료" : "미완료"}</span><span class="chev">▾</span>` : ""}</div>
-        ${r.prods && r.prods.length >= 2 ? r.prods.map((p) => `<div class="sline prod"><span class="si pd">${esc(p.name)}</span><span class="si fe">${esc(p.fee ? wonText(p.fee) : "")}</span></div>`).join("") : ""}
-        <div class="sline l2">${it("", "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span>${it("", "직업", esc(r.job))}${r.dda ? it("", "모집", esc(r.recFc)) : ""}</div>
-        <div class="sline l3">${it("ad", "", esc(r.addr))}${r.dda ? "" : it("", "모집", esc(r.recFc))}</div>
-        ${times ? `<div class="sline sub ok">${times}</div>` : ""}${dda}</div>`;
+      const chips = isD ? DCHIPS.map(([f, lab, cls]) => `<button type="button" class="dc ${cls} ${r.dda[f] ? "on" : "off"}${lock ? " lock" : ""}" data-chip="${f}" data-key="${esc(r.key)}" aria-pressed="${r.dda[f] ? "true" : "false"}">${lab}</button>`).join("") : st;
+      const prodLines = isD
+        ? (r.prods && r.prods.length ? r.prods : [{ name: "계약 정보 없음(조회 제한)", fee: "" }])
+        : [{ name: r.product, fee: r.fee }];
+      const detail = isD ? `<div class="sline sub detail">방문완료 ${esc(r.dda.done || "-")} · 설문발송일 ${esc(r.dda.send || "-")} · 설문응답일 ${esc(r.dda.resp || "-")} · 쿠폰발송일 ${esc(r.dda.coupon || "-")}</div>` : "";
+      return `<div class="srow${r.ref ? " ref" : ""}${isD ? (r.dda.done ? " d-done" : " d-open") + " fold" + (openSet && openSet.has(r.key) ? " open" : "") : ""}" data-fold="${esc(r.key)}">
+        <div class="sline l1"><span class="no">${idx + 1}</span><span class="nmw ${isD ? "n30" : "n50"}">${r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder)}${r.ins ? ` <small class="ins">→ ${esc(r.ins)}</small>` : ""}</span><span class="rt">${chips}</span></div>
+        ${prodLines.map((p) => `<div class="sline prod"><span class="si pd">${esc(p.name)}</span><span class="si fe">${esc(p.fee ? wonText(p.fee) : "")}</span></div>`).join("")}
+        <div class="sline l2">${it("", "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span>${it("", "직업", esc(r.job))}${isD ? it("", "모집", esc(r.recFc)) : ""}</div>
+        <div class="sline l3">${it("ad", "", esc(r.addr))}${isD ? "" : it("", "모집", esc(r.recFc))}</div>
+        ${times ? `<div class="sline sub ok">${times}</div>` : ""}${detail}</div>`;
     }).join("") + `</div>`;
+  }
+  // ---- 따행 칩 터치: 필드에 오늘 날짜(방문완료는 '방문완료')를 쓰거나 비움, 이력에 '수동 변경' 기록 ----
+  const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+  function setTextCell(info, keyCol, keyVal, col, value) {
+    const kc = info.colOf(keyCol);
+    if (kc < 0) return false;
+    for (let r = info.hr + 1; r <= info.rg.e.r; r++) {
+      if (info.txt(r, kc) !== keyVal) continue;
+      const c = ensureColumn(info, col);
+      if (value === "") delete info.ws[info.enc(r, c)]; else info.ws[info.enc(r, c)] = { t: "s", v: value };
+      return true;
+    }
+    return false;
+  }
+  async function writeFollowField(row, field, value, prev) {
+    const wb = XLSX.read(await stGet(row.fileId), { type: "array", cellNF: true }); // 저장 직전 최신 파일
+    const cu = sheetInfo(wb, CUST_SHEET, ID_COL);
+    if (!cu || !setTextCell(cu, ID_COL, row.custId, field, value)) throw new Error("고객 시트에서 이 고객 줄을 찾지 못했습니다.");
+    const hist = sheetInfo(wb, "이력", "고객ID");
+    if (hist) {
+      const stamp = tsDigits(nowStamp());
+      appendRow(hist, { 일시: { stamp }, 고객ID: row.custId, 계약ID: "", 담당FC: row.fc || "", 유형: "따행필드", 결과: value ? "입력" : "비움", 내용: `${field} ${value ? "입력 " + value : "비움(이전 " + (prev || "-") + ")"} (영업 화면 수동 변경)`, 입력일시: { stamp } });
+    }
+    await stPut(row.fileId, XLSX.write(wb, { type: "array", bookType: "xlsx" }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[row.fileId];
+    histCache = null;
+  }
+  const setEntField = (e, k, v) => { const f = e.fields.find(([x]) => x.trim() === k); if (v === "") { if (f) e.fields.splice(e.fields.indexOf(f), 1); } else if (f) f[1] = v; else e.fields.push([k, v]); };
+  function undoToast(msg, onUndo) {
+    const el = document.createElement("div");
+    el.className = "toast2";
+    el.innerHTML = `<span>${esc(msg)}</span><b role="button" tabindex="0">되돌리기</b>`;
+    document.body.appendChild(el);
+    const done = () => el.remove();
+    el.querySelector("b").addEventListener("click", () => { done(); onUndo(); });
+    setTimeout(done, 6500);
+  }
+  async function applyFollowField(row, field, value, prev) {
+    const e = row.ent;
+    setEntField(e, field, value); // 화면은 바로 바꾸고(낙관적), 저장이 실패하면 되돌림
+    renderSales(true);
+    try { await writeFollowField(row, field, value, prev); return true; }
+    catch (err) { setEntField(e, field, prev || ""); renderSales(true); handleError(err); return false; }
+  }
+  // B: 칩 → 따행 시트 열 (방문완료는 접촉현황도 함께, 쿠폰발송은 쿠폰발송 글자도 함께)
+  function followCells(f, value) {
+    if (f === "done") return { "방문완료일": value, "접촉현황": value ? "방문완료" : "미활동" };
+    if (f === "send") return { "설문발송일": value };
+    if (f === "resp") return { "설문응답일": value };
+    return { "쿠폰발송일": value, "쿠폰발송": value ? "쿠폰발송" : "" };
+  }
+  // logs: [{ col: 따행 시트 열 이름, value: 새 값, prev: 이전 값 }] — 이력에 남길 변경
+  async function writeFollowRow(row, cells, logs) {
+    const fo = row.follow, wb = XLSX.read(await stGet(row._fileId || fo._fileId), { type: "array", cellNF: true }); // 저장 직전 최신 파일
+    const info = sheetInfo(wb, "따행", "고객ID");
+    if (!info) throw new Error("따행 시트를 찾지 못했습니다.");
+    const kc = info.colOf("고객ID"), mc = info.colOf("대상년월");
+    let r0 = -1;
+    for (let r = info.hr + 1; r <= info.rg.e.r; r++) if (info.txt(r, kc) === row.custId && ymOfFollow(info.txt(r, mc)) === ymOfFollow(fo["대상년월"])) { r0 = r; break; }
+    if (r0 < 0) throw new Error("따행 시트에서 이 고객의 해당 대상년월 줄을 찾지 못했습니다.");
+    Object.entries(cells).forEach(([col, v]) => { const c = ensureColumn(info, col); if (v === "") delete info.ws[info.enc(r0, c)]; else info.ws[info.enc(r0, c)] = { t: "s", v }; });
+    const hist = sheetInfo(wb, "이력", "고객ID");
+    if (hist) {
+      const stamp = tsDigits(nowStamp());
+      // 이력 내용은 '<따행 시트 열 이름> 입력|비움 … 대상 YYYY-MM (영업 화면 수동 변경)' 형식 (데이터 갱신 스크립트가 필드 이름으로 읽어 보호). 바뀐 열마다 한 줄
+      logs.forEach(({ col, value, prev }) => appendRow(hist, { 일시: { stamp }, 고객ID: row.custId, 계약ID: "", 담당FC: row.fc || "", 유형: "따행필드", 결과: value ? "입력" : "비움", 내용: `${col} ${value ? "입력 " + value : "비움(이전 " + (prev || "-") + ")"} 대상 ${fo["대상년월"]} (영업 화면 수동 변경)`, 입력일시: { stamp } }));
+    }
+    await stPut(row._fileId || fo._fileId, XLSX.write(wb, { type: "array", bookType: "xlsx" }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[row._fileId || fo._fileId];
+    histCache = null;
+  }
+  async function applyChip(row, f, value, prev) {
+    const field = DCHIPS.find((c) => c[0] === f)[3];
+    if (!row.follow) return applyFollowField(row, field, value, prev);
+    const fo = row.follow, cells = followCells(f, value), before = {};
+    Object.keys(cells).forEach((k) => { before[k] = fo[k] || ""; });
+    Object.assign(fo, cells); // 화면 먼저
+    renderSales(true);
+    try { await writeFollowRow(row, cells, [{ col: { done: "방문완료일", send: "설문발송일", resp: "설문응답일", coupon: "쿠폰발송일" }[f], value, prev }]); return true; }
+    catch (err) { Object.assign(fo, before); renderSales(true); handleError(err); return false; }
+  }
+  async function toggleChip(row, f) {
+    const [, lab, , field] = DCHIPS.find((c) => c[0] === f);
+    if (isRO(row.fc)) return toast("보기 전용 권한이라 수정할 수 없습니다.");
+    const prev = String(row.dda[f] || "");
+    if (!prev) { // OFF → ON: 설문·쿠폰은 오늘 날짜, 방문완료는 '방문완료'
+      await applyChip(row, f, f === "done" ? "방문완료" : todayStr(), "");
+      return;
+    }
+    // ON → OFF: 지우기 전에 확인 (SOL에서 가져온 값일 수 있음) + 6초 되돌리기
+    if (!confirm(`${field} ${prev} 값을 지울까요?\nSOL에서 가져온 값일 수 있습니다. 지우면 칩이 꺼집니다.`)) return;
+    if (await applyChip(row, f, "", prev)) undoToast(`${lab} 지웠습니다`, () => applyChip(row, f, prev, ""));
   }
   // ---- FC 선택 · 초기화 ----
   const salesFcKey = () => "shlife.salesFc." + me();
@@ -3780,32 +3992,87 @@
       histCache = null; contractCache = null; listCache = null;
       toast("초기화했습니다.");
     } catch (e) { handleError(e); }
-    renderSales();
+    renderSales(true);
   }
 
+  // ---- 영업 화면 스크롤 복귀: 화면 맨 위에 보이는 행(key)과 그 행의 위치(오프셋)를 기준으로 저장·복원. 월·필터·탭·FC 변경은 맨 위 ----
+  const SALES_SAVE_KEY = "shlife.salesResume";
+  let SALES_BOOT = null; // 이 탭이 새로 로드됐을 때(브라우저가 탭을 내렸다가 다시 열 때 등) 직전 영업 화면 상태 (30분 이내, 같은 계정)
+  try { const s = JSON.parse(sessionStorage.getItem(SALES_SAVE_KEY) || "null"); if (s && s.acc === gAccount() && Date.now() - s.t < 30 * 60 * 1000) SALES_BOOT = s; } catch (e) { /* 무시 */ }
+  try { history.scrollRestoration = "manual"; } catch (e) { /* 무시 */ }
+  const topbarH = () => { const t = document.querySelector(".topbar"); return t ? t.getBoundingClientRect().height : 0; };
+  function salesAnchor() {
+    const h = topbarH(), rows = [...document.querySelectorAll("#salesView .srow")];
+    const i = rows.findIndex((el) => el.getBoundingClientRect().bottom > h + 1);
+    if (i < 0) return { key: "", off: 0, after: [], y: Math.round(window.scrollY) };
+    return { key: rows[i].dataset.fold || "", off: Math.round(rows[i].getBoundingClientRect().top - h), after: rows.slice(i + 1, i + 7).map((el) => el.dataset.fold || "").filter(Boolean), y: Math.round(window.scrollY) };
+  }
+  let salesRestoreStop = null;
+  function salesRestore(a) {
+    if (!a) return;
+    if (salesRestoreStop) salesRestoreStop();
+    let stop = false;
+    const evs = ["touchstart", "wheel", "keydown", "mousedown"];
+    const onUser = () => { stop = true; };
+    evs.forEach((n) => window.addEventListener(n, onUser, { once: true, passive: true }));
+    const halt = () => { stop = true; cleanup(); };
+    const cleanup = () => { evs.forEach((n) => window.removeEventListener(n, onUser)); SALES.restoring = false; if (salesRestoreStop === halt) salesRestoreStop = null; };
+    salesRestoreStop = halt;
+    SALES.restoring = true;
+    const apply = () => {
+      if (stop) return;
+      const els = [...document.querySelectorAll("#salesView .srow")];
+      let el = null, off = a.off || 0;
+      for (const k of [a.key, ...(a.after || [])]) { if (!k) continue; el = els.find((e) => e.dataset.fold === k); if (el) { if (k !== a.key) off = 0; break; } } // 앵커 행이 사라졌으면 그 다음 행
+      const y = el ? el.getBoundingClientRect().top + window.scrollY - topbarH() - off : a.y || 0;
+      window.scrollTo(0, Math.max(0, Math.round(y)));
+    };
+    apply();
+    setTimeout(() => { apply(); setTimeout(() => { apply(); cleanup(); }, 150); }, 50); // 레이아웃이 자리 잡은 뒤 한 번 더 맞춤 (타이머: 화면이 가려져 있어도 멈추지 않음)
+  }
+  function salesSaveState() { // 새로 로드돼도 이어 보도록 (영업 화면을 보고 있을 때만)
+    if ($("salesView").hidden || SALES.resume) return;
+    try { sessionStorage.setItem(SALES_SAVE_KEY, JSON.stringify({ acc: gAccount(), t: Date.now(), tab: SALES.tab, ym: SALES.ym, fc: SALES.fc, dct: SALES.dct, dcls: SALES.dcls, dact: SALES.dact, df: SALES.df, open: [...SALES.open].slice(0, 300), a: salesAnchor() })); } catch (e) { /* 무시 */ }
+  }
+  function salesClearState() { try { sessionStorage.removeItem(SALES_SAVE_KEY); } catch (e) { /* 무시 */ } }
+  let salesSaveTimer = 0;
+  window.addEventListener("scroll", () => { clearTimeout(salesSaveTimer); salesSaveTimer = setTimeout(salesSaveState, 300); }, { passive: true });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") salesSaveState(); });
+  window.addEventListener("pagehide", salesSaveState);
+
   let salesReq = 0;
-  async function renderSales() {
+  // keep: true = 지금 위치 그대로(칩·초기화·자동 반영), 위치 객체 = 그 위치로(고객 카드에서 돌아올 때), 없으면 맨 위(월·필터·탭·FC 변경)
+  async function renderSales(keep) {
     const req = ++salesReq;
-    show("salesView");
+    let anchor = keep && keep !== true ? keep : keep ? salesAnchor() : null;
+    if (!anchor && SALES.resume) anchor = SALES.resume;
+    SALES.resume = null;
+    show("salesView", !!keep);
     const box = $("salesView");
     if (!SALES.ym) SALES.ym = ymNow();
     const ym = SALES.ym;
     const top = (fcHtml) => `<div class="sales-top">
         <div class="seg"><button type="button" data-stab="transfer" class="${SALES.tab === "transfer" ? "on" : ""}">이달 이관</button><button type="button" data-stab="dda" class="${SALES.tab === "dda" ? "on" : ""}">따행</button></div>
-        <div class="sline2${fcHtml ? "" : " center"}"><div class="ymnav"><button type="button" data-ym="-1" aria-label="이전 달">‹</button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달">›</button></div>${fcHtml}</div></div>`;
-    box.innerHTML = top("") + `<div id="salesBody"><p class="hint pad">불러오는 중…</p></div>`;
+        <div class="sline2${fcHtml ? "" : " center"}"><div class="ymnav"><button type="button" data-ym="-1" aria-label="이전 달">‹</button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달">›</button>${top.note || ""}</div>${fcHtml}</div></div>`;
+    if (!keep || !box.querySelector("#salesBody .slist, #salesBody .sales-info")) box.innerHTML = top("") + `<div id="salesBody"><p class="hint pad">불러오는 중…</p></div>`; // keep이면 기존 목록을 그대로 두고 새 내용으로 바꿈
     try {
       const data = await loadSalesData();
       if (req !== salesReq) return;
       await loadMyPrefs().catch(() => {});
       const myFc = await myFcName();
+      if (req !== salesReq) return;
       // FC 선택: 접근 가능한 FC들(고객이 등록된 FC). 기본은 내 FC(권한 파일 이름), 없으면 첫 FC. 선택은 이 기기에 기억
       const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc)].filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko"));
       let saved = ""; try { saved = localStorage.getItem(salesFcKey()) || ""; } catch (e) { /* 무시 */ }
       if (!isAdmin()) SALES.fc = fcs.includes(myFc) ? myFc : fcs[0] || ""; // 일반 계정: 선택창 없이 본인 FC
       else if (!SALES.fc || !fcs.includes(SALES.fc)) SALES.fc = fcs.includes(saved) ? saved : fcs.includes(myFc) ? myFc : fcs[0] || "";
       const fcSel = SALES.fc;
-      const allRows = (SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : ddaRows(data)).filter((r) => !fcSel || r.srcFc === fcSel);
+      const baseRows = (SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : ddaRows(data, ym)).filter((r) => !fcSel || r.srcFc === fcSel);
+      // 따행: 활동대상 → 접촉현황 → 따행분류 (SOL 조회 조건과 같은 기준: 대상년월 · 활동대상 기본)
+      const bMode = SALES.tab === "dda" && baseRows.some((r) => r.follow);
+      let allRows = baseRows, ddaTotals = null, classes = [];
+      if (SALES.tab === "dda") ({ rows: allRows, totals: ddaTotals, classes } = ddaFilter(baseRows, bMode, SALES));
+      const ymNote = bMode ? `<span class="ymlab">대상년월</span>` : "";
       // 따행 필터: 설문발송·설문응답·쿠폰(체크한 것 모두 채워진 고객만, AND)
       const df = SALES.df, dfOn = SALES.tab === "dda" && (df.send || df.resp || df.coupon);
       const rows = dfOn ? allRows.filter((r) => (!df.send || r.dda.send) && (!df.resp || r.dda.resp) && (!df.coupon || r.dda.coupon)) : allRows;
@@ -3815,22 +4082,35 @@
       const refN = SALES.tab === "transfer" ? data.contracts.filter((c) => c.type === "이관" && monthOf(c.row["이관일자"] || c.row["이관일"]) === ym && c.fc && c.srcFc && c.fc !== c.srcFc && (!fcSel || c.srcFc === fcSel)).length : 0;
       const marked = rows.filter((r) => r.key && mark.get(r.key)).length;
       SALES.data = data;
+      top.note = ymNote;
       box.innerHTML = top(isAdmin() && fcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${fcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : "") +
-        `<div id="salesBody"><div class="sales-info"><span>${SALES.tab === "dda" ? `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}` : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "transfer" ? `<span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span>` : ""}</div>` +
+        `<div id="salesBody">${bMode ? ddaBarHtml({ dct: SALES.dct, dcls: SALES.dcls, dact: SALES.dact, classes, totals: ddaTotals }) : ""}<div class="sales-info"><span>${SALES.tab === "dda" ? (bMode ? `${(SALES.dct || SALES.dcls || dfOn) ? `필터 ${rows.length}명` : `표시 ${rows.length}명`}` : `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}`) : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "transfer" ? `<span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span>` : ""}</div>` +
         (SALES.tab === "dda" ? `<div class="dfilter"><span class="dfl"><label><input type="checkbox" data-df="send" ${df.send ? "checked" : ""}> 설문발송</label><label><input type="checkbox" data-df="resp" ${df.resp ? "checked" : ""}> 설문응답</label><label><input type="checkbox" data-df="coupon" ${df.coupon ? "checked" : ""}> 쿠폰</label></span><button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></div>` : "") +
         (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.</p>`) +
         `<p class="hint pad">전화·문자는 버튼을 누른 '시도'만 기록됩니다(실제 통화·발송 여부는 알 수 없음).${readQueue().length ? ` 아직 저장 안 된 기록 ${readQueue().length}건은 앱이 다시 열리면 반영합니다.` : ""}</p></div>`;
       box._rows = rows; box._mark = mark;
+      if (anchor) salesRestore(anchor); else if (!keep) window.scrollTo(0, 0);
     } catch (e) { if (req === salesReq) { $("salesBody").innerHTML = ""; handleError(e); } }
   }
   function openSales() { renderSales(); flushContacts(); }
   $("salesView").addEventListener("click", (ev) => {
+    const chip = ev.target.closest("[data-chip]");
+    if (chip) { // 칩 터치 = ON/OFF 전환만 (접힘/펼침·전화·문자와 별개)
+      const row = (($("salesView")._rows) || []).find((r) => r.key === chip.dataset.key);
+      if (row && row.dda) toggleChip(row, chip.dataset.chip);
+      return;
+    }
     const fold = ev.target.closest(".srow.fold");
-    if (fold && !ev.target.closest("a, button, input, label, .sbtns")) { // 따행 행 접힘/펼침 (전화·문자 버튼과 이름 링크는 제외)
+    if (fold && !ev.target.closest("a, button, input, label, .sbtns, .sline.l1")) { // 칩이 있는 이름 줄은 접힘/펼침 제외 // 따행 행 접힘/펼침 (전화·문자 버튼과 이름 링크는 제외)
       const k = fold.dataset.fold, on = fold.classList.toggle("open");
       if (on) SALES.open.add(k); else SALES.open.delete(k);
       return;
     }
+    const dct = ev.target.closest("[data-dct]");
+    if (dct) { SALES.dct = dct.dataset.dct; return renderSales(); }
+    const dcl = ev.target.closest("[data-dcls]");
+    if (dcl) { SALES.dcls = SALES.dcls === dcl.dataset.dcls ? "" : dcl.dataset.dcls; return renderSales(); }
+    if (ev.target.closest("#dactBtn")) { SALES.dact = !SALES.dact; return renderSales(); }
     const st = ev.target.closest("[data-stab]");
     if (st) { SALES.tab = st.dataset.stab; return renderSales(); }
     const ym = ev.target.closest("[data-ym]");
@@ -3856,9 +4136,15 @@
       setTimeout(flushContacts, 4000);
     }
   });
+  document.addEventListener("click", (ev) => { // 고객 카드 따행 섹션: 대상년월 선택
+    const b = ev.target.closest && ev.target.closest("[data-fidx]");
+    if (b && current && !$("customerView").hidden) { current.followIdx = +b.dataset.fidx; selectTab("basic"); }
+  });
   document.addEventListener("change", (ev) => {
     if (!ev.target) return;
+    if (ev.target.id === "ddaOnly") { const q = $("q2").value || $("q").value; if (q) search(q); }
     if (ev.target.id === "salesRef") { SALES.showRef = ev.target.checked; renderSales(); }
+    if (ev.target.id === "dclsSel") { SALES.dcls = ev.target.value; renderSales(); }
     if (ev.target.dataset && ev.target.dataset.df) { SALES.df[ev.target.dataset.df] = ev.target.checked; renderSales(); }
     if (ev.target.id === "salesFc") { SALES.fc = ev.target.value; try { localStorage.setItem(salesFcKey(), SALES.fc); } catch (e) { /* 무시 */ } renderSales(); }
   });
@@ -3885,6 +4171,10 @@
     if (!GD && sessionStorage.getItem("openAdmin") && isAdmin()) {
       sessionStorage.removeItem("openAdmin");
       openAdmin();
+    } else if (SALES_BOOT) { // 새로 로드됐을 때 영업 화면을 보던 중이었으면 그 탭·월·FC·필터·위치로
+      const s = SALES_BOOT; SALES_BOOT = null;
+      Object.assign(SALES, { tab: s.tab || "transfer", ym: s.ym || "", fc: s.fc || "", dct: s.dct || "", dcls: s.dcls || "", dact: s.dact !== false, df: { send: !!(s.df || {}).send, resp: !!(s.df || {}).resp, coupon: !!(s.df || {}).coupon }, open: new Set(s.open || []), resume: s.a || null });
+      loadSettings().then(() => openSales());
     } else {
       schedMode = "day"; schedDate = dayStart(new Date());
       loadSettings().then(() => openSchedule()); // 첫 화면: 일정 Today (설정을 읽은 뒤)

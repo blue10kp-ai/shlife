@@ -575,3 +575,45 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 
 .tag.t-타인모집 { background: #eef0f6; color: #55607a; }
 @media (prefers-color-scheme: dark) { .tag.t-타인모집 { background: #2b3040; color: #aeb8d0; } }
+
+/* v92 (v93d 시안): 이름 칸 폭, 따행 칩 4개 ON/OFF, 이름 줄은 한 줄 */
+.sline.l1 { flex-wrap: nowrap; align-items: baseline; gap: 6px; }
+.sline .nmw { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 800; font-size: 15px; }
+.sline .nmw.n50 { flex: 0 1 50%; }
+.sline .nmw.n30 { flex: 0 1 30%; }
+.sline .nmw a { color: var(--text); text-decoration: none; border-bottom: 1px dotted var(--muted); }
+.sline .nmw .ins { font-weight: 500; font-size: 12px; color: var(--muted); }
+.sline.l1 .rt { margin-left: auto; display: flex; gap: 3px; align-items: center; flex: none; }
+.sline.prod { padding-left: 1.9em; flex-wrap: nowrap; justify-content: space-between; }
+.sline.prod .pd { flex: 1 1 auto; min-width: 0; }
+.dc { border: 0; font: inherit; cursor: pointer; padding: 1px 6px; border-radius: 10px; font-size: 10.5px; font-weight: 700; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+.dc.on.done { background: #e3f4ea; color: #1d7a46; } .dc.on.send { background: #e1ecfb; color: #1f5fae; }
+.dc.on.resp { background: #ece4fa; color: #6a3fb5; } .dc.on.cpn { background: #dcf3f1; color: #00706a; }
+.dc.off { background: transparent; color: #6b7684; border: 1px dashed #aeb7c3; padding: 0 5px; font-weight: 600; }
+.dc.lock { opacity: .55; cursor: not-allowed; }
+@media (prefers-color-scheme: dark) {
+  .dc.on.done { background: #1f3a2b; color: #6fd39a; } .dc.on.send { background: #1d3150; color: #8db8f2; }
+  .dc.on.resp { background: #2f2547; color: #c3a8f0; } .dc.on.cpn { background: #16393a; color: #6fd6cf; }
+  .dc.off { color: #a3adba; border-color: #566174; }
+}
+.toast2 { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 40; background: #2b3440; color: #fff; border-radius: 12px; padding: 9px 14px; font-size: 13px; display: flex; gap: 14px; align-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.3); }
+.toast2 b { color: #8db8f2; cursor: pointer; }
+
+/* v93: 따행 조회 조건(대상년월·접촉현황·따행분류·활동대상), 고객 카드 따행 섹션, 검색 '따행 대상만' */
+.dbar { margin: 0 0 6px; }
+.dseg { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.dseg button { flex: 1; border: 0; background: var(--card); color: var(--text); padding: 7px 0; font-size: 13px; font-weight: 600; }
+.dseg button.on { background: var(--brand); color: #fff; }
+.drow { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+.drow select { flex: 1; min-width: 0; width: 0; text-overflow: ellipsis; padding: 8px 10px; font-size: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); }
+.act-pill { border: 1px solid var(--line); background: var(--card); color: var(--muted); border-radius: 14px; padding: 5px 12px; font-size: 12.5px; font-weight: 700; }
+.act-pill.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.dsum { font-size: 13px; color: var(--muted); margin: 6px 2px; } .dsum b { color: var(--text); }
+.dchips, .fl-months { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+.cls-chip { border: 0; background: var(--brand-weak); color: var(--brand); border-radius: 12px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+.cls-chip.on { background: var(--brand); color: #fff; }
+.ymlab { font-size: 12px; color: var(--muted); margin-left: 8px; }
+.fl-head { margin-bottom: 6px; }
+.fld-sec { margin-top: 10px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.fld select { width: 100%; padding: 10px 12px; font: inherit; font-size: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); }
+.ddaonly { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin: 0 2px 6px; }
