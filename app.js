@@ -1883,12 +1883,12 @@
     const s = appSettings;
     return `<div class="card" id="settingsCard">
         <h3 class="sec-title">설정</h3>
+        <details class="fold" id="gFold"><summary>구글 캘린더 설정 <span class="hint">${esc(((s.google || {}).calendars || []).map((c) => c.name).join(", ") || "기본(1팀·김현성·최수진)")}</span></summary>
+          <div id="gCalBox"></div></details>
         <label class="fld"><span>회사 주소 (일정 이동시간 계산의 출발·도착 기준)</span>
           <input id="setCompany" value="${esc(s.companyAddress || "")}" placeholder="예: 광주광역시 서구 상무중앙로 98" autocomplete="off"></label>
         <label class="fld"><span>카카오 REST API 키 (이동 거리·시간 계산용)</span>
           <input id="setKakao" value="${esc(s.kakaoRestKey || "")}" placeholder="developers.kakao.com › 앱 › 플랫폼 키" autocomplete="off" spellcheck="false"></label>
-        <details class="fold" id="gFold"><summary>구글 캘린더 설정 <span class="hint">${esc(((s.google || {}).calendars || []).map((c) => c.name).join(", ") || "기본(1팀·김현성·최수진)")}</span></summary>
-          <div id="gCalBox"></div></details>
         <div class="file-actions"><button type="button" class="primary" id="setSave" disabled>설정 저장</button></div>
       </div>`;
   }
@@ -2115,7 +2115,7 @@
     const ACC = GD ? "구글 계정" : "아이디";
 
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
-    $("adminBody").innerHTML = `
+    $("adminBody").innerHTML = settingsCardHtml() + `
       <div class="card">
         <h3 class="sec-title">사용 FC 현황</h3>
         <p class="hint">이름(FC명)을 적고, 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다. 저장을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
@@ -2146,7 +2146,7 @@
           <button class="primary" type="submit">추가</button>
         </form>
         <p class="hint">추가하면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 '변경 저장'을 누르세요.</p>
-      </div>` + settingsCardHtml();
+      </div>`;
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();

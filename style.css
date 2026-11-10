@@ -15,7 +15,7 @@ html, body { margin: 0; background: var(--bg); color: var(--text);
   font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
   font-size: 16px; -webkit-text-size-adjust: 100%; }
 button, input, a { font: inherit; }
-main { padding: 12px 16px calc(96px + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto; }
+main { padding: 12px 16px calc(150px + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto; }
 
 /* 큰 메뉴 (하단 탭) */
 .mainnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; display: flex;
@@ -57,7 +57,7 @@ main { padding: 12px 16px calc(96px + env(safe-area-inset-bottom)); max-width: 6
 .chk input { width: 20px; height: 20px; accent-color: var(--brand); }
 .chk.all { margin-bottom: 8px; background: var(--brand-weak); color: var(--brand); border-color: transparent; }
 .chk-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.toast { bottom: calc(84px + env(safe-area-inset-bottom)) !important; }
+.toast { bottom: calc(140px + env(safe-area-inset-bottom)) !important; }
 
 .topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px;
   padding: calc(10px + env(safe-area-inset-top)) 12px 10px; background: var(--brand); color: #fff; }
@@ -453,3 +453,11 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 .perm-name:focus { border-color: var(--brand); outline: none; background: var(--bg); }
 .perm-name::placeholder { color: var(--muted); font-weight: 400; }
 .perm-mail { font-size: 12px; color: var(--muted); word-break: break-all; padding-left: 4px; }
+
+/* 고객 검색: 아래쪽 (하단 메뉴 바로 위에 고정) */
+.top-search { position: fixed; left: 0; right: 0; bottom: calc(66px + env(safe-area-inset-bottom)); z-index: 9; margin: 0; flex: none; min-width: 0;
+  padding: 8px 12px; background: var(--card); border-top: 1px solid var(--line); max-width: none; }
+.top-search input { height: 40px; padding: 0 14px; font-size: 16px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 20px; max-width: 640px; margin: 0 auto; display: block; }
+.top-search input::placeholder { color: var(--muted); }
+.top-search input:focus { background: var(--card); color: var(--text); border-color: var(--brand); }
+.recent { top: auto; bottom: calc(100% + 4px); left: 12px; right: 12px; max-width: 616px; margin: 0 auto; }
