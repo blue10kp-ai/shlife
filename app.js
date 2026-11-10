@@ -414,6 +414,8 @@
     if (!o["주피보험자"] && o["주피보험자ID"]) o["주피보험자"] = ids.get(String(o["주피보험자ID"]).trim()) || "";
     return o;
   }
+  // 모집유형 → 계약 구분: '타인모집'(이관) = 이관, '타인모집(비이관)' 등 그 밖의 타인모집… = 타인모집(이관 아님), 그 외 = 계약(직접모집)
+  const contractLabel = (mt) => { const v = String(mt || "").trim(); return v === "타인모집" ? "이관" : /^타인모집/.test(v) ? "타인모집" : "계약"; };
   const isNewContractSheet = (head) => head.includes("계약자ID") && !head.includes("계약자");
   // </schema>
   // 앱 버전 표시 (화면 맨 아래 작은 글씨) — 새 버전이 모든 기기에 반영됐는지 확인용
@@ -738,7 +740,7 @@
             const row = newMode ? contractRowCompat(Object.fromEntries(fields), ids) : Object.fromEntries(fields);
             if (newMode) { // 계약자·주피보험자 이름도 필드로 (계약 탭 표시용), 타인모집은 '이관'
               ["계약자", "주피보험자"].forEach((k) => { if (row[k] && !fields.some(([fk]) => fk === k)) fields.push([k, row[k]]); });
-              s = { ...s, label: String(row["모집유형"] || "").trim() === "타인모집" ? "이관" : "계약" };
+              s = { ...s, label: contractLabel(row["모집유형"]) };
             }
             const names = CONTRACT_NAME_COLS.map((c) => row[c]).filter(Boolean).map(norm);
             // 줄에 담당FC가 있으면 그 FC로 표시 (다른 FC 파일에 같이 들어 있는 계약)
@@ -3697,7 +3699,7 @@
       const cd = cts.map((c) => c.row["최초계약일"] || c.row["계약일"] || "").sort((a, b) => dateKey(b).localeCompare(dateKey(a)))[0] || "";
       out.push({
         key: "u:" + id, cid: "", custId: id, fc: e.fc, srcFc: e.fc, ref: false, fileId: e.src && e.src.fileId, holder: e.name, ins: "",
-        prods, product: prods.length === 1 ? prods[0].name : prods.length ? "" : "가망(계약 없음)", // 계약 2건 이상이면 이름 아래 줄마다 상품명·보험료
+        prods, product: prods.length === 1 ? prods[0].name : prods.length ? "" : "계약 정보 없음(조회 제한)", // 계약 2건 이상이면 이름 아래 줄마다 상품명·보험료
         fee, cdate: cd, bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
         job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC") || recFcs.join(", "), status: "",
         dda: { send: fieldOf(e, "설문발송일"), resp: fieldOf(e, "설문응답일"), coupon: fieldOf(e, "쿠폰발송일"), assign: fieldOf(e, "따행배정일"), apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달") }

@@ -572,3 +572,6 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .sline.l1 { flex-wrap: nowrap; align-items: baseline; }
 .sline.l1 .pd { flex: 1 1 auto; min-width: 0; }
 .sline.l1 .chev, .sline.l1 .dchip { flex: none; }
+
+.tag.t-타인모집 { background: #eef0f6; color: #55607a; }
+@media (prefers-color-scheme: dark) { .tag.t-타인모집 { background: #2b3040; color: #aeb8d0; } }
