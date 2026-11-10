@@ -261,7 +261,9 @@
   // ---------- 앱 저장 폴더: Claude/app/신한FC/설정 (설정·권한 파일) ----------
   //   소유자(관리자): 내 OneDrive 경로 / 다른 사용자: 관리자가 공유해 준 같은 폴더 (config.owner.appDirId)
   let appDir = null;
-  async function resolveAppDir() {
+  let appDirP = null;
+  function resolveAppDir() { if (appDir) return Promise.resolve(appDir); return appDirP || (appDirP = resolveAppDirRaw().finally(() => { appDirP = null; })); }
+  async function resolveAppDirRaw() {
     if (appDir) return appDir;
     await resolveBase();
     // Google Drive: 공유받은 사용자는 관리자의 설정 폴더(ID)를 씀 (자기 드라이브에 같은 이름 폴더가 있어도)
@@ -289,16 +291,21 @@
     await stWriteJsonIn(appDir, SETTINGS_FILE, next);
     appSettings = next;
   }
+  // 영업 화면이 매번 권한 파일을 다시 읽지 않도록 'FC 이름(names)'만 세션 캐시. 권한 파일을 읽거나 쓸 때마다 갱신 (관리자 화면은 열 때 최신을 읽음). 접근 FC 판단(myAllowedFcs)은 캐시를 쓰지 않음
+  let permNamesCache = null;
   async function writePerms(perms) {
     await resolveAppDir();
     await stWriteJsonIn(appDir, PERM_FILE, perms);
+    permNamesCache = { ...(perms.names || {}) };
   }
   const me = () => String((account() || {}).username || "").toLowerCase();
 
   async function readPerms() {
     await resolveAppDir();
     const p = await stReadJsonIn(appDir, PERM_FILE);
-    return { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {} };
+    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {} };
+    permNamesCache = { ...out.names };
+    return out;
   }
   // 권한 항목: "최수진"(보기+수정) / "최수진:r"(보기만) / "*"(전체 FC, 보기+수정)
   // names: { 이메일: "FC 이름" } — 관리자 화면에서 아이디와 이름을 짝지음(화면에는 이름을 먼저 보여 줌)
@@ -559,7 +566,7 @@
           if (PHONE_COLS.includes(k)) e.phone = String(v);
         }
       }
-      await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx" }),
+      await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }),
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       delete bookCache[fileId];
     }
@@ -918,7 +925,7 @@
   }
 
   async function uploadExtra(x) {
-    const out = XLSX.write(x.wb, { type: "array", bookType: "xlsx" });
+    const out = XLSX.write(x.wb, { type: "array", bookType: "xlsx", compression: true });
     await stPut(x.file.id, out,
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     delete bookCache[x.file.id];
@@ -2051,13 +2058,17 @@
 
   async function loadAdminState() {
     await resolveBase();
-    const items = await stList(base.id);
+    // v95: 권한 파일 읽기와 공유 조회(loadShares)를 동시에 시작 (서로 필요 없는 일이라 직렬로 기다릴 이유가 없음). 결과는 이전과 같음
+    const itemsP = stList(base.id);
+    const permsP = readPerms();
+    const idsOf = (items) => Object.fromEntries(items.filter((i) => i.folder && !i.name.startsWith("_")).map((f) => [f.name, f.id]));
+    const sharesP = GD && base.owner ? itemsP.then((items) => loadShares(idsOf(items))).catch((e) => { console.error(e); return null; }) : null;
+    const items = await itemsP;
     const fcFolders = items.filter((i) => i.folder && !i.name.startsWith("_"));
     const fcs = fcFolders.map((f) => f.name).sort((a, b) => a.localeCompare(b, "ko"));
     const fcIds = Object.fromEntries(fcFolders.map((f) => [f.name, f.id]));
-    const perms = await readPerms();
-    let shares = null;
-    if (GD && base.owner) { try { shares = await loadShares(fcIds); } catch (e) { console.error(e); } }
+    const perms = await permsP;
+    const shares = sharesP ? await sharesP : null;
     adminState = { fcs, perms, shares, fcIds };
   }
 
@@ -2071,26 +2082,29 @@
   }
   // 고객 폴더의 상위 폴더들(예: Claude 폴더)과 거기에 직접 준 공유 — 상위에 공유돼 있으면 하위 폴더 권한을 바꿀 수 없다
   async function loadAncestors() {
-    const out = [];
-    let id = base.id;
+    const out = [], permPs = [];
+    const getF = (id) => gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=id,name,parents&supportsAllDrives=true").catch(() => null);
+    let cur = await getF(base.id); // v95: 이전에는 같은 폴더를 두 번 조회했음
     for (let i = 0; i < 5; i++) {
-      const f = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=id,name,parents&supportsAllDrives=true").catch(() => null);
-      const pid = f && (f.parents || [])[0];
+      const pid = cur && (cur.parents || [])[0];
       if (!pid) break;
-      const pf = await gdFetch(GDAPI + "/files/" + encodeURIComponent(pid) + "?fields=id,name,parents&supportsAllDrives=true").catch(() => null);
+      const pf = await getF(pid);
       if (!pf) break;
-      out.push({ id: pid, name: pf.name, perms: await gdPermList(pid, true).catch(() => []) });
+      const item = { id: pid, name: pf.name, perms: [] };
+      out.push(item);
+      permPs.push(gdPermList(pid, true).catch(() => []).then((p) => { item.perms = p; })); // 다음 폴더 조회와 동시에
       if (!(pf.parents || []).length) break;
-      id = pid;
+      cur = pf;
     }
+    await Promise.all(permPs);
     return out;
   }
   async function loadShares(fcIds) {
     await resolveAppDir();
     const ids = fcIds || (adminState && adminState.fcIds) || {};
-    const [cust, app, anc] = await Promise.all([gdPermList(base.id, true), appDir.id ? gdPermList(appDir.id, true) : [], loadAncestors().catch(() => [])]);
     const fc = {}; // FC 폴더별 공유
-    await Promise.all(Object.entries(ids).map(async ([name, id]) => { fc[name] = await gdPermList(id, true).catch(() => []); }));
+    const [cust, app, anc] = await Promise.all([gdPermList(base.id, true), appDir.id ? gdPermList(appDir.id, true) : [], loadAncestors().catch(() => []),
+      Promise.all(Object.entries(ids).map(async ([name, id]) => { fc[name] = await gdPermList(id, true).catch(() => []); }))]);
     return { cust, app, fc, anc };
   }
   // 이 계정에게 직접 준 상위 폴더 공유 (소유자 제외)
@@ -3686,7 +3700,7 @@
       if (it.cid && ct) setRowCells(ct, "계약ID", it.cid, { [colName]: it.ts });
       if (!it.cid && it.custId && cu) setRowCells(cu, ID_COL, it.custId, { [colName]: it.ts });
     }
-    await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx" }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     delete bookCache[fileId];
   }
   async function flushContacts() {
@@ -3872,7 +3886,7 @@
       const stamp = tsDigits(nowStamp());
       appendRow(hist, { 일시: { stamp }, 고객ID: row.custId, 계약ID: "", 담당FC: row.fc || "", 유형: "따행필드", 결과: value ? "입력" : "비움", 내용: `${field} ${value ? "입력 " + value : "비움(이전 " + (prev || "-") + ")"} (영업 화면 수동 변경)`, 입력일시: { stamp } });
     }
-    await stPut(row.fileId, XLSX.write(wb, { type: "array", bookType: "xlsx" }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    await stPut(row.fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     delete bookCache[row.fileId];
     histCache = null;
   }
@@ -3916,7 +3930,7 @@
       // 이력 내용은 '<따행 시트 열 이름> 입력|비움 … 대상 YYYY-MM (영업 화면 수동 변경)' 형식 (데이터 갱신 스크립트가 필드 이름으로 읽어 보호). 바뀐 열마다 한 줄
       logs.forEach(({ col, value, prev }) => appendRow(hist, { 일시: { stamp }, 고객ID: row.custId, 계약ID: "", 담당FC: row.fc || "", 유형: "따행필드", 결과: value ? "입력" : "비움", 내용: `${col} ${value ? "입력 " + value : "비움(이전 " + (prev || "-") + ")"} 대상 ${fo["대상년월"]} (영업 화면 수동 변경)`, 입력일시: { stamp } }));
     }
-    await stPut(row._fileId || fo._fileId, XLSX.write(wb, { type: "array", bookType: "xlsx" }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    await stPut(row._fileId || fo._fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     delete bookCache[row._fileId || fo._fileId];
     histCache = null;
   }
@@ -3944,7 +3958,7 @@
   }
   // ---- FC 선택 · 초기화 ----
   const salesFcKey = () => "shlife.salesFc." + me();
-  async function myFcName() { try { return String(((await readPerms()).names || {})[me()] || ""); } catch (e) { return ""; } }
+  async function myFcName() { try { if (!permNamesCache) await readPerms(); return String((permNamesCache || {})[me()] || ""); } catch (e) { return ""; } }
   // 이 달·이 탭·이 FC의 '시도' 표시를 없던 것으로: 시트 최근*일시를 비우고 이력의 해당 행은 지우지 않고 결과를 '취소(초기화)'로 바꿈
   function clearContacts(wbInfo, targets, ym) {
     const { ct, cu, hist } = wbInfo;
@@ -3984,7 +3998,7 @@
         const wb = XLSX.read(await stGet(fileId), { type: "array", cellNF: true });
         const info = { ct: sheetInfo(wb, "계약", "계약ID"), cu: sheetInfo(wb, CUST_SHEET, ID_COL), hist: sheetInfo(wb, "이력", "고객ID") };
         clearContacts(info, ts, ym);
-        await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx" }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         delete bookCache[fileId];
       }
       const keys = new Set(rows.map((r) => r.key));
