@@ -544,3 +544,11 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 @media (prefers-color-scheme: dark) { .srow .st { background: #3b1f1c; color: #f2b8b5; } }
 .srow .st { white-space: nowrap; }
 .sline .pd { min-width: 8em; }
+.sline2.center { justify-content: center; }
+
+.srow.d-open { box-shadow: inset 3px 0 0 #e09b2d; }
+.srow.d-done { box-shadow: inset 3px 0 0 #3fae6b; }
+.dchip { margin-left: auto; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.dchip.open { background: #fff1d6; color: #a86b00; }
+.dchip.done { background: #e3f4ea; color: #1d7a46; }
+@media (prefers-color-scheme: dark) { .dchip.open { background: #3b2f14; color: #f0c06b; } .dchip.done { background: #1f3a2b; color: #6fd39a; } }

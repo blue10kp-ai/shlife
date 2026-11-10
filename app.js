@@ -3680,7 +3680,7 @@
     out.sort((a, b) => a.holder.localeCompare(b.holder, "ko") || dateKey(b.cdate).localeCompare(dateKey(a.cdate)));
     return out;
   }
-  function ddaRows(data, ym) {
+  function ddaRows(data) {
     const out = [], seen = new Set();
     data.lists.forEach((e) => {
       const id = idOf(e);
@@ -3688,7 +3688,7 @@
       const mine = data.custById.get(id);
       const own = mine.find((x) => x.fc === primaryFc(mine)) || e; // 담당 FC 행
       if (own !== e) return;
-      if (fieldOf(e, "따행대상") !== "예" || monthOf(fieldOf(e, "따행배정일")) !== ym) return;
+      if (fieldOf(e, "따행대상") !== "예") return; // 배정월·방문 완료 여부와 상관없이 따행대상=예 전체
       seen.add(id);
       const cts = data.contracts.filter((c) => String(c.row["계약자ID"] || "").trim() === id && !DEAD_STATUS.includes(c.row["계약상태"] || c.row["상태"] || ""));
       const names = [...new Set(cts.map((c) => productName(c.row["상품명"])).filter(Boolean))];
@@ -3699,10 +3699,10 @@
         product: names.length ? names.slice(0, 2).join(", ") + (names.length > 2 ? ` 외 ${names.length - 2}건` : "") : "가망(계약 없음)",
         fee: fee || "", cdate: cd, bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
         job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC"), status: "",
-        dda: { apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달") }
+        dda: { assign: fieldOf(e, "따행배정일"), apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달") }
       });
     });
-    out.sort((a, b) => (a.dda.done ? 1 : 0) - (b.dda.done ? 1 : 0) || (dateKey(a.dda.due) || "99999999").localeCompare(dateKey(b.dda.due) || "99999999") || a.holder.localeCompare(b.holder, "ko"));
+    out.sort((a, b) => a.holder.localeCompare(b.holder, "ko") || dateKey(a.bday).localeCompare(dateKey(b.bday)) || dateKey(a.dda.assign).localeCompare(dateKey(b.dda.assign))); // 이름 오름차순(가나다), 같은 이름은 생년월일 → 배정일 빠른 순
     return out;
   }
   // ---- 화면 ----
@@ -3718,9 +3718,9 @@
       const mk = mark.get(r.key) || {};
       const st = r.status && r.status !== "유지" ? `<span class="st">${esc(r.status === "납입면제" ? "납면" : r.status)}</span>` : "";
       const times = [mk.call ? `전화 시도 ✓ ${tsShow(mk.call)}` : "", mk.sms ? `문자 시도 ✓ ${tsShow(mk.sms)}` : ""].filter(Boolean).join(" · ");
-      const dda = r.dda ? `<div class="sline sub">따행 · 신청 ${esc(r.dda.apply || "-")} · 방문예정 ${esc(r.dda.due || "-")} · 방문완료 ${esc(r.dda.done || "-")}${r.dda.gift ? " · 선물 " + esc(r.dda.gift) : ""}${r.dda.deliver ? " · 전달 " + esc(r.dda.deliver) : ""}</div>` : "";
-      return `<div class="srow${r.ref ? " ref" : ""}">
-        <div class="sline l1">${it("nm", "", r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder))}${it("", "피보", esc(r.ins))}${it("pd", "", esc(r.product) + (st ? " " + st : ""))}${it("fe", "", esc(r.fee ? wonText(r.fee) : ""))}</div>
+      const dda = r.dda ? `<div class="sline sub">따행 · 배정 ${esc(r.dda.assign || "-")} · 신청 ${esc(r.dda.apply || "-")} · 방문예정 ${esc(r.dda.due || "-")} · 방문완료 ${esc(r.dda.done || "-")}${r.dda.gift ? " · 선물 " + esc(r.dda.gift) : ""}${r.dda.deliver ? " · 전달 " + esc(r.dda.deliver) : ""}</div>` : "";
+      return `<div class="srow${r.ref ? " ref" : ""}${r.dda ? (r.dda.done ? " d-done" : " d-open") : ""}">
+        <div class="sline l1">${it("nm", "", r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder))}${it("", "피보", esc(r.ins))}${it("pd", "", esc(r.product) + (st ? " " + st : ""))}${it("fe", "", esc(r.fee ? wonText(r.fee) : ""))}${r.dda ? `<span class="dchip ${r.dda.done ? "done" : "open"}">${r.dda.done ? "방문완료" : "미완료"}</span>` : ""}</div>
         <div class="sline l2">${it("", "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span>${it("", "직업", esc(r.job))}</div>
         <div class="sline l3">${it("ad", "", esc(r.addr))}${it("", "모집", esc(r.recFc))}</div>
         ${times ? `<div class="sline sub ok">${times}</div>` : ""}${dda}</div>`;
@@ -3787,8 +3787,8 @@
     if (!SALES.ym) SALES.ym = ymNow();
     const ym = SALES.ym;
     const top = (fcHtml) => `<div class="sales-top">
-        <div class="seg"><button type="button" data-stab="transfer" class="${SALES.tab === "transfer" ? "on" : ""}">이달 이관</button><button type="button" data-stab="dda" class="${SALES.tab === "dda" ? "on" : ""}">이달 따행</button></div>
-        <div class="sline2"><div class="ymnav"><button type="button" data-ym="-1" aria-label="이전 달">‹</button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달">›</button></div>${fcHtml}</div></div>`;
+        <div class="seg"><button type="button" data-stab="transfer" class="${SALES.tab === "transfer" ? "on" : ""}">이달 이관</button><button type="button" data-stab="dda" class="${SALES.tab === "dda" ? "on" : ""}">따행</button></div>
+        <div class="sline2${fcHtml ? "" : " center"}"><div class="ymnav"><button type="button" data-ym="-1" aria-label="이전 달">‹</button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달">›</button></div>${fcHtml}</div></div>`;
     box.innerHTML = top("") + `<div id="salesBody"><p class="hint pad">불러오는 중…</p></div>`;
     try {
       const data = await loadSalesData();
@@ -3798,18 +3798,19 @@
       // FC 선택: 접근 가능한 FC들(고객이 등록된 FC). 기본은 내 FC(권한 파일 이름), 없으면 첫 FC. 선택은 이 기기에 기억
       const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc)].filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko"));
       let saved = ""; try { saved = localStorage.getItem(salesFcKey()) || ""; } catch (e) { /* 무시 */ }
-      if (!SALES.fc || !fcs.includes(SALES.fc)) SALES.fc = fcs.includes(saved) ? saved : fcs.includes(myFc) ? myFc : fcs[0] || "";
+      if (!isAdmin()) SALES.fc = fcs.includes(myFc) ? myFc : fcs[0] || ""; // 일반 계정: 선택창 없이 본인 FC
+      else if (!SALES.fc || !fcs.includes(SALES.fc)) SALES.fc = fcs.includes(saved) ? saved : fcs.includes(myFc) ? myFc : fcs[0] || "";
       const fcSel = SALES.fc;
-      const rows = (SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : ddaRows(data, ym)).filter((r) => !fcSel || r.srcFc === fcSel);
+      const rows = (SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : ddaRows(data)).filter((r) => !fcSel || r.srcFc === fcSel);
       const mark = contactMarks(data, ym);
       const ctx = { tpl: smsTemplate(SALES.tab === "dda" ? "dda" : "transfer"), fcName: fcSel || myFc };
       const holders = new Set(rows.map((r) => r.custId || r.holder)).size;
       const refN = SALES.tab === "transfer" ? data.contracts.filter((c) => c.type === "이관" && monthOf(c.row["이관일자"] || c.row["이관일"]) === ym && c.fc && c.srcFc && c.fc !== c.srcFc && (!fcSel || c.srcFc === fcSel)).length : 0;
       const marked = rows.filter((r) => r.key && mark.get(r.key)).length;
       SALES.data = data;
-      box.innerHTML = top(fcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${fcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : fcSel ? `<span class="fc-one">${esc(fcSel)}</span>` : "") +
-        `<div id="salesBody"><div class="sales-info"><span>${rows.length}건 · ${holders}명${marked ? ` · 시도 ✓ ${marked}` : ""}</span><span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span></div>` +
-        (rows.length ? salesRowsHtml(rows, mark, ctx) : `<p class="hint pad">${ymLabel(ym)} ${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.</p>`) +
+      box.innerHTML = top(isAdmin() && fcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${fcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : "") +
+        `<div id="salesBody"><div class="sales-info"><span>${SALES.tab === "dda" ? `전체 ${rows.length}명(미완료 ${rows.filter((r) => !(r.dda && r.dda.done)).length}명)` : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span><span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span></div>` +
+        (rows.length ? salesRowsHtml(rows, mark, ctx) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.</p>`) +
         `<p class="hint pad">전화·문자는 버튼을 누른 '시도'만 기록됩니다(실제 통화·발송 여부는 알 수 없음).${readQueue().length ? ` 아직 저장 안 된 기록 ${readQueue().length}건은 앱이 다시 열리면 반영합니다.` : ""}</p></div>`;
       box._rows = rows; box._mark = mark;
     } catch (e) { if (req === salesReq) { $("salesBody").innerHTML = ""; handleError(e); } }
