@@ -2498,7 +2498,8 @@
   // 일정에 보일 캘린더
   //   관리자: 관리자 설정에서 고른 캘린더 (모든 사용자의 기본값)
   //   일반 사용자: 설정 메뉴에서 고른 '내 캘린더'. 고른 적 없으면 기본 이름(관리자 설정 이름 + config: 1팀, 김현성, 최수진)과 같은 내 캘린더
-  const defaultCalNames = () => [...new Set([...((appSettings.google || {}).calendars || []).map((c) => c.name), ...(GCFG.calendars || [])])];
+  //   (일반 사용자의 기본값은 관리자 설정 파일이 아니라 config의 공용 기본 이름만 사용 — 관리자 개인 캘린더 선택이 다른 사용자에게 번지지 않게)
+  const defaultCalNames = () => (isAdmin() ? [...new Set([...((appSettings.google || {}).calendars || []).map((c) => c.name), ...(GCFG.calendars || [])])] : [...(GCFG.calendars || [])]);
   async function scheduleCalendars() {
     if (!isAdmin()) {
       const p = await loadMyPrefs();
@@ -2744,7 +2745,7 @@
 
   function needGoogle(msg) {
     $("schedBody").innerHTML = `<div class="card center"><p class="lead">구글 캘린더 연결</p>
-      <p class="hint">${esc(msg || "일정을 보려면 구글 계정으로 한 번 로그인해 주세요.")}${appSettings.google && appSettings.google.account ? "<br>연결 계정: " + esc(appSettings.google.account) : ""}</p>
+      <p class="hint">${esc(msg || "일정을 보려면 구글 계정으로 한 번 로그인해 주세요.")}${isAdmin() && appSettings.google && appSettings.google.account ? "<br>연결 계정: " + esc(appSettings.google.account) : ""}</p>
       <button type="button" class="primary" id="gConnect">구글 계정 연결</button></div>`;
     $("gConnect").addEventListener("click", async () => {
       try { await requestGToken(); renderSchedule(); } catch (e) { toast(e.message); }
@@ -3248,7 +3249,7 @@
   }
   // 고른 적 없을 때 영업일정 캘린더: 관리자가 정한 영업일정 캘린더 이름들 → config 기본(1팀)과 같은 이름
   function defaultSalesIds(cals) {
-    const names = salesArr((appSettings.google || {}).sales).map((s) => s.name);
+    const names = isAdmin() ? salesArr((appSettings.google || {}).sales).map((s) => s.name) : [];
     const want = names.length ? names : [GCFG.teamCalendar || "1팀"];
     return cals.filter((x) => want.includes(x.name)).map((x) => x.id);
   }
