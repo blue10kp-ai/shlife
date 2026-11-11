@@ -310,3 +310,7 @@ tr.pdfrow{cursor:pointer}tr.pdfrow:hover td{background:#EEF2FB}
 /* 계약 표 유입 칸 */
 td.cr{white-space:nowrap}td.cr select{padding:2px 4px;font-size:12px;border:1px solid #D5D9E3;border-radius:6px;margin-right:4px}td.cr input{width:70px;padding:2px 6px;font-size:12px;border:1px solid #D5D9E3;border-radius:6px}
 .bootbox{max-width:520px;margin:12vh auto;padding:0 20px}.bootbox .btn.pri{margin-top:10px;padding:10px 22px;font-size:16px}
+
+.calpick{border:1px solid #E1E4EC;border-radius:8px;margin:10px 0;max-width:640px}.calpick .cp-head,.calpick .cp-row{display:grid;grid-template-columns:1fr 70px 90px 70px;align-items:center;padding:7px 12px;text-align:center}.calpick .cp-head{background:#F3F5FA;font-size:13px;color:#5A667E;font-weight:700}.calpick .cp-head span:first-child,.calpick .cp-name{text-align:left}.calpick .cp-row{border-top:1px solid #EDEFF5}.calpick .cp-row.off .cp-name{color:#9AA3B5}.cp-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}
+.warnTxt{color:#B45309;font-weight:700}
+.warnTxt{color:#B45309;font-weight:700}

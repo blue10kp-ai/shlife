@@ -5,7 +5,7 @@
   //   상담기록: 고객\날짜 - 고객추가정보.xlsx 의 '상담기록' 시트
   // 로그인은 사용자가 직접 한다. 토큰은 이 탭(sessionStorage)에만 보관한다.
   var CID = '482206908404-5sdbvetcrc8j7ctrhe6aa23ccmd3d05d.apps.googleusercontent.com';
-  var SCOPE = 'https://www.googleapis.com/auth/drive openid email';
+  var SCOPE = 'https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/calendar.readonly openid email';
   var API = 'https://www.googleapis.com/drive/v3', UP = 'https://www.googleapis.com/upload/drive/v3';
   var KEY = 'shfcd.gtoken', MAIL = 'shfcd.gmail';
   var FOLDER = 'application/vnd.google-apps.folder', XMIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -28,7 +28,7 @@
         callback: function (r) {
           if (r.error) return reject(new Error('구글 연결 실패: ' + r.error));
           if (!g.hasGrantedAllScopes(r, 'https://www.googleapis.com/auth/drive')) return reject(new Error('Google Drive 권한을 허용해야 합니다. 다시 로그인하면서 모든 항목에 체크해 주세요.'));
-          try { sessionStorage.setItem(KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000 })); } catch (e) { /* 무시 */ }
+          try { sessionStorage.setItem(KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, cal: g.hasGrantedAllScopes(r, 'https://www.googleapis.com/auth/calendar.readonly') })); } catch (e) { /* 무시 */ }
           cache = {};
           fetch('https://www.googleapis.com/oauth2/v3/userinfo', { headers: { Authorization: 'Bearer ' + r.access_token } }).then(function (x) { return x.json(); })
             .then(function (u) { try { sessionStorage.setItem(MAIL, u.email || ''); } catch (e) { /* 무시 */ } }).catch(function () { /* 무시 */ })
@@ -38,6 +38,37 @@
       });
       c.requestAccessToken({ prompt: '' });
     });
+  }
+  // 구글 캘린더 목록: 버튼을 눌렀을 때만 캘린더 읽기 권한을 따로 요청한다(토큰은 이 화면 메모리에만 보관)
+  var calTok = null;
+  function calReady() { var t = stored(); return !!(t && t.cal); }   // 로그인 때 캘린더 읽기를 허용했는지
+  function calToken() {
+    var st = stored();
+    if (st && st.cal) return Promise.resolve(st.token);
+    if (calTok && calTok.exp > Date.now() + 60000) return Promise.resolve(calTok.token);
+    return new Promise(function (resolve, reject) {
+      var g = window.google && window.google.accounts && window.google.accounts.oauth2;
+      if (!g) return reject(new Error('구글 로그인 모듈을 불러오지 못했습니다. 인터넷 연결을 확인하세요.'));
+      var c = g.initTokenClient({
+        client_id: CID, scope: 'https://www.googleapis.com/auth/calendar.readonly', hint: email() || undefined,
+        callback: function (r) {
+          if (r.error) return reject(new Error('캘린더 권한 요청 실패: ' + r.error));
+          if (!g.hasGrantedAllScopes(r, 'https://www.googleapis.com/auth/calendar.readonly')) return reject(new Error('캘린더 읽기 권한을 허용해야 합니다.'));
+          calTok = { token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000 };
+          resolve(calTok.token);
+        },
+        error_callback: function (e) { reject(new Error(e && e.type === 'popup_closed' ? '구글 로그인 창이 닫혔습니다.' : '구글 창을 열 수 없습니다. 팝업 차단을 확인하세요.')); }
+      });
+      c.requestAccessToken({ prompt: '' });
+    });
+  }
+  async function calendarList() {
+    var t = await calToken();
+    var res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=reader&maxResults=250', { headers: { Authorization: 'Bearer ' + t }, cache: 'no-store' });
+    if (res.status === 401) { calTok = null; throw new Error('캘린더 권한이 만료되었습니다. 다시 눌러 주세요.'); }
+    if (!res.ok) throw new Error('캘린더 목록을 읽지 못했습니다(' + res.status + '). 구글 캘린더 API가 켜져 있는지 확인하세요.');
+    var ALIAS = { 'blue10kp@gmail.com': '김현성', 'nonmollarechoi@gmail.com': '최수진' };   // 엠 config.js calendarNames 와 같은 표시 이름(저장된 이름이 바뀌지 않게)
+    return ((await res.json()).items || []).map(function (c) { return { id: c.id, name: ALIAS[c.id] || String(c.summaryOverride || c.summary || '').trim(), color: c.backgroundColor, primary: !!c.primary }; });
   }
   function logout() {
     var t = token();
@@ -215,6 +246,17 @@
     var a = await qlist("'" + APPDIR + "' in parents and name='" + SETF + "' and trashed=false");
     return a[0] || null;
   }
+  // 접근 권한 파일(shlife-권한.json: users·fcFolders·names)과 FC 폴더·설정 폴더의 실제 Drive 공유 상태를 읽는다(읽기 전용)
+  async function readPerms() {
+    var a = await qlist("'" + APPDIR + "' in parents and name='shlife-권한.json' and trashed=false");
+    if (!a[0]) return { users: {}, fcFolders: {}, names: {} };
+    var p = (await gd(API + '/files/' + encodeURIComponent(a[0].id) + '?alt=media&supportsAllDrives=true')) || {};
+    return { users: p.users || {}, fcFolders: p.fcFolders || {}, names: p.names || {} };
+  }
+  async function folderShares(id) {   // [{email, role}]  (소유자 제외하지 않음: role=owner 로 표시)
+    var f = await gd(API + '/files/' + encodeURIComponent(id) + '?fields=' + encodeURIComponent('permissions(type,role,emailAddress)') + '&supportsAllDrives=true');
+    return (f.permissions || []).map(function (p) { return { email: String(p.emailAddress || (p.type === 'anyone' ? '(링크 공개)' : '')).toLowerCase(), role: p.role, type: p.type }; });
+  }
   async function readSettings() {
     var f = await settingsFile();
     if (!f) return {};
@@ -231,6 +273,7 @@
     });
   }
 
-  window.DRIVE = { on: on, email: email, login: login, logout: logout, onChange: onChange, updateCustomer: updateCustomer, updateContract: updateContract, consultOp: consultOp, refresh: refresh, readSettings: readSettings, writeSettings: writeSettings,
+  async function baseShares() { var b = await baseId(); return (await folderShares(b)).some(function (s) { return s.role !== 'owner'; }); }
+  window.DRIVE = { on: on, email: email, login: login, logout: logout, onChange: onChange, updateCustomer: updateCustomer, updateContract: updateContract, consultOp: consultOp, refresh: refresh, calendarList: calendarList, calReady: calReady, baseShares: baseShares, readPerms: readPerms, folderShares: folderShares, appDirId: APPDIR, readSettings: readSettings, writeSettings: writeSettings,
     _i: { get cache() { return cache; }, API: API, gd: gd, qlist: qlist, qv: qv, baseId: baseId, fcFolders: fcFolders, listFile: listFile, extraFile: extraFile, getWB: getWB } };
 })();

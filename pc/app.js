@@ -36,6 +36,7 @@
   ];
   var AC = window.ACCESS;
   var LABEL = { customer: '고객', contract: '계약', performance: '업적', fee: '수수료' };
+  if (window.SETTINGS_ADMIN && window.SETTINGS_ADMIN()) LABEL.settings = '관리자';
   if (AC.own) { LABEL = { customer: '내 고객', contract: '내 계약', performance: '내 업적', fee: '내 수수료' }; }
   MENUS = MENUS.filter(function (m) { return AC.menus.indexOf(m.id) >= 0; }).map(function (m) { return Object.assign({}, m, { name: LABEL[m.id] || m.name }); });
   var COLORS = ['#2B5FD9', '#1E7F74', '#B5651D', '#7C4DBB', '#C0392B', '#0E8FB3', '#8A9A1B', '#D6336C', '#5B6B91', '#E0A800', '#3C8D40', '#9B59B6', '#16A085', '#E67E22', '#34495E', '#C2185B', '#7F8C8D', '#2E86C1', '#A04000', '#117A65'];
