@@ -2870,12 +2870,25 @@
 
   // ---------- 내 설정 (일반 사용자): 내 드라이브 Claude/app/신한FC/설정/shlife-내설정.json (+ 이 기기 사본) ----------
   const MY_FILE = "shlife-내설정.json";
+  const MY_OWNER_FOLDER = "개인설정"; // 소유자 전용(공유 안 함). 다른 사용자는 각자 자기 Drive의 Claude/app/신한FC/설정 (예전과 같음)
   let myPrefs = null, myDir = null;
   const myCacheKey = () => "shlife.myprefs." + me();
   async function resolveMyDir(create) {
     if (myDir) return myDir;
     await resolveBase();
-    if (base.owner || !GD) { await resolveAppDir(); return (myDir = appDir); }
+    if (!GD) { await resolveAppDir(); return (myDir = appDir); }
+    if (base.owner) {
+      // 소유자(관리자)의 개인 설정은 김경미·최수진에게 읽기 공유된 '설정' 폴더가 아니라, 같은 상위 폴더 아래 공유하지 않는 '개인설정' 폴더에 둔다 (2026-11-11)
+      await resolveAppDir();
+      const par = ((await gdFetch(GDAPI + "/files/" + encodeURIComponent(appDir.id) + "?fields=parents&supportsAllDrives=true")).parents || [])[0];
+      if (!par) throw new Error("설정 폴더의 상위 폴더를 찾지 못했습니다.");
+      const ex = (await gdQuery("'" + qv(par) + "' in parents and name='" + qv(MY_OWNER_FOLDER) + "' and mimeType='" + GD_FOLDER + "' and trashed=false"))[0];
+      if (ex) return (myDir = { id: ex.id });
+      if (!create) return null;
+      const mk = await gdFetch(GDAPI + "/files?fields=id&supportsAllDrives=true", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: MY_OWNER_FOLDER, mimeType: GD_FOLDER, parents: [par] }) });
+      return (myDir = { id: mk.id });
+    }
     let id = "root";
     for (const part of CFG.appFolder.split("/").filter(Boolean)) {
       const r = await gdQuery("'" + qv(id) + "' in parents and name='" + qv(part) + "' and mimeType='" + GD_FOLDER + "' and trashed=false");
