@@ -1,0 +1,4315 @@
+(function () {
+  "use strict";
+  const CFG = window.APP_CONFIG;
+  // Files.Read.All: 내 파일 + 다른 사람이 공유해 준 폴더까지 읽기 (읽기 전용)
+  const SCOPES = ["Files.Read.All", "User.Read"];
+  const GRAPH = "https://graph.microsoft.com/v1.0";
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- 로그인 (MSAL) ----------
+  const redirectUri = location.origin + location.pathname.replace(/index\.html$/, "");
+  const msal = new window.msal.PublicClientApplication({
+    auth: {
+      clientId: CFG.clientId,
+      authority: "https://login.microsoftonline.com/consumers",
+      redirectUri
+    },
+    cache: { cacheLocation: "localStorage" }
+  });
+
+  async function getToken() {
+    const account = msal.getAllAccounts()[0];
+    if (!account) throw new Error("NOT_SIGNED_IN");
+    try {
+      const r = await msal.acquireTokenSilent({ scopes: SCOPES, account });
+      return r.accessToken;
+    } catch (e) {
+      await msal.acquireTokenRedirect({ scopes: SCOPES, account });
+      throw e;
+    }
+  }
+
+  async function graph(path, asBuffer) {
+    const token = await getToken();
+    const res = await fetch(path.startsWith("http") ? path : GRAPH + path, {
+      headers: { Authorization: "Bearer " + token },
+      cache: "no-store" // OneDrive 파일이 바뀌면 바로 반영 (브라우저 캐시 사용 안 함)
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error("Graph " + res.status + ": " + t.slice(0, 200));
+    }
+    return asBuffer ? res.arrayBuffer() : res.json();
+  }
+
+  async function listChildren(pathOrId) {
+    let url = pathOrId + (pathOrId.includes("?") ? "&" : "?") +
+      "$top=999&$select=id,name,folder,file,webUrl,size,lastModifiedDateTime";
+    const out = [];
+    while (url) {
+      const data = await graph(url);
+      out.push(...data.value);
+      url = data["@odata.nextLink"] || null;
+    }
+    return out;
+  }
+
+  // ---------- 관리자 ----------
+  // 관리자: 공유 권한을 바꾸려면 쓰기 권한이 필요 (관리자만 요청)
+  const ADMIN_SCOPES = ["Files.ReadWrite.All", "User.Read"];
+  const account = () => GD ? (gAccount() ? { username: gAccount() } : undefined) : msal.getAllAccounts()[0];
+  const isAdmin = () => !!account() &&
+    (CFG.admins || []).map((a) => a.toLowerCase()).includes(String(account().username).toLowerCase());
+
+  async function gx(method, path, body, contentType) {
+    const acc = account();
+    let token;
+    try {
+      token = (await msal.acquireTokenSilent({ scopes: ADMIN_SCOPES, account: acc })).accessToken;
+    } catch (e) {
+      sessionStorage.setItem("openAdmin", "1");
+      await msal.acquireTokenRedirect({ scopes: ADMIN_SCOPES, account: acc });
+      throw e;
+    }
+    const raw = body instanceof ArrayBuffer || ArrayBuffer.isView(body);
+    const res = await fetch(GRAPH + path, {
+      method,
+      headers: { Authorization: "Bearer " + token, "Content-Type": contentType || "application/json" },
+      body: body == null ? undefined : raw ? body : JSON.stringify(body),
+      cache: "no-store"
+    });
+    if (!res.ok) throw new Error("Graph " + res.status + ": " + (await res.text()).slice(0, 200));
+    return res.status === 204 ? null : res.json();
+  }
+
+  // ---------- 저장소: OneDrive 또는 Google Drive ----------
+  //   기본은 config.storage. 주소 끝에 ?drive=google / ?drive=onedrive 를 붙이면 이 기기에서 그 저장소로 바뀜(시험·전환용)
+  const DRIVE = (() => {
+    const q = new URLSearchParams(location.search).get("drive");
+    // (시험 때 쓴 예전 키 shlife.drive 는 무시: 전환 후 모든 기기가 config 기본값을 따름)
+    if (q) { try { localStorage.setItem("shlife.drive2", q); } catch (e) { /* 이번만 적용 */ } }
+    let v = q;
+    if (!v) { try { v = localStorage.getItem("shlife.drive2"); } catch (e) { v = null; } }
+    return (v || CFG.storage || "onedrive") === "google" ? "google" : "onedrive";
+  })();
+  const GD = DRIVE === "google";
+  const DRIVE_NAME = GD ? "Google Drive" : "OneDrive";
+  const GDCFG = CFG.gdrive || {};
+  const GDAPI = "https://www.googleapis.com/drive/v3";
+  const GDUP = "https://www.googleapis.com/upload/drive/v3";
+  const GD_FIELDS = "id,name,mimeType,size,modifiedTime,webViewLink";
+  const GD_FOLDER = "application/vnd.google-apps.folder";
+  const GACC_KEY = "shlife.gaccount";
+  function gAccount() { try { return localStorage.getItem(GACC_KEY) || ""; } catch (e) { return ""; } }
+  // Google Drive 파일 정보를 OneDrive(Graph)와 같은 모양으로
+  const gdNorm = (f) => ({
+    id: f.id, name: f.name, size: Number(f.size || 0), lastModifiedDateTime: f.modifiedTime, webUrl: f.webViewLink,
+    folder: f.mimeType === GD_FOLDER ? {} : undefined, file: f.mimeType === GD_FOLDER ? undefined : { mimeType: f.mimeType }
+  });
+  async function gdFetch(url, opt, asBuffer) {
+    const t = storedGToken() || gTokenMem;
+    if (!t) throw new Error("GOOGLE_AUTH");
+    const o = opt || {};
+    const res = await fetch(url, { ...o, headers: { Authorization: "Bearer " + t, ...(o.headers || {}) }, cache: "no-store" });
+    if (res.status === 401) { clearGToken(); throw new Error("GOOGLE_AUTH"); }
+    if (!res.ok) throw new Error("Drive " + res.status + ": " + (await res.text()).slice(0, 200));
+    if (res.status === 204) return null;
+    return asBuffer ? res.arrayBuffer() : res.json();
+  }
+  const qv = (s) => String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'"); // 검색식 안 문자열
+  async function gdQuery(q) {
+    const out = [];
+    let page = "";
+    do {
+      const d = await gdFetch(GDAPI + "/files?pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=" +
+        encodeURIComponent("nextPageToken,files(" + GD_FIELDS + ")") + "&q=" + encodeURIComponent(q) + (page ? "&pageToken=" + encodeURIComponent(page) : ""));
+      out.push(...(d.files || []).map(gdNorm));
+      page = d.nextPageToken || "";
+    } while (page);
+    return out;
+  }
+  async function gdFindIn(dirId, name) {
+    return (await gdQuery("'" + qv(dirId) + "' in parents and name='" + qv(name) + "' and trashed=false"))[0] || null;
+  }
+
+  // 폴더 안 목록
+  async function stList(id) {
+    return GD ? gdQuery("'" + qv(id) + "' in parents and trashed=false") : listChildren(itemPath(id) + "/children");
+  }
+  // 파일 내용 (ArrayBuffer)
+  async function stGet(id) {
+    return GD ? gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?alt=media&supportsAllDrives=true", null, true)
+      : graph(itemPath(id) + "/content", true);
+  }
+  // 파일 내용 바꾸기
+  async function stPut(id, data, mime) {
+    if (!GD) return gx("PUT", itemPath(id) + "/content", data, mime);
+    return gdNorm(await gdFetch(GDUP + "/files/" + encodeURIComponent(id) + "?uploadType=media&supportsAllDrives=true&fields=" + GD_FIELDS,
+      { method: "PATCH", headers: { "Content-Type": mime }, body: data }));
+  }
+  // 폴더(dir = {id, driveId?}) 안에 이름으로 저장 (같은 이름이 있으면 그 파일을 고침)
+  async function stPutIn(dir, name, data, mime) {
+    if (!GD) return gx("PUT", "/drives/" + (dir.driveId || base.driveId) + "/items/" + dir.id + ":/" + encodeURIComponent(name) + ":/content", data, mime);
+    const ex = await gdFindIn(dir.id, name);
+    if (ex) return stPut(ex.id, data, mime);
+    const b = "shlife" + Date.now();
+    const body = new Blob([
+      "--" + b + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify({ name, parents: [dir.id] }) +
+      "\r\n--" + b + "\r\nContent-Type: " + mime + "\r\n\r\n", data, "\r\n--" + b + "--"]);
+    return gdNorm(await gdFetch(GDUP + "/files?uploadType=multipart&supportsAllDrives=true&fields=" + GD_FIELDS,
+      { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body }));
+  }
+  // 삭제 (휴지통으로)
+  async function stDel(id) {
+    if (!GD) return gx("DELETE", itemPath(id));
+    return gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?supportsAllDrives=true&fields=id",
+      { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trashed: true }) });
+  }
+  // 내 드라이브 기준 폴더 경로("Claude/고객") → { id, driveId } / 없으면 null
+  async function stFindPath(path) {
+    if (!GD) {
+      try {
+        const it = await graph("/me/drive/root:/" + path.split("/").map(encodeURIComponent).join("/") + "?$select=id,parentReference");
+        return { id: it.id, driveId: it.parentReference.driveId };
+      } catch (e) {
+        if (String(e.message).includes("404")) return null;
+        throw e;
+      }
+    }
+    let id = "root";
+    for (const part of path.split("/").filter(Boolean)) {
+      const r = await gdQuery("'" + qv(id) + "' in parents and name='" + qv(part) + "' and mimeType='" + GD_FOLDER + "' and trashed=false");
+      if (!r.length) return null;
+      id = r[0].id;
+    }
+    return { id };
+  }
+  // 폴더 안 JSON 파일 읽기 / 쓰기 (없으면 null)
+  async function stReadJsonIn(dir, name) {
+    if (!dir || !dir.id) return null;
+    if (!GD) {
+      try { return await graph("/drives/" + dir.driveId + "/items/" + dir.id + ":/" + encodeURIComponent(name) + ":/content?x=" + Date.now()); } catch (e) {
+        if (String(e.message).includes("404")) return null;
+        throw e;
+      }
+    }
+    const f = await gdFindIn(dir.id, name);
+    if (!f) return null;
+    return JSON.parse(new TextDecoder().decode(await stGet(f.id)).replace(/^﻿/, ""));
+  }
+  async function stWriteJsonIn(dir, name, obj) {
+    return stPutIn(dir, name, new TextEncoder().encode(JSON.stringify(obj, null, 2)), "application/json");
+  }
+
+  // ---------- 화면 전환 ----------
+  const views = ["loginView", "scheduleView", "searchView", "customerView", "salesView", "adminView"];
+  const APP_NAME = "신한FC M";
+  const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "관리자" };
+  const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin" };
+  function show(view, keepScroll) {
+    views.forEach((v) => ($(v).hidden = v !== view));
+    // 고객 정보 화면: "‹ 고객 정보" 전체가 뒤로 가기 버튼
+    $("backBtn").hidden = view !== "customerView";
+    $("title").hidden = view === "customerView";
+    $("logoutBtn").hidden = view === "loginView";
+    $("topSearch").hidden = view === "loginView"; // 상단 검색창은 로그인 후 항상
+    $("title").textContent = view === "adminView" && !isAdmin() ? "설정" : TITLES[view] || APP_NAME;
+    $("mainNav").hidden = view === "loginView";
+    // 관리자: '관리자' 메뉴 / 일반 사용자: '설정' 메뉴 (내 캘린더 고르기)
+    $("navAdmin").hidden = !account();
+    $("navAdminLabel").textContent = isAdmin() ? "관리자" : "설정";
+    if (view === "searchView") $("pageSearch").hidden = $("results").children.length > 0; // 보이는 고객 목록이 없으면 화면 안 검색창
+    if (view !== "salesView" && view !== "customerView" && view !== "loginView") salesClearState(); // 영업 화면을 떠나면 이어보기 상태 삭제
+    $("mainNav").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.section === SECTION[view]));
+    if (!keepScroll) window.scrollTo(0, 0);
+  }
+
+  function toast(msg) {
+    const el = $("toast");
+    el.textContent = msg;
+    el.hidden = false;
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => (el.hidden = true), 3500);
+  }
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  // ---------- 검색 ----------
+  // 고객 폴더 위치 찾기
+  //   소유자(관리자): 내 OneDrive의 Claude/고객
+  //   다른 사용자: 관리자가 OneDrive에서 공유해 준 같은 '고객' 폴더 (config.owner)
+  let base = null; // { driveId, id, owner }
+  async function resolveBase() {
+    if (base) return base;
+    const mine = await stFindPath(CFG.baseFolder);
+    if (mine) return (base = { driveId: mine.driveId, id: mine.id, owner: true });
+    if (GD) {
+      if (!GDCFG.baseId) throw new Error("NO_SHARE");
+      return (base = { id: GDCFG.baseId, owner: false });
+    }
+    return (base = { driveId: CFG.owner.driveId, id: CFG.owner.baseId, owner: false });
+  }
+  const itemPath = (id) => "/drives/" + base.driveId + "/items/" + id;
+
+  // ---------- 앱 자체 권한 (고객 폴더 안 권한 파일) ----------
+  // { "users": { "someone@outlook.com": ["김현성"], "other@hotmail.com": ["*"] } }   "*" = 전체 FC
+  const PERM_FILE = CFG.permFile || "shlife-권한.json";
+
+  // ---------- 앱 저장 폴더: Claude/app/신한FC/설정 (설정·권한 파일) ----------
+  //   소유자(관리자): 내 OneDrive 경로 / 다른 사용자: 관리자가 공유해 준 같은 폴더 (config.owner.appDirId)
+  let appDir = null;
+  let appDirP = null;
+  function resolveAppDir() { if (appDir) return Promise.resolve(appDir); return appDirP || (appDirP = resolveAppDirRaw().finally(() => { appDirP = null; })); }
+  async function resolveAppDirRaw() {
+    if (appDir) return appDir;
+    await resolveBase();
+    // Google Drive: 공유받은 사용자는 관리자의 설정 폴더(ID)를 씀 (자기 드라이브에 같은 이름 폴더가 있어도)
+    if (GD && !base.owner) return (appDir = { id: GDCFG.appDirId || "" });
+    const mine = await stFindPath(CFG.appFolder);
+    if (mine) return (appDir = mine);
+    if (GD) return (appDir = { id: GDCFG.appDirId || "" });
+    return (appDir = { driveId: CFG.owner.driveId, id: CFG.owner.appDirId });
+  }
+
+  // ---------- 관리자 설정 (앱 저장 폴더의 설정 파일, 모든 사용자가 같은 설정 사용) ----------
+  //   { companyAddress, kakaoRestKey, google: { account, calendars: [] } }
+  const SETTINGS_FILE = CFG.settingsFile || "shlife-설정.json";
+  let appSettings = { companyAddress: "", google: { account: "", calendars: [] } };
+  async function loadSettings() {
+    try {
+      await resolveAppDir();
+      const s = await stReadJsonIn(appDir, SETTINGS_FILE);
+      if (s) appSettings = { ...appSettings, ...s, google: { ...appSettings.google, ...(s.google || {}) } };
+    } catch (e) { /* 설정 파일을 못 읽으면 기본값 */ }
+    return appSettings;
+  }
+  async function saveSettings(next) {
+    await resolveAppDir();
+    await stWriteJsonIn(appDir, SETTINGS_FILE, next);
+    appSettings = next;
+  }
+  // 영업 화면이 매번 권한 파일을 다시 읽지 않도록 'FC 이름(names)'만 세션 캐시. 권한 파일을 읽거나 쓸 때마다 갱신 (관리자 화면은 열 때 최신을 읽음). 접근 FC 판단(myAllowedFcs)은 캐시를 쓰지 않음
+  let permNamesCache = null;
+  async function writePerms(perms) {
+    await resolveAppDir();
+    await stWriteJsonIn(appDir, PERM_FILE, perms);
+    permNamesCache = { ...(perms.names || {}) };
+  }
+  const me = () => String((account() || {}).username || "").toLowerCase();
+
+  async function readPerms() {
+    await resolveAppDir();
+    const p = await stReadJsonIn(appDir, PERM_FILE);
+    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {} };
+    permNamesCache = { ...out.names };
+    return out;
+  }
+  // 권한 항목: "최수진"(보기+수정) / "최수진:r"(보기만) / "*"(전체 FC, 보기+수정)
+  // names: { 이메일: "FC 이름" } — 관리자 화면에서 아이디와 이름을 짝지음(화면에는 이름을 먼저 보여 줌)
+  const grantFc = (s) => String(s).replace(/:r$/, "");
+  const grantRo = (s) => /:r$/.test(String(s));
+  let roFcs = new Set(); // 내가 '보기만' 권한인 FC (화면에서 수정 버튼 숨김 — 실제 막는 것은 Drive 공유 권한)
+  let fcFolderIds = {}; // FC 이름 → Drive 폴더 ID (관리자가 변경 저장할 때 권한 파일에 기록)
+  const isRO = (fc) => !!fc && roFcs.has(fc);
+
+  // 지금 로그인한 아이디가 볼 수 있는 FC: "*" 또는 FC 이름 목록
+  async function myAllowedFcs() {
+    if (isAdmin() || base.owner) return "*";
+    const perms = await readPerms();
+    fcFolderIds = perms.fcFolders || {};
+    const list = (perms.users[me()] || []).filter((g) => g !== "*"); // 전체("*")는 관리자 전용 — 일반 계정은 FC 이름 목록만 인정
+    roFcs = new Set(list.filter(grantRo).map(grantFc));
+    return list.map(grantFc);
+  }
+
+  // 고객 폴더 구조 읽기
+  //   고객/김현성/_계약/<고객폴더>, 고객/김현성/계약고객리스트.xlsx   ← FC별 폴더 (현재 구조)
+  //   고객/_계약/<고객폴더>, 고객/계약고객리스트.xlsx               ← FC 폴더 없이 (예전 구조)
+  // "_"로 시작하는 폴더 = 분류(계약/이관/진행), 그 안의 폴더 = 고객 폴더
+  let scanCache = null; // Promise<{ folders, files, fcs }>
+  function scanBase() {
+    if (scanCache) return scanCache;
+    scanCache = (async () => {
+      await resolveBase();
+      const allowed = await myAllowedFcs();
+      const ok = (name) => allowed === "*" || allowed.includes(name);
+      const folders = [], files = [], done = new Set(); // done: 폴더 ID로 이미 읽은 FC (루트 목록에서 다시 읽지 않음)
+      async function scan(id, fc) {
+        const items = await stList(id);
+        // FC 폴더 바깥(고객 폴더 바로 아래) 파일·분류폴더는 '전체' 권한만
+        const rootOk = !!fc || allowed === "*";
+        if (rootOk) items.filter((i) => i.file && i.name !== PERM_FILE).forEach((f) => files.push({ ...f, fc }));
+        await Promise.all(items.filter((i) => i.folder).map(async (d) => {
+          if (d.name.startsWith("_")) {
+            if (!rootOk) return;
+            // 고객 폴더가 들어 있는 분류 폴더만 읽음 (_고객 = 새 규칙, _계약·_이관·_진행·_DB = 옛 구조). _결과·_전환중복 같은 정리용 폴더는 고객으로 보지 않음
+            if (CFG.customerFolderGroups && !CFG.customerFolderGroups.includes(d.name.slice(1))) return;
+            (await stList(d.id))
+              .filter((i) => i.folder)
+              .forEach((f) => folders.push({ ...f, group: d.name.slice(1), fc }));
+          } else if (!fc && ok(d.name) && !done.has(d.name)) {
+            await scan(d.id, d.name); // 허용된 FC 폴더만
+          } else if (fc) {
+            folders.push({ ...d, group: "", fc }); // 새 구조: FC 폴더 바로 아래가 고객 폴더 (이름 (YYMMDD) - 고객ID)
+          }
+        }));
+      }
+      try {
+        if (allowed !== "*" && allowed.length) {
+          // FC 폴더 단위로 공유받은 사용자: 폴더 ID로 바로 열기 (고객 루트 폴더 권한이 없어도 됨). Drive 권한이 없는 FC는 건너뜀
+          let opened = 0;
+          const rest = [];
+          for (const f of allowed) {
+            if (!fcFolderIds[f]) { rest.push(f); continue; }
+            try { await scan(fcFolderIds[f], f); done.add(f); opened++; }
+            catch (e) { if (!/40[34]/.test(String(e.message))) throw e; console.warn("FC 폴더 접근 없음, 건너뜀:", f); }
+          }
+          if (rest.length) { // 폴더 ID를 모르는 FC는 예전 방식(고객 루트 목록)으로
+            try { await scan(base.id, ""); opened++; } catch (e) { if (!/40[34]/.test(String(e.message))) throw e; }
+          }
+          if (!opened) throw new Error("NO_SHARE");
+        } else await scan(base.id, "");
+      } catch (e) {
+        if (!base.owner && /40[34]/.test(String(e.message))) throw new Error("NO_SHARE");
+        throw e;
+      }
+      const fcs = [];
+      folders.forEach((f) => f.fc && !fcs.includes(f.fc) && fcs.push(f.fc));
+      files.forEach((f) => f.fc && !fcs.includes(f.fc) && fcs.push(f.fc));
+      return { folders, files, fcs: fcs.sort((a, b) => a.localeCompare(b, "ko")), all: allowed === "*" };
+    })();
+    scanCache.catch(() => { scanCache = null; });
+    return scanCache;
+  }
+  const loadCustomerFolders = async () => (await scanBase()).folders;
+
+  // ---------- 고객 리스트 엑셀 (계약고객리스트 / 이관고객리스트) ----------
+  const bookCache = {};
+  async function readBook(id) {
+    if (!bookCache[id]) {
+      bookCache[id] = stGet(id).then((buf) => XLSX.read(buf, { type: "array" }));
+    }
+    return bookCache[id];
+  }
+
+  // <schema> 새 데이터 구조(고객·계약·이력·관계 4시트) 이중 읽기 — '고객' 시트에 '고객ID' 열이 있는 파일만 새 구조로 읽고, 아니면 예전 시트(계약고객·이관고객…)를 그대로 읽음
+  const CUST_SHEET = "고객", ID_COL = "고객ID";
+  // 현재단계 → 예전 type(화면 태그·우선순위·검색 범위 버튼)
+  const STAGE_TYPE = { "계약": "계약", "이관관리": "이관", "이관": "이관", "진행": "진행", "가망": "가망", "DB": "DB", "피보험자": "피보험자" };
+  const sheetRows = (wb, name) => {
+    const sn = wb.SheetNames.find((n) => n.trim() === name);
+    return sn ? XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "", raw: false, blankrows: true }) : null;
+  };
+  const headIndex = (rows, col) => (rows || []).findIndex((r) => r.some((c) => String(c).trim() === col));
+  const isNewStruct = (wb) => { const rows = sheetRows(wb, CUST_SHEET); return !!rows && headIndex(rows, ID_COL) >= 0; };
+  const stageType = (row) => STAGE_TYPE[String(row["현재단계"] || "").trim()] || "가망";
+  // 고객ID → 이름 (새 구조의 계약 시트가 이름 대신 ID를 가지고 있어서 이름으로 풀어 줌)
+  function idNameMap(wb) {
+    const rows = sheetRows(wb, CUST_SHEET) || [];
+    const h = headIndex(rows, ID_COL), map = new Map();
+    if (h < 0) return map;
+    const head = rows[h].map((c) => String(c).trim()), ic = head.indexOf(ID_COL), nc = head.indexOf("이름");
+    rows.slice(h + 1).forEach((r) => { const id = String(r[ic] || "").trim(), nm = String(r[nc] || "").trim(); if (id && nm) map.set(id, nm); });
+    return map;
+  }
+  // 새 구조의 계약 줄을 예전 계약 탭이 쓰는 모양으로: 계약자·주피보험자 이름을 채움
+  function contractRowCompat(row, ids) {
+    const o = { ...row };
+    if (!o["계약자"] && o["계약자ID"]) o["계약자"] = ids.get(String(o["계약자ID"]).trim()) || "";
+    if (!o["주피보험자"] && o["주피보험자ID"]) o["주피보험자"] = ids.get(String(o["주피보험자ID"]).trim()) || "";
+    return o;
+  }
+  // 모집유형 → 계약 구분: '타인모집'(이관) = 이관, '타인모집(비이관)' 등 그 밖의 타인모집… = 타인모집(이관 아님), 그 외 = 계약(직접모집)
+  const contractLabel = (mt) => { const v = String(mt || "").trim(); return v === "타인모집" ? "이관" : /^타인모집/.test(v) ? "타인모집" : "계약"; };
+  const isNewContractSheet = (head) => head.includes("계약자ID") && !head.includes("계약자");
+  // </schema>
+  // 앱 버전 표시 (화면 맨 아래 작은 글씨) — 새 버전이 모든 기기에 반영됐는지 확인용
+  const APP_VER = (((document.querySelector('script[src*="app.js"]') || {}).src || "").match(/[?&]v=(\d+)/) || [])[1] || "";
+  if (APP_VER) { const el = document.createElement("div"); el.className = "app-ver"; el.textContent = "v" + APP_VER; document.body.appendChild(el); }
+
+  const pick = (row, names) => { for (const n of names) if (row[n] != null && String(row[n]).trim()) return String(row[n]).trim(); return ""; };
+  const NAME_COLS = ["이름", "계약자", "고객명"];
+  const BIRTH_COLS = ["생년월일", "생일"];
+  const PHONE_COLS = ["연락처", "휴대폰", "핸드폰", "전화번호"];
+
+  let listCache = null; // [{ type, name, birth, phone, fc, sheet, fields }]
+  // 설정의 파일 조건(fileRegex 또는 fileKeyword)에 맞는 엑셀 중 FC 폴더마다 가장 최근 것 하나만
+  //   (예: "20261108 - 최수진 - 계약.xlsx"와 나중의 "20261115 - 최수진 - 계약.xlsx"가 있으면 20261115만)
+  function pickSourceFiles(files, spec) {
+    const re = spec.fileRegex ? new RegExp(spec.fileRegex, "i") : null;
+    // 고객 리스트는 FC 폴더 안의 파일만 (고객 폴더 바로 아래로 옮겨 둔 예전 파일은 읽지 않음)
+    const hit = files.filter((f) => f.fc && /\.xlsx?$/i.test(f.name) && (re ? re.test(f.name) : spec.fileKeyword && f.name.includes(spec.fileKeyword)));
+    const byFc = new Map();
+    // 통합 '리스트' 파일이 있으면 그것을 우선, 그다음 최신 날짜 (예전 '계약'/'기타' 파일은 리스트가 없는 FC만)
+    const rank = (f) => (/ - 리스트\.xlsx?$/i.test(f.name) ? "1" : "0") + f.name;
+    hit.forEach((f) => { const k = f.fc || ""; if (!byFc.has(k) || rank(f) > rank(byFc.get(k))) byFc.set(k, f); });
+    return [...byFc.values()];
+  }
+  // 읽을 시트: 설정에 sheet가 있으면 그 시트만, 없으면 전부
+  const sheetsOf = (wb, spec) => (spec.sheet ? wb.SheetNames.filter((n) => n.trim() === spec.sheet) : wb.SheetNames);
+
+  async function loadLists() {
+    if (listCache) return listCache;
+    const { files, folders } = await scanBase();
+    const sources = CFG.lists.filter((l) => l.fileRegex || l.fileKeyword).flatMap((l) =>
+      pickSourceFiles(files, l).map((f) => ({ ...l, file: f })));
+    const out = [], newDone = new Set();
+    // 폴더 기반 범위 (예: 진행 = "_진행" 폴더 안 고객 폴더)
+    CFG.lists.filter((l) => l.folderGroup).forEach((l) =>
+      folders.filter((f) => f.group === l.folderGroup).forEach((f) => out.push({
+        type: l.label, name: custPart(f.name), fc: f.fc, sheet: "", birth: "", phone: "",
+        fields: [["고객 폴더", f.name], ["분류", l.folderGroup]].concat(f.fc ? [["담당 FC", f.fc]] : [])
+      })));
+    await Promise.all(sources.map(async (s) => {
+      const wb = await readBook(s.file.id);
+      // FC 이름: FC 폴더 이름 → 없으면 파일명 "날짜 - FC - ..." 가운데 부분
+      const fc = s.file.fc || (s.file.name.split(" - ")[1] || "").trim();
+      // 새 구조 파일: '고객' 시트 하나만 (파일당 한 번), 예전 시트(계약고객 등)는 건너뜀
+      const newMode = isNewStruct(wb);
+      if (newMode) { if (newDone.has(s.file.id)) return; newDone.add(s.file.id); }
+      (newMode ? [wb.SheetNames.find((n) => n.trim() === CUST_SHEET)] : sheetsOf(wb, s)).forEach((sheet) => {
+        const ws = wb.Sheets[sheet];
+        if (!ws || !ws["!ref"]) return;
+        const rg = XLSX.utils.decode_range(ws["!ref"]);
+        // blankrows: true → rows[i]는 엑셀의 (rg.s.r + i)번째 줄 (나중에 같은 줄에 저장하기 위해)
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: true });
+        // 제목 줄이 있을 수 있으니 '이름/계약자' 칸이 있는 줄을 머리글로 사용
+        const h = rows.findIndex((r) => r.some((c) => NAME_COLS.includes(String(c).trim())));
+        if (h < 0) return;
+        const head = rows[h].map((c) => String(c).trim());
+        rows.slice(h + 1).forEach((r, i) => {
+          const row = {};
+          head.forEach((k, j) => { if (k) row[k] = r[j]; });
+          const name = pick(row, NAME_COLS);
+          if (!name) return;
+          out.push({
+            type: newMode ? stageType(row) : s.label, name, fc, sheet,
+            birth: pick(row, BIRTH_COLS),
+            phone: pick(row, PHONE_COLS),
+            grade: String(row[GRADE_COL] ?? "").trim(),
+            src: { fileId: s.file.id, sheet, row: rg.s.r + h + 1 + i },
+            fields: head.map((k, j) => [k, String(r[j] ?? "").trim()]).filter(([k, v]) => k && v)
+          });
+        });
+      });
+    }));
+    listCache = out;
+    return out;
+  }
+
+  // ---------- 고객리스트 엑셀에 값 쓰기 (성향, 연락처 수정 + 우선) ----------
+  const GRADE_COL = "성향", PRIORITY_COL = "우선";
+  const GRADES = [
+    { id: "Good", label: "Good", color: "#ffffff" },
+    { id: "Bad", label: "Bad", color: "#f39c12" },
+    { id: "Shit", label: "Shit", color: "#e53935" }
+  ];
+  const gradeOf = (c) => { const g = (c.entries || []).map((e) => e.grade).find(Boolean) || ""; return GRADES.find((x) => x.id.toLowerCase() === g.toLowerCase()) ? g : ""; };
+  const gradeClass = (g) => (g ? "grade-" + g.toLowerCase() : "");
+
+  // entries의 원래 줄(파일·시트·행)에 values({열이름: 값})를 기록. 열이 없으면 머리글 끝에 새로 만듦
+  async function writeEntryCells(entries, values) {
+    entries = ownEntries(entries); // 담당 FC 행에만 저장
+    if (entries.some((e) => isRO(e.fc))) throw new Error("보기 전용 권한이라 수정할 수 없습니다.");
+    if (entries.some((e) => isRO(e.fc))) throw new Error("보기 전용 권한이라 수정할 수 없습니다.");
+    const byFile = new Map();
+    entries.filter((e) => e.src).forEach((e) => { if (!byFile.has(e.src.fileId)) byFile.set(e.src.fileId, []); byFile.get(e.src.fileId).push(e); });
+    for (const [fileId, list] of byFile) {
+      const wb = XLSX.read(await stGet(fileId), { type: "array", cellNF: true }); // 최신 파일 (cellNF: 숫자·날짜 서식 유지)
+      for (const e of list) {
+        const ws = wb.Sheets[e.src.sheet];
+        if (!ws) continue;
+        const rg = XLSX.utils.decode_range(ws["!ref"]);
+        const enc = (r, c) => XLSX.utils.encode_cell({ r, c });
+        const txt = (r, c) => { const cell = ws[enc(r, c)]; return cell ? String(cell.w ?? cell.v).trim() : ""; };
+        // 머리글 줄 찾기
+        let hr = rg.s.r;
+        for (let r = rg.s.r; r <= Math.min(rg.e.r, rg.s.r + 10); r++) {
+          let found = false;
+          for (let c = rg.s.c; c <= rg.e.c; c++) if (NAME_COLS.includes(txt(r, c))) found = true;
+          if (found) { hr = r; break; }
+        }
+        const colOf = (name) => { for (let c = rg.s.c; c <= rg.e.c; c++) if (txt(hr, c) === name) return c; return -1; };
+        const nameCol = NAME_COLS.map(colOf).find((c) => c >= 0);
+        const birthCol = BIRTH_COLS.map(colOf).find((c) => c >= 0);
+        // 저장해 둔 줄이 맞는지 확인, 아니면 이름(+생년월일)으로 다시 찾기
+        let row = e.src.row;
+        const same = (r) => norm(txt(r, nameCol)) === norm(e.name) && (birthCol == null || birthCol < 0 || !e.birth || txt(r, birthCol).replace(/\D/g, "") === String(e.birth).replace(/\D/g, ""));
+        if (!same(row)) {
+          row = -1;
+          for (let r = hr + 1; r <= rg.e.r; r++) if (same(r)) { row = r; break; }
+        }
+        if (row < 0) continue;
+        for (const [k, v] of Object.entries(values)) {
+          let c = colOf(k);
+          if (c < 0) { // 새 열: 맨 끝이 '입력일시'면 그 앞에 만들고 입력일시는 한 칸 뒤로
+            const sc = colOf(STAMP_COL);
+            if (sc >= 0 && sc === rg.e.c) {
+              for (let r = rg.s.r; r <= rg.e.r; r++) { const cell = ws[enc(r, sc)]; delete ws[enc(r, sc)]; if (cell) ws[enc(r, sc + 1)] = cell; }
+              if (ws["!cols"] && ws["!cols"][sc]) { ws["!cols"][sc + 1] = ws["!cols"][sc]; ws["!cols"][sc] = { wch: 12 }; }
+              c = sc;
+            } else c = rg.e.c + 1;
+            ws[enc(hr, c)] = { t: "s", v: k }; rg.e.c += 1;
+          }
+          ws[enc(row, c)] = typeof v === "number" ? { t: "n", v } : { t: "s", v: String(v) };
+        }
+        ws["!ref"] = XLSX.utils.encode_range(rg);
+        e.src.row = row;
+        // 화면에 쓰는 값도 갱신
+        for (const [k, v] of Object.entries(values)) {
+          const f = e.fields.find(([fk]) => fk === k);
+          if (f) f[1] = String(v); else e.fields.push([k, String(v)]);
+          if (k === GRADE_COL) e.grade = String(v);
+          if (PHONE_COLS.includes(k)) e.phone = String(v);
+        }
+      }
+      await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      delete bookCache[fileId];
+    }
+  }
+
+  // ---------- 검색 ----------
+  let mode = "all";
+  const norm = (s) => String(s).replace(/\s+/g, "").toLowerCase();
+  const custPart = (n) => n.split(" - ")[0]; // 폴더명 "고객명 - 담당자명"
+  // 동명이인 표시를 뺀 이름: "이영숙(640927)" → "이영숙" (일정 제목·계약 매칭은 이 이름으로)
+  const baseName = (n) => String(n || "").replace(/\(\d{6}\)\s*$/, "").trim();
+  // ---- 새 구조: 고객ID·담당FC ----
+  const fieldOf = (e, k) => { const f = (e.fields || []).find(([x]) => x.trim() === k); return f ? String(f[1]).trim() : ""; };
+  const idOf = (e) => fieldOf(e, "고객ID");
+  // 이 고객의 담당 FC: '담당FC' 칸이 자기 파일의 FC와 같은 행의 FC (없으면 첫 행의 FC)
+  function primaryFc(entries) {
+    const p = entries.find((e) => { const f = fieldOf(e, "담당FC") || fieldOf(e, "담당 FC"); return f && e.fc === f; });
+    return ((p || entries[0] || {}).fc) || "";
+  }
+  // 저장은 담당 FC의 행에만 (다른 FC 파일에 같은 사람이 있어도 거기엔 쓰지 않음)
+  function ownEntries(entries) {
+    const fc = primaryFc(entries), own = entries.filter((e) => e.fc === fc);
+    return own.length ? own : entries;
+  }
+  // 같은 사람 묶기: 고객ID가 같으면 같은 사람(한 FC 파일에만 보이는 행끼리만 묶임), ID가 없는 옛 행은 이름+생년월일(YYMMDD)
+  function groupCustomers(rs) {
+    const ymd = (b) => { const x = String(b || "").replace(/\D/g, ""); return /^(19|20)\d{6}/.test(x) ? x.slice(2, 8) : x.slice(0, 6); };
+    const groups = [], byId = new Map(), byNb = new Map();
+    rs.forEach((r) => {
+      const id = idOf(r), nb = norm(baseName(r.name)) + "|" + ymd(r.birth);
+      let g = id ? byId.get(id) : null;
+      if (!g && !id) g = byNb.get(nb); // ID 없는 행: 같은 이름+생년월일 그룹(ID 그룹 포함)에 합류
+      if (!g) { g = { name: r.name, birth: r.birth, entries: [] }; groups.push(g); if (id) byId.set(id, g); }
+      if (id && !byId.has(id)) byId.set(id, g);
+      if (!byNb.has(nb) || ymd(r.birth)) { if (!byNb.has(nb)) byNb.set(nb, g); }
+      g.entries.push(r);
+      if (!g.birth && r.birth) g.birth = r.birth;
+    });
+    return groups;
+  }
+  // 시트 우선순위: config.lists 순서 (계약 > 이관 > 따행 > DB > 추가 > 진행)
+  const LIST_PRIORITY = CFG.lists.map((l) => l.label);
+  const prio = (type) => { const i = LIST_PRIORITY.indexOf(type); return i < 0 ? 99 : i; };
+  // 미팅장소: 고객리스트 시트의 '미팅장소' 칸(우선순위 순) → 없으면 고객추가정보 엑셀
+  function meetingOf(c, extra) {
+    const es = [...(c.entries || [])].sort((a, b) => prio(a.type) - prio(b.type));
+    for (const e of es) { const f = e.fields.find(([k]) => k.trim() === "미팅장소"); if (f && String(f[1]).trim()) return String(f[1]).trim(); }
+    const x = extra || c.extra || {};
+    return String((x.values || {})["미팅장소"] || "").trim();
+  }
+
+  // 주소 → 지역 약칭: "광주광역시 서구…" → 광주, "전라남도 영광군…" → 전남 영광
+  const METRO = ["서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종"];
+  const PROVINCE = [[/^경기/, "경기"], [/^강원/, "강원"], [/^(충청북|충북)/, "충북"], [/^(충청남|충남)/, "충남"],
+    [/^(전라북|전북)/, "전북"], [/^(전라남|전남)/, "전남"], [/^(경상북|경북)/, "경북"], [/^(경상남|경남)/, "경남"], [/^제주/, "제주"]];
+  function regionFromAddress(addr) {
+    const t = String(addr || "").trim().split(/\s+/);
+    if (!t[0]) return "";
+    const cityOf = (s) => (s || "").match(/^(\S+?)(특례시|시|군)$/);
+    // 전남광주통합특별시: 구(서구·북구…)는 광주, 시·군(영광군…)은 전남 ○○
+    if (/전남광주통합/.test(t[0])) { const c = cityOf(t[1]); return c ? "전남 " + c[1] : "광주"; }
+    if (/^광주/.test(t[0])) return "광주";
+    const metro = METRO.find((m) => t[0].startsWith(m));
+    if (metro) return metro;
+    const prov = PROVINCE.find(([re]) => re.test(t[0]));
+    if (!prov) return "";
+    // 띄어쓰기 없는 주소: "전남무안군삼향면" → 전남 무안
+    const glued = t[0].replace(/^(전라남도|전라북도|경상남도|경상북도|충청남도|충청북도|경기도|강원특별자치도|강원도|전북특별자치도|제주특별자치도|전남|전북|경남|경북|충남|충북|경기|강원|제주)/, "");
+    const g = glued && glued.match(/^(\S+?)(시|군)/);
+    const c = g ? [null, g[1]] : cityOf(t[1]);
+    const city = c ? c[1] : "";
+    return city && city !== prov[1] ? prov[1] + " " + city : prov[1];
+  }
+  function regionOf(c) {
+    for (const e of c.entries) {
+      const a = e.fields.find(([k]) => k.trim() === "주소");
+      if (a && a[1]) return regionFromAddress(a[1]);
+    }
+    return "";
+  }
+
+  // 미팅장소 (고객추가정보 '기본' 시트) — 검색용, 저장하면 다시 읽음
+  let meetCache = null;
+  function loadMeetingPlaces() {
+    if (meetCache) return meetCache;
+    meetCache = (async () => {
+      const x = await readExtra();
+      if (!x) return [];
+      const ni = x.head.indexOf(EXTRA.nameCol), fi = x.head.indexOf(EXTRA.fcCol), mi = x.head.indexOf("미팅장소");
+      if (ni < 0 || mi < 0) return [];
+      return x.rows.slice(1).map((r) => ({ name: String(r[ni] ?? "").trim(), fc: fi < 0 ? "" : String(r[fi] ?? "").trim(), mp: String(r[mi] ?? "").trim() }))
+        .filter((m) => m.name && m.mp);
+    })();
+    meetCache.catch(() => { meetCache = null; });
+    return meetCache;
+  }
+  const digits = (v) => String(v || "").replace(/\D/g, "");
+
+  // 고객 범위 옵션: 전체 / 본인(계약) / 이관 / DB / 따행 / 가망. 본인부터는 다중 선택(고른 것 중 하나라도 해당하면 포함), 전체는 선택 해제.
+  const optSel = new Set();
+  const OPT_LABEL = { contract: "본인", transfer: "이관", db: "DB", ddahaeng: "따행", plan: "가망" };
+  function syncOpts() { document.querySelectorAll("#searchOpts [data-opt]").forEach((b) => b.classList.toggle("on", b.dataset.opt === "all" ? optSel.size === 0 : optSel.has(b.dataset.opt))); }
+  const typeOfOpt = (id) => (CFG.lists.find((l) => l.id === id) || {}).label;
+  const curQuery = () => ((($("q") && $("q").value) || ($("q2") && $("q2").value) || "")).trim();
+  // 검색 결과에서 같은 이름을 구분하도록 이름 옆에 작게: 생년 · 남/여 · 지역
+  function birthYear(b) { const x = String(b || "").replace(/D/g, ""); if (/^(19|20)d{2}($|d{4})/.test(x) && (x.length === 4 || x.length === 8)) return x.slice(0, 4); if (x.length >= 6) { const yy = +x.slice(0, 2), cy = new Date().getFullYear() % 100; return (yy > cy ? 1900 + yy : 2000 + yy) + ""; } return ""; }
+  const resultInfo = (c) => [birthYear(c.birth), genderOf(c), regionOf(c)].filter(Boolean).join(" · ");
+  async function search(q, force) {
+    q = q.trim();
+    const status = $("searchStatus");
+    const list = $("results");
+    list.innerHTML = "";
+    syncOpts();
+    $("pageSearch").hidden = !!q || !!force;
+    if (!q && !force) { status.textContent = ""; return; }
+    $("q2").value = q;
+    status.textContent = "찾는 중…";
+    try {
+      const records = await loadLists();
+      const want = CFG.lists.find((l) => l.id === mode);
+      if (want && !records.some((r) => r.type === want.label)) {
+        status.textContent = want.folderGroup
+          ? `'_${want.folderGroup}' 폴더에 고객 폴더가 없습니다.`
+          : want.sheet ? `'${want.sheet}' 시트에 아직 고객이 없습니다.`
+          : `'${want.label}' 엑셀 파일이 없습니다. FC 폴더에 이름에 '${want.fileKeyword}'가 들어간 엑셀을 넣어 주세요.`;
+        return;
+      }
+      // 고객 이름 · 연락처 · 주소 · 미팅장소로 검색
+      const nq = norm(q), dq = digits(q);
+      const meets = await loadMeetingPlaces().catch(() => []);
+      const meetOf = (r) => meets.filter((m) => norm(m.name) === norm(r.name) && sameFc(m.fc, r.fc)).map((m) => m.mp)
+        .concat(r.fields.filter(([k]) => k.trim() === "미팅장소").map(([, v]) => v)).join(" ");
+      const optTypes = [...optSel]; // 고른 범위 (따행은 따행 시트 고객 + 고객 시트의 따행대상='예')
+      const hits = records.filter((r) => {
+        if (want && r.type !== want.label) return false;
+        if (optTypes.length && !optTypes.some((id) => id === "ddahaeng" ? (r.type === typeOfOpt(id) || fieldOf(r, "따행대상") === "예") : r.type === typeOfOpt(id))) return false;
+        if (!q) return true;
+        if (norm(r.name).includes(nq)) return true;
+        if (dq.length >= 3 && dq === q.replace(/[\s-]/g, "") && digits(r.phone).includes(dq)) return true;
+        if (nq.length < 2) return false;
+        return norm(entryAddr(r)).includes(nq) || norm(meetOf(r)).includes(nq);
+      });
+      // 같은 사람 묶기: 고객ID가 같으면 한 고객, ID가 없는 옛 행은 같은 이름 + 같은 생년월일
+      const groups = groupCustomers(hits);
+      // 고객 안의 시트는 우선순위 순 (계약 > 이관 > 따행 > DB > 가망)
+      groups.forEach((c) => { c.entries.sort((a, b) => prio(a.type) - prio(b.type)); c.name = c.entries[0].name; });
+      const custs = groups.sort((a, b) => baseName(a.name).localeCompare(baseName(b.name), "ko") || a.name.localeCompare(b.name, "ko"));
+      const label = (want ? want.label + " " : "") + (optTypes.length ? optTypes.map((id) => OPT_LABEL[id]).join("·") + " " : "");
+      status.textContent = custs.length ? label + custs.length + "명 찾음" : (q ? "'" + q + "' " : "") + label + "고객이 없습니다.";
+      $("pageSearch").hidden = custs.length > 0 || !!force; // 못 찾으면 화면 안 검색창으로 다시 검색
+      if (custs.length === 1 && q) return openCustomer(custs[0]);
+      list.innerHTML = custs.map((c, i) => {
+        const types = [...new Set(c.entries.map((e) => e.type))];
+        const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
+        return `<li><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
+          <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length ? `<span class="r-sub">${esc(fcs.join(", "))}</span>` : ""}</span>
+          ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button></li>`;
+      }).join("");
+      list.querySelectorAll("button").forEach((b) =>
+        b.addEventListener("click", () => openCustomer(custs[+b.dataset.i])));
+    } catch (e) {
+      status.textContent = "";
+      handleError(e);
+    }
+  }
+
+  // ---------- 계약 상세 (계약리스트 / 이관리스트) ----------
+  const CONTRACT_NAME_COLS = ["계약자", "주피보험자", "피보", "피보험자"];
+  let contractCache = null;
+  function loadContracts() {
+    if (contractCache) return contractCache;
+    contractCache = (async () => {
+      const { files } = await scanBase();
+      const sources = (CFG.contractLists || []).flatMap((l) =>
+        pickSourceFiles(files, l).map((f) => ({ ...l, file: f })));
+      const out = [], newCtDone = new Set();
+      await Promise.all(sources.map(async (s) => {
+        const wb = await readBook(s.file.id);
+        const fc = s.file.fc || (s.file.name.split(" - ")[1] || "").trim();
+        // 새 구조 파일: '계약' 시트 하나(직접모집·타인모집 함께)만 파일당 한 번, 예전 '이관' 시트는 건너뜀
+        const newMode = isNewStruct(wb);
+        if (newMode) { if (newCtDone.has(s.file.id) || s.sheet !== "계약") return; newCtDone.add(s.file.id); }
+        const ids = newMode ? idNameMap(wb) : null;
+        sheetsOf(wb, s).forEach((sheet) => {
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, defval: "", raw: false });
+          const h = rows.findIndex((r) => r.some((c) => ["계약자", "계약자ID"].includes(String(c).trim())));
+          if (h < 0) return;
+          const head = rows[h].map((c) => String(c).trim());
+          rows.slice(h + 1).forEach((r) => {
+            const fields = head.map((k, i) => [k, String(r[i] ?? "").trim()]).filter(([k, v]) => k && v);
+            if (!fields.length) return;
+            const row = newMode ? contractRowCompat(Object.fromEntries(fields), ids) : Object.fromEntries(fields);
+            if (newMode) { // 계약자·주피보험자 이름도 필드로 (계약 탭 표시용), 타인모집은 '이관'
+              ["계약자", "주피보험자"].forEach((k) => { if (row[k] && !fields.some(([fk]) => fk === k)) fields.push([k, row[k]]); });
+              s = { ...s, label: contractLabel(row["모집유형"]) };
+            }
+            const names = CONTRACT_NAME_COLS.map((c) => row[c]).filter(Boolean).map(norm);
+            // 줄에 담당FC가 있으면 그 FC로 표시 (다른 FC 파일에 같이 들어 있는 계약)
+            const rowFc = String(row["담당FC"] || row["담당 FC"] || "").trim() || fc;
+            if (names.length) out.push({ type: s.label, fc: rowFc, srcFc: fc, sheet, row, fields, names, src: { fileId: s.file.id, sheet } });
+          });
+        });
+      }));
+      // 같은 증권번호가 여러 FC 파일에 있으면 한 번만 (담당 FC 파일의 것을 우선)
+      const seen = new Map();
+      out.forEach((c, i) => {
+        const no = String(c.row["증권번호"] || "").trim();
+        if (!no) return;
+        const key = c.type + "|" + no;
+        if (!seen.has(key)) seen.set(key, i);
+      });
+      return out.filter((c, i) => {
+        const no = String(c.row["증권번호"] || "").trim();
+        return !no || seen.get(c.type + "|" + no) === i;
+      });
+    })();
+    contractCache.catch(() => { contractCache = null; });
+    return contractCache;
+  }
+
+  // ---------- 고객 추가 정보 (고객 폴더 안 '고객추가정보' 엑셀) ----------
+  //   '기본' 시트: 담당 FC + 고객명으로 줄을 찾음. 나머지 모든 열을 읽고/수정/저장
+  //   '상담기록' 시트: 고객명 + 담당 FC로 기록을 찾고, 새 기록은 맨 아래 줄에 추가
+  const EXTRA = Object.assign({
+    fileKeyword: "고객추가정보", sheet: "기본", fcCol: "담당 FC", nameCol: "고객명",
+    primary: ["미팅장소", "메모"],             // 항상 보이는 항목
+    carrierCol: "통신사",                      // 연락처 앞에 표시
+    afterAddress: ["차량번호", "자동차보험갱신일"], // 기본정보 주소 밑에 표시
+    monthDayCols: ["자동차보험갱신일"],          // 월/일을 골라서 'MMDD'로 저장
+    consult: { sheet: "상담기록", nameCol: "고객명", fcCol: "담당 FC", dateCol: ["저장날짜시간", "저장날짜"], textCol: "내용", voiceCol: "음성파일", voiceText: "음성기록" }
+  }, CFG.extraInfo || {});
+  const nospace = (s) => String(s || "").replace(/\s+/g, "");
+
+  async function readExtra() {
+    await resolveBase();
+    let items = [];
+    try { items = await stList(base.id); } catch (e) { if (!/40[34]/.test(String(e.message))) throw e; } // FC 폴더만 공유받은 사용자는 루트 목록이 없음
+    const file = items.find((i) => i.file && /\.xlsx$/i.test(i.name) && nospace(i.name).includes(nospace(EXTRA.fileKeyword)));
+    if (!file) return null;
+    const wb = XLSX.read(await stGet(file.id), { type: "array", cellNF: true }); // 서식 유지 (다시 저장할 때 #,##0·날짜 서식이 사라지지 않게)
+    const sheetName = wb.SheetNames.includes(EXTRA.sheet) ? EXTRA.sheet : wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: true });
+    const head = (rows[0] || []).map((c) => String(c).trim());
+    return { file, wb, ws, rows, head };
+  }
+
+  const STAMP_COL = "입력일시"; // 줄이 처음 들어간 시각 (엑셀 날짜·시간, yyyy-mm-dd hh:mm). 새 줄에만 넣고 고칠 때는 그대로
+  const extraCols = (x) => x.head.filter((h) => h && h !== EXTRA.fcCol && h !== EXTRA.nameCol && h !== STAMP_COL);
+  const sameFc = (rowFc, fc) => !fc || !String(rowFc || "").trim() || norm(rowFc) === norm(fc);
+
+  // (담당 FC, 고객명)이 같은 줄 찾기. 엑셀에 FC가 비어 있으면 이름만으로 매칭
+  function extraRowIndex(x, fc, name) {
+    const ci = x.head.indexOf(EXTRA.fcCol), ni = x.head.indexOf(EXTRA.nameCol);
+    if (ni < 0) return -1;
+    for (let r = 1; r < x.rows.length; r++) {
+      const row = x.rows[r];
+      if (norm(row[ni] ?? "") === norm(name) && sameFc(ci < 0 ? "" : row[ci], fc)) return r;
+    }
+    return -1;
+  }
+
+  // 월일 값 해석: "0326", "3/26", "03-26", "3월 26일", "2026-03-26", 20260326 → [3, 26]
+  function parseMonthDay(v) {
+    const s = String(v ?? "").trim();
+    if (!s) return null;
+    let m = s.match(/(\d{1,2})\s*월\s*(\d{1,2})/);
+    if (!m) m = s.match(/^\d{4}[-./](\d{1,2})[-./](\d{1,2})$/);
+    if (!m) m = s.match(/^(\d{1,2})[-./](\d{1,2})$/);
+    if (!m) { const d = s.replace(/\D/g, ""); if (d.length === 8) m = [0, d.slice(4, 6), d.slice(6, 8)]; else if (d.length === 4 || d.length === 3) m = [0, d.slice(0, d.length - 2), d.slice(-2)]; }
+    if (!m) return null;
+    const mm = +m[1], dd = +m[2];
+    return mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31 ? [mm, dd] : null;
+  }
+  const monthDayText = (v) => { const p = parseMonthDay(v); return p ? `${p[0]}월 ${p[1]}일` : String(v || ""); };
+  const pad2 = (n) => String(n).padStart(2, "0");
+
+  // 상담기록: 날짜(시간) 값 → { key: 정렬용 YYYYMMDDHHmm, text: "2026.11.08 15:30" }
+  //   20261108(숫자) · 엑셀 날짜/시간 · "2026-11-08 15:30" 글자 모두 읽음
+  function consultDate(cell) {
+    if (!cell) return { key: 0, text: "" };
+    const v = cell.v;
+    let y, m, d, hh = null, mi = null;
+    if (typeof v === "number" && v > 190000000000) { // 202611081530
+      y = Math.floor(v / 1e8); m = Math.floor(v / 1e6) % 100; d = Math.floor(v / 1e4) % 100; hh = Math.floor(v / 100) % 100; mi = v % 100;
+    } else if (typeof v === "number" && v > 19000000) { // 20261108
+      y = Math.floor(v / 10000); m = Math.floor(v / 100) % 100; d = v % 100;
+    } else if (typeof v === "number") { // 엑셀 날짜(시간) 일련번호
+      const t = new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400) * 1000);
+      y = t.getUTCFullYear(); m = t.getUTCMonth() + 1; d = t.getUTCDate();
+      if (v % 1) { hh = t.getUTCHours(); mi = t.getUTCMinutes(); }
+    } else {
+      const s = String(v).match(/(\d{4})\D?(\d{1,2})\D?(\d{1,2})(?:\D+(\d{1,2})\D?(\d{2}))?/);
+      if (!s) return { key: 0, text: String(v) };
+      [y, m, d] = [+s[1], +s[2], +s[3]];
+      if (s[4] != null) { hh = +s[4]; mi = +s[5]; }
+    }
+    const key = (y * 10000 + m * 100 + d) * 10000 + (hh == null ? 0 : hh * 100 + mi);
+    return { key, text: `${y}.${pad2(m)}.${pad2(d)}` + (hh == null ? "" : ` ${pad2(hh)}:${pad2(mi)}`) };
+  }
+
+  // Date → 엑셀 날짜·시간 일련번호 (휴대폰 시간 그대로)
+  const toExcelDateTime = (dt) =>
+    (Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate(), dt.getHours(), dt.getMinutes()) - Date.UTC(1899, 11, 30)) / 86400000;
+
+  function consultSheetInfo(ws) {
+    const C = EXTRA.consult;
+    const rg = XLSX.utils.decode_range(ws["!ref"] || "A1:D1");
+    const head = [];
+    for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[XLSX.utils.encode_cell({ r: rg.s.r, c })]; head[c] = cell ? String(cell.v).trim() : ""; }
+    // 열 이름 후보 여러 개 허용 (예: 날짜 열 = "저장날짜시간" 또는 "저장날짜")
+    const col = (h) => { for (const x of [].concat(h)) { const i = head.indexOf(x); if (i >= 0) return i; } return -1; };
+    return { rg, head, ni: col(C.nameCol), fi: col(C.fcCol), di: col(C.dateCol), ti: col(C.textCol), vi: col(C.voiceCol) };
+  }
+
+  function readConsults(wb, fc, name) {
+    const ws = wb.Sheets[EXTRA.consult.sheet];
+    if (!ws || !ws["!ref"]) return [];
+    const { rg, ni, fi, di, ti, vi } = consultSheetInfo(ws);
+    if (ni < 0 || ti < 0) return [];
+    const at = (r, c) => c < 0 ? null : ws[XLSX.utils.encode_cell({ r, c })];
+    const out = [];
+    for (let r = rg.s.r + 1; r <= rg.e.r; r++) {
+      const nm = at(r, ni), tx = at(r, ti);
+      if (!nm || !tx || norm(nm.v) !== norm(name)) continue;
+      if (!sameFc(at(r, fi) ? at(r, fi).v : "", fc)) continue;
+      const d = consultDate(at(r, di));
+      const voice = at(r, vi) ? String(at(r, vi).v).trim() : "";
+      out.push({ row: r, date: d.text, key: d.key, text: String(tx.v), voice });
+    }
+    return out.sort((a, b) => b.key - a.key || a.row - b.row); // 최근 날짜·시간이 위로 (같으면 엑셀 순서)
+  }
+
+  // 새 구조: 메모·통신사·차량번호 등은 '고객' 시트의 같은 이름 열이 있으면 거기서 읽고 쓴다 (없는 값은 옛 고객추가정보 파일에서)
+  const sheetExtraKeys = () => [...new Set([...EXTRA.primary, EXTRA.carrierCol, ...EXTRA.afterAddress])].filter(Boolean);
+  const sheetEntriesOf = (cust) => (cust ? ownEntries(cust.entries).filter((e) => e.sheet === CUST_SHEET && e.src) : []);
+  async function loadExtraFor(fc, name, cust) {
+    const x = await readExtra();
+    let base;
+    if (!x) base = { missing: true, fields: [], values: {}, consults: [] };
+    else {
+      const r = extraRowIndex(x, fc, name);
+      const fields = extraCols(x);
+      const values = {};
+      fields.forEach((k) => { const c = x.head.indexOf(k); values[k] = r > 0 ? String(x.rows[r][c] ?? "").trim() : ""; });
+      base = { found: r > 0, fields, values, fileName: x.file.name, consults: readConsults(x.wb, fc, name) };
+    }
+    const own = sheetEntriesOf(cust);
+    if (!own.length) return base;
+    const keys = [...new Set([...sheetExtraKeys(), ...base.fields])];
+    const values = { ...base.values };
+    keys.forEach((k) => { const sv = own.map((e) => fieldOf(e, k)).find(Boolean); if (sv) values[k] = sv; else if (!(k in values)) values[k] = ""; });
+    return { ...base, found: true, missing: false, fields: keys, values, sheetMode: true };
+  }
+
+  // 날짜처럼 보이는 값(2026-12-01, 26-12-01)은 엑셀 날짜로 저장 (월일 열은 'MMDD' 글자 그대로)
+  function toCell(col, v) {
+    if (v === "" || v == null) return null;
+    if (EXTRA.monthDayCols.includes(col)) return { t: "s", v: String(v) };
+    const m = /일$|날짜|date/i.test(col) && String(v).trim().match(/^(\d{4}|\d{2})[-./](\d{1,2})[-./](\d{1,2})$/);
+    if (m) {
+      const y = m[1].length === 2 ? 2000 + +m[1] : +m[1];
+      const serial = (Date.UTC(y, +m[2] - 1, +m[3]) - Date.UTC(1899, 11, 30)) / 86400000;
+      return { t: "n", v: serial, z: "yyyy-mm-dd" };
+    }
+    return { t: "s", v: String(v) };
+  }
+
+  async function uploadExtra(x) {
+    const out = XLSX.write(x.wb, { type: "array", bookType: "xlsx", compression: true });
+    await stPut(x.file.id, out,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[x.file.id];
+  }
+
+  async function saveExtraFor(fc, name, values, before) {
+    const own = sheetEntriesOf(current && current.cust && current.cust.name === name ? current.cust : null);
+    if (own.length) { // 새 구조: 바뀐 칸만 '고객' 시트(담당 FC 행)에 저장
+      const changed = {};
+      Object.keys(values).forEach((k) => { if ((values[k] ?? "") !== (before[k] ?? "")) changed[k] = values[k] ?? ""; });
+      if (Object.keys(changed).length) await writeEntryCells(own, changed);
+      return;
+    }
+    const x = await readExtra(); // 저장 직전 최신 파일을 다시 읽어 이 고객 줄의 바뀐 칸만 수정
+    if (!x) throw new Error("NO_EXTRA_FILE");
+    let r = extraRowIndex(x, fc, name);
+    const isNew = r < 0;
+    if (isNew) r = Math.max(x.rows.length, 1); // 없으면 맨 아래에 새 줄
+    const setCell = (col, v) => {
+      const c = x.head.indexOf(col);
+      if (c < 0) return;
+      const addr = XLSX.utils.encode_cell({ r, c });
+      const cell = toCell(col, v);
+      if (cell) x.ws[addr] = cell; else delete x.ws[addr];
+    };
+    if (isNew) {
+      setCell(EXTRA.fcCol, fc); setCell(EXTRA.nameCol, name);
+      const sc = x.head.indexOf(STAMP_COL);
+      if (sc >= 0) x.ws[XLSX.utils.encode_cell({ r, c: sc })] = { t: "n", v: toExcelDateTime(new Date()), z: "yyyy-mm-dd hh:mm" };
+    }
+    Object.keys(values).forEach((k) => {
+      if (isNew || (values[k] ?? "") !== (before[k] ?? "")) setCell(k, values[k] ?? "");
+    });
+    const range = XLSX.utils.decode_range(x.ws["!ref"] || "A1");
+    range.e.r = Math.max(range.e.r, r);
+    range.e.c = Math.max(range.e.c, x.head.length - 1);
+    x.ws["!ref"] = XLSX.utils.encode_range(range);
+    await uploadExtra(x);
+  }
+
+  // 상담기록 저장: ① ✕로 표시한 기록 삭제 ② 새 기록 추가(날짜·시간) ③ 시트 전체를 날짜·시간 최신순으로 정렬
+  //   adds: [{ text, when: Date, voice: "파일명" }]
+  async function saveConsults(fc, name, adds, dels) {
+    const C = EXTRA.consult;
+    const x = await readExtra(); // 저장 직전 최신 파일을 다시 읽음
+    if (!x) throw new Error("NO_EXTRA_FILE");
+    let ws = x.wb.Sheets[C.sheet];
+    if (!ws) {
+      ws = XLSX.utils.aoa_to_sheet([[[].concat(C.dateCol)[0], C.nameCol, C.fcCol, C.textCol, C.voiceCol]]);
+      XLSX.utils.book_append_sheet(x.wb, ws, C.sheet);
+    }
+    const enc = (r, c) => XLSX.utils.encode_cell({ r, c });
+    let info = consultSheetInfo(ws);
+    // 음성파일 열이 없으면 머리글에 추가
+    if (adds.some((a) => a.voice) && info.vi < 0) {
+      const c = info.rg.e.c + 1;
+      ws[enc(info.rg.s.r, c)] = { t: "s", v: C.voiceCol };
+      info.rg.e.c = c;
+      ws["!ref"] = XLSX.utils.encode_range(info.rg);
+      info = consultSheetInfo(ws);
+    }
+    const { rg, ni, fi, di, ti, vi } = info;
+    const width = rg.e.c - rg.s.c + 1;
+
+    // 본문 줄을 [셀...] 배열로 꺼냄
+    let rows = [];
+    for (let r = rg.s.r + 1; r <= rg.e.r; r++) {
+      const cells = [];
+      let any = false;
+      for (let c = rg.s.c; c <= rg.e.c; c++) { const cell = ws[enc(r, c)]; cells.push(cell || null); if (cell) any = true; }
+      if (any) rows.push(cells);
+    }
+    const cellOf = (row, c) => (c < 0 ? null : row[c - rg.s.c]);
+
+    // ① 삭제: 같은 고객·FC·날짜·내용인 줄
+    dels.forEach((d) => {
+      const i = rows.findIndex((row) => {
+        const nm = cellOf(row, ni), tx = cellOf(row, ti), f = cellOf(row, fi);
+        return nm && tx && norm(nm.v) === norm(name) && String(tx.v) === d.text &&
+          sameFc(f ? f.v : "", fc) && consultDate(cellOf(row, di)).key === d.key;
+      });
+      if (i >= 0) rows.splice(i, 1);
+    });
+
+    // ② 추가
+    adds.forEach((a) => {
+      const row = new Array(width).fill(null);
+      const put = (c, cell) => { if (c >= 0) row[c - rg.s.c] = cell; };
+      put(ni, { t: "s", v: name });
+      put(fi, { t: "s", v: fc });
+      put(di, { t: "n", v: toExcelDateTime(a.when || new Date()), z: "yyyy-mm-dd hh:mm" });
+      put(ti, { t: "s", v: a.text });
+      if (a.voice) put(vi, { t: "s", v: a.voice });
+      rows.push(row);
+    });
+
+    // ③ 최신 날짜·시간이 위로 (같으면 기존 순서 유지)
+    rows = rows.map((row, i) => ({ row, i, key: consultDate(cellOf(row, di)).key }))
+      .sort((a, b) => b.key - a.key || a.i - b.i).map((o) => o.row);
+
+    for (let r = rg.s.r + 1; r <= rg.e.r; r++) for (let c = rg.s.c; c <= rg.e.c; c++) delete ws[enc(r, c)];
+    rows.forEach((row, i) => row.forEach((cell, j) => { if (cell) ws[enc(rg.s.r + 1 + i, rg.s.c + j)] = cell; }));
+    rg.e.r = rg.s.r + rows.length;
+    ws["!ref"] = XLSX.utils.encode_range(rg);
+    await uploadExtra(x);
+    return readConsults(x.wb, fc, name);
+  }
+
+  // PDF는 OneDrive 웹 대신 휴대폰의 PDF 보기 앱/브라우저로 열기 (임시 다운로드 주소 사용)
+  //   PDF 내용을 받아 브라우저 PDF 보기로 엶 (안드로이드는 'PDF 앱으로 열기' 선택 창)
+  async function openFileDirect(id) {
+    const w = window.open("", "_blank"); // 팝업 차단을 피하려고 먼저 창을 엶
+    if (w) w.document.write('<p style="font-family:sans-serif;padding:24px">PDF를 여는 중…</p>');
+    try {
+      const buf = await stGet(id);
+      const url = URL.createObjectURL(new Blob([buf], { type: "application/pdf" }));
+      if (w) w.location.href = url; else location.href = url;
+      setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+    } catch (e) {
+      if (w) w.close();
+      handleError(e);
+    }
+  }
+
+  // ---------- 고객 성향: 이름 색 + 다른 등급 동그라미 버튼 ----------
+  function renderGrade(cust) {
+    const g = gradeOf(cust) || "Good";
+    $("custName").className = gradeClass(g) + " cname";
+    const box = $("gradeBtns");
+    box.hidden = !editMode;
+    box.innerHTML = editMode ? '<span class="grade-title">성향</span>' + GRADES.map((x) =>
+      `<button type="button" class="grade-opt${x.id === g ? " on" : ""}" data-grade="${x.id}" aria-label="성향 ${x.label}"><span class="grade-dot" style="background:${x.color}"></span><span>${x.label}</span></button>`).join("") : "";
+    box.querySelectorAll("[data-grade]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.grade !== g) saveGrade(cust, b.dataset.grade); }));
+  }
+
+  async function saveGrade(cust, g) {
+    const before = gradeOf(cust);
+    // 화면 먼저 바꾸고 엑셀에 저장
+    cust.entries.forEach((e) => (e.grade = g));
+    renderGrade(cust);
+    try {
+      await writeEntryCells(cust.entries, { [GRADE_COL]: g });
+      toast(`성향을 ${g}(으)로 저장했습니다.`);
+    } catch (e) {
+      cust.entries.forEach((x) => (x.grade = before));
+      renderGrade(cust);
+      saveError(e);
+    }
+  }
+
+  // ---------- 고객 화면 ----------
+  let current = null; // { cust, folders, files, phones, contracts, fc, extra }
+
+  let returnView = "searchView"; // 고객 정보에서 뒤로 가면 돌아갈 화면 (일정 / 고객 검색)
+  async function openCustomer(cust) {
+    if (!$("salesView").hidden) SALES.cardAnchor = salesAnchor(); // 영업 화면에서 열면 돌아올 때 이 위치로
+    returnView = !$("scheduleView").hidden ? "scheduleView" : !$("salesView").hidden ? "salesView" : "searchView";
+    show("customerView");
+    $("custName").textContent = cust.name;
+    editMode = false;
+    renderGrade(cust);
+    $("avatar").textContent = cust.name[0];
+    $("avatar").style.backgroundImage = "";
+    editMode = false;
+    $("editBtn").textContent = "수정";
+    $("editBtn").hidden = false;
+    $("editBtn").classList.remove("on");
+    $("photoMenu").hidden = true;
+    $("avatar").classList.remove("editable");
+    consultShowAll = false; // 상담기록은 처음엔 최근 10건
+    $("avatar").classList.remove("has-photo");
+    $("custSub").innerHTML = custSubHtml(cust);
+    $("tabBody").innerHTML = '<p class="hint pad">고객 정보를 불러오는 중…</p>';
+    $("tabs").innerHTML = "";
+    history.pushState({ v: "customer" }, "");
+    current = { cust, folders: [], files: [], phones: null, contracts: [], fc: "", extra: { values: {} }, profilePhoto: null, photoUrl: null };
+    showCachedPhoto(current); // 기기에 저장된 사진이 있으면 바로
+    try {
+      const names = new Set(cust.entries.map((e) => norm(e.name)).concat(norm(cust.name)));
+      // 새 구조: 시트의 '폴더' 칸이 가리키는 폴더 우선, 없으면 예전처럼 이름으로
+      const linked = cust.entries.map((e) => { const f = e.fields.find(([k]) => k.trim() === "폴더"); return f ? norm(f[1]) : ""; }).filter(Boolean);
+      const allFolders = await loadCustomerFolders();
+      const byLink = linked.length ? allFolders.filter((f) => linked.includes(norm(f.name))) : [];
+      const byName = byLink.length ? byLink : allFolders.filter((f) => names.has(norm(custPart(f.name))));
+      // 같은 이름이 여러 FC에 있으면 이 고객의 담당 FC 폴더만
+      const fcs = cust.entries.map((e) => e.fc).filter(Boolean);
+      const sameFc = byName.filter((f) => f.fc && fcs.includes(f.fc));
+      // 새 규칙(_고객)의 폴더를 먼저, 그다음 FC 바로 아래, 옛 분류 폴더 순 (사진 올리기 등은 첫 폴더에 저장)
+      const gRank = (f) => (f.group === "고객" ? 0 : f.group === "" ? 1 : 2);
+      const folders = [...(sameFc.length ? sameFc : byName)].sort((a, b) => gRank(a) - gRank(b));
+      let files = [];
+      for (const f of folders) files = files.concat(await collectFiles(f.id, folders.length > 1 ? f.name + "/" : "", 0));
+      current.folders = folders;
+      current.files = files;
+      current.profilePhoto = findProfilePhoto(files);
+      if (current.profilePhoto) loadProfilePhoto(); // 머리 부분 동그라미에 사진 (기기 저장 사진 확인 → 필요할 때만 받음)
+      else if (current.cachedPhoto) { // 사진이 지워짐 → 기기 저장도 지움
+        photoCacheDel(photoKey(current.cust));
+        current.cachedPhoto = null;
+        if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
+        current.photoUrl = null;
+        const a = $("avatar"); a.style.backgroundImage = ""; a.classList.remove("has-photo"); a.textContent = current.cust.name[0];
+      }
+      current.fc = primaryFc(cust.entries) || fcs[0] || (folders[0] && folders[0].fc) || "";
+      $("editBtn").hidden = isRO(current.fc); // 보기만 권한 FC는 수정 버튼 숨김
+      $("editBtn").hidden = isRO(current.fc); // 보기 전용 FC는 수정 버튼 숨김
+      const [contracts, extra] = await Promise.all([
+        loadContracts().catch((e) => { console.error(e); return []; }),
+        loadExtraFor(current.fc, cust.name, cust).catch((e) => { console.error(e); return { error: true, values: {} }; })
+      ]);
+      const phones = new Set(cust.entries.map((e) => String(e.phone || "").replace(/\D/g, "")).filter(Boolean));
+      const custIds = new Set(cust.entries.map(idOf).filter(Boolean));
+      current.contracts = contracts.filter((c) => {
+        const rid = [c.row["계약자ID"], c.row["주피보험자ID"]].filter(Boolean);
+        if (custIds.size && rid.length) return rid.some((x) => custIds.has(String(x).trim())); // 새 구조: 고객ID로 정확히 연결
+        if (!c.names.includes(norm(baseName(cust.name)))) return false;
+        if (fcs.length && !fcs.includes(c.fc) && !fcs.includes(c.srcFc)) return false;
+        const cp = String(c.row["연락처"] || "").replace(/\D/g, "");
+        return !cp || !phones.size || phones.has(cp); // 이관 계약은 계약자 연락처로 동명이인 구분
+      });
+      current.extra = extra;
+      try { // 따행 시트(B): 이 고객의 대상년월별 기록, 최신 월부터
+        const fw = await loadFollow(), ids = new Set(cust.entries.map(idOf).filter(Boolean));
+        current.follows = fw.rows.filter((r) => ids.has(r["고객ID"])).sort((a, b) => ymOfFollow(b["대상년월"]).localeCompare(ymOfFollow(a["대상년월"])));
+        current.followIdx = 0;
+      } catch (e) { current.follows = []; }
+    } catch (e) {
+      handleError(e);
+    }
+    renderTabs();
+    selectTab("basic");
+  }
+
+  document.addEventListener("change", (ev) => {
+    if (ev.target && ev.target.id === "hideRef") {
+      try { localStorage.setItem("shlife.hideRefContracts", ev.target.checked ? "1" : "0"); } catch (e) { /* 무시 */ }
+      if (current) selectTab("contract");
+    }
+  });
+
+  // 고객 폴더 안 파일 (하위 폴더 2단계까지)
+  async function collectFiles(id, prefix, depth) {
+    const items = await stList(id);
+    let out = [];
+    for (const it of items) {
+      if (it.folder && depth < 2) {
+        out = out.concat(await collectFiles(it.id, prefix + it.name + "/", depth + 1));
+      } else if (it.file) {
+        out.push({ ...it, path: prefix + it.name });
+      }
+    }
+    return out;
+  }
+
+  function filesForTab(tab) {
+    if (tab.id === "all") return current.files;
+    const kws = tab.keywords.map((k) => k.toLowerCase());
+    const ex = tab.exclude ? new RegExp(tab.exclude, "i") : null;
+    return current.files.filter((f) => kws.some((k) => f.path.toLowerCase().includes(k)) && !(ex && ex.test(f.name)));
+  }
+
+  function renderTabs() {
+    $("tabs").innerHTML = CFG.tabs.map((t) => {
+      const n = t.id === "contact" || t.id === "all" || t.id === "basic" ? "" :
+        t.id === "consult" ? ((current.extra && current.extra.consults) || []).length :
+        filesForTab(t).length + (t.id === "contract" ? ownContracts().length : 0);
+      const refN = t.id === "contract" ? refContracts().length : 0;
+      return `<button data-tab="${t.id}">${esc(t.label)}${n !== "" ? `<small>${n}${refN ? ` (+참고 ${refN})` : ""}</small>` : ""}</button>`;
+    }).join("");
+    $("tabs").querySelectorAll("button").forEach((b) =>
+      b.addEventListener("click", async () => {
+        if (b.dataset.tab !== "basic" && !(await confirmLeaveEdit())) return; // 수정 중이면 저장·취소·이동 취소 확인
+        selectTab(b.dataset.tab);
+      }));
+  }
+
+  // 수정모드에서 다른 곳으로 이동하려 할 때: 저장하고 이동 / 수정 취소하고 이동 / 이동 취소
+  function askLeave() {
+    return new Promise((resolve) => {
+      const box = document.createElement("div");
+      box.className = "modal";
+      box.innerHTML = `<div class="modal-box leave-box" role="dialog" aria-modal="true">
+          <p class="lead"><b>수정 중인 내용이 있어요</b></p>
+          <p class="hint">이동하기 전에 어떻게 할까요?</p>
+          <div class="leave-btns">
+            <button type="button" class="primary" data-a="save">저장하고 이동</button>
+            <button type="button" class="secondary" data-a="discard">수정 취소하고 이동</button>
+            <button type="button" class="secondary" data-a="stay">이동 취소</button>
+          </div></div>`;
+      const done = (a) => { box.remove(); resolve(a); };
+      box.addEventListener("click", (ev) => { const b = ev.target.closest("[data-a]"); if (b) done(b.dataset.a); else if (ev.target === box) done("stay"); });
+      document.body.appendChild(box);
+    });
+  }
+  // 이동해도 되면 true (수정 중이 아니거나, 저장했거나, 수정을 취소한 경우)
+  async function confirmLeaveEdit() {
+    if (!editMode || $("customerView").hidden) return true;
+    const a = await askLeave();
+    if (a === "stay") return false;
+    if (a === "discard") { setEditMode(false, true); return true; }
+    return saveInfo({ stay: true });
+  }
+
+  function kind(name) {
+    const ext = name.split(".").pop().toLowerCase();
+    if (["xlsx", "xlsm", "xls", "csv"].includes(ext)) return "excel";
+    if (ext === "pdf") return "pdf";
+    if (["doc", "docx"].includes(ext)) return "word";
+    return "other";
+  }
+  const KIND_LABEL = { excel: "엑셀", pdf: "PDF", word: "워드", other: "파일" };
+
+  // 파일 표시 이름: 계약 PDF("날짜 - 고객 - FC - 상품명 - 보험료원.pdf")는 "상품명 - 보험료원"만
+  function fileLabel(f) {
+    const m = f.name.match(/^\d{8} - .+? - .+? - (.+) - ([\d,]+원)\.pdf$/i);
+    if (m) return esc(productName(m[1]) + " - " + m[2]);
+    return `${esc(f.path)}<div class="hint">${new Date(f.lastModifiedDateTime).toLocaleDateString("ko-KR")}</div>`;
+  }
+
+  async function selectTab(id) {
+    $("tabs").querySelectorAll("button").forEach((b) =>
+      b.classList.toggle("on", b.dataset.tab === id));
+    const tab = CFG.tabs.find((t) => t.id === id);
+    const body = $("tabBody");
+
+    if (id === "contact") return renderContact();
+    if (id === "consult") { body.innerHTML = consultHtml(); bindConsult(); return; }
+
+    const files = filesForTab(tab);
+    const listHtml = id === "basic" ? basicHtml() : id === "contract" ? contractHtml() : "";
+    if (!files.length) {
+      body.innerHTML = listHtml; // 파일이 없으면 안내 문구 없이 비워 둠
+      if (id === "basic") bindExtra();
+      return;
+    }
+    body.innerHTML = listHtml + files.map((f, i) => {
+      const k = kind(f.name);
+      return `<div class="card file" data-i="${i}">
+        <div class="file-row">
+          <span class="badge ${k}">${KIND_LABEL[k]}</span>
+          <div class="file-name">${fileLabel(f)}</div>
+        </div>
+        <div class="file-actions">
+          ${k === "excel" ? `<button class="secondary" data-act="view">내용 보기</button>` : ""}
+          ${k === "pdf" ? `<button class="secondary" data-open="${esc(f.id)}">열기</button>`
+            : `<a class="secondary" href="${esc(f.webUrl)}" target="_blank" rel="noopener">열기</a>`}
+        </div>
+        <div class="sheet" hidden></div>
+      </div>`;
+    }).join("");
+    body.querySelectorAll('[data-act="view"]').forEach((b) =>
+      b.addEventListener("click", () => {
+        const card = b.closest(".file");
+        toggleSheet(card, files[+card.dataset.i], b);
+      }));
+    // 엑셀이 하나뿐이면 바로 펼치기
+    const excels = body.querySelectorAll('[data-act="view"]');
+    if (excels.length === 1) excels[0].click();
+    if (id === "basic") bindExtra();
+  }
+
+  // 정보 탭
+  //   보기: 연락처 · (이메일) · 주소 · 통신사/차량번호/자동차보험갱신일 · (그 밖의 고객리스트 항목) / 미팅장소 · 메모
+  //   수정(맨 위 '수정' 버튼): 같은 항목을 한 화면에서 고치고 저장
+  //     연락처·주소·이메일 → 고객리스트 엑셀 + '우선' 1 / 나머지 → 고객추가정보 엑셀
+  // 금액 표시: 숫자면 천 단위 쉼표 + 원 (엑셀 서식이 General이어도)
+  const wonText = (v) => {
+    const t = String(v ?? "").trim().replace(/원\s*$/, "");
+    const n = Number(t.replace(/,/g, ""));
+    return (t && isFinite(n) ? n.toLocaleString("ko-KR") : t) + "원";
+  };
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시"];
+  const BIRTH_KEYS = ["생년월일", "생일"];
+  const EMAIL_COLS = ["이메일", "e-mail", "Email"];
+  let editMode = false;
+
+  function genderMark(v) {
+    const s = String(v || "").trim();
+    if (/^(남|남자|M|male)$/i.test(s)) return "남";
+    if (/^(여|여자|F|female)$/i.test(s)) return "여";
+    return s;
+  }
+  const genderOf = (c) => { for (const e of c.entries) { const f = e.fields.find(([k]) => k.trim() === "성별"); if (f && f[1]) return genderMark(f[1]); } return ""; };
+
+  // 연락처(휴대폰): 📞 Call · 💬 SMS / 이메일: ✉️ @ — 오른쪽 끝 정렬 버튼
+  const MOBILE_RE = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/;
+  function valueWithActions(k, v) {
+    let btns = "";
+    const m = PHONE_COLS.includes(k.trim()) && String(v).match(MOBILE_RE);
+    if (m) {
+      const num = m[0].replace(/\D/g, "");
+      btns = `<a class="act-btn" href="tel:${num}" aria-label="전화 걸기">📞<span>Call</span></a>
+        <a class="act-btn" href="sms:${num}" aria-label="문자 보내기">💬<span>SMS</span></a>`;
+    } else if (/이메일|e-?mail/i.test(k) && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v).trim())) {
+      btns = `<a class="act-btn" href="mailto:${esc(String(v).trim())}" aria-label="메일 보내기">✉️<span>@</span></a>`;
+    }
+    return btns ? `<div class="val-row"><span class="val ${m ? "nowrap" : ""}">${esc(v)}</span><span class="acts">${btns}</span></div>`
+      : `<div>${esc(v)}</div>`;
+  }
+
+  // 맨 위: 생년월일 (남) · [계약] · 담당: 최수진FC   (계약/이관 등은 색 태그)
+  function custSubHtml(c) {
+    const g = genderOf(c);
+    const types = [...new Set(c.entries.map((e) => e.type))];
+    const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
+    return [c.birth ? esc(c.birth + (g ? ` (${g})` : "")) : "",
+      types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join(" "),
+      fcs.length ? esc("담당: " + fcs.map((f) => f + "FC").join(", ")) : ""]
+      .filter(Boolean).join(" · ");
+  }
+
+  const mdText = (v) => { const p = parseMonthDay(v); return p ? `${p[0]}월 ${p[1]}일` : String(v || ""); };
+
+  function basicHtml() {
+    return editMode ? basicFormHtml() : basicViewHtml();
+  }
+
+  function basicViewHtml() {
+    const c = current.cust;
+    const x = current.extra || { values: {}, fields: [] };
+    const ev = x.values || {};
+    // 고객리스트 항목 (같은 항목은 한 번만)
+    const merged = new Map();
+    c.entries.forEach((e) => e.fields.forEach(([k, v]) => {
+      const key = k.trim();
+      if (BASIC_EXCLUDE.includes(key) || NAME_COLS.includes(key) || BIRTH_KEYS.includes(key)) return;
+      if (!merged.has(key)) merged.set(key, []);
+      if (!merged.get(key).includes(v)) merged.get(key).push(v);
+    }));
+    const take = (cols) => { const out = []; cols.forEach((k) => { (merged.get(k) || []).forEach((v) => out.push([k, v])); merged.delete(k); }); return out; };
+    const phones = take(PHONE_COLS), backs = take(["후번호"]), emails = take(EMAIL_COLS), addrs = take(["주소"]), accts = take(["계좌"]);
+    const row = (label, html) => `<dt>${esc(label)}</dt><dd>${html}</dd>`;
+    // 통신사 / 차량번호 / 자동차보험갱신일 (+ 미팅장소·메모가 아닌 추가 항목) — 주소 밑 한 줄
+    const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k));
+    const chips = extraKeys.filter((k) => (ev[k] || "").trim()).map((k) =>
+      `<span class="chip" title="${esc(k)}">${esc(EXTRA.monthDayCols.includes(k) ? mdText(ev[k]) : ev[k])}</span>`).join("");
+    const rest = [...merged];
+    const introContracts = (current.contracts || []).filter((k) => k.row["유입경로"] === "소개"); // 소개 계약은 계약자·피보험자 모두 소개로 표시
+    const introNames = [...new Set(introContracts.map((k) => k.row["소개자"]).filter(Boolean))].join(", ");
+    const info = `<div class="card" id="infoCard"><dl class="kv">
+        ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
+        ${phones.length ? row("연락처", phones.map(([k, v]) => valueWithActions(k, v)).join("")) : row("연락처", '<span class="hint">-</span>')}
+        ${backs.length ? row("후번호", backs.map(([, v]) => valueWithActions("연락처", v)).join("")) : ""}
+        ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
+        ${addrs.length ? row("주소", addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
+        ${row("계좌", accts.length ? accts.map(([, v]) => `<div>${esc(v)}</div>`).join("") : '<span class="hint">-</span>')}
+        ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
+        ${rest.map(([k, vs]) => row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
+      </dl></div>`;
+    const prim = (x.fields || []).filter((k) => EXTRA.primary.includes(k));
+    // 미팅장소·메모: 수정 모드가 아니어도 바로 입력하고 저장
+    const memo = x.missing ? `<div class="card"><p class="hint">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p></div>`
+      : x.error ? '<div class="card"><p class="hint">추가 정보 엑셀을 읽지 못했습니다.</p></div>'
+      : prim.length ? `<div class="card" id="memoCard">${prim.map((k) => `<label class="fld"><span>${esc(k)}</span>
+          ${/메모/.test(k) ? `<textarea data-pm="${esc(k)}" rows="3">${esc(ev[k] || "")}</textarea>`
+            : `<input data-pm="${esc(k)}" value="${esc(k === "미팅장소" ? meetingOf(c, x) : ev[k] || "")}" autocomplete="off">`}</label>`).join("")}
+          <div class="file-actions"><button type="button" class="primary" id="memoSave" disabled>저장</button></div></div>` : "";
+    return info + memo + followSectionHtml();
+  }
+  // 정보 탭 '따행' 섹션: 따행 시트(B)의 대상년월별 기록 (월 선택 칩 + 항목). 수정 모드에서는 방문약속일·방문완료·선물·전달여부 입력.
+  const FOLLOW_VIEW = [["따행분류", "따행분류"], ["접촉현황", "접촉현황"], ["캠페인대상여부", "캠페인대상"], ["활동기한", ""], ["방문약속일", "방문약속일"], ["방문완료일", "방문완료일"], ["설문발송일", "설문발송일"], ["설문응답일", "설문응답일"], ["쿠폰발송", "쿠폰발송"], ["선물", "선물"], ["전달여부", "전달여부"]];
+  function followSectionHtml() {
+    const fl = current.follows || [];
+    if (!fl.length) return "";
+    const idx = Math.min(current.followIdx || 0, fl.length - 1), f = fl[idx];
+    const months = fl.length > 1 ? `<div class="fl-months">${fl.map((x, i) => `<button type="button" class="cls-chip${i === idx ? " on" : ""}" data-fidx="${i}">${esc(x["대상년월"])}</button>`).join("")}</div>` : "";
+    const v = (k) => esc(f[k] || "-");
+    const period = f["활동기한시작일"] || f["활동기한종료일"] ? `${esc(f["활동기한시작일"] || "-")} ~ ${esc(f["활동기한종료일"] || "-")}` : "-";
+    return `<div class="card" id="followCard"><div class="fl-head"><b>따행</b> <span class="hint">${esc(f["대상년월"])}</span></div>${months}
+      <dl class="kv">
+        <dt>따행분류</dt><dd>${v("따행분류")}</dd><dt>접촉현황</dt><dd>${v("접촉현황")}</dd><dt>캠페인대상</dt><dd>${v("캠페인대상여부")}</dd><dt>활동기한</dt><dd>${period}</dd>
+        <dt>방문약속일</dt><dd>${v("방문약속일")}</dd><dt>방문완료일</dt><dd>${v("방문완료일")}</dd><dt>설문발송일</dt><dd>${v("설문발송일")}</dd><dt>설문응답일</dt><dd>${v("설문응답일")}</dd>
+        <dt>쿠폰발송</dt><dd>${esc(f["쿠폰발송일"] || "-")}</dd><dt>선물</dt><dd>${v("선물")}</dd><dt>전달여부</dt><dd>${v("전달여부")}</dd>
+      </dl></div>`;
+  }
+  // 수정 모드의 따행 입력칸 (선택한 대상년월의 따행 행에 저장)
+  const FOLLOW_EDIT = [["방문약속일", "date"], ["방문완료일", "text"], ["선물", "text"], ["전달여부", "sel"]];
+  function followFormHtml() {
+    const fl = current.follows || [];
+    if (!fl.length) return "";
+    const f = fl[Math.min(current.followIdx || 0, fl.length - 1)];
+    return `<div class="fld-sec"><div class="fl-head"><b>따행</b> <span class="hint">${esc(f["대상년월"])} — 방문 정보</span></div>` + FOLLOW_EDIT.map(([k, ty]) => `<label class="fld"><span>${esc(k)}</span>${ty === "sel"
+      ? `<select data-fl="${esc(k)}"><option value=""></option>${["완료", "미완료"].map((o) => `<option${f[k] === o ? " selected" : ""}>${o}</option>`).join("")}</select>`
+      : `<input data-fl="${esc(k)}" type="${ty === "date" ? "date" : "text"}" value="${esc(f[k] || "")}" autocomplete="off"${k === "방문완료일" ? ' placeholder="날짜 또는 방문완료"' : ""}>`}</label>`).join("") + `</div>`;
+  }
+
+  function bindMemo() {
+    const btn = $("memoSave");
+    if (!btn) return;
+    const inputs = [...$("tabBody").querySelectorAll("[data-pm]")];
+    const orig = { ...((current.extra && current.extra.values) || {}) };
+    const shown = { ...orig, 미팅장소: meetingOf(current.cust, current.extra) };
+    const dirty = () => inputs.some((i) => i.value.trim() !== (shown[i.dataset.pm] || "").trim());
+    inputs.forEach((i) => i.addEventListener("input", () => { btn.disabled = !dirty(); }));
+    btn.addEventListener("click", async () => {
+      btn.disabled = true; btn.textContent = "저장 중…";
+      const v = { ...orig };
+      inputs.forEach((i) => { v[i.dataset.pm] = i.value.trim(); });
+      try {
+        // 미팅장소는 이 고객이 있는 고객리스트 시트마다 '미팅장소' 칸에 저장 (칸이 없으면 만듦)
+        if ("미팅장소" in v && v["미팅장소"] !== (shown["미팅장소"] || "")) {
+          await writeEntryCells(current.cust.entries, { 미팅장소: v["미팅장소"] });
+        }
+        await saveExtraFor(current.fc, current.cust.name, v, orig);
+        current.extra = { ...current.extra, found: true, values: v };
+        meetCache = null;
+        toast("저장했습니다.");
+        selectTab("basic");
+      } catch (e) {
+        btn.disabled = false; btn.textContent = "저장";
+        saveError(e);
+      }
+    });
+  }
+
+  // 정보 수정: 연락처·후번호·주소·계좌·이메일 → 고객리스트 엑셀 + '우선' 1
+  //   pair: 같은 줄에 반반 (연락처 | 후번호)
+  const EDIT_FIELDS = [
+    { label: "연락처", cols: PHONE_COLS, type: "tel", pair: "후번호" },
+    { label: "후번호", cols: ["후번호"], type: "tel", paired: true },
+    { label: "주소", cols: ["주소"], type: "text", multi: true },
+    { label: "계좌", cols: ["계좌"], type: "text", ph: "예: 신한 110-123-456789" },
+    { label: "이메일", cols: EMAIL_COLS, type: "email" },
+    { label: "유입경로", col: "최초유입경로", cols: ["최초유입경로"], type: "text", ph: "DB / 이관 / 지인 / 소개", list: "routeList" },
+    { label: "소개자", col: "소개자명", cols: ["소개자명"], type: "text", ph: "소개자 이름" }
+  ];
+  function currentValue(c, cols) {
+    for (const e of c.entries) for (const k of cols) { const f = e.fields.find(([fk]) => fk.trim() === k); if (f && f[1]) return f[1]; }
+    return "";
+  }
+
+  function basicFormHtml() {
+    const c = current.cust;
+    const x = current.extra || { values: {}, fields: [] };
+    const ev = x.values || {};
+    const canList = c.entries.some((e) => e.src);
+    const fld = (f) => `<label class="fld"><span>${esc(f.label)}</span>
+        ${f.multi ? `<textarea data-edit="${esc(f.label)}" rows="2">${esc(currentValue(c, f.cols))}</textarea>`
+          : `<input data-edit="${esc(f.label)}" value="${esc(currentValue(c, f.cols))}" type="${f.type}" autocomplete="off"${f.list ? ` list="${f.list}"` : ""}${f.ph ? ` placeholder="${esc(f.ph)}"` : ""}>`}</label>`;
+    const listFields = canList ? EDIT_FIELDS.filter((f) => !f.paired).map((f) => f.pair
+      ? `<div class="fld-2">${fld(f)}${fld(EDIT_FIELDS.find((x) => x.label === f.pair))}</div>` : fld(f)).join("") : "";
+    const field = (k) => {
+      const v = esc(ev[k] || "");
+      let input;
+      if (EXTRA.monthDayCols.includes(k)) {
+        const p = parseMonthDay(ev[k]) || [0, 0];
+        input = `<div class="mmdd">
+            <select data-mm aria-label="${esc(k)} 월"><option value="">월</option>${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}" ${p[0] === i + 1 ? "selected" : ""}>${i + 1}월</option>`).join("")}</select>
+            <select data-dd aria-label="${esc(k)} 일"><option value="">일</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${p[1] === i + 1 ? "selected" : ""}>${i + 1}일</option>`).join("")}</select>
+            <input type="hidden" data-ex="${esc(k)}" value="${p[0] ? pad2(p[0]) + pad2(p[1]) : v}">
+          </div>`;
+      } else if (/메모/.test(k)) input = `<textarea data-ex="${esc(k)}" rows="4">${v}</textarea>`;
+      else if (k === EXTRA.carrierCol) input = `<input data-ex="${esc(k)}" value="${v}" list="carrierList" autocomplete="off" placeholder="SKT">`;
+      else input = `<input data-ex="${esc(k)}" value="${v}" autocomplete="off">`;
+      return `<label class="fld ${EXTRA.monthDayCols.includes(k) ? "fld-md" : ""}"><span>${esc(k)}</span>${input}</label>`;
+    };
+    const fields = x.fields || [];
+    const more = fields.filter((k) => !EXTRA.primary.includes(k)); // 미팅장소·메모는 정보 화면에서 바로 입력
+    return `<div class="card" id="infoForm">
+        ${listFields}
+        ${x.missing || x.error ? `<p class="hint">추가 정보 엑셀을 읽지 못해 통신사·차량번호·갱신일은 수정할 수 없습니다.</p>` : more.map(field).join("")}
+        ${followFormHtml()}
+        <datalist id="routeList"><option value="DB"><option value="이관"><option value="지인"><option value="소개"></datalist>
+        <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
+        <div class="file-actions">
+          <button type="button" class="secondary" id="infoCancel">취소</button>
+          <button type="button" class="primary" id="infoSave">저장</button>
+        </div>      </div>`;
+  }
+
+  function bindExtra() {
+    if (!editMode) return bindMemo();
+    const body = $("tabBody");
+    // 월/일 선택 → 'MMDD'
+    body.querySelectorAll(".mmdd").forEach((box) => {
+      const mm = box.querySelector("[data-mm]"), dd = box.querySelector("[data-dd]"), hid = box.querySelector("[data-ex]");
+      const upd = () => { hid.value = mm.value && dd.value ? pad2(mm.value) + pad2(dd.value) : (!mm.value && !dd.value ? "" : hid.value); };
+      mm.addEventListener("change", upd);
+      dd.addEventListener("change", upd);
+    });
+    $("infoCancel").addEventListener("click", () => setEditMode(false));
+    $("infoSave").addEventListener("click", () => saveInfo());
+  }
+
+  // 정보 수정 저장. stay: 저장 후 정보 화면을 다시 그리지 않고 수정모드만 끔(다른 곳으로 이동할 때). 성공하면 true
+  async function saveInfo(opt) {
+    const body = $("tabBody");
+    const done = () => setEditMode(false, !!(opt && opt.stay));
+    {
+      const c = current.cust;
+      const btn = $("infoSave");
+      // 고객리스트: 바뀐 칸만
+      const listValues = {};
+      body.querySelectorAll("[data-edit]").forEach((i) => {
+        const f = EDIT_FIELDS.find((x) => x.label === i.dataset.edit);
+        if (i.value.trim() === currentValue(c, f.cols).trim()) return;
+        const col = c.entries.flatMap((e) => e.fields.map(([k]) => k.trim())).find((k) => f.cols.includes(k)) || f.col || f.label;
+        listValues[col] = i.value.trim();
+      });
+      // 고객추가정보: 바뀐 칸이 있으면
+      const inputs = [...body.querySelectorAll("[data-ex]")];
+      const orig = { ...((current.extra && current.extra.values) || {}) };
+      const v = { ...orig, ...Object.fromEntries(inputs.map((i) => [i.dataset.ex, i.value.trim()])) };
+      const extraDirty = inputs.some((i) => i.value.trim() !== (orig[i.dataset.ex] || ""));
+      // 따행 입력칸 (바뀐 칸만, 선택한 대상년월의 따행 행)
+      const fl = current.follows || [], fcur = fl[Math.min(current.followIdx || 0, Math.max(fl.length - 1, 0))];
+      const followChanges = {};
+      if (fcur) body.querySelectorAll("[data-fl]").forEach((i) => { if (i.value.trim() !== (fcur[i.dataset.fl] || "")) followChanges[i.dataset.fl] = i.value.trim(); });
+      if (!Object.keys(listValues).length && !extraDirty && !Object.keys(followChanges).length) { done(); return true; }
+      btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        if (Object.keys(listValues).length) {
+          listValues[PRIORITY_COL] = 1;
+          await writeEntryCells(c.entries, listValues);
+        }
+        if (extraDirty) {
+          await saveExtraFor(current.fc, c.name, v, orig);
+          current.extra = { ...current.extra, found: true, values: v };
+          meetCache = null;
+        }
+        if (Object.keys(followChanges).length) {
+          const row = { custId: idOf(c.entries[0]) || fcur["고객ID"], fc: current.fc, follow: fcur, fileId: fcur._fileId };
+          const before = {}; Object.keys(followChanges).forEach((k) => { before[k] = fcur[k] || ""; });
+          Object.assign(fcur, followChanges);
+          try { await writeFollowRow(row, followChanges, Object.keys(followChanges).map((k) => ({ col: k, value: followChanges[k], prev: before[k] }))); }
+          catch (err) { Object.assign(fcur, before); throw err; }
+        }
+        current.phones = null;
+        toast("저장했습니다.");
+        done();
+        return true;
+      } catch (e) {
+        btn.disabled = false; btn.textContent = "저장";
+        saveError(e);
+        return false;
+      }
+    }
+  }
+
+  // 맨 위 '수정' 버튼: 성향 버튼 · 사진 바꾸기 · 정보 수정 화면
+  function setEditMode(on, noRender) {
+    editMode = on;
+    $("editBtn").textContent = on ? "닫기" : "수정";
+    $("editBtn").classList.toggle("on", on);
+    $("photoMenu").hidden = true;
+    renderGrade(current.cust);
+    $("avatar").classList.toggle("editable", on);
+    if (!noRender) selectTab("basic"); // noRender: 곧바로 다른 탭으로 이동할 때
+  }
+
+  // ---------- 프로필 사진 ----------
+  // 원형 자르기: 끌어서 위치 이동, 막대/두 손가락으로 크기 조절 → 정사각형 800px JPEG (원 안 영역)
+  function cropToCircle(file) {
+    return new Promise((resolve, reject) => {
+      const modal = $("cropModal"), view = $("cropView"), img = $("cropImg"), zoom = $("cropZoom");
+      const url = URL.createObjectURL(file);
+      let V = 0, base = 1, z = 1, tx = 0, ty = 0, w = 0, h = 0;
+      const pointers = new Map();
+      let pinchStart = null;
+
+      const s = () => base * z;
+      const clamp = () => {
+        tx = Math.min(0, Math.max(V - w * s(), tx));
+        ty = Math.min(0, Math.max(V - h * s(), ty));
+      };
+      const draw = () => {
+        clamp();
+        img.style.width = w * s() + "px";
+        img.style.transform = `translate(${tx}px, ${ty}px)`;
+      };
+      const setZoom = (nz) => {
+        nz = Math.min(4, Math.max(1, nz));
+        const cx = (V / 2 - tx) / s(), cy = (V / 2 - ty) / s(); // 가운데 기준으로 확대/축소
+        z = nz;
+        tx = V / 2 - cx * s(); ty = V / 2 - cy * s();
+        zoom.value = z;
+        draw();
+      };
+      const onDown = (e) => { view.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); pinchStart = null; };
+      const onMove = (e) => {
+        if (!pointers.has(e.pointerId)) return;
+        const prev = pointers.get(e.pointerId);
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (pointers.size === 1) { tx += e.clientX - prev.x; ty += e.clientY - prev.y; draw(); }
+        else if (pointers.size === 2) {
+          const [a, b] = [...pointers.values()];
+          const d = Math.hypot(a.x - b.x, a.y - b.y);
+          if (!pinchStart) pinchStart = { d, z };
+          else setZoom(pinchStart.z * d / pinchStart.d);
+        }
+      };
+      const onUp = (e) => { pointers.delete(e.pointerId); pinchStart = null; };
+      const onZoom = () => setZoom(+zoom.value);
+      const onWheel = (e) => { e.preventDefault(); setZoom(z * (e.deltaY < 0 ? 1.08 : 0.93)); };
+      const cleanup = () => {
+        modal.hidden = true;
+        view.removeEventListener("pointerdown", onDown); view.removeEventListener("pointermove", onMove);
+        view.removeEventListener("pointerup", onUp); view.removeEventListener("pointercancel", onUp);
+        view.removeEventListener("wheel", onWheel); zoom.removeEventListener("input", onZoom);
+        $("cropOk").onclick = $("cropCancel").onclick = null;
+        URL.revokeObjectURL(url);
+      };
+      img.onload = () => {
+        modal.hidden = false;
+        V = view.clientWidth;
+        w = img.naturalWidth; h = img.naturalHeight;
+        base = V / Math.min(w, h); // 원을 꽉 채우는 크기
+        z = 1; zoom.value = 1;
+        tx = (V - w * base) / 2; ty = (V - h * base) / 2; // 가운데
+        draw();
+        view.addEventListener("pointerdown", onDown); view.addEventListener("pointermove", onMove);
+        view.addEventListener("pointerup", onUp); view.addEventListener("pointercancel", onUp);
+        view.addEventListener("wheel", onWheel, { passive: false }); zoom.addEventListener("input", onZoom);
+        $("cropCancel").onclick = () => { cleanup(); resolve(null); };
+        $("cropOk").onclick = () => {
+          const OUT = 800, cv = document.createElement("canvas");
+          cv.width = cv.height = OUT;
+          cv.getContext("2d").drawImage(img, -tx / s(), -ty / s(), V / s(), V / s(), 0, 0, OUT, OUT);
+          cleanup();
+          cv.toBlob((b) => (b ? resolve(b) : reject(new Error("이미지 변환 실패"))), "image/jpeg", 0.88);
+        };
+      };
+      img.onerror = () => { cleanup(); reject(new Error("이미지를 열 수 없음")); };
+      img.src = url;
+    });
+  }
+
+  // 사진 줄이기: 긴 쪽 maxSide 픽셀, JPEG
+  function shrinkImage(file, maxSide, quality) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+        const cv = document.createElement("canvas");
+        cv.width = Math.round(img.naturalWidth * scale);
+        cv.height = Math.round(img.naturalHeight * scale);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        URL.revokeObjectURL(url);
+        cv.toBlob((b) => (b ? resolve(b) : reject(new Error("이미지 변환 실패"))), "image/jpeg", quality);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("이미지를 열 수 없음")); };
+      img.src = url;
+    });
+  }
+
+  // 고객 폴더에 "날짜 - FC명 - 고객명 - 프로필사진.jpg"로 저장 (같은 날 다시 올리면 덮어씀)
+  async function uploadProfilePhoto(blob) {
+    const folder = current.folders[0];
+    if (!folder) throw new Error("이 고객의 폴더를 찾을 수 없어 사진을 저장할 수 없습니다.");
+    const d = new Date();
+    const ymd = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+    const fc = current.fc || folder.fc || "";
+    const name = `${ymd} - ${fc} - ${current.cust.name} - 프로필사진.jpg`.replace(/[\\/:*?"<>|]/g, "");
+    const item = await stPutIn(folder, name, await blob.arrayBuffer(), "image/jpeg");
+    current.files = current.files.filter((f) => f.id !== item.id).concat({ ...item, path: item.name });
+    current.profilePhoto = item;
+    if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
+    current.photoUrl = URL.createObjectURL(blob);
+    current.photoFullUrl = current.photoUrl;
+    setAvatarPhoto();
+    // 기기 저장 (작은 사진)
+    const small = await shrinkImage(blob, PHOTO_SIZE, 0.85).catch(() => blob);
+    current.cachedPhoto = { id: item.id, mod: item.lastModifiedDateTime || "", blob: small };
+    photoCachePut(photoKey(current.cust), current.cachedPhoto);
+  }
+
+  // ---------- 고객 사진 기기 저장: 작은 사진(320px)을 이 기기 브라우저(IndexedDB)에 보관 → 다음부터 바로 표시 ----------
+  //   사진이 바뀌면(파일 ID·수정 시각이 다르면) 새로 받음. 로그아웃하면 모두 지움.
+  const PHOTO_DB = "shlife-photos", PHOTO_SIZE = 320;
+  function photoDb() {
+    if (!photoDb.p) photoDb.p = new Promise((res, rej) => {
+      const r = indexedDB.open(PHOTO_DB, 1);
+      r.onupgradeneeded = () => r.result.createObjectStore("p");
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    return photoDb.p;
+  }
+  async function photoCacheGet(key) {
+    try {
+      const db = await photoDb();
+      return await new Promise((res) => { const q = db.transaction("p").objectStore("p").get(key); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); });
+    } catch (e) { return null; }
+  }
+  async function photoCacheSet(key, val) {
+    try {
+      const db = await photoDb();
+      await new Promise((res) => { const t = db.transaction("p", "readwrite"); const s = t.objectStore("p"); if (val) s.put(val, key); else s.delete(key); t.oncomplete = res; t.onerror = res; });
+    } catch (e) { /* 저장 못 해도 화면엔 표시 */ }
+  }
+  const photoCachePut = (key, val) => photoCacheSet(key, val);
+  const photoCacheDel = (key) => photoCacheSet(key, null);
+  async function photoCacheClear() {
+    try { if (photoDb.p) (await photoDb.p).close(); } catch (e) { /* 무시 */ }
+    photoDb.p = null;
+    await new Promise((res) => {
+      try { const r = indexedDB.deleteDatabase(PHOTO_DB); r.onsuccess = r.onerror = r.onblocked = () => res(); } catch (e) { res(); }
+      setTimeout(res, 1500);
+    });
+  }
+  const photoKey = (cust) => me() + "|" + norm(baseName(cust.name)) + "|" + String(cust.birth || "").replace(/\D/g, "");
+  // 고객 화면을 열자마자: 기기에 저장된 사진이 있으면 바로 표시 (폴더 목록을 읽기 전)
+  async function showCachedPhoto(c) {
+    const v = await photoCacheGet(photoKey(c.cust));
+    if (!v || !v.blob || c !== current || c.photoUrl) return;
+    c.cachedPhoto = v;
+    c.photoUrl = URL.createObjectURL(v.blob);
+    setAvatarPhoto();
+    showPhotoThumb();
+  }
+  function showPhotoThumb() {
+    const t = $("photoThumb");
+    if (t && current.photoUrl && !t.querySelector("img")) t.innerHTML = `<img src="${current.photoUrl}" alt="프로필 사진">`;
+  }
+
+  // 프로필 사진 삭제 (이 고객 폴더의 '프로필사진' 이미지 모두 → OneDrive 휴지통)
+  async function deleteProfilePhotos() {
+    const list = current.files.filter((f) => /프로필사진/.test(f.name) && /\.(jpe?g|png|heic|webp)$/i.test(f.name));
+    for (const f of list) await stDel(f.id);
+    current.files = current.files.filter((f) => !list.includes(f));
+    current.profilePhoto = null;
+    if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
+    current.photoUrl = null; current.photoFullUrl = null; current.cachedPhoto = null;
+    photoCacheDel(photoKey(current.cust));
+    const a = $("avatar");
+    a.style.backgroundImage = ""; a.classList.remove("has-photo"); a.textContent = current.cust.name[0];
+  }
+
+  function findProfilePhoto(files) {
+    return files.filter((f) => /프로필사진/.test(f.name) && /\.(jpe?g|png|heic|webp)$/i.test(f.name))
+      .sort((a, b) => (b.name > a.name ? 1 : -1) || (new Date(b.lastModifiedDateTime) - new Date(a.lastModifiedDateTime)))[0] || null;
+  }
+
+  // 폴더 목록을 읽은 뒤: 기기 저장 사진이 최신이면 그대로, 아니면 Drive에서 받아 작게 줄여 기기에 저장
+  async function loadProfilePhoto() {
+    const c = current, p = c.profilePhoto;
+    if (!p) return;
+    const mod = p.lastModifiedDateTime || "";
+    if (c.cachedPhoto && c.cachedPhoto.id === p.id && c.cachedPhoto.mod === mod) { showPhotoThumb(); return; }
+    try {
+      const full = new Blob([await stGet(p.id)], { type: "image/jpeg" });
+      if (c !== current) return; // 다른 고객으로 넘어감
+      c.photoFullUrl = URL.createObjectURL(full);
+      const small = await shrinkImage(full, PHOTO_SIZE, 0.85).catch(() => full);
+      c.cachedPhoto = { id: p.id, mod, blob: small };
+      photoCachePut(photoKey(c.cust), c.cachedPhoto);
+      if (c !== current) return;
+      if (c.photoUrl) URL.revokeObjectURL(c.photoUrl);
+      c.photoUrl = URL.createObjectURL(small);
+      const t = $("photoThumb");
+      if (t) t.innerHTML = "";
+      setAvatarPhoto();
+      showPhotoThumb();
+    } catch (e) { console.error(e); }
+  }
+
+  function setAvatarPhoto() {
+    const a = $("avatar");
+    if (current.photoUrl) { a.style.backgroundImage = `url("${current.photoUrl}")`; a.classList.add("has-photo"); a.textContent = ""; }
+  }
+
+  function saveError(e) {
+    const m = String(e && e.message);
+    if (m === "NO_CUSTOMER_FOLDER") return toast("이 고객의 폴더가 없어 사진을 저장할 수 없습니다.");
+    if (/423|locked/i.test(m)) return toast("엑셀 파일이 다른 곳에서 열려 있어 저장하지 못했습니다. 닫고 다시 시도하세요.");
+    if (/403/.test(m)) return toast("이 아이디는 엑셀을 수정할 권한이 없습니다.");
+    handleError(e);
+  }
+
+  // 상담: '상담기록' 시트에서 이 고객(고객명+담당 FC) 기록, 최근 날짜·시간이 위로
+  //   처음엔 최근 10건, '더보기'로 전부 / 각 기록 끝 ✕ → 삭제 표시, 저장 버튼으로 한 번에 엑셀 반영
+  let consultShowAll = false;
+  function consultHtml() {
+    const x = current.extra || {};
+    if (x.missing) return `<p class="hint pad">'${esc(EXTRA.fileKeyword)}' 엑셀 파일을 찾지 못했습니다.</p>`;
+    const list = x.consults || [];
+    const N = CFG.consultPageSize || 10;
+    const shown = consultShowAll ? list : list.slice(0, N);
+    return `<div class="card">
+        <h3 class="sec-title">상담기록</h3>
+        ${list.length ? `<ul class="consult-list">${shown.map((c, i) => `<li data-ci="${i}">
+            <span class="c-body"><b>${esc(c.date)}</b> ${esc(c.text).replace(/\n/g, "<br>")}</span>
+            <button type="button" class="x-btn" data-delc="${i}" aria-label="이 상담기록 삭제">✕</button></li>`).join("")}</ul>
+            ${list.length > N && !consultShowAll ? `<button type="button" class="more-btn center" id="consultMore">더보기 (${list.length - N}건 더)</button>` : ""}`
+          : '<p class="hint">아직 상담기록이 없습니다.</p>'}
+      </div>
+      <div class="card">
+        <h3 class="sec-title">새 상담기록</h3>
+        <label class="fld"><textarea id="consultNew" rows="4" placeholder="상담 내용을 입력하세요"></textarea></label>
+        <div class="file-actions"><button class="primary" id="consultSave" disabled>저장</button></div>
+      </div>`;
+  }
+
+  function bindConsult() {
+    const ta = $("consultNew"), btn = $("consultSave");
+    if (!ta) return;
+    const list = (current.extra && current.extra.consults) || [];
+    const dels = new Set(); // 삭제 표시한 기록 번호
+    const refresh = () => {
+      btn.disabled = !ta.value.trim() && !dels.size;
+      btn.textContent = dels.size ? `저장 (삭제 ${dels.size}건${ta.value.trim() ? " · 새 기록 1건" : ""})` : "저장";
+    };
+    const more = $("consultMore");
+    if (more) more.addEventListener("click", () => { consultShowAll = true; selectTab("consult"); });
+    $("tabBody").querySelectorAll("[data-delc]").forEach((x) => x.addEventListener("click", () => {
+      const i = +x.dataset.delc;
+      const li = x.closest("li");
+      if (dels.has(i)) { dels.delete(i); li.classList.remove("to-delete"); x.textContent = "✕"; x.setAttribute("aria-label", "이 상담기록 삭제"); }
+      else { dels.add(i); li.classList.add("to-delete"); x.textContent = "↺"; x.setAttribute("aria-label", "삭제 취소"); }
+      refresh();
+    }));
+    ta.addEventListener("input", refresh);
+    btn.addEventListener("click", async () => {
+      if (dels.size && !confirm(`상담기록 ${dels.size}건을 엑셀에서 삭제할까요?`)) return;
+      btn.disabled = true;
+      btn.textContent = "저장 중…";
+      try {
+        const text = ta.value.trim();
+        const newList = await saveConsults(current.fc, current.cust.name, text ? [{ text, when: new Date() }] : [],
+          [...dels].map((i) => ({ key: list[i].key, text: list[i].text })));
+        current.extra = { ...current.extra, consults: newList };
+        toast(dels.size ? `상담기록을 저장했습니다 (삭제 ${dels.size}건).` : "상담기록을 엑셀에 저장했습니다.");
+        renderTabs();
+        selectTab("consult");
+      } catch (e) {
+        refresh();
+        saveError(e);
+      }
+    });
+  }
+
+  // 계약현황: 계약리스트·이관리스트에서 이 고객(계약자/피보험자)의 계약
+  //   표시 항목: [표시 이름, 엑셀 열 이름 후보] (이관리스트는 피보/계약일/보험료)
+  const CONTRACT_SHOW = [
+    ["증권번호", ["증권번호"]],
+    ["계약자", ["계약자"]],
+    ["주피보험자", ["주피보험자", "피보", "피보험자"]],
+    ["최초계약일", ["최초계약일", "계약일"]],
+    ["납입기간", ["납입기간"]],
+    ["합계보험료", ["합계보험료", "보험료"]],
+    ["이체일", ["이체일"]],
+    ["유입경로", ["유입경로"]],
+    ["소개자", ["소개자"]]
+  ];
+
+  // 고객 폴더의 계약 PDF: "날짜 - 고객 - FC - 상품명 - 금액원.pdf"
+  const CONTRACT_PDF = /^(\d{8}) - .+? - .+? - (.+) - [\d,]+원\.pdf$/i;
+  const normP = (s) => String(s || "").replace(/무배당|[\s()（）\[\]·,.\-_*]/g, "").toLowerCase();
+  function findContractPdf(date, product) {
+    const d = String(date || "").replace(/\D/g, "").slice(0, 8);
+    const p = normP(product);
+    let best = null, bestScore = 0;
+    current.files.forEach((f) => {
+      const m = f.name.match(CONTRACT_PDF);
+      if (!m) return;
+      const fp = normP(m[2]);
+      const prodOk = p && fp && (fp.startsWith(p.slice(0, 8)) || p.startsWith(fp.slice(0, 8)));
+      const score = (d && m[1] === d ? 2 : 0) + (prodOk ? 1 : 0);
+      if (score > bestScore) { best = f; bestScore = score; }
+    });
+    return best;
+  }
+  const pdfButton = (f) => f
+    ? `<div class="file-actions"><button class="secondary" data-open="${esc(f.id)}">📄 계약 열기</button></div>`
+    : "";
+
+  // 상품명에서 '무배당'이 들어간 괄호 삭제: "신한통합건강보험 원(ONE)(무배당, 해약환급금 미지급형)" → "신한통합건강보험 원(ONE)"
+  const productName = (s) => String(s || "").replace(/\s*[(（][^()（）]*무배당[^()（）]*[)）]/g, "").replace(/\s{2,}/g, " ").trim();
+
+  // 담당 FC가 지금 보는 고객의 담당과 다른 계약 = 참고용(다른 FC 담당)
+  const isRefContract = (c) => !!(c.fc && current.fc && c.fc !== current.fc);
+  const ownContracts = () => current.contracts.filter((c) => !isRefContract(c));
+  const refContracts = () => current.contracts.filter(isRefContract);
+  const hideRefOn = () => { try { return localStorage.getItem("shlife.hideRefContracts") === "1"; } catch (e) { return false; } };
+  function contractHtml() {
+    const all = current.contracts;
+    const list = hideRefOn() ? ownContracts() : all;
+    const refN = refContracts().length;
+    const toggle = refN ? `<label class="ref-toggle"><input type="checkbox" id="hideRef" ${hideRefOn() ? "checked" : ""}> 참고 계약 숨기기 <span class="hint">(담당이 다른 FC ${refN}건)</span></label>` : "";
+    return toggle + contractListHtml(list);
+  }
+  function contractListHtml(list) {
+    if (!list.length) {
+      const lines = [...new Set(current.cust.entries.flatMap((e) =>
+        e.fields.filter(([k]) => k.includes("상품명")).flatMap(([, v]) => v.split(/\n/)).map((s) => s.trim()).filter(Boolean)))];
+      return lines.length ? lines.map((l) => {
+          const product = l.replace(/\s*-\s*[\d,]+원\s*$/, "");
+          return `<div class="card"><div class="contract-title">${esc(productName(l))}</div>${pdfButton(findContractPdf("", product))}</div>`;
+        }).join("") + '<p class="hint pad">계약리스트·이관리스트에서 이 고객의 계약을 찾지 못해 고객리스트의 상품 정보를 표시합니다.</p>'
+        : '<p class="hint pad">계약리스트·이관리스트에서 이 고객의 계약을 찾지 못했습니다.</p>';
+    }
+    return list.map((c) => {
+      const status = c.row["계약상태"] || c.row["상태"] || "";
+      const val = (cols) => { for (const k of cols) if (c.row[k]) return c.row[k]; return ""; };
+      const shown = CONTRACT_SHOW.map(([label, cols]) => [label, val(cols)]).filter(([, v]) => v)
+        .map(([k, v]) => [k, k === "합계보험료" ? wonText(v) : v]); // 79644 / 79,644 → 79,644원
+      const pdf = findContractPdf(val(["최초계약일", "계약일"]), c.row["상품명"]);
+      const ref = isRefContract(c);
+      return `<div class="card${ref ? " ref-card" : ""}">
+        <div class="entry-head"><span class="tag t-${esc(c.type)}">${esc(c.type)}</span>
+          ${status ? `<span class="tag">${esc(status)}</span>` : ""}
+          ${ref ? `<span class="tag ref-tag">담당 ${esc(c.fc)} · 참고</span>` : ""}
+          <span class="hint">${esc([ref ? "" : c.fc, c.row["이관일자"] ? "이관 " + c.row["이관일자"] : ""].filter(Boolean).join(" · "))}</span></div>
+        <div class="contract-title">${esc(productName(c.row["상품명"]) || "(상품명 없음)")}</div>
+        <dl class="kv">${shown.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+        ${pdfButton(pdf)}
+      </div>`;
+    }).join("");
+  }
+
+  const readWorkbook = (f) => readBook(f.id);
+
+  async function toggleSheet(card, f, btn) {
+    const box = card.querySelector(".sheet");
+    if (!box.hidden) { box.hidden = true; btn.textContent = "내용 보기"; return; }
+    box.hidden = false;
+    btn.textContent = "접기";
+    box.innerHTML = '<p class="hint">읽는 중…</p>';
+    try {
+      const wb = await readWorkbook(f);
+      box.innerHTML = wb.SheetNames.map((name) => {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, defval: "", raw: false })
+          .filter((r) => r.some((c) => String(c).trim() !== ""));
+        if (!rows.length) return "";
+        return `<h4>${esc(name)}</h4>${renderRows(rows)}`;
+      }).join("") || '<p class="hint">내용이 없습니다.</p>';
+    } catch (e) {
+      box.innerHTML = '<p class="hint">엑셀을 읽지 못했습니다. "열기"로 확인하세요.</p>';
+      console.error(e);
+    }
+  }
+
+  // 2열(항목/값) 형태면 카드 목록, 아니면 가로 스크롤 표
+  function renderRows(rows) {
+    const twoCol = rows.every((r) => r.filter((c) => String(c).trim() !== "").length <= 2);
+    if (twoCol) {
+      return `<dl class="kv">${rows.map((r) => {
+        const cells = r.filter((c) => String(c).trim() !== "");
+        return `<dt>${esc(cells[0])}</dt><dd>${esc(cells[1] ?? "")}</dd>`;
+      }).join("")}</dl>`;
+    }
+    const width = Math.max(...rows.map((r) => r.length));
+    return `<div class="table-wrap"><table>${rows.map((r, i) =>
+      `<tr>${Array.from({ length: width }, (_, j) =>
+        i === 0 ? `<th>${esc(r[j])}</th>` : `<td>${esc(r[j])}</td>`).join("")}</tr>`
+    ).join("")}</table></div>`;
+  }
+
+  // 엑셀 파일에서 휴대폰 번호 찾기
+  async function renderContact() {
+    const body = $("tabBody");
+    body.innerHTML = '<p class="hint pad">엑셀에서 연락처를 찾는 중…</p>';
+    if (!current.phones) {
+      const phones = new Set();
+      const re = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/g;
+      current.cust.entries.forEach((e) => (e.phone.match(re) || []).forEach((p) => phones.add(p.replace(/\D/g, ""))));
+      for (const f of current.files.filter((x) => kind(x.name) === "excel")) {
+        try {
+          const wb = await readWorkbook(f);
+          wb.SheetNames.forEach((n) => {
+            const text = XLSX.utils.sheet_to_csv(wb.Sheets[n]);
+            (text.match(re) || []).forEach((p) => phones.add(p.replace(/\D/g, "")));
+          });
+        } catch (e) { console.error(e); }
+      }
+      current.phones = [...phones];
+    }
+    if (!current.phones.length) {
+      body.innerHTML = '<p class="hint pad">엑셀 파일에서 휴대폰 번호를 찾지 못했습니다.</p>';
+      return;
+    }
+    body.innerHTML = current.phones.map((p) => {
+      const pretty = p.replace(/(\d{3})(\d{3,4})(\d{4})/, "$1-$2-$3");
+      const carrier = ((current.extra && current.extra.values) || {})[EXTRA.carrierCol] || "";
+      return `<div class="card">
+        <div class="phone">${carrier ? `<span class="carrier">${esc(carrier)}</span> ` : ""}${pretty}</div>
+        <div class="file-actions">
+          <a class="primary" href="tel:${p}">전화</a>
+          <a class="secondary" href="sms:${p}">문자</a>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  // ---------- 관리자: 설정 ----------
+  function settingsCardHtml() {
+    const s = appSettings;
+    return `<div class="card" id="settingsCard">
+        <h3 class="sec-title">설정</h3>
+        <details class="fold" id="gFold"><summary>구글 캘린더 설정 <span class="hint">${esc(((s.google || {}).calendars || []).map((c) => c.name).join(", ") || "기본(1팀·김현성·최수진)")}</span></summary>
+          <div id="gCalBox"></div></details>
+        <label class="fld"><span>회사 주소 (일정 이동시간 계산의 출발·도착 기준)</span>
+          <input id="setCompany" value="${esc(s.companyAddress || "")}" placeholder="예: 광주광역시 서구 상무중앙로 98" autocomplete="off"></label>
+        <label class="fld"><span>카카오 REST API 키 (이동 거리·시간 계산용)</span>
+          <input id="setKakao" value="${esc(s.kakaoRestKey || "")}" placeholder="developers.kakao.com › 앱 › 플랫폼 키" autocomplete="off" spellcheck="false"></label>
+        <div class="file-actions"><button type="button" class="primary" id="setSave" disabled>설정 저장</button></div>
+      </div>`;
+  }
+  function bindSettings() {
+    const btn = $("setSave");
+    if (!btn) return;
+    const read = () => {
+      const g = readCalendarChoices();
+      const { dataSaver: _old, ...rest } = appSettings; // 예전 데이터 절약 설정은 저장할 때 함께 지움
+      return { ...rest, companyAddress: $("setCompany").value.trim(),
+        kakaoRestKey: $("setKakao").value.trim(),
+        google: g ? { ...(appSettings.google || {}), ...g } : appSettings.google };
+    };
+    const calKey = (g) => JSON.stringify([((g || {}).calendars || []).map((c) => c.id).sort(), salesArr((g || {}).sales).map((c) => c.id).sort(), salesArr((g || {}).info).map((c) => c.id).sort()]);
+    const dirty = () => { const v = read(); return v.companyAddress !== (appSettings.companyAddress || "") || v.kakaoRestKey !== (appSettings.kakaoRestKey || "") || calKey(v.google) !== calKey(appSettings.google); };
+    ["input", "change"].forEach((ev) => $("settingsCard").addEventListener(ev, () => { btn.disabled = !dirty(); }));
+    btn.addEventListener("click", async () => {
+      btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        await saveSettings(read());
+        toast("설정을 저장했습니다.");
+      } catch (e) { handleError(e); }
+      btn.textContent = "설정 저장";
+      btn.disabled = !dirty();
+    });
+    $("gFold").addEventListener("toggle", () => { if ($("gFold").open && !$("gCalBox").dataset.loaded) { $("gCalBox").dataset.loaded = "1"; loadCalendarChoices(); } });
+  }
+
+  // ---------- 관리자 페이지: 아이디별 FC 폴더 권한 (앱 자체 권한 파일) ----------
+  const emailOf = (p) => String(
+    (p.invitation && p.invitation.email) ||
+    (p.grantedToV2 && p.grantedToV2.user && p.grantedToV2.user.email) ||
+    (p.grantedTo && p.grantedTo.user && p.grantedTo.user.email) ||
+    (p.grantedToIdentitiesV2 && p.grantedToIdentitiesV2[0] && p.grantedToIdentitiesV2[0].user && p.grantedToIdentitiesV2[0].user.email) || ""
+  ).toLowerCase();
+  const nameOf = (p) => String(
+    (p.grantedToV2 && p.grantedToV2.user && p.grantedToV2.user.displayName) ||
+    (p.grantedTo && p.grantedTo.user && p.grantedTo.user.displayName) || "");
+
+  let adminState = null; // { fcs: [names], perms: { users }, shares: [{email,name}] }
+  const extraUsers = new Set();
+
+  async function loadAdminState() {
+    await resolveBase();
+    // v95: 권한 파일 읽기와 공유 조회(loadShares)를 동시에 시작 (서로 필요 없는 일이라 직렬로 기다릴 이유가 없음). 결과는 이전과 같음
+    const itemsP = stList(base.id);
+    const permsP = readPerms();
+    const idsOf = (items) => Object.fromEntries(items.filter((i) => i.folder && !i.name.startsWith("_")).map((f) => [f.name, f.id]));
+    const sharesP = GD && base.owner ? itemsP.then((items) => loadShares(idsOf(items))).catch((e) => { console.error(e); return null; }) : null;
+    const items = await itemsP;
+    const fcFolders = items.filter((i) => i.folder && !i.name.startsWith("_"));
+    const fcs = fcFolders.map((f) => f.name).sort((a, b) => a.localeCompare(b, "ko"));
+    const fcIds = Object.fromEntries(fcFolders.map((f) => [f.name, f.id]));
+    const perms = await permsP;
+    const shares = sharesP ? await sharesP : null;
+    adminState = { fcs, perms, shares, fcIds };
+  }
+
+  // ---------- Google Drive 공유 (관리자: 고객 폴더 = 편집, 설정 폴더 = 보기) ----------
+  // directOnly: 상위 폴더에서 물려받은 권한(고객 폴더 전체 공유 등)은 제외하고 이 폴더에 직접 준 권한만
+  async function gdPermList(fileId, directOnly) {
+    const d = await gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions?supportsAllDrives=true&fields=" + encodeURIComponent("permissions(id,emailAddress,role,type,permissionDetails(inherited))"));
+    return (d.permissions || []).filter((p) => p.type === "user" && p.emailAddress)
+      .filter((p) => !directOnly || !(p.permissionDetails || []).length || (p.permissionDetails || []).some((x) => !x.inherited))
+      .map((p) => ({ id: p.id, email: p.emailAddress.toLowerCase(), role: p.role }));
+  }
+  // 고객 폴더의 상위 폴더들(예: Claude 폴더)과 거기에 직접 준 공유 — 상위에 공유돼 있으면 하위 폴더 권한을 바꿀 수 없다
+  async function loadAncestors() {
+    const out = [], permPs = [];
+    const getF = (id) => gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=id,name,parents&supportsAllDrives=true").catch(() => null);
+    let cur = await getF(base.id); // v95: 이전에는 같은 폴더를 두 번 조회했음
+    for (let i = 0; i < 5; i++) {
+      const pid = cur && (cur.parents || [])[0];
+      if (!pid) break;
+      const pf = await getF(pid);
+      if (!pf) break;
+      const item = { id: pid, name: pf.name, perms: [] };
+      out.push(item);
+      permPs.push(gdPermList(pid, true).catch(() => []).then((p) => { item.perms = p; })); // 다음 폴더 조회와 동시에
+      if (!(pf.parents || []).length) break;
+      cur = pf;
+    }
+    await Promise.all(permPs);
+    return out;
+  }
+  async function loadShares(fcIds) {
+    await resolveAppDir();
+    const ids = fcIds || (adminState && adminState.fcIds) || {};
+    const fc = {}; // FC 폴더별 공유
+    const [cust, app, anc] = await Promise.all([gdPermList(base.id, true), appDir.id ? gdPermList(appDir.id, true) : [], loadAncestors().catch(() => []),
+      Promise.all(Object.entries(ids).map(async ([name, id]) => { fc[name] = await gdPermList(id, true).catch(() => []); }))]);
+    return { cust, app, fc, anc };
+  }
+  // 이 계정에게 직접 준 상위 폴더 공유 (소유자 제외)
+  const ancShares = (em) => ((adminState && adminState.shares && adminState.shares.anc) || [])
+    .flatMap((a) => a.perms.filter((p) => p.email === em && p.role !== "owner").map((p) => ({ folderId: a.id, folder: a.name, perm: p })));
+  // 공유 상태: "ok" (고객 편집 + 설정 보기 이상) / "part" / "none"
+  function shareState(em) {
+    const s = adminState && adminState.shares;
+    if (!s) return null;
+    const c = s.cust.find((p) => p.email === em);
+    const a = s.app.find((p) => p.email === em);
+    const cOk = c && (c.role === "writer" || c.role === "owner");
+    const anyFc = Object.values(s.fc || {}).some((l) => l.some((p) => p.email === em));
+    if (cOk && a) return "ok";
+    return c || a || anyFc || ancShares(em).length ? "part" : "none";
+  }
+  // 이 계정의 FC 권한 목록(list)이 Drive 공유와 정확히 맞는지: 전체("*")는 고객 폴더 편집, 그 외는 FC 폴더별 편집/보기 + 설정 폴더 보기
+  function shareMatches(em, list) {
+    const s = adminState && adminState.shares;
+    if (!s) return true;
+    if (!s.app.find((p) => p.email === em)) return false;
+    if (ancShares(em).length) return false; // 상위 폴더(예: Claude)가 이 계정에 공유돼 있으면 FC 제한이 Drive에서 안 걸림
+    if (list.includes("*")) { const c = s.cust.find((p) => p.email === em); return !!c && (c.role === "writer" || c.role === "owner"); }
+    if (s.cust.find((p) => p.email === em && p.role !== "owner")) return false; // 예전 방식(고객 폴더 전체 공유)이면 FC 단위로 바꿔야 함
+    return Object.keys(s.fc || {}).every((name) => {
+      const mine = (s.fc[name] || []).find((p) => p.email === em);
+      const want = list.find((x) => grantFc(x) === name);
+      if (!want) return !mine;
+      return !!mine && (grantRo(want) ? mine.role === "reader" : mine.role === "writer" || mine.role === "owner");
+    });
+  }
+  async function shareFolders(em) {
+    if (!confirm(`${em} 계정에 Google Drive 폴더를 공유할까요?\n· 고객 폴더: 편집 (메모·미팅장소·사진 저장)\n· 설정 폴더: 보기\n공유 알림 메일이 그 계정으로 갑니다.`)) return;
+    try {
+      const tt = await grantFolders(em, adminState.perms.users[em]);
+      await refreshSharesFor(tt);
+      toast(`${em} 계정에 폴더를 공유했습니다.`);
+      const pending = collectPending();
+      renderAdmin();
+      applyPending(pending);
+    } catch (e) {
+      handleError(/Drive 400/.test(e.message) ? new Error("공유하지 못했습니다. 구글 계정 이메일이 맞는지 확인해 주세요.") : e);
+    }
+  }
+  // 공유 맞추기(FC 단위): 상위 폴더(Claude 등) 직접 공유 해제 → 고객 루트 직접 공유 해제 → 체크한 FC 폴더 편집/보기 → 빠진 FC 폴더 해제 → 설정 폴더 보기.
+  // 중간에 실패하면 지운 공유를 모두 복구하고, 만든 뒤에는 실제로 직접 권한이 생겼는지 다시 확인(Drive 반영 지연 대비 재시도).
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function retry(fn, tries) {
+    let last;
+    for (let k = 0; k < (tries || 3); k++) {
+      try { return await fn(); } catch (e) { last = e; if (!/Drive (5\d\d|429)|Failed to fetch|NetworkError/.test(String(e.message))) throw e; await sleep(2500); }
+    }
+    throw last;
+  }
+  async function grantFolders(em, list) {
+    const st = adminState.shares;
+    list = (list || []).filter((g) => g !== "*");
+    if (!list.length) throw new Error("FC를 하나 이상 체크하세요. (전체(*)는 지원하지 않습니다)");
+    const permUrl = (id, pid) => GDAPI + "/files/" + encodeURIComponent(id) + "/permissions" + (pid ? "/" + encodeURIComponent(pid) : "") + "?supportsAllDrives=true";
+    const hadAny = st.cust.some((p) => p.email === em) || st.app.some((p) => p.email === em) || Object.values(st.fc || {}).some((l) => l.some((p) => p.email === em));
+    const add = (id, role) => gdFetch(permUrl(id) + "&sendNotificationEmail=" + (hadAny ? "false" : "true"),
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role, emailAddress: em }) });
+    const patch = (id, pid, role) => gdFetch(permUrl(id, pid), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role }) });
+    const del = (id, pid) => gdFetch(permUrl(id, pid), { method: "DELETE" });
+    const ids = adminState.fcIds || {};
+    for (const g of list) if (!ids[grantFc(g)]) throw new Error("FC 폴더를 찾을 수 없습니다: " + grantFc(g));
+    // v96: 단계 순서(상위 해제 → 고객 루트 해제 → FC 공유 → 빠진 FC 해제 → 설정 폴더 보기)는 그대로, 같은 단계 안에서만 병렬(동시 3개).
+    //       고정 2.5초 대기 대신 0.8초 간격 확인. 해제한 공유는 실제로 사라진 것을 확인한 뒤에만 FC 공유 진행. 실패하면 지운 공유를 모두 되돌림
+    const undo = []; // { label, fn } — 지운 공유를 다시 주는 함수
+    const remove = async (id, perm, label) => { await retry(() => del(id, perm.id)); undo.push({ label, fn: () => add(id, perm.role === "owner" ? "writer" : perm.role) }); };
+    const mineIn = async (id) => (await gdPermList(id, true)).find((p) => p.email === em);
+    const roleOk = (m, role) => !!m && (m.role === role || (role === "writer" && m.role === "owner"));
+    const waitGone = async (id) => { // 이 폴더의 '직접' 공유가 실제로 사라질 때까지 (0.8초 간격, 최대 약 6.4초)
+      for (let k = 0; k < 8; k++) { if (!(await mineIn(id))) return; await sleep(800); }
+      throw new Error("공유 해제가 반영되지 않았습니다: " + id);
+    };
+    // 이 폴더에 이 계정의 '직접' 권한이 role대로 생길 때까지 (요청 후 0.8초 간격 확인, 최대 약 6.4초, 안 되면 처음부터 다시 최대 3번)
+    const ensureDirect = async (id, role) => {
+      for (let a = 0; a < 3; a++) {
+        const mine = await mineIn(id);
+        if (roleOk(mine, role)) return;
+        if (mine && mine.role !== "owner") await retry(() => patch(id, mine.id, role)); else await retry(() => add(id, role));
+        for (let k = 0; k < 8; k++) { await sleep(800); if (roleOk(await mineIn(id), role)) return; }
+      }
+      throw new Error("공유가 반영되지 않았습니다: " + id);
+    };
+    const failIfAny = (rs) => { const bad = rs.find((r) => r && !r.ok); if (bad) throw bad.e; };
+    const touched = { cust: false, app: false, fc: [], anc: [] }; // 바뀐(바뀌었을 수 있는) 폴더 — 저장 후 이 폴더의 공유 목록만 다시 읽음
+    try {
+      const ancs = ancShares(em);
+      for (const a of ancs) { await remove(a.folderId, a.perm, "상위 폴더 " + a.folder); touched.anc.push(a.folderId); }      // 1 상위 폴더 공유 해제 (예: Claude)
+      const c = st.cust.find((p) => p.email === em);
+      if (c && c.role !== "owner") { await remove(base.id, c, "고객 루트"); touched.cust = true; }                         // 2 고객 루트 직접 공유 해제
+      for (const a of ancs) await waitGone(a.folderId);                                                                    //   해제가 실제로 반영된 뒤에만 다음 단계
+      if (touched.cust) await waitGone(base.id);
+      const want = list.map((g) => [grantFc(g), grantRo(g) ? "reader" : "writer"]);                                        // 3 FC 폴더 공유 (동시 3개)
+      want.forEach(([n]) => touched.fc.push(n));
+      failIfAny(await runLimited(want.map(([n, role]) => () => ensureDirect(ids[n], role)), 3));
+      const extra = Object.entries(st.fc || {}).filter(([fc, ps]) => ps.some((p) => p.email === em && p.role !== "owner") && !list.some((g) => grantFc(g) === fc));
+      extra.forEach(([fc]) => touched.fc.push(fc));                                                                         // 4 목록에서 빠진 FC 폴더 해제 (동시 3개)
+      failIfAny(await runLimited(extra.map(([fc, ps]) => () => remove(ids[fc], ps.find((p) => p.email === em), "FC " + fc)), 3));
+      if (appDir.id) { await ensureDirect(appDir.id, "reader"); touched.app = true; }                                       // 5 설정 폴더 보기 (상위 공유가 사라져도 직접 권한 유지)
+    } catch (e) {
+      const failed = [];
+      for (const u of undo.reverse()) { try { await u.fn(); } catch (e2) { console.error("복구 실패", e2); failed.push(u.label); } }
+      if (failed.length) e.message += " (되돌리지 못한 공유: " + failed.join(", ") + ")";
+      throw e;
+    }
+    return touched;
+  }
+  // 동시에 최대 limit개씩 실행하고, 진행 중인 것이 모두 끝난 뒤(실패 포함) 결과 배열 [{ok, v|e}] 반환 (실패 뒤에는 새로 시작하지 않아 시작 안 한 칸은 undefined)
+  async function runLimited(tasks, limit) {
+    const res = new Array(tasks.length);
+    let i = 0;
+    await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, async () => {
+      while (i < tasks.length && !res.some((r) => r && !r.ok)) { const k = i++; try { res[k] = { ok: true, v: await tasks[k]() }; } catch (e) { res[k] = { ok: false, e }; } } // 하나라도 실패하면 새 작업은 시작하지 않고 진행 중인 것만 끝까지 기다림
+    }));
+    return res;
+  }
+  // 저장 후: 바뀐 폴더의 공유 목록만 다시 읽어 adminState.shares 갱신 (전체 재조회 대신)
+  async function refreshSharesFor(tl) {
+    const s = adminState && adminState.shares;
+    if (!s) return;
+    const ids = adminState.fcIds || {};
+    const jobs = [];
+    if (tl.cust) jobs.push(gdPermList(base.id, true).then((p) => { s.cust = p; }));
+    if (tl.app && appDir.id) jobs.push(gdPermList(appDir.id, true).then((p) => { s.app = p; }));
+    new Set(tl.fc).forEach((n) => { if (ids[n]) jobs.push(gdPermList(ids[n], true).then((p) => { s.fc[n] = p; })); });
+    new Set(tl.anc).forEach((id) => { const a = (s.anc || []).find((x) => x.id === id); if (a) jobs.push(gdPermList(id, true).then((p) => { a.perms = p; })); });
+    await Promise.all(jobs);
+  }
+  async function unshareFolders(em) {
+    const st = adminState && adminState.shares;
+    if (!st) return;
+    const del = (fileId, p) => gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions/" + encodeURIComponent(p.id) + "?supportsAllDrives=true", { method: "DELETE" });
+    const touched = { cust: false, app: false, fc: [], anc: [] };
+    for (const a of ancShares(em)) { await del(a.folderId, a.perm); touched.anc.push(a.folderId); }
+    for (const p of st.cust.filter((x) => x.email === em && x.role !== "owner")) { await del(base.id, p); touched.cust = true; }
+    for (const p of st.app.filter((x) => x.email === em && x.role !== "owner")) { await del(appDir.id, p); touched.app = true; }
+    for (const [fc, ps] of Object.entries(st.fc || {})) for (const p of ps.filter((x) => x.email === em && x.role !== "owner")) { await del((adminState.fcIds || {})[fc], p); touched.fc.push(fc); }
+    await refreshSharesFor(touched); // v96: 전체 재조회 대신 바뀐 폴더만
+    return touched;
+  }
+  // 표에서 아직 저장 안 한 체크 상태 (다시 그릴 때 유지)
+  let collectPending = () => [];
+  let applyPending = () => {};
+
+  // ---------- 설정 (일반 사용자): 구글 캘린더(보여질 캘린더·영업일정 캘린더) + 데이터 절약 모드 ----------
+  async function openMySettings() {
+    show("adminView");
+    const body = $("adminBody");
+    body.innerHTML = `<div class="card" id="myCalCard">
+        <h3 class="sec-title">구글 캘린더</h3>
+        <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
+      </div>
+      <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>` + smsCardHtml();
+    bindSmsCard();
+    let cals;
+    try { [cals] = await Promise.all([calendarList(), loadMyPrefs(), loadSettings()]); } catch (e) {
+      $("myCalBox").innerHTML = "";
+      return handleError(e);
+    }
+    const prefs = myPrefs || {};
+    const saved = (prefs.calendars || []).map((c) => c.id);
+    const want = defaultCalNames();
+    const isOn = (c) => (saved.length ? saved.includes(c.id) : want.includes(c.name));
+    const box = $("myCalBox");
+    box.innerHTML = cals.length ? calPickerHtml(cals, isOn) : '<p class="hint">볼 수 있는 캘린더가 없습니다.</p>';
+    const sIds = salesArr(prefs.sales).length ? salesArr(prefs.sales).map((c) => c.id) : defaultSalesIds(cals);
+    if (cals.length) bindCalPicker(box, cals, sIds, Array.isArray(prefs.info) ? prefs.info.map((c) => c.id) : sIds);
+    const read = () => (cals.length ? readCalPicker(box, cals) : { calendars: [], sales: [], info: [] });
+    const key = (v) => JSON.stringify([(v.calendars || []).map((c) => c.id).sort(), salesArr(v.sales).map((c) => c.id).sort(), salesArr(v.info).map((c) => c.id).sort()]);
+    let base0 = saved.length ? key({ calendars: prefs.calendars, sales: prefs.sales, info: prefs.info }) : "";
+    const btn = $("myCalSave");
+    const dirty = () => key(read()) !== base0;
+    btn.disabled = !dirty();
+    body.addEventListener("change", () => { btn.disabled = !dirty(); });
+    btn.addEventListener("click", async () => {
+      const v = read();
+      if (!v.calendars.length) return toast("보여질 캘린더를 하나 이상 고르세요.");
+      btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        const { dataSaver: _old, ...keep } = myPrefs || {};
+        await saveMyPrefs({ ...keep, calendars: v.calendars, sales: v.sales, info: v.info });
+        base0 = key(v);
+        toast("저장했습니다. 일정 화면에 반영됩니다.");
+      } catch (e) { handleError(e); }
+      btn.textContent = "저장";
+      btn.disabled = !dirty();
+    });
+  }
+
+  async function openAdmin() {
+    if (!isAdmin()) return openMySettings();
+    show("adminView");
+    $("adminBody").innerHTML = '<p class="hint pad">권한 정보를 불러오는 중…</p>';
+    try {
+      await Promise.all([loadAdminState(), loadSettings()]);
+      renderAdmin();
+    } catch (e) {
+      $("adminBody").innerHTML = "";
+      handleError(e);
+    }
+  }
+
+  function renderAdmin() {
+    const { fcs, perms } = adminState;
+    const users = [...new Set([...Object.keys(perms.users), ...extraUsers])].sort();
+    const listOf = (em) => perms.users[em] || [];
+    const isAll = (em) => listOf(em).includes("*");
+    const has = (em, fc) => isAll(em) || listOf(em).some((g) => grantFc(g) === fc);
+    const canEdit = (em, fc) => isAll(em) || listOf(em).includes(fc); // 'FC' = 수정 가능, 'FC:r' = 보기만
+    const nameOfEm = (em) => (perms.names || {})[em] || "";
+    const ACC = GD ? "구글 계정" : "아이디";
+
+    // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
+    $("adminBody").innerHTML = `
+      <div class="card">
+        <h3 class="sec-title">사용 FC 현황</h3>
+        <p class="hint">이름(FC명)을 적고, 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다. 저장을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
+        ${(() => {
+          const sh = adminState.shares, adm = (CFG.admins || []).map((a) => a.toLowerCase());
+          const hits = ((sh && sh.anc) || []).flatMap((a) => a.perms.filter((p) => p.role !== "owner" && !adm.includes(p.email)).map((p) => esc((perms.names || {})[p.email] || p.email) + " ← '" + esc(a.name) + "' 폴더(" + p.role + ")"));
+          return hits.length ? `<div class="perm-warn"><b>⚠ 상위 폴더 공유 감지</b><br>${hits.join("<br>")}<br><span class="hint">이 계정은 FC 체크와 상관없이 상위 폴더 전체를 Drive에서 열 수 있습니다. 해당 계정 카드의 [저장]을 누르면 상위 공유를 해제하고 FC 폴더만 공유합니다.</span></div>` : "";
+        })()}
+        <div class="perm-list">
+          ${(CFG.admins || []).map((a) => `<div class="perm-admin"><span class="perm-em">${esc(a)}</span> <span class="tag">관리자</span> <span class="hint">전체 FC</span>
+            <span class="adm-name"><input type="text" class="perm-name" data-admin-name="${esc(a.toLowerCase())}" placeholder="내 FC 이름(예: 김현성)" maxlength="20" value="${esc(nameOfEm(a.toLowerCase()))}" aria-label="관리자 FC 이름"><button type="button" class="secondary" data-admin-save="${esc(a.toLowerCase())}" disabled>저장</button></span></div>`).join("")}
+          ${users.map((em) => `<div class="perm-row" data-em="${esc(em)}">
+            <div class="perm-head">
+              <span class="perm-id"><input type="text" class="perm-name" data-name placeholder="이름(FC명) 입력" value="${esc(nameOfEm(em))}" maxlength="20" aria-label="${esc(em)} 이름"><span class="perm-mail">${esc(em)}</span></span>
+              <span class="perm-btns"><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>저장</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></span>
+            </div>
+            <div class="perm-fcs">
+              <label class="chip chip-all" ${isAll(em) ? "" : "hidden"} title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
+              ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC 고객 정보를 수정할 수 있음 (체크 안 하면 보기만)"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 수정"> 수정</label></span>`).join("")}
+            </div>
+          </div>`).join("")}
+        </div>
+        ${users.length ? "" : '<p class="hint">아직 권한을 준 사용자가 없습니다. 아래에서 이메일을 추가하세요.</p>'}
+        <div class="file-actions">
+          <button class="secondary" id="resetPerms" disabled>되돌리기</button>
+          <button class="primary" id="savePerms" disabled>변경 저장</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="sec-title">사용자 추가</h3>
+        <form id="addUserForm" class="search">
+          <input id="newName" type="text" placeholder="이름(FC명)" autocomplete="off" maxlength="20" style="max-width:130px">
+          <input id="newUser" type="email" placeholder="${GD ? "구글 계정 이메일 (예: name@gmail.com)" : "Microsoft 계정 이메일"}" autocomplete="off" required>
+          <button class="primary" type="submit">추가</button>
+        </form>
+        <p class="hint">추가하면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 '변경 저장'을 누르세요.</p>
+      </div>` + settingsCardHtml() + smsCardHtml();
+
+    $("addUserForm").addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      const em = $("newUser").value.trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return toast("이메일 형식을 확인해 주세요.");
+      if ((CFG.admins || []).map((a) => a.toLowerCase()).includes(em)) return toast("관리자는 이미 모든 폴더를 볼 수 있습니다.");
+      const pending = collectRows(); // 표에서 아직 저장 안 한 체크 상태 유지
+      const nm = $("newName").value.trim();
+      extraUsers.add(em);
+      renderAdmin();
+      applyRows(pending);
+      if (nm) { const nr = $("adminBody").querySelector(`.perm-row[data-em="${CSS.escape(em)}"] [data-name]`); if (nr) { nr.value = nm; nr.dispatchEvent(new Event("input", { bubbles: true })); } }
+    });
+
+    const rows = [...$("adminBody").querySelectorAll(".perm-row")];
+    const same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+    const sel = (row) => {
+      const all = row.querySelector("input[data-all]");
+      return all.checked ? ["*"] : [...row.querySelectorAll("input[data-fc]")].filter((b) => b.checked).map((b) => {
+        const ed = row.querySelector(`input[data-edit="${CSS.escape(b.dataset.fc)}"]`);
+        return b.dataset.fc + (ed && ed.checked ? "" : ":r"); // 수정 체크 없으면 보기만
+      });
+    };
+    const nameVal = (row) => row.querySelector("[data-name]").value.trim();
+    // 체크가 바뀐 줄 + Drive 공유가 체크 상태와 다른 줄(예: 예전 방식 공유)도 '변경 저장' 대상으로 표시
+    const needsShare = (r) => GD && adminState.shares && sel(r).length > 0 && !shareMatches(r.dataset.em, sel(r));
+    const isDiff = (r) => !same(sel(r), listOf(r.dataset.em)) || needsShare(r) || nameVal(r) !== nameOfEm(r.dataset.em);
+    const changed = () => rows.filter(isDiff);
+    const refresh = () => {
+      rows.forEach((r) => { r.classList.toggle("changed", isDiff(r)); const rb = r.querySelector("[data-rowsave]"); if (rb) rb.hidden = !isDiff(r); });
+      const n = changed().length;
+      $("savePerms").disabled = !n;
+      $("resetPerms").disabled = !n;
+      $("savePerms").textContent = n ? `변경 저장 (${n})` : "변경 저장";
+    };
+    rows.forEach((row) => {
+      const all = row.querySelector("input[data-all]");
+      const boxes = [...row.querySelectorAll("input[data-fc]")];
+      const eds = [...row.querySelectorAll("input[data-edit]")];
+      const syncEd = () => eds.forEach((e) => {
+        const fb = boxes.find((b) => b.dataset.fc === e.dataset.edit);
+        if (all.checked) { e.checked = true; e.disabled = true; } // 전체 = 보기+수정
+        else { e.disabled = !(fb && fb.checked); if (e.disabled) e.checked = false; }
+      });
+      const syncAll = () => { all.indeterminate = !all.checked && boxes.some((b) => b.checked); syncEd(); };
+      all.addEventListener("change", () => { boxes.forEach((b) => (b.checked = all.checked)); syncAll(); refresh(); });
+      boxes.forEach((b) => b.addEventListener("change", () => {
+        if (!b.checked) all.checked = false; // (모든 FC를 체크해도 '전체'로 바뀌지 않음 — '전체'는 앞으로 생길 FC까지 열림)
+        syncAll(); refresh();
+      }));
+      eds.forEach((e) => e.addEventListener("change", refresh));
+      row.querySelector("[data-name]").addEventListener("input", refresh);
+      syncAll();
+    });
+    refresh();
+    $("resetPerms").addEventListener("click", () => renderAdmin());
+    bindSettings();
+    bindSmsCard();
+    $("adminBody").querySelectorAll("[data-admin-name]").forEach((inp) => {
+      const em = inp.dataset.adminName, btn = $("adminBody").querySelector(`[data-admin-save="${CSS.escape(em)}"]`), base = inp.value.trim();
+      inp.addEventListener("input", () => { btn.disabled = inp.value.trim() === base; });
+      btn.addEventListener("click", async () => { // 관리자 본인 FC 이름: 권한 파일 names에 저장 (영업 화면 FC 선택 기본값·문자 {FC명}에 사용)
+        btn.disabled = true; btn.textContent = "저장 중…";
+        try {
+          const perms = await readPerms();
+          perms.names = perms.names || {};
+          if (inp.value.trim()) perms.names[em] = inp.value.trim(); else delete perms.names[em];
+          await writePerms(perms);
+          adminState.perms = perms;
+          toast("저장했습니다.");
+          renderAdmin();
+        } catch (e) { btn.disabled = false; handleError(e); }
+        btn.textContent = "저장";
+      });
+    });
+    $("adminBody").querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => deleteUser(b.dataset.del)));
+    $("adminBody").querySelectorAll("[data-share]").forEach((b) => b.addEventListener("click", () => shareFolders(b.dataset.share)));
+    collectPending = collectRows;
+    applyPending = applyRows;
+    $("savePerms").addEventListener("click", () => savePerms(changed().map((r) => [r.dataset.em, sel(r), nameVal(r)])));
+    rows.forEach((r) => { const rb = r.querySelector("[data-rowsave]"); if (rb) rb.addEventListener("click", () => savePerms([[r.dataset.em, sel(r), nameVal(r)]])); }); // 이 계정만 저장 (다른 계정은 그대로)
+
+    // 사용자 추가 시 저장 전 체크 상태 보존용
+    function collectRows() { return rows.map((r) => [r.dataset.em, sel(r), nameVal(r)]); }
+    function applyRows(pending) {
+      pending.forEach(([em, list, nm]) => {
+        const row = $("adminBody").querySelector(`.perm-row[data-em="${CSS.escape(em)}"]`);
+        if (!row) return;
+        const all = row.querySelector("input[data-all]");
+        all.checked = list.includes("*");
+        row.querySelectorAll("input[data-fc]").forEach((b) => (b.checked = all.checked || list.some((g) => grantFc(g) === b.dataset.fc)));
+        row.querySelector("[data-name]").value = nm || "";
+        // v96: '전체'가 꺼진 줄에서 all의 change를 보내면 방금 복원한 FC 체크를 모두 지워 버렸음(사용자 추가 시 다른 줄 체크가 풀리던 문제) → '전체'가 켜진 줄만 보냄
+        if (all.checked) all.dispatchEvent(new Event("change"));
+        else row.querySelectorAll("input[data-fc]").forEach((b) => b.dispatchEvent(new Event("change")));
+        row.querySelectorAll("input[data-edit]").forEach((e) => { if (!all.checked) e.checked = list.includes(e.dataset.edit); e.dispatchEvent(new Event("change")); });
+      });
+    }
+  }
+
+  // 등록된 아이디 삭제 (권한 파일에서 바로 제거)
+  async function deleteUser(em) {
+    const shared = GD && shareState(em) && shareState(em) !== "none";
+    if (!confirm(`${em} 계정을 삭제할까요?\n삭제하면 이 계정은 앱에서 고객을 검색할 수 없습니다.` +
+      (shared ? "\nGoogle Drive 폴더 공유도 함께 해제합니다." : ""))) return;
+    try {
+      const perms = await readPerms();
+      delete perms.users[em];
+      if (perms.names) delete perms.names[em];
+      extraUsers.delete(em);
+      await writePerms(perms);
+      adminState.perms = perms;
+      if (shared) await unshareFolders(em);
+      toast(`${em} 계정을 삭제했습니다.`);
+      renderAdmin();
+    } catch (e) {
+      handleError(e);
+    }
+  }
+
+  async function savePerms(changes) {
+    if (!changes.length) return;
+    if (changes.some(([, l]) => l.includes("*"))) return toast("전체(*)는 더 이상 지원하지 않습니다. FC를 하나씩 체크해 주세요.");
+    // Google Drive: FC를 체크한 계정은 폴더 공유, 체크를 모두 뺀 계정은 공유 해제 (변경 저장 한 번으로)
+    const auto = GD && adminState.shares;
+    const toShare = auto ? changes.filter(([em, list]) => list.length && !shareMatches(em, list)).map(([em]) => em) : [];
+    const toUnshare = auto ? changes.filter(([em, list]) => !list.length && shareState(em) !== "none").map(([em]) => em) : [];
+    const listOfChange = (em) => (changes.find((c) => c[0] === em) || [em, []])[1];
+    if (toShare.length || toUnshare.length) {
+      const msg = ["저장하면서 Google Drive 공유도 바꿉니다."];
+      if (toShare.length) msg.push("· 공유(체크한 FC 폴더만 편집·보기만, 설정 폴더 보기): " + toShare.map((em) => em + " [" + listOfChange(em).join(", ") + "]").join(" / "));
+      const ancMsg = [...toShare, ...toUnshare].flatMap((em) => ancShares(em).map((a) => em + " ← '" + a.folder + "' 폴더 공유(" + a.perm.role + ")"));
+      if (ancMsg.length) msg.push("· 상위 폴더에 직접 공유된 것도 함께 해제합니다(이 공유가 있으면 FC 제한이 Drive에서 안 걸림): " + ancMsg.join(", "));
+      if (toUnshare.length) msg.push("· 공유 해제: " + toUnshare.join(", "));
+      if (!confirm(msg.join("\n"))) return;
+    }
+    const btn = $("savePerms");
+    btn.disabled = true;
+    btn.textContent = "저장 중…";
+    try {
+      // 저장 직전에 최신 파일을 다시 읽고, 바뀐 아이디만 반영 (다른 설정 보존)
+      const perms = await readPerms();
+      perms.names = perms.names || {};
+      changes.forEach(([em, list, nm]) => {
+        if (list.length) { perms.users[em] = list; if (nm !== undefined) { if (nm) perms.names[em] = nm; else delete perms.names[em]; } }
+        else { delete perms.users[em]; delete perms.names[em]; extraUsers.delete(em); }
+      });
+      perms.fcFolders = adminState.fcIds || perms.fcFolders || {}; // 사용자 앱이 FC 폴더를 ID로 바로 열 수 있게
+      await writePerms(perms);
+      adminState.perms = perms;
+      const failed = [], tAll = { cust: false, app: false, fc: [], anc: [] };
+      for (const em of toShare) { try { const tt = await grantFolders(em, listOfChange(em)); tAll.cust = tAll.cust || tt.cust; tAll.app = tAll.app || tt.app; tAll.fc.push(...tt.fc); tAll.anc.push(...tt.anc); } catch (e) { console.error(e); failed.push(em); } }
+      for (const em of toUnshare) { try { await unshareFolders(em); } catch (e) { console.error(e); failed.push(em); } }
+      if (toShare.length || toUnshare.length) { // 실패가 있으면 상태를 확실히 알 수 없으니 전체를 다시 읽고, 모두 성공이면 바뀐 폴더만 갱신
+        if (failed.length) adminState.shares = await loadShares(); else await refreshSharesFor(tAll);
+      }
+      toast(failed.length ? `저장했습니다. 공유하지 못한 계정: ${failed.join(", ")} (구글 계정 이메일인지 확인)` : `저장했습니다 (${changes.length}개 계정${toShare.length ? ", 폴더 공유 " + toShare.length : ""}${toUnshare.length ? ", 공유 해제 " + toUnshare.length : ""}).`);
+      renderAdmin();
+    } catch (e) {
+      btn.disabled = false;
+      btn.textContent = "변경 저장";
+      handleError(e);
+    }
+  }
+
+  // ---------- 오류 처리 ----------
+  function handleError(e) {
+    console.error(e);
+    const m = String(e && e.message);
+    if (m === "NOT_SIGNED_IN") return show("loginView");
+    if (GD && m === "GOOGLE_AUTH") { showGLogin(); return toast("구글 연결 시간이 지났습니다. 다시 연결해 주세요."); }
+    if (GD && /Drive 403/.test(m) && /accessNotConfigured|has not been used|disabled/i.test(m)) return toast("Google Drive API가 켜져 있지 않습니다. 관리자에게 알려 주세요.");
+    if (m === "NO_SHARE") {
+      $("scopeHint").textContent = "아직 고객 폴더에 접근할 수 없습니다. 관리자에게 " + DRIVE_NAME + " '고객' 폴더 공유를 요청하세요.";
+      return toast("고객 폴더 공유가 필요합니다. 관리자에게 요청하세요.");
+    }
+    if (m.includes("404")) return toast(DRIVE_NAME + "에서 '" + CFG.baseFolder + "' 폴더를 찾을 수 없습니다.");
+    if (m.includes("403")) return toast("권한이 없습니다. 관리자에게 요청하세요.");
+    toast("오류: " + m.slice(0, 120));
+  }
+
+  // ---------- 시작 ----------
+  // Google Drive 모드: 구글 로그인 창(팝업) 하나로 Drive·캘린더 권한을 함께 받음 (토큰 1시간, 지나면 버튼 한 번)
+  function showGLogin() {
+    const em = gAccount();
+    $("loginBtn").textContent = em ? "Google 다시 연결 (" + em + ")" : "Google 계정으로 로그인";
+    const lead = document.querySelector("#loginView .lead");
+    if (lead) lead.innerHTML = "<b>신한FC M</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.";
+    const hint = document.querySelector("#loginView .hint");
+    if (hint) hint.textContent = "고객 정보는 Google Drive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.";
+    $("loginOtherBtn").hidden = false;
+    show("loginView");
+  }
+  // other = true: 구글 계정 선택 창을 띄워 다른 계정으로 로그인
+  async function googleLogin(other) {
+    try {
+      await requestGToken(other ? "select_account" : undefined, other);
+      const u = await gdFetch("https://www.googleapis.com/oauth2/v3/userinfo");
+      const em = String(u.email || "").toLowerCase();
+      if (!em) throw new Error("구글 계정 이메일을 읽지 못했습니다.");
+      const changed = gAccount() && gAccount() !== em;
+      try { localStorage.setItem(GACC_KEY, em); } catch (e) { /* 이번만 */ }
+      if (changed) { await photoCacheClear(); return location.reload(); } // 계정이 바뀌면 앱을 새로 시작 (이전 계정의 자료·설정 비우기)
+      startApp();
+    } catch (e) {
+      if (e.message !== "GOOGLE_AUTH") toast(e.message); else handleError(e);
+    }
+  }
+  $("loginBtn").addEventListener("click", () => (GD ? googleLogin() : msal.loginRedirect({ scopes: SCOPES })));
+  $("loginOtherBtn").addEventListener("click", () => (GD ? googleLogin(true) : msal.loginRedirect({ scopes: SCOPES, prompt: "select_account" })));
+  $("logoutBtn").addEventListener("click", async () => {
+    await photoCacheClear(); // 기기에 저장한 고객 사진 지우기
+    if (!GD) return msal.logoutRedirect();
+    const t = storedGToken() || gTokenMem;
+    clearGToken();
+    try { localStorage.removeItem(GACC_KEY); } catch (e) { /* 무시 */ }
+    salesClearState();
+    try { if (t && window.google && google.accounts.oauth2) google.accounts.oauth2.revoke(t, () => {}); } catch (e) { /* 무시 */ }
+    location.reload();
+  });
+  // 상단 검색창: 어느 화면에서든 검색 → 고객 검색 결과 화면으로
+  function runTopSearch(q) {
+    if (editMode && !$("customerView").hidden) { confirmLeaveEdit().then((ok) => { if (ok) runTopSearch(q); }); return; }
+    $("q").value = q;
+    $("q").blur();
+    $("recentList").hidden = true;
+    if (!q.trim()) return;
+    addRecent(q.trim());
+    if (!$("customerView").hidden) {
+      // 고객 화면에서 검색: 뒤로 가기(검색 화면)가 끝난 뒤에 검색해야 결과가 1명일 때 바로 열린 고객 화면이 덮이지 않음
+      window.addEventListener("popstate", () => { show("searchView"); search(q); }, { once: true });
+      history.back();
+      return;
+    }
+    if ($("searchView").hidden) show("searchView");
+    search(q);
+  }
+  $("topSearch").addEventListener("submit", (ev) => { ev.preventDefault(); runTopSearch($("q").value); });
+
+  // 최근 검색어: 검색창을 누르면 아래로 펼쳐짐 (이 휴대폰에만 저장)
+  const RECENT_KEY = "shlife.recentSearches";
+  const getRecent = () => { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch (e) { return []; } };
+  function addRecent(q) {
+    const list = [q, ...getRecent().filter((x) => x !== q)].slice(0, 10);
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch (e) { /* 저장 못 해도 검색은 계속 */ }
+  }
+  function showRecent() {
+    const list = getRecent();
+    const box = $("recentList");
+    if (!list.length) { box.hidden = true; return; }
+    box.innerHTML = `<li class="recent-head">최근 검색</li>` +
+      list.map((q) => `<li><button type="button" data-q="${esc(q)}">🕘 ${esc(q)}</button></li>`).join("");
+    box.hidden = false;
+  }
+  $("q").addEventListener("focus", showRecent);
+  $("q").addEventListener("blur", () => setTimeout(() => { $("recentList").hidden = true; }, 200));
+  // 버튼을 누르는 순간 입력창 blur가 먼저 일어나므로 pointerdown에서 처리
+  $("recentList").addEventListener("pointerdown", (ev) => {
+    const b = ev.target.closest("[data-q]");
+    if (b) { ev.preventDefault(); runTopSearch(b.dataset.q); }
+  });
+  $("backBtn").addEventListener("click", async () => { if (await confirmLeaveEdit()) history.back(); });
+  // 고객 사진을 누르면 크게 보기, 다시 누르면 닫기
+  $("avatar").addEventListener("click", () => {
+    if (!current) return;
+    if (editMode) {
+      if (!current.folders.length) return toast("이 고객의 폴더가 없어 사진을 저장할 수 없습니다.");
+      if (current.profilePhoto) { $("photoMenu").hidden = !$("photoMenu").hidden; return; }
+      return $("photoInput").click();
+    }
+    if (!current.photoUrl) return;
+    // 크게 보기: 원본이 있으면 원본, 없으면 작은 사진을 먼저 보여 주고 원본을 받아 바꿈
+    $("photoViewerImg").src = current.photoFullUrl || current.photoUrl;
+    $("photoViewer").hidden = false;
+    const c = current;
+    if (!c.photoFullUrl && c.profilePhoto) {
+      stGet(c.profilePhoto.id).then((buf) => {
+        c.photoFullUrl = URL.createObjectURL(new Blob([buf], { type: "image/jpeg" }));
+        if (c === current && !$("photoViewer").hidden) $("photoViewerImg").src = c.photoFullUrl;
+      }).catch((e) => console.error(e));
+    }
+  });
+  $("editBtn").addEventListener("click", () => { if (current) setEditMode(!editMode); });
+  $("photoPick").addEventListener("click", () => { $("photoMenu").hidden = true; $("photoInput").click(); });
+  $("photoMenuClose").addEventListener("click", () => { $("photoMenu").hidden = true; });
+  $("photoDel").addEventListener("click", async () => {
+    $("photoMenu").hidden = true;
+    if (!confirm("이 고객의 프로필 사진을 삭제할까요? (" + DRIVE_NAME + " 휴지통으로 이동)")) return;
+    try { await deleteProfilePhotos(); toast("사진을 삭제했습니다."); } catch (e) { saveError(e); }
+  });
+  $("photoInput").addEventListener("change", async () => {
+    const file = $("photoInput").files && $("photoInput").files[0];
+    $("photoInput").value = "";
+    if (!file) return;
+    try {
+      const cropped = await cropToCircle(file); // 원 안에 맞추기 (취소하면 null)
+      if (!cropped) return;
+      toast("사진 저장 중…");
+      await uploadProfilePhoto(cropped);
+      toast("사진을 저장했습니다.");
+    } catch (e) { saveError(e); }
+  });
+  $("photoViewer").addEventListener("click", () => { $("photoViewer").hidden = true; });
+  // PDF 열기 버튼 (계약 열기, 보장분석 등): 휴대폰 PDF 앱/브라우저로
+  $("tabBody").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-open]");
+    if (b) { ev.preventDefault(); openFileDirect(b.dataset.open); }
+  });
+  // (검색 범위 버튼은 없앰: 항상 전체 검색, 결과는 계약 > 이관 > 따행 > DB > 추가 순 표시)
+  // 고객 화면 안 검색창 (결과가 없을 때 보임) → 상단 검색과 같은 동작
+  $("pageSearch").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const q = $("q2").value.trim();
+    if (!q) return;
+    $("q2").blur();
+    runTopSearch(q);
+  });
+  // ---------- 구글 캘린더 (일정) ----------
+  const GCFG = CFG.google || {};
+  const GCAL = "https://www.googleapis.com/calendar/v3";
+  const GTOKEN_KEY = "shlife.gtoken";
+  // v2 = 캘린더(읽기·수정) / v3 = Google Drive 모드: Drive + 캘린더 + 이메일
+  const GTOKEN_V = GD ? 3 : 2;
+  const GSCOPE = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events" +
+    (GD ? " https://www.googleapis.com/auth/drive openid email" : "");
+  function storedGToken() {
+    try {
+      const t = JSON.parse(localStorage.getItem(GTOKEN_KEY) || "null");
+      return t && t.exp > Date.now() + 60000 && t.v === GTOKEN_V ? t.token : null;
+    } catch (e) { return null; }
+  }
+  function clearGToken() {
+    try { localStorage.removeItem(GTOKEN_KEY); } catch (e) { /* 무시 */ }
+    gTokenMem = null;
+  }
+  // 구글 로그인 창(팝업) → 캘린더 읽기 권한 토큰 (1시간 유효, 버튼을 눌렀을 때만 호출)
+  function requestGToken(prompt, noHint) {
+    return new Promise((resolve, reject) => {
+      const g = window.google && window.google.accounts && window.google.accounts.oauth2;
+      if (!g) return reject(new Error("구글 로그인 모듈을 불러오지 못했습니다. 잠시 후 다시 시도하세요."));
+      const client = g.initTokenClient({
+        client_id: GCFG.clientId,
+        scope: GSCOPE,
+        hint: noHint ? undefined : (GD ? gAccount() : appSettings.google && appSettings.google.account) || undefined,
+        callback: (r) => {
+          if (r.error) return reject(new Error("구글 연결 실패: " + r.error));
+          if (GD && !google.accounts.oauth2.hasGrantedAllScopes(r, "https://www.googleapis.com/auth/drive")) return reject(new Error("Google Drive 권한을 허용해야 합니다. 다시 로그인하면서 모든 항목에 체크해 주세요."));
+          try { localStorage.setItem(GTOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, v: GTOKEN_V })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ }
+          gTokenMem = r.access_token;
+          resolve(r.access_token);
+        },
+        error_callback: (e) => reject(new Error(e && e.type === "popup_closed" ? "구글 로그인 창이 닫혔습니다." : "구글 로그인 창을 열 수 없습니다. 팝업 차단을 확인하세요."))
+      });
+      client.requestAccessToken({ prompt: prompt == null ? "" : prompt });
+    });
+  }
+  let gTokenMem = null;
+  async function gcal(path) {
+    const t = storedGToken() || gTokenMem;
+    if (!t) throw new Error("GOOGLE_AUTH");
+    const res = await fetch(GCAL + path, { headers: { Authorization: "Bearer " + t } });
+    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
+    return res.json();
+  }
+  // 일정 수정 (장소 입력, 일정 수정 모드)
+  // 다른 캘린더로 옮기기 (원래 캘린더에서 이 일정을 만든 경우에만 가능)
+  async function gcalMove(calId, eventId, destId) {
+    const t = storedGToken() || gTokenMem;
+    if (!t) throw new Error("GOOGLE_AUTH");
+    const res = await fetch(GCAL + "/calendars/" + encodeURIComponent(calId) + "/events/" + encodeURIComponent(eventId) + "/move?destination=" + encodeURIComponent(destId), {
+      method: "POST", headers: { Authorization: "Bearer " + t }
+    });
+    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 403) throw new Error("이 일정은 다른 캘린더로 옮길 권한이 없습니다.");
+    if (!res.ok) throw new Error("캘린더 변경 실패 (" + res.status + "): " + (await res.text()).slice(0, 120));
+    return res.json();
+  }
+  let schedCals = []; // 지금 일정 화면에 보이는 캘린더 (일정 수정의 캘린더 선택용)
+  async function gcalPatch(calId, eventId, body) {
+    const t = storedGToken() || gTokenMem;
+    if (!t) throw new Error("GOOGLE_AUTH");
+    const res = await fetch(GCAL + "/calendars/" + encodeURIComponent(calId) + "/events/" + encodeURIComponent(eventId), {
+      method: "PATCH", headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" }, body: JSON.stringify(body)
+    });
+    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 403) throw new Error("이 캘린더의 일정을 수정할 권한이 없습니다.");
+    if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
+    return res.json();
+  }
+  const calAlias = (id, name) => ((GCFG.calendarNames || {})[id] || name);
+  const calName = (c) => calAlias(c.id, String(c.summaryOverride || c.summary || "").trim());
+  async function calendarList() {
+    return ((await gcal("/users/me/calendarList?minAccessRole=reader&maxResults=250")).items || [])
+      .map((c) => ({ id: c.id, name: calName(c), color: c.backgroundColor, primary: !!c.primary }));
+  }
+  // 일정에 보일 캘린더
+  //   관리자: 관리자 설정에서 고른 캘린더 (모든 사용자의 기본값)
+  //   일반 사용자: 설정 메뉴에서 고른 '내 캘린더'. 고른 적 없으면 기본 이름(관리자 설정 이름 + config: 1팀, 김현성, 최수진)과 같은 내 캘린더
+  //   (일반 사용자의 기본값은 관리자 설정 파일이 아니라 config의 공용 기본 이름만 사용 — 관리자 개인 캘린더 선택이 다른 사용자에게 번지지 않게)
+  const defaultCalNames = () => (isAdmin() ? [...new Set([...((appSettings.google || {}).calendars || []).map((c) => c.name), ...(GCFG.calendars || [])])] : [...(GCFG.calendars || [])]);
+  async function scheduleCalendars() {
+    if (!isAdmin()) {
+      const p = await loadMyPrefs();
+      if (p && Array.isArray(p.calendars) && p.calendars.length) return p.calendars;
+      const want = defaultCalNames();
+      return (await calendarList()).filter((c) => want.includes(c.name));
+    }
+    const saved = ((appSettings.google || {}).calendars || []).filter((c) => c && c.id);
+    if (saved.length) return saved;
+    const want = GCFG.calendars || [];
+    return (await calendarList()).filter((c) => want.includes(c.name));
+  }
+
+  // ---------- 내 설정 (일반 사용자): 내 드라이브 Claude/app/신한FC/설정/shlife-내설정.json (+ 이 기기 사본) ----------
+  const MY_FILE = "shlife-내설정.json";
+  let myPrefs = null, myDir = null;
+  const myCacheKey = () => "shlife.myprefs." + me();
+  async function resolveMyDir(create) {
+    if (myDir) return myDir;
+    await resolveBase();
+    if (base.owner || !GD) { await resolveAppDir(); return (myDir = appDir); }
+    let id = "root";
+    for (const part of CFG.appFolder.split("/").filter(Boolean)) {
+      const r = await gdQuery("'" + qv(id) + "' in parents and name='" + qv(part) + "' and mimeType='" + GD_FOLDER + "' and trashed=false");
+      if (r.length) { id = r[0].id; continue; }
+      if (!create) return null;
+      id = (await gdFetch(GDAPI + "/files?fields=id", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: part, mimeType: GD_FOLDER, parents: [id] }) })).id;
+    }
+    return (myDir = { id });
+  }
+  async function loadMyPrefs() {
+    if (myPrefs) return myPrefs;
+    try { myPrefs = JSON.parse(localStorage.getItem(myCacheKey()) || "null"); } catch (e) { myPrefs = null; }
+    try {
+      const d = await resolveMyDir(false);
+      const p = d ? await stReadJsonIn(d, MY_FILE) : null;
+      if (p) { myPrefs = p; try { localStorage.setItem(myCacheKey(), JSON.stringify(p)); } catch (e) { /* 무시 */ } }
+    } catch (e) { console.error(e); }
+    return myPrefs || {};
+  }
+  async function saveMyPrefs(p) {
+    myPrefs = p;
+    try { localStorage.setItem(myCacheKey(), JSON.stringify(p)); } catch (e) { /* 무시 */ }
+    const d = await resolveMyDir(true);
+    if (d && d.id) await stWriteJsonIn(d, MY_FILE, p);
+  }
+  const withAlias = (c) => ({ ...c, name: calAlias(c.id, c.name) });
+  async function fetchEvents(from, to) {
+    const cals = await scheduleCalendars();
+    if (!cals.length) throw new Error("NO_CALENDAR");
+    const q = `?singleEvents=true&orderBy=startTime&maxResults=250&timeMin=${encodeURIComponent(from.toISOString())}&timeMax=${encodeURIComponent(to.toISOString())}`;
+    schedCals = cals.map(withAlias);
+    const sp = salesArr(isAdmin() ? (appSettings.google || {}).sales : (myPrefs || {}).sales).map((c) => c.id).filter((id) => schedCals.some((c) => c.id === id));
+    schedSalesIds = new Set(sp.length ? sp : defaultSalesIds(schedCals));
+    const ipRaw = isAdmin() ? (appSettings.google || {}).info : (myPrefs || {}).info;
+    const ip = salesArr(ipRaw).map((c) => c.id).filter((id) => schedCals.some((c) => c.id === id));
+    schedInfoIds = new Set(Array.isArray(ipRaw) ? ip : [...schedSalesIds]); // 정보를 고른 적 없으면 = 일정 캘린더
+    const lists = await Promise.all(schedCals.map(async (c) => {
+      // 볼 권한이 없는 캘린더(다른 사람 캘린더 등)는 건너뜀
+      let d;
+      try { d = await gcal("/calendars/" + encodeURIComponent(c.id) + "/events" + q); } catch (e) {
+        if (e.message === "GOOGLE_AUTH") throw e;
+        console.warn("calendar skipped", c.name, e.message);
+        return [];
+      }
+      return (d.items || []).filter((e) => e.status !== "cancelled").map((e) => ({
+        id: c.id + "|" + e.id, cal: c, calId: c.id, eventId: e.id,
+        title: String(e.summary || "(제목 없음)").trim(),
+        desc: String(e.description || ""),
+        location: String(e.location || "").trim(),
+        pick: String(((e.extendedProperties || {}).private || {}).shlifeCust || ""), // 동명이인 선택(모든 기기 공유)
+        allDay: !!e.start.date,
+        start: e.start.dateTime ? new Date(e.start.dateTime) : ymdToDate(e.start.date),
+        end: e.end.dateTime ? new Date(e.end.dateTime) : ymdToDate(e.end.date)
+      }));
+    }));
+    return lists.flat().sort((a, b) => (b.allDay - a.allDay) || (a.start - b.start) || a.cal.name.localeCompare(b.cal.name, "ko"));
+  }
+
+  // ---------- 날짜 도우미 ----------
+  const ymdToDate = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const hm = (d) => String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+  const WD = ["일", "월", "화", "수", "목", "금", "토"];
+  const dayLabel = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})`;
+  const weekStart = (d) => addDays(dayStart(d), -((d.getDay() + 6) % 7)); // 월요일 시작
+  const timeText = (e) => (e.allDay ? "종일" : `${hm(e.start)} ~ ${hm(e.end)}`);
+  const onDay = (e, d) => e.start < addDays(dayStart(d), 1) && e.end > dayStart(d) || (e.allDay && sameDay(e.start, d));
+
+  // ---------- 일정 제목 → 고객 찾기 ----------
+  // 지역이 없으면 광주(광주광역시/전남광주통합특별시의 구)로 판단
+  const COUNTIES = ["담양", "곡성", "구례", "고흥", "보성", "화순", "장흥", "강진", "해남", "영암", "무안", "함평", "영광", "장성", "완도", "진도", "신안"];
+  const CITIES = ["목포", "여수", "순천", "나주", "광양", ...COUNTIES, "서울", "부산", "대구", "인천", "대전", "울산", "세종", "전주", "익산", "군산", "정읍", "남원", "김제", "제주"];
+  // 제목의 지역: 괄호 안 지역 "(광양)" → 그 외 알려진 시·군 이름 → 없으면 광주
+  const titleRegion = (t) => { const p = (t.match(/\(([가-힣]{2,4})\)/) || [])[1]; return (p && !/^\d|차$/.test(p) && p !== "광주" ? p.replace(/(시|군)$/, "") : "") || CITIES.find((c) => t.includes(c)) || ""; };
+  const custRegionCity = (region) => { const m = String(region || "").match(/(\S+)$/); return region === "광주" || !region ? "" : (m ? m[1] : ""); };
+  const entryAddr = (e) => { const a = e.fields.find(([k]) => k.trim() === "주소"); return a ? a[1] : ""; };
+
+  // 일정 제목에 들어 있는 고객 이름 → 고객 (같은 이름이 여러 명이면 모두, 최근 등록 순)
+  function matchCustomers(title, records, contracts) {
+    const nt = norm(title);
+    const fcs = new Set(records.map((r) => norm(r.fc)).filter(Boolean));
+    const names = [...new Set(records.map((r) => baseName(r.name)))].filter((n) => norm(n).length >= 2 && nt.includes(norm(n)));
+    if (!names.length) return [];
+    // FC 이름이 아닌 것, 긴 이름 우선
+    names.sort((a, b) => (fcs.has(norm(a)) - fcs.has(norm(b))) || norm(b).length - norm(a).length);
+    const name = names[0];
+    const city = titleRegion(title);
+    const fcHead = (title.match(/^\s*([^\s)]{1,3})\)/) || [])[1] || ""; // "최) …" → 최수진 FC 고객 우선
+    const recs = records.filter((r) => norm(baseName(r.name)) === norm(name)); // "이영숙(640927)"도 포함
+    const score = (r) => {
+      const fcMiss = fcHead && r.fc && !String(r.fc).startsWith(fcHead) ? 4 : 0;
+      const a = entryAddr(r);
+      if (!a) return 1 + fcMiss;
+      return (custRegionCity(regionFromAddress(a)) === city ? 0 : 2) + fcMiss;
+    };
+    // 같은 사람 묶기: 고객ID가 같으면 한 사람, ID가 없는 옛 행은 이름+생년월일
+    const list = groupCustomers(recs);
+    list.forEach((g) => {
+      g.entries.sort((a, b) => prio(a.type) - prio(b.type) || score(a) - score(b));
+      g.name = g.entries[0].name;
+      g.city = city;
+      g.recent = recencyOf(g, contracts);
+    });
+    // 표시 순서: 시트 우선순위(계약 > 이관 > 따행 > DB > 추가), 같으면 최근 등록 순 → 지역
+    const top = (g) => Math.min(...g.entries.map((e) => prio(e.type)));
+    const sc = (g) => Math.min(...g.entries.map(score));
+    return list.sort((a, b) => top(a) - top(b) || (b.recent || "").localeCompare(a.recent || "") || sc(a) - sc(b));
+  }
+  // 날짜 글자 → 비교용 YYYYMMDD ("2026.05", "2026-08-31", "2005.01.01")
+  const dateKey = (v) => {
+    const d = String(v || "").replace(/\D/g, "");
+    if (/^(19|20)\d{6}/.test(d)) return d.slice(0, 8);
+    if (/^(19|20)\d{4}$/.test(d)) return d + "00";
+    return "";
+  };
+  const RECENT_COLS = ["최초계약일", "계약일", "이관일자", "이관일", "이관월", "최근 보장분석"];
+  function recencyOf(g, contracts) {
+    let best = "";
+    const take = (v) => { const k = dateKey(v); if (k > best) best = k; };
+    g.entries.forEach((e) => e.fields.forEach(([k, v]) => { if (RECENT_COLS.includes(k.trim())) take(v); }));
+    const fcs = g.entries.map((e) => e.fc).filter(Boolean);
+    (contracts || []).forEach((c) => {
+      if (!c.names.includes(norm(g.name))) return;
+      if (fcs.length && !fcs.includes(c.fc) && !fcs.includes(c.srcFc)) return;
+      RECENT_COLS.forEach((k) => take(c.row[k]));
+    });
+    return best;
+  }
+
+  // ---------- 카카오: 주소 → 좌표, 길찾기 ----------
+  // 카카오 REST API 키는 공개 저장소(config.js)가 아니라 OneDrive 설정 파일(관리자 › 설정)에 보관
+  const KAKAO = { get restKey() { return appSettings.kakaoRestKey || ""; } };
+  const kakaoH = () => ({ Authorization: "KakaoAK " + KAKAO.restKey });
+  const GEO_KEY = "shlife.geo";
+  let geoCache = {};
+  try { geoCache = JSON.parse(localStorage.getItem(GEO_KEY) || "{}"); } catch (e) { geoCache = {}; }
+  async function geocode(q) {
+    q = String(q || "").trim();
+    if (!q || !KAKAO.restKey) return null;
+    if (geoCache[q] !== undefined) return geoCache[q];
+    let hit = null;
+    try {
+      const a = await (await fetch("https://dapi.kakao.com/v2/local/search/address.json?query=" + encodeURIComponent(q), { headers: kakaoH() })).json();
+      const d = (a.documents || [])[0];
+      if (d) hit = { x: +d.x, y: +d.y };
+      if (!hit) {
+        const k = await (await fetch("https://dapi.kakao.com/v2/local/search/keyword.json?query=" + encodeURIComponent(q), { headers: kakaoH() })).json();
+        const p = (k.documents || [])[0];
+        if (p) hit = { x: +p.x, y: +p.y };
+      }
+    } catch (e) { return null; }
+    geoCache[q] = hit;
+    try { localStorage.setItem(GEO_KEY, JSON.stringify(geoCache)); } catch (e) {}
+    return hit;
+  }
+  const cityHall = (city) => (!city ? "광주광역시청" : COUNTIES.includes(city) ? city + "군청" : ["서울", "부산", "대구", "인천", "대전", "울산", "세종"].includes(city) ? city + "시청" : city + "시청");
+  async function route(a, b) {
+    if (!a || !b) return null;
+    if (Math.abs(a.x - b.x) < 1e-5 && Math.abs(a.y - b.y) < 1e-5) return { km: 0, min: 0 };
+    try {
+      const r = await (await fetch(`https://apis-navi.kakaomobility.com/v1/directions?origin=${a.x},${a.y}&destination=${b.x},${b.y}`, { headers: kakaoH() })).json();
+      const s = r.routes && r.routes[0] && r.routes[0].summary;
+      return s ? { km: s.distance / 1000, min: Math.round(s.duration / 60) } : null;
+    } catch (e) { return null; }
+  }
+
+  // ---------- 일정 화면 ----------
+  let schedMode = "day";
+  let schedDate = dayStart(new Date());
+  let schedReq = 0;
+  const schedCustCache = new Map(); // 일정 id → { cust, extra }
+
+  function scheduleShell() {
+    return `<div class="sched-modes">${[["day", "Today"], ["week", "Week"], ["month", "Month"]].map(([m, l]) =>
+      `<button type="button" data-sm="${m}" class="${schedMode === m ? "on" : ""}">${l}</button>`).join("")}</div>
+      <div class="sched-nav"><button type="button" id="schedPrev" aria-label="이전">‹</button>
+        <button type="button" id="schedLabel" class="sched-label"></button>
+        <button type="button" id="schedNext" aria-label="다음">›</button></div>
+      <div id="schedBody"></div>`;
+  }
+
+  async function openSchedule() {
+    show("scheduleView");
+    const v = $("scheduleView");
+    if (!v.dataset.ready) {
+      v.innerHTML = scheduleShell();
+      v.dataset.ready = "1";
+      v.querySelectorAll("[data-sm]").forEach((b) => b.addEventListener("click", () => {
+        schedMode = b.dataset.sm;
+        if (schedMode === "day") schedDate = dayStart(new Date()); // Today 버튼: 오늘로
+        v.querySelectorAll("[data-sm]").forEach((x) => x.classList.toggle("on", x === b));
+        renderSchedule();
+      }));
+      $("schedPrev").addEventListener("click", () => moveSched(-1));
+      $("schedNext").addEventListener("click", () => moveSched(1));
+      $("schedLabel").addEventListener("click", () => { schedDate = dayStart(new Date()); renderSchedule(); });
+    }
+    v.querySelectorAll("[data-sm]").forEach((x) => x.classList.toggle("on", x.dataset.sm === schedMode));
+    renderSchedule();
+  }
+  function moveSched(n) {
+    if (schedMode === "day") schedDate = addDays(schedDate, n);
+    else if (schedMode === "week") schedDate = addDays(schedDate, 7 * n);
+    else schedDate = new Date(schedDate.getFullYear(), schedDate.getMonth() + n, 1);
+    renderSchedule();
+  }
+  function setMode(m, d) {
+    schedMode = m; schedDate = dayStart(d);
+    $("scheduleView").querySelectorAll("[data-sm]").forEach((x) => x.classList.toggle("on", x.dataset.sm === m));
+    renderSchedule();
+  }
+
+  function needGoogle(msg) {
+    $("schedBody").innerHTML = `<div class="card center"><p class="lead">구글 캘린더 연결</p>
+      <p class="hint">${esc(msg || "일정을 보려면 구글 계정으로 한 번 로그인해 주세요.")}${isAdmin() && appSettings.google && appSettings.google.account ? "<br>연결 계정: " + esc(appSettings.google.account) : ""}</p>
+      <button type="button" class="primary" id="gConnect">구글 계정 연결</button></div>`;
+    $("gConnect").addEventListener("click", async () => {
+      try { await requestGToken(); renderSchedule(); } catch (e) { toast(e.message); }
+    });
+  }
+
+  async function renderSchedule() {
+    const req = ++schedReq;
+    const body = $("schedBody");
+    let from, to, label;
+    if (schedMode === "day") {
+      from = schedDate; to = addDays(from, 1);
+      label = (sameDay(from, new Date()) ? "오늘 · " : "") + dayLabel(from);
+    } else if (schedMode === "week") {
+      from = weekStart(schedDate); to = addDays(from, 7);
+      const e = addDays(to, -1);
+      label = `${from.getMonth() + 1}/${from.getDate()} ~ ${e.getMonth() + 1}/${e.getDate()}`;
+    } else {
+      from = new Date(schedDate.getFullYear(), schedDate.getMonth(), 1);
+      to = new Date(schedDate.getFullYear(), schedDate.getMonth() + 1, 1);
+      label = `${from.getFullYear()}년 ${from.getMonth() + 1}월`;
+    }
+    $("schedLabel").textContent = label;
+    if (!GCFG.clientId) { body.innerHTML = '<p class="hint pad">config.js에 구글 clientId가 없습니다.</p>'; return; }
+    if (!storedGToken() && !gTokenMem) return needGoogle();
+    body.innerHTML = '<p class="hint pad">일정을 불러오는 중…</p>';
+    let events;
+    try {
+      // 월 보기: 앞뒤 주까지 포함해서 달력 칸을 채움
+      const f = schedMode === "month" ? weekStart(from) : from;
+      const t = schedMode === "month" ? addDays(weekStart(addDays(to, -1)), 7) : to;
+      events = await fetchEvents(f, t);
+      if (schedMode === "month") { from = f; to = t; }
+    } catch (e) {
+      if (req !== schedReq) return;
+      if (e.message === "GOOGLE_AUTH") return needGoogle("구글 연결 시간이 지났습니다. 다시 연결해 주세요.");
+      if (e.message === "NO_CALENDAR") { body.innerHTML = '<p class="hint pad">보여줄 캘린더가 없습니다. 관리자 › 설정에서 캘린더를 선택해 주세요.</p>'; return; }
+      body.innerHTML = ""; return handleError(e);
+    }
+    if (req !== schedReq) return;
+    if (schedMode === "day") return renderDay(events, req);
+    if (schedMode === "week") return renderWeek(events, from);
+    return renderMonth(events, from, to);
+  }
+
+  const calDot = (e) => `<span class="cal-dot" style="background:${esc(e.cal.color || "var(--brand)")}"></span>`;
+  // "10:00 ~ 11:00 스케줄명 - 캘린더" 한 줄
+  const evLine = (e) => `<span class="ev-time">${esc(timeText(e))}</span><span class="ev-sep">|</span><span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}</span>`;
+
+  function renderWeek(events, from) {
+    let html = "";
+    for (let i = 0; i < 7; i++) {
+      const d = addDays(from, i);
+      const evs = events.filter((e) => onDay(e, d));
+      html += `<div class="card week-day${sameDay(d, new Date()) ? " today" : ""}"><button type="button" class="wd-head" data-day="${+d}">${esc(dayLabel(d))}<span class="hint">${evs.length ? evs.length + "건" : ""}</span><span class="chev">›</span></button>
+        ${evs.map((e) => `<div class="ev-row">${calDot(e)}${evLine(e)}</div>`).join("") || '<p class="hint">일정 없음</p>'}</div>`;
+    }
+    $("schedBody").innerHTML = html;
+    $("schedBody").querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => setMode("day", new Date(+b.dataset.day))));
+  }
+
+  function renderMonth(events, from, to) {
+    const month = schedDate.getMonth();
+    let cells = "";
+    for (let d = from; d < to; d = addDays(d, 1)) {
+      const evs = events.filter((e) => onDay(e, d));
+      cells += `<button type="button" class="m-cell${d.getMonth() !== month ? " other" : ""}${sameDay(d, new Date()) ? " today" : ""}" data-day="${+d}">
+        <span class="m-num">${d.getDate()}</span>
+        ${evs.slice(0, 3).map((e) => `<span class="m-ev" style="border-color:${esc(e.cal.color || "var(--brand)")}">${esc(e.title)}</span>`).join("")}
+        ${evs.length > 3 ? `<span class="m-more">+${evs.length - 3}</span>` : ""}</button>`;
+    }
+    $("schedBody").innerHTML = `<div class="card month"><div class="m-grid">${WD.slice(1).concat(WD[0]).map((w) => `<span class="m-wd">${w}</span>`).join("")}${cells}</div></div>`;
+    $("schedBody").querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => setMode("day", new Date(+b.dataset.day))));
+  }
+
+  // 고객 정보·이동 시간은 팀 캘린더(1팀) 일정만. 개인 일정(김현성·최수진)은 일정 내용만
+  // 영업일정 캘린더 일정만 고객 매칭·거리·시간 (설정에서 지정, 없으면 1팀과 같은 이름)
+  let schedSalesIds = new Set(), schedInfoIds = new Set();
+  const isTeamEvent = (e) => !e.allDay && schedSalesIds.has(e.cal.id);                              // 거리·예상 시간
+  const isInfoEvent = (e) => !e.allDay && (schedInfoIds.has(e.cal.id) || schedSalesIds.has(e.cal.id)); // 고객 정보
+
+  // 동명이인 확인: 일정에 주소를 입력한 고객으로 지정 (이 기기에 저장, '초기화'로 지움)
+  const PICK_KEY = "shlife.eventPick";
+  const custKey = (c) => norm(baseName(c.name)) + "|" + String(c.birth || "").replace(/\D/g, "");
+  function readPicks() { try { return JSON.parse(localStorage.getItem(PICK_KEY) || "{}"); } catch (e) { return {}; } }
+  function savePick(eventKey, ck) {
+    const p = readPicks();
+    if (ck) p[eventKey] = ck; else delete p[eventKey];
+    try { localStorage.setItem(PICK_KEY, JSON.stringify(p)); } catch (e) { /* 저장 못 해도 이번 화면엔 반영 */ }
+  }
+
+  // 구글 일정 수정 전: 수정 권한이 있는 토큰이 없으면 (버튼을 누른 그 순간에) 로그인 창
+  async function ensureGWrite() {
+    if (storedGToken() || gTokenMem) return;
+    await requestGToken();
+  }
+
+  async function renderDay(events, req) {
+    const d = schedDate;
+    const evs = events.filter((e) => onDay(e, d));
+    const body = $("schedBody");
+    if (!evs.length) { body.innerHTML = '<div class="card center"><p class="hint">일정이 없습니다.</p></div>'; return; }
+    body.innerHTML = '<div class="day-tools"><button type="button" class="link-btn" id="pickReset">초기화</button></div><div id="dayList"></div>';
+    // 초기화: 동명이인 지정을 지우고, 고객 주소·미팅장소로 '입력'해 둔 일정 장소도 지움
+    let dayItems = [];
+    $("pickReset").addEventListener("click", async () => {
+      const filled = dayItems.filter((it) => it.e.location && it.all.some((c) =>
+        [currentValue(c, ["주소"]), meetingOf(c)].map((v) => String(v || "").trim()).filter(Boolean).includes(it.e.location.trim())));
+      const pinned = dayItems.filter((it) => it.e.pick);
+      const msg = "동명이인 확인 내용을 지우고, 찾은 고객을 모두 다시 보여줄까요?" +
+        (filled.length ? `\n고객 정보로 입력한 일정 장소 ${filled.length}건도 지웁니다.` : "");
+      if (!confirm(msg)) return;
+      try { localStorage.removeItem(PICK_KEY); } catch (e) {}
+      if (pinned.length) {
+        try {
+          await ensureGWrite();
+          for (const it of pinned) await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: "" } } }).catch(() => {});
+        } catch (e) { /* 연결이 끊겼으면 이 기기 기록만 지움 */ }
+      }
+      if (filled.length) {
+        try {
+          await ensureGWrite();
+          for (const it of filled) await gcalPatch(it.e.calId, it.e.eventId, { location: "" });
+          toast(`일정 장소 ${filled.length}건을 지웠습니다.`);
+        } catch (e) { toast(e.message === "GOOGLE_AUTH" ? "구글 연결이 끊겼습니다. 다시 눌러 주세요." : e.message); }
+      }
+      renderSchedule();
+    });
+    // 고객 찾기 (고객 리스트 엑셀 + 계약일로 최근 등록 순)
+    let records = [], contracts = [];
+    if (evs.some(isInfoEvent)) {
+      try { [records, contracts] = await Promise.all([loadLists(), loadContracts().catch(() => [])]); } catch (e) { handleError(e); }
+    }
+    if (req !== schedReq) return;
+    const picks = readPicks();
+    const items = evs.map((e) => {
+      const all = isInfoEvent(e) ? matchCustomers(e.title, records, contracts) : [];
+      let custs = all;
+      const pk = picks[e.id] || e.pick;
+      const ignored = pk === IGNORE_KEY && all.length > 0;
+      if (ignored) custs = [];
+      else if (pk && custs.length > 1) { const one = custs.filter((c) => custKey(c) === pk); if (one.length) custs = one; }
+      return { e, custs, all, ignored };
+    });
+    dayItems = items;
+    items.forEach((it) => { it.cust = it.custs[0] || null; });
+    const list = $("dayList");
+    list.innerHTML = items.map((it, i) => `<div class="travel" id="tr${i}" hidden></div>${dayCardHtml(it, i)}`).join("") +
+      `<div class="travel" id="tr${items.length}" hidden></div>`;
+    items.forEach((it, i) => bindDayCard(it, i, req));
+    // 추가정보(미팅장소, 상담기록)
+    await Promise.all(items.map(async (it, i) => {
+      await Promise.all(it.custs.map(async (c, j) => {
+        const fc = (c.entries.find((e) => e.fc) || {}).fc || "";
+        try { c.extra = await loadExtraFor(fc, c.name, c); } catch (e) { c.extra = null; }
+        if (req !== schedReq) return;
+        fillCust(it, c, i, j);
+      }));
+      it.extra = it.cust && it.cust.extra;
+    }));
+    if (req !== schedReq) return;
+    renderTravel(items, req);
+  }
+
+  const putBtn = (i, j, kind) => `<button type="button" class="put-btn" data-put="${i}-${j}-${kind}" aria-label="일정 장소에 입력">입력</button>`;
+  // multi: 동명이인 여러 명 → '선택' / pinned: 동명이인 중 한 명으로 묶인 상태 → '다시 선택'(되돌리기)
+  function custBlockHtml(c, i, j, multi, pinned) {
+    const phone = (c.entries.find((x) => x.phone) || {}).phone || "";
+    const addr = currentValue(c, ["주소"]);
+    const types = [...new Set(c.entries.map((x) => x.type))];
+    const g = genderOf(c);
+    return `<div class="ev-cust">
+        <button type="button" class="ev-name" data-open="${i}-${j}"><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>
+          ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button>
+        ${multi ? `<button type="button" class="pick-btn" data-pick="${i}-${j}">선택</button>` : ""}
+        ${pinned ? `<button type="button" class="pick-btn" data-unpick="${i}">다시 선택</button>` : ""}
+        <dl class="ev-info">
+          ${c.birth ? `<dt>생년월일</dt><dd>${esc(c.birth)}${g ? ` (${esc(g)})` : ""}</dd>` : ""}
+          ${phone ? `<dt>연락처</dt><dd><a class="nowrap" href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${esc(phone)}</a></dd>` : ""}
+          ${addr ? `<dt>주소</dt><dd class="put-row"><span>${esc(addr)}</span>${putBtn(i, j, "addr")}</dd>` : ""}
+          <dt id="mpl${i}-${j}" hidden>미팅장소</dt><dd id="mp${i}-${j}" class="put-row" hidden></dd>
+        </dl>
+        <div id="cs${i}-${j}"></div></div>`;
+  }
+  function dayCardHtml(it, i) {
+    const e = it.e;
+    return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head">${evLine(e)}</div>
+        <button type="button" class="ev-edit" data-evedit="${i}">수정</button>
+        <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
+      <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}>📍 ${esc(e.location)}</p>
+      <div id="evForm${i}"></div>
+      ${it.all.length ? (it.ignored
+        ? `<div class="ev-tools ev-ignored"><span class="hint">검색된 고객 ${it.all.length}명을 숨겼어요</span><button type="button" class="pick-btn" data-unignore="${i}">되돌리기</button></div>`
+        : `<div class="ev-tools"><button type="button" class="pick-btn ign" data-ignore="${i}">무시</button></div>`) : ""}
+      ${it.custs.map((c, j) => custBlockHtml(c, i, j, it.custs.length > 1, it.custs.length === 1 && it.all.length > 1)).join("")}</div>`;
+  }
+  function bindDayCard(it, i, req) {
+    it.custs.forEach((c, j) => {
+      const b = document.querySelector(`[data-open="${i}-${j}"]`);
+      if (b) b.addEventListener("click", () => openCustomer(c));
+    });
+    const card = $("ev" + i);
+    card.addEventListener("click", (ev) => {
+      const put = ev.target.closest("[data-put]");
+      if (put) { const [, j, kind] = put.dataset.put.split("-"); putLocation(it, i, +j, kind, put); }
+      const pk = ev.target.closest("[data-pick]");
+      if (pk) pickCustomer(it, it.custs[+pk.dataset.pick.split("-")[1]], pk);
+      const up = ev.target.closest("[data-unpick]");
+      if (up) unpickCustomer(it, up);
+      const ig = ev.target.closest("[data-ignore]");
+      if (ig) setIgnore(it, true, ig);
+      const ui = ev.target.closest("[data-unignore]");
+      if (ui) setIgnore(it, false, ui);
+    });
+    card.querySelector("[data-evedit]").addEventListener("click", () => toggleEventForm(it, i));
+  }
+  function fillCust(it, c, i, j) {
+    const x = c.extra || {};
+    const mp = meetingOf(c, x);
+    if (mp) {
+      const dd = $(`mp${i}-${j}`);
+      dd.innerHTML = `<span>${esc(mp)}</span>${putBtn(i, j, "mp")}`;
+      dd.hidden = false; $(`mpl${i}-${j}`).hidden = false;
+    }
+    const cs = (x.consults || []).slice(0, 10);
+    const box = $(`cs${i}-${j}`);
+    if (box && cs.length) {
+      box.innerHTML = `<details class="ev-consult"><summary>최근 상담 ${cs.length}건</summary>
+        ${cs.map((r) => `<div class="consult-item"><div class="hint">${esc(r.date)}</div><div>${esc(r.text).replace(/\n/g, "<br>")}</div></div>`).join("")}</details>`;
+    }
+  }
+
+  // 동명이인 '선택': 이 일정을 그 고객으로 묶음 → 구글 일정의 비공개 속성에 저장(모든 기기·사용자 공유) + 이 기기에도 기록
+  async function pickCustomer(it, c, btn) {
+    if (!c) return;
+    const key = custKey(c);
+    btn.disabled = true; btn.textContent = "저장 중";
+    savePick(it.e.id, key);
+    try {
+      await ensureGWrite();
+      await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: key } } });
+      it.e.pick = key;
+    } catch (e) {
+      console.warn("pick saved on this device only", e.message); // 수정 권한이 없는 캘린더 등: 이 기기에만
+    }
+    renderSchedule();
+  }
+
+  // '무시': 검색된 고객이 이 일정과 상관없을 때 모두 숨김 / '되돌리기': 다시 보여 줌 (구글 일정에 저장해 모든 기기 공유)
+  async function setIgnore(it, on, btn) {
+    btn.disabled = true; btn.textContent = on ? "숨기는 중" : "되돌리는 중";
+    savePick(it.e.id, on ? IGNORE_KEY : "");
+    try {
+      await ensureGWrite();
+      await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: on ? IGNORE_KEY : "" } } });
+      it.e.pick = on ? IGNORE_KEY : "";
+    } catch (e) {
+      toast("구글 일정에 저장하지 못해 이 기기에만 적용했습니다.");
+      if (!on) it.e.pick = "";
+    }
+    renderSchedule();
+  }
+
+  // '다시 선택': 이 일정의 고객 지정을 풀고 동명이인을 모두 다시 보여 줌 (일정 장소는 그대로)
+  async function unpickCustomer(it, btn) {
+    btn.disabled = true; btn.textContent = "푸는 중";
+    savePick(it.e.id, "");
+    if (it.e.pick) {
+      try {
+        await ensureGWrite();
+        await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: "" } } });
+      } catch (e) { console.warn("unpick on this device only", e.message); }
+      it.e.pick = "";
+    }
+    renderSchedule();
+  }
+
+  // 주소/미팅장소 '입력' → 그 일정의 장소(위치)에 저장 + 동명이인이면 이 고객으로 지정
+  async function putLocation(it, i, j, kind, btn) {
+    const c = it.custs[j];
+    const text = kind === "mp" ? meetingOf(c) : currentValue(c, ["주소"]);
+    if (!text) return;
+    btn.disabled = true; btn.textContent = "저장 중";
+    try {
+      await ensureGWrite();
+      await gcalPatch(it.e.calId, it.e.eventId, { location: text });
+      it.e.location = text;
+      const loc = $("loc" + i);
+      loc.textContent = "📍 " + text; loc.hidden = false;
+      toast("일정 장소에 입력했습니다.");
+      if (it.custs.length > 1) { await pickCustomer(it, c, btn); return; }
+      btn.textContent = "입력됨";
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "입력";
+      toast(e.message === "GOOGLE_AUTH" ? "구글 연결이 끊겼습니다. 다시 눌러 주세요." : e.message);
+    }
+  }
+
+  // 일정 수정 모드: 제목 · 날짜 · 시간 · 장소 · 설명
+  const ymdStr = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  // 일정 수정 모드: 이 일정만 '수정' 대신 '취소 · 완료'(맨 위 오른쪽), 다른 일정의 '수정'은 숨김
+  function setEventEditing(i, on) {
+    const box = $("evForm" + i), acts = $("evActs" + i);
+    if (!on) box.innerHTML = "";
+    acts.hidden = !on;
+    document.querySelectorAll("#dayList [data-evedit]").forEach((b) => { b.hidden = on; });
+    $("ev" + i).classList.toggle("editing", on);
+  }
+  function toggleEventForm(it, i) {
+    const box = $("evForm" + i);
+    if (box.innerHTML) { setEventEditing(i, false); return; }
+    const e = it.e;
+    const endDay = e.allDay ? addDays(e.end, -1) : e.end;
+    box.innerHTML = `<div class="ev-form">
+        <label class="fld"><span>캘린더</span><select data-f="cal">${schedCals.filter((c) => (GCFG.calendars || []).includes(c.name) || c.id === e.calId).map((c) =>
+          `<option value="${esc(c.id)}" ${c.id === e.calId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
+        <label class="fld"><span>제목</span><input data-f="title" value="${esc(e.title)}" autocomplete="off"></label>
+        <label class="fld"><span>날짜</span><input data-f="date" type="date" value="${ymdStr(e.start)}"></label>
+        ${e.allDay ? `<label class="fld"><span>종료 날짜</span><input data-f="endDate" type="date" value="${ymdStr(endDay)}"></label>`
+          : `<div class="fld-2"><label class="fld"><span>시작</span><input data-f="start" type="time" value="${hm(e.start)}"></label>
+             <label class="fld"><span>종료</span><input data-f="end" type="time" value="${hm(e.end)}"></label></div>`}
+        <label class="fld"><span>장소</span><input data-f="location" value="${esc(e.location)}" autocomplete="off"></label>
+        <label class="fld"><span>설명</span><textarea data-f="desc" rows="3">${esc(e.desc)}</textarea></label>
+      </div>`;
+    setEventEditing(i, true);
+    const acts = $("evActs" + i);
+    const val = (k) => (box.querySelector(`[data-f="${k}"]`) || {}).value;
+    acts.querySelector("[data-f-cancel]").onclick = () => setEventEditing(i, false);
+    acts.querySelector("[data-f-save]").onclick = async (ev) => {
+      const btn = ev.currentTarget;
+      const patch = { summary: val("title").trim(), location: val("location").trim(), description: val("desc") };
+      if (!val("date")) return toast("날짜를 입력해 주세요.");
+      if (e.allDay) {
+        const endD = val("endDate") || val("date");
+        if (endD < val("date")) return toast("종료 날짜가 시작보다 빠릅니다.");
+        patch.start = { date: val("date") };
+        patch.end = { date: ymdStr(addDays(ymdToDate(endD), 1)) };
+      } else {
+        if (!val("start") || !val("end")) return toast("시간을 입력해 주세요.");
+        const st = new Date(val("date") + "T" + val("start") + ":00");
+        let en = new Date(val("date") + "T" + val("end") + ":00");
+        if (en <= st) return toast("종료 시간이 시작보다 빠릅니다.");
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Seoul";
+        patch.start = { dateTime: st.toISOString(), timeZone: tz };
+        patch.end = { dateTime: en.toISOString(), timeZone: tz };
+      }
+      btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        await ensureGWrite();
+        await gcalPatch(e.calId, e.eventId, patch);
+        // 캘린더를 바꿨으면 그 캘린더로 옮기기 (동명이인 지정은 새 일정 id로 이어서)
+        const dest = val("cal");
+        if (dest && dest !== e.calId) {
+          const moved = await gcalMove(e.calId, e.eventId, dest);
+          const pk = readPicks()[e.id];
+          if (pk) { savePick(e.id, ""); savePick(dest + "|" + (moved.id || e.eventId), pk); }
+        }
+        toast("일정을 저장했습니다.");
+        renderSchedule();
+      } catch (err) {
+        btn.disabled = false; btn.textContent = "완료";
+        toast(err.message === "GOOGLE_AUTH" ? "구글 연결이 끊겼습니다. 다시 눌러 주세요." : err.message);
+      }
+    };
+  }
+
+  // 이동 거리·시간 (1팀 일정만): 회사 → 일정1 → 일정2 … → 회사
+  //   장소: 미팅장소 → 고객 주소 → 일정 장소 → 일정 지역(제목)의 시청·군청
+  async function renderTravel(items, req) {
+    const timed = items.map((it, i) => ({ ...it, i })).filter((it) => isTeamEvent(it.e));
+    if (!timed.length || !KAKAO.restKey) return;
+    const company = appSettings.companyAddress ? await geocode(appSettings.companyAddress) : null;
+    const pointOf = async (it) => {
+      const tries = [];
+      if (it.cust) {
+        tries.push(meetingOf(it.cust, it.extra));
+        tries.push(currentValue(it.cust, ["주소"]));
+      }
+      tries.push(it.e.location);
+      for (const q of tries) { const p = q && await geocode(q); if (p) return { p }; }
+      const city = (it.cust && it.cust.city) || titleRegion(it.e.title);
+      const p = await geocode(cityHall(city));
+      return p ? { p } : null;
+    };
+    const pts = [];
+    for (const it of timed) pts.push(await pointOf(it));
+    if (req !== schedReq) return;
+    const show = (slot, html) => { const el = $("tr" + slot); if (el) { el.innerHTML = html; el.hidden = false; } };
+    const legTxt = (r) => r ? `🚗 ${r.km.toFixed(1)}km · ${r.min}분` : '🚗 <span class="hint">경로를 계산할 수 없음</span>';
+    // 회사 출발
+    if (company && pts[0]) {
+      const r = await route(company, pts[0].p);
+      const leave = r ? new Date(timed[0].e.start - r.min * 60000) : null;
+      show(timed[0].i, `${leave ? `<b>🏢 회사 출발 ${hm(leave)}</b> · ` : "🏢 회사에서 "}${legTxt(r)}`);
+    }
+    for (let k = 1; k < timed.length; k++) {
+      if (req !== schedReq) return;
+      const a = pts[k - 1], b = pts[k];
+      const r = a && b ? await route(a.p, b.p) : null;
+      const gap = Math.round((timed[k].e.start - timed[k - 1].e.end) / 60000);
+      const late = r && gap < r.min ? ` <span class="warn">⚠ 이동시간 부족 (여유 ${Math.max(gap, 0)}분)</span>` : "";
+      show(timed[k].i, legTxt(r) + late);
+    }
+    // 회사 복귀: 마지막 1팀 일정 뒤
+    const last = timed[timed.length - 1], lp = pts[pts.length - 1];
+    if (company && lp) {
+      const r = await route(lp.p, company);
+      const back = r ? new Date(+last.e.end + r.min * 60000) : null;
+      show(last.i + 1, `${legTxt(r)}${back ? ` · <b>🏢 회사 도착 ${hm(back)}</b>` : ""}`);
+    }
+  }
+
+
+  // ---------- 관리자 설정: 구글 계정·캘린더 선택 ----------
+  async function loadCalendarChoices() {
+    const box = $("gCalBox");
+    if (!box) return;
+    if (!storedGToken() && !gTokenMem) {
+      if (GD) return handleError(new Error("GOOGLE_AUTH")); // Google Drive 모드: 로그인 계정 = 캘린더 계정
+      box.innerHTML = `<button type="button" class="secondary" id="gAdminConnect">구글 계정 연결</button>`;
+      $("gAdminConnect").addEventListener("click", async () => {
+        try { await requestGToken("select_account"); loadCalendarChoices(); } catch (e) { toast(e.message); }
+      });
+      return;
+    }
+    box.innerHTML = '<p class="hint">캘린더 목록을 불러오는 중…</p>';
+    let cals;
+    try { cals = await calendarList(); } catch (e) {
+      if (e.message === "GOOGLE_AUTH") { gTokenMem = null; if (GD) return handleError(e); return loadCalendarChoices(); }
+      box.innerHTML = ""; return handleError(e);
+    }
+    const primary = cals.find((c) => c.primary);
+    const g = appSettings.google || {};
+    const saved = (g.calendars || []).map((c) => c.id);
+    const want = GCFG.calendars || [];
+    const isOn = (c) => (saved.length ? saved.includes(c.id) : want.includes(c.name));
+    box.dataset.account = primary ? primary.id : "";
+    // Google Drive 모드에서는 계정을 바꾸면 Drive 연결도 바뀌므로 '다른 계정' 버튼 없음 (로그인 계정의 캘린더 사용)
+    box.innerHTML = `<p class="hint">${GD ? "캘린더 계정(로그인 계정)" : "로그인한 계정"}: ${esc(primary ? primary.id : "-")}
+        ${GD ? "" : '<button type="button" class="link-btn" id="gSwitch">다른 계정</button>'}</p>
+      <p class="hint">관리자 일정 화면의 캘린더입니다. 다른 사용자는 '설정'에서 각자 고르며, 고르기 전에는 같은 이름의 캘린더가 기본으로 보입니다.</p>
+      ${calPickerHtml(cals, isOn)}`;
+    box._cals = cals;
+    const sIds = salesArr(g.sales).length ? salesArr(g.sales).map((c) => c.id) : defaultSalesIds(cals);
+    bindCalPicker(box, cals, sIds, Array.isArray(g.info) ? g.info.map((c) => c.id) : sIds);
+    if ($("gSwitch")) $("gSwitch").addEventListener("click", async () => {
+      try { await requestGToken("select_account"); loadCalendarChoices(); } catch (e) { toast(e.message); }
+    });
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  function readCalendarChoices() {
+    const box = $("gCalBox");
+    if (!box || !box._cals) return null;
+    return { account: box.dataset.account || "", ...readCalPicker(box, box._cals) };
+  }
+
+  // ---------- 캘린더 고르기 (관리자 설정·사용자 설정 공통) ----------
+  //   보여질 캘린더(여러 개) + 영업일정 캘린더(보여질 캘린더 중 여러 개: 약속 장소 사이 거리·예상 시간, 고객 정보)
+  //   보여질 캘린더를 하나도 고르지 않으면 영업일정 캘린더도 고를 수 없음
+  //   저장 모양: sales = [{ id, name }]  (예전 { id, name } 하나도 읽음)
+  const IGNORE_KEY = "__ignore__"; // 일정에 저장하는 고객 지정 값: 이 일정은 검색된 고객을 모두 숨김
+  const salesArr = (s) => (Array.isArray(s) ? s : s && s.id ? [s] : []);
+  // 한 줄에 캘린더 하나: 캘린더 | Show(보여질 캘린더) | 일정(거리·예상 시간) | 정보(고객 정보)
+  //   Show가 꺼지면 일정·정보 비활성. 일정을 켜면 정보도 켜짐, 정보를 끄면 일정도 꺼짐
+  function calPickerHtml(cals, isOn) {
+    return `<div class="cal-pick cp4">
+        <div class="cp-head"><span>캘린더</span><span>Show</span><span>일정</span><span>정보</span></div>
+        ${cals.map((c, i) => `<div class="cp-row">
+          <span class="cp-name">${calDot({ cal: c })}${esc(c.name)}</span>
+          <label class="cp-cell" aria-label="${esc(c.name)} 보이기"><input type="checkbox" data-pcal="${i}" ${isOn(c) ? "checked" : ""}></label>
+          <label class="cp-cell cp-right" aria-label="${esc(c.name)} 영업일정"><input type="checkbox" data-scal="${esc(c.id)}"></label>
+          <label class="cp-cell" aria-label="${esc(c.name)} 고객 정보"><input type="checkbox" data-ical="${esc(c.id)}"></label>
+        </div>`).join("")}
+      </div>`;
+  }
+  function bindCalPicker(root, cals, salesIds, infoIds) {
+    const want = new Set(salesIds || []);
+    const wantInfo = new Set(infoIds || salesIds || []);
+    root.querySelectorAll(".cp-row").forEach((row) => {
+      const show = row.querySelector("[data-pcal]"), sales = row.querySelector("[data-scal]"), info = row.querySelector("[data-ical]");
+      const sync = () => {
+        sales.disabled = info.disabled = !show.checked;
+        if (!show.checked) sales.checked = info.checked = false;
+        row.classList.toggle("off", !show.checked);
+      };
+      sales.checked = show.checked && want.has(sales.dataset.scal);
+      info.checked = show.checked && (wantInfo.has(info.dataset.ical) || sales.checked);
+      show.addEventListener("change", sync);
+      sales.addEventListener("change", () => { if (sales.checked) info.checked = true; });
+      info.addEventListener("change", () => { if (!info.checked) sales.checked = false; });
+      sync();
+    });
+  }
+  function readCalPicker(root, cals) {
+    const list = [...root.querySelectorAll("[data-pcal]")].filter((x) => x.checked).map((x) => cals[+x.dataset.pcal])
+      .map((c) => ({ id: c.id, name: c.name, color: c.color }));
+    const ids = [...root.querySelectorAll("[data-scal]")].filter((x) => x.checked).map((x) => x.dataset.scal);
+    const iids = [...root.querySelectorAll("[data-ical]")].filter((x) => x.checked).map((x) => x.dataset.ical);
+    return { calendars: list, sales: list.filter((c) => ids.includes(c.id)).map((c) => ({ id: c.id, name: c.name })),
+      info: list.filter((c) => iids.includes(c.id)).map((c) => ({ id: c.id, name: c.name })) };
+  }
+  // 고른 적 없을 때 영업일정 캘린더: 관리자가 정한 영업일정 캘린더 이름들 → config 기본(1팀)과 같은 이름
+  function defaultSalesIds(cals) {
+    const names = isAdmin() ? salesArr((appSettings.google || {}).sales).map((s) => s.name) : [];
+    const want = names.length ? names : [GCFG.teamCalendar || "1팀"];
+    return cals.filter((x) => want.includes(x.name)).map((x) => x.id);
+  }
+
+
+  // 큰 메뉴: 일정 / 고객 / 관리자
+  $("mainNav").querySelectorAll("button").forEach((b) => b.addEventListener("click", async () => {
+    if (!(await confirmLeaveEdit())) return;
+    const s = b.dataset.section;
+    if (s === "schedule") { schedMode = "day"; schedDate = dayStart(new Date()); openSchedule(); } // 항상 오늘 Today
+    else if (s === "admin") openAdmin();
+    else if (s === "sales") openSales();
+    else resetSearch(); // 고객: 검색을 지우고 처음 화면
+  }));
+  window.addEventListener("popstate", () => { if (!$("customerView").hidden) { if (returnView === "scheduleView") openSchedule(); else if (returnView === "salesView") renderSales(SALES.cardAnchor || true); else show("searchView"); } });
+
+  function resetSearch() {
+    $("q").value = ""; $("q2").value = "";
+    $("results").innerHTML = ""; $("searchStatus").textContent = "";
+    $("recentList").hidden = true;
+    show("searchView");
+  }
+
+  // (검색 가능한 FC 문구는 표시하지 않음)
+  function showScope() { $("scopeHint").textContent = ""; }
+
+  // ---------- 문자 문구 (영업 화면의 [문자] 버튼에 미리 채움) ----------
+  //   내 문구: 내설정 파일(shlife-내설정.json)의 sms.{transfer,dda}(저장 안 했으면 config.js smsDefaults)
+  const SMS_VARS = "{고객명} {FC명} {상품명} {이관일}";
+  const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const smsDefault = (kind) => String((CFG.smsDefaults || {})[kind] || "");
+  // 개인이 저장한 값(지워서 빈 문구로 저장한 것 포함)이 있으면 그것, 아직 손대지 않았으면 config 기본 문구
+  const smsTemplate = (kind) => { const m = (myPrefs && myPrefs.sms) || {}; return typeof m[kind] === "string" ? m[kind] : smsDefault(kind); };
+  const idateText = (v) => { const k = dateKey(v); return k ? `${+k.slice(4, 6)}월 ${+k.slice(6, 8)}일` : ""; };
+  const fillSms = (tpl, r, fcName) => String(tpl || "")
+    .replace(/\{고객명\}/g, r.holder || "").replace(/\{FC명\}/g, r.fc || fcName || "").replace(/\{상품명\}/g, r.product || "").replace(/\{이관일\}/g, idateText(r.idate));
+  // 아이폰은 sms:번호&body=, 안드로이드·그 외는 sms:번호?body= (표준). 문구가 없으면 번호만.
+  const smsHref = (phone, body) => (body ? `sms:${phone}${isIOS() ? "&" : "?"}body=${encodeURIComponent(body)}` : `sms:${phone}`);
+  function smsCardHtml() {
+    const ta = (id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="4" maxlength="300"></textarea>
+        <span class="smsrow"><button type="button" class="link-btn" data-sms-reset="${id}">기본값으로 되돌리기</button><small class="cnt" data-for="${id}"></small></span></label>`;
+    return `<div class="card" id="smsCard"><h3 class="sec-title">문자 문구</h3>
+      <p class="hint">영업 화면에서 [문자]를 누르면 아래 문구가 채워진 문자 작성 화면이 열립니다. 기본 문구가 미리 들어 있고, 고치거나 지우면 내 설정으로 저장됩니다(지우면 문구 없이 작성 화면만 열림).<br>
+      쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)</p>
+      ${ta("smsMyTransfer", "이관 문자 문구")}
+      ${ta("smsMyDda", "따행 문자 문구")}
+      <p class="hint" id="smsPreview"></p>
+      <p class="hint">※ 문자는 [문자]를 눌러 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다.</p>
+      <div class="file-actions"><button type="button" class="primary" id="smsSave" disabled>문구 저장</button></div></div>`;
+  }
+  async function bindSmsCard() {
+    const KINDS = { smsMyTransfer: "transfer", smsMyDda: "dda" };
+    const ids = Object.keys(KINDS), el = (id) => $(id);
+    const sample = { holder: "홍길동", fc: "최수진", product: "종신보험", idate: "2026.11.09" };
+    const cnt = () => ids.forEach((id) => { const c = document.querySelector(`.cnt[data-for="${id}"]`); if (c) c.textContent = `${el(id).value.length}자` + (el(id).value.length > 45 ? " · 45자 초과(장문 문자)" : ""); });
+    const read = () => JSON.stringify(ids.map((id) => el(id).value.trim()));
+    const preview = (id) => { $("smsPreview").textContent = el(id).value.trim() ? "미리보기: " + fillSms(el(id).value, sample, "최수진") : ""; };
+    try { await loadMyPrefs(); } catch (e) { /* 기본값 */ }
+    if (!$("smsCard")) return;
+    ids.forEach((id) => { el(id).value = smsTemplate(KINDS[id]); });
+    let base = read(); cnt();
+    ids.forEach((id) => {
+      el(id).addEventListener("input", () => { cnt(); preview(id); $("smsSave").disabled = read() === base; });
+      el(id).addEventListener("focus", () => preview(id));
+    });
+    $("smsCard").querySelectorAll("[data-sms-reset]").forEach((b) => b.addEventListener("click", () => {
+      const id = b.dataset.smsReset; el(id).value = smsDefault(KINDS[id]); cnt(); preview(id); $("smsSave").disabled = read() === base;
+    }));
+    $("smsSave").addEventListener("click", async () => {
+      const b = $("smsSave"); b.disabled = true; b.textContent = "저장 중…";
+      try {
+        const sms = {};
+        ids.forEach((id) => { const v = el(id).value.trim(); if (v !== smsDefault(KINDS[id])) sms[KINDS[id]] = v; }); // 기본 문구와 같으면 저장하지 않음(나중에 기본이 바뀌면 따라감), 지우면 빈 문구로 저장
+        await saveMyPrefs({ ...(myPrefs || {}), sms });
+        base = read(); toast("문구를 저장했습니다.");
+      } catch (e) { handleError(e); }
+      b.textContent = "문구 저장"; b.disabled = read() === base;
+    });
+  }
+
+  // ---------- 영업 (이달 이관 · 이달 따행) + 전화·문자 '시도' 기록 ----------
+  //   이관: 계약 단위(계약 시트 최근통화일시·최근문자일시 + 이력 시트에 계약ID와 함께 한 줄) / 따행: 고객 단위(고객 시트 최근통화일시·최근문자일시 + 이력에 계약ID 비움)
+  const SALES = { tab: "transfer", ym: "", showRef: false, data: null, df: { send: false, resp: false, coupon: false }, open: new Set(), dct: "", dcls: "", dact: true };
+  const ymNow = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1); };
+  const ymShift = (ym, n) => { let y = +ym.slice(0, 4), m = +ym.slice(4) + n; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return y + pad2(m); };
+  const ymLabel = (ym) => ym.slice(0, 4) + "년 " + (+ym.slice(4)) + "월";
+  const monthOf = (v) => dateKey(v).slice(0, 6);
+  const firstPhone = (s) => { const m = String(s || "").match(/\+?\d[\d -]{7,}/); return m ? m[0].replace(/[^\d+]/g, "") : ""; };
+  const cleanAddr = (a) => String(a || "").replace(/^\s*\[[^\]]*\]\s*/, "").replace(/^\(?\d{5}\)?\s*/, "").trim();
+  const DEAD_STATUS = ["해약", "사고소멸", "순수보장만기소멸", "연금소멸"];
+  // 'YYYY-MM-DD HH:mm' 또는 엑셀 표시 문자열 → 비교용 숫자열 / 표시용 'M/D HH:mm'
+  const tsDigits = (v) => String(v || "").replace(/\D/g, "").slice(0, 12);
+  const tsShow = (v) => { const d = tsDigits(v); return d.length >= 8 ? `${+d.slice(4, 6)}/${+d.slice(6, 8)}` + (d.length >= 12 ? ` ${d.slice(8, 10)}:${d.slice(10, 12)}` : "") : ""; };
+  const nowStamp = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; };
+
+  // 이력 시트 (읽기): 파일마다 한 번
+  let histCache = null;
+  function loadHistory() {
+    if (histCache) return histCache;
+    histCache = (async () => {
+      const { files } = await scanBase();
+      const spec = CFG.lists.find((l) => l.fileRegex || l.fileKeyword);
+      const out = [];
+      await Promise.all(pickSourceFiles(files, spec).map(async (f) => {
+        const wb = await readBook(f.id);
+        const rows = sheetRows(wb, "이력");
+        if (!rows) return;
+        const h = headIndex(rows, "고객ID");
+        if (h < 0) return;
+        const head = rows[h].map((c) => String(c).trim());
+        rows.slice(h + 1).forEach((r) => {
+          const o = {};
+          head.forEach((k, j) => { if (k) o[k] = r[j]; });
+          if (String(o["고객ID"] || "").trim()) out.push({ fc: f.fc, fileId: f.id, ...o });
+        });
+      }));
+      return out;
+    })();
+    histCache.catch(() => { histCache = null; });
+    return histCache;
+  }
+
+  // ---- 따행 시트 (B 구조): 고객ID × 대상년월 1행. 열 이름은 SOL 화면 이름 그대로 (대상년월·따행분류·접촉현황·캠페인대상여부·활동기한시작일/종료일·방문약속일·방문완료일·설문발송일·설문응답일·쿠폰발송·쿠폰발송일·선물·전달여부)
+  let followCache = null;
+  function loadFollow() {
+    if (followCache) return followCache;
+    followCache = (async () => {
+      const { files } = await scanBase();
+      const spec = CFG.lists.find((l) => l.fileRegex || l.fileKeyword);
+      const out = { files: new Set(), rows: [] };
+      await Promise.all(pickSourceFiles(files, spec).map(async (f) => {
+        const wb = await readBook(f.id);
+        const rows = sheetRows(wb, "따행");
+        if (!rows) return;
+        const h = headIndex(rows, "고객ID");
+        if (h < 0) return;
+        out.files.add(f.id); // 이 파일의 고객은 따행 시트 기준(B), 없는 파일은 고객 시트 필드 기준(A)
+        const head = rows[h].map((c) => String(c).trim());
+        rows.slice(h + 1).forEach((r) => {
+          const o = {};
+          head.forEach((k, j) => { if (k) o[k] = String(r[j] ?? "").trim(); });
+          if (o["고객ID"] && o["대상년월"]) out.rows.push({ ...o, _fc: f.fc, _fileId: f.id });
+        });
+      }));
+      return out;
+    })();
+    followCache.catch(() => { followCache = null; });
+    return followCache;
+  }
+  const ymOfFollow = (v) => monthOf(v); // '2026-11' → '202611'
+
+  // ---- 기기 대기 기록 (누르면 전화·문자 앱으로 넘어가 웹앱이 끊길 수 있어 먼저 기기에 저장 → 앱이 다시 보일 때 Drive에 반영) ----
+  const queueKey = () => "shlife.contactQueue." + me();
+  const readQueue = () => { try { return JSON.parse(localStorage.getItem(queueKey()) || "[]"); } catch (e) { return []; } };
+  const writeQueue = (q) => { try { localStorage.setItem(queueKey(), JSON.stringify(q)); } catch (e) { /* 무시 */ } };
+  let flushing = false;
+
+  // ---- 엑셀 편집 도우미 (최신 파일을 다시 읽어 바뀐 칸만) ----
+  function sheetInfo(wb, name, keyCol) {
+    const sn = wb.SheetNames.find((n) => n.trim() === name);
+    if (!sn) return null;
+    const ws = wb.Sheets[sn];
+    if (!ws || !ws["!ref"]) return null;
+    const enc = (r, c) => XLSX.utils.encode_cell({ r, c });
+    const info = { ws, enc, rg: XLSX.utils.decode_range(ws["!ref"]), hr: -1 };
+    info.txt = (r, c) => { const cell = ws[enc(r, c)]; return cell ? String(cell.w ?? cell.v).trim() : ""; };
+    for (let r = info.rg.s.r; r <= Math.min(info.rg.e.r, info.rg.s.r + 10); r++) {
+      for (let c = info.rg.s.c; c <= info.rg.e.c; c++) if (info.txt(r, c) === keyCol) { info.hr = r; break; }
+      if (info.hr >= 0) break;
+    }
+    if (info.hr < 0) return null;
+    info.colOf = (n) => { for (let c = info.rg.s.c; c <= info.rg.e.c; c++) if (info.txt(info.hr, c) === n) return c; return -1; };
+    return info;
+  }
+  function shiftColumns(info, at) {
+    const ws = info.ws, moves = [];
+    Object.keys(ws).forEach((k) => { if (k[0] === "!") return; const a = XLSX.utils.decode_cell(k); if (a.c >= at) moves.push([k, a]); });
+    moves.sort((x, y) => y[1].c - x[1].c).forEach(([k, a]) => { ws[XLSX.utils.encode_cell({ r: a.r, c: a.c + 1 })] = ws[k]; delete ws[k]; });
+    info.rg.e.c += 1;
+    ws["!ref"] = XLSX.utils.encode_range(info.rg);
+    if (ws["!cols"]) ws["!cols"].splice(at, 0, { wch: 14 });
+    if (ws["!merges"]) ws["!merges"].forEach((m) => { if (m.s.c >= at) m.s.c++; if (m.e.c >= at) m.e.c++; });
+  }
+  // 열이 없으면 만듦: after 열이 있으면 그 다음, 아니면 '입력일시' 앞(없으면 맨 끝)
+  function ensureColumn(info, name, after) {
+    let c = info.colOf(name);
+    if (c >= 0) return c;
+    const a = after ? info.colOf(after) : -1;
+    const sc = info.colOf(STAMP_COL);
+    const at = a >= 0 ? a + 1 : sc >= 0 ? sc : info.rg.e.c + 1;
+    if (at <= info.rg.e.c) shiftColumns(info, at); else { info.rg.e.c = at; info.ws["!ref"] = XLSX.utils.encode_range(info.rg); }
+    info.ws[info.enc(info.hr, at)] = { t: "s", v: name };
+    return at;
+  }
+  const stampCell = (digits) => { // 'YYYYMMDDHHmm' → 엑셀 날짜·시간 칸
+    const y = +digits.slice(0, 4), m = +digits.slice(4, 6), d = +digits.slice(6, 8), hh = +digits.slice(8, 10) || 0, mi = +digits.slice(10, 12) || 0;
+    return { t: "n", v: toExcelDateTime(new Date(y, m - 1, d, hh, mi)), z: "yyyy-mm-dd hh:mm" };
+  };
+  function setRowCells(info, keyCol, keyVal, values) {
+    const kc = info.colOf(keyCol);
+    if (kc < 0) return false;
+    let row = -1;
+    for (let r = info.hr + 1; r <= info.rg.e.r; r++) if (info.txt(r, kc) === keyVal) { row = r; break; }
+    if (row < 0) return false;
+    Object.entries(values).forEach(([k, v]) => { const c = ensureColumn(info, k); if (tsDigits(info.txt(row, c)) > tsDigits(v)) return; /* 최근 일시만 남김 */ info.ws[info.enc(row, c)] = stampCell(tsDigits(v)); });
+    return true;
+  }
+  function appendRow(info, values) { // values: { 열이름: 문자열 | {stamp:'YYYYMMDDHHmm'} }
+    let last = info.hr;
+    for (let r = info.rg.e.r; r > info.hr; r--) { let any = false; for (let c = info.rg.s.c; c <= info.rg.e.c; c++) if (info.ws[info.enc(r, c)]) { any = true; break; } if (any) { last = r; break; } }
+    const row = last + 1;
+    Object.entries(values).forEach(([k, v]) => {
+      const c = ensureColumn(info, k, k === "계약ID" ? "고객ID" : undefined);
+      info.ws[info.enc(row, c)] = v && v.stamp ? stampCell(v.stamp) : { t: "s", v: String(v) };
+    });
+    if (row > info.rg.e.r) info.rg.e.r = row;
+    info.ws["!ref"] = XLSX.utils.encode_range(info.rg);
+    return row;
+  }
+  function histHas(info, v) { // 같은 일시·고객ID·계약ID·유형이 이미 있으면 true (재시도 중복 방지)
+    const cs = { t: info.colOf("일시"), u: info.colOf("고객ID"), k: info.colOf("계약ID"), y: info.colOf("유형") };
+    if (cs.t < 0 || cs.u < 0) return false;
+    for (let r = info.hr + 1; r <= info.rg.e.r; r++) {
+      if (tsDigits(info.txt(r, cs.t)) === tsDigits(v.일시) && info.txt(r, cs.u) === v.고객ID && (cs.k < 0 ? "" : info.txt(r, cs.k)) === (v.계약ID || "") && (cs.y < 0 ? "" : info.txt(r, cs.y)) === v.유형) return true;
+    }
+    return false;
+  }
+  async function writeContacts(fileId, items) {
+    const wb = XLSX.read(await stGet(fileId), { type: "array", cellNF: true }); // 최신 파일
+    const stamp = tsDigits(nowStamp());
+    const hist = sheetInfo(wb, "이력", "고객ID");
+    const ct = sheetInfo(wb, "계약", "계약ID");
+    const cu = sheetInfo(wb, CUST_SHEET, ID_COL);
+    for (const it of items) {
+      const colName = it.kind === "call" ? "최근통화일시" : "최근문자일시";
+      const v = { 일시: it.ts, 고객ID: it.custId || "", 계약ID: it.cid || "", 유형: it.kind === "call" ? "통화" : "문자" };
+      if (hist && !histHas(hist, v)) appendRow(hist, { 일시: { stamp: tsDigits(it.ts) }, 고객ID: v.고객ID, 계약ID: v.계약ID, 담당FC: it.fc || "", 유형: v.유형, 결과: "시도", 내용: it.src || "영업 화면", 입력일시: { stamp } });
+      if (it.cid && ct) setRowCells(ct, "계약ID", it.cid, { [colName]: it.ts });
+      if (!it.cid && it.custId && cu) setRowCells(cu, ID_COL, it.custId, { [colName]: it.ts });
+    }
+    await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[fileId];
+  }
+  async function flushContacts() {
+    if (flushing || !account()) return;
+    flushing = true;
+    try {
+      const q = readQueue().filter((it) => it.fileId);
+      if (!q.length) return;
+      const byFile = new Map();
+      q.forEach((it) => { if (!byFile.has(it.fileId)) byFile.set(it.fileId, []); byFile.get(it.fileId).push(it); });
+      let wrote = false;
+      for (const [fileId, items] of byFile) {
+        try {
+          await writeContacts(fileId, items);
+          const done = new Set(items.map((i) => i.uid));
+          writeQueue(readQueue().filter((i) => !done.has(i.uid)));
+          wrote = true;
+        } catch (e) { console.error("전화·문자 기록 반영 실패", e); }
+      }
+      if (wrote) { histCache = null; contractCache = null; listCache = null; }
+      if (!$("salesView").hidden) renderSales(true);
+    } finally { flushing = false; }
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(flushContacts, 1500); });
+  window.addEventListener("pageshow", () => setTimeout(flushContacts, 2500));
+
+  // ---- 데이터 → 목록 ----
+  async function loadSalesData() {
+    const [lists, contracts, hist, follow] = await Promise.all([loadLists(), loadContracts(), loadHistory().catch(() => []), loadFollow().catch(() => ({ files: new Set(), rows: [] }))]);
+    const custById = new Map();
+    lists.forEach((e) => { const id = idOf(e); if (id) (custById.get(id) || custById.set(id, []).get(id)).push(e); });
+    return { lists, contracts, hist, custById, follow };
+  }
+  // ym 달에 시도한 기록: key('c:계약ID' | 'u:고객ID') → { call: ts, sms: ts }
+  function contactMarks(data, ym) {
+    const m = new Map();
+    const put = (key, kind, ts) => {
+      if (!key || monthOf(ts) !== ym) return;
+      const cur = m.get(key) || {};
+      if (!cur[kind] || tsDigits(ts) > tsDigits(cur[kind])) cur[kind] = ts;
+      m.set(key, cur);
+    };
+    data.hist.forEach((h) => { if (String(h["결과"] || "").trim() !== "시도") return; /* 앱의 '시도' 기록만 (실제 통화·상담 기록·취소(초기화)는 제외) */ const k = String(h["계약ID"] || "").trim() ? "c:" + String(h["계약ID"]).trim() : "u:" + String(h["고객ID"]).trim(); put(k, String(h["유형"]).trim() === "통화" ? "call" : String(h["유형"]).trim() === "문자" ? "sms" : "", h["일시"]); });
+    data.contracts.forEach((c) => { const id = String(c.row["계약ID"] || "").trim(); if (id) { put("c:" + id, "call", c.row["최근통화일시"]); put("c:" + id, "sms", c.row["최근문자일시"]); } });
+    data.lists.forEach((e) => { const id = idOf(e); if (id) { put("u:" + id, "call", fieldOf(e, "최근통화일시")); put("u:" + id, "sms", fieldOf(e, "최근문자일시")); } });
+    readQueue().forEach((it) => put(it.cid ? "c:" + it.cid : "u:" + it.custId, it.kind, it.ts)); // 아직 Drive에 못 올린 기록도 바로 표시
+    return m;
+  }
+  function transferRows(data, ym, showRef) {
+    const out = [];
+    data.contracts.forEach((c) => {
+      if (c.type !== "이관") return;
+      const rr = c.row, idate = rr["이관일자"] || rr["이관일"] || "";
+      if (monthOf(idate) !== ym) return;
+      const ref = !!(c.fc && c.srcFc && c.fc !== c.srcFc); // 담당 FC가 이 파일의 FC가 아니면 참고
+      if (ref && !showRef) return;
+      const cid = String(rr["계약자ID"] || "").trim();
+      const ce = cid && data.custById.get(cid) ? data.custById.get(cid).find((e) => e.fc === c.srcFc) || data.custById.get(cid)[0] : null;
+      const holder = rr["계약자"] || (ce && ce.name) || "";
+      const insured = rr["주피보험자"] || rr["피보"] || "";
+      out.push({
+        key: String(rr["계약ID"] || "").trim() ? "c:" + String(rr["계약ID"]).trim() : "", cid: String(rr["계약ID"] || "").trim(), custId: cid, fc: c.fc, srcFc: c.srcFc, ref,
+        fileId: c.src && c.src.fileId, holder, ins: norm(insured) && norm(insured) !== norm(holder) ? insured : "",
+        product: productName(rr["상품명"]), fee: rr["합계보험료"] || rr["보험료"] || "", cdate: rr["최초계약일"] || rr["계약일"] || "",
+        bday: (ce && fieldOf(ce, "생년월일")) || rr["생일"] || "", phone: firstPhone((ce && (ce.phone || fieldOf(ce, "연락처"))) || rr["연락처"]),
+        phoneText: (ce && (ce.phone || fieldOf(ce, "연락처"))) || rr["연락처"] || "", job: (ce && fieldOf(ce, "직업")) || rr["직업"] || "",
+        addr: cleanAddr((ce && fieldOf(ce, "주소")) || rr["주소"]), recFc: rr["모집FC"] || "", status: rr["계약상태"] || rr["상태"] || "", idate
+      });
+    });
+    out.sort((a, b) => a.holder.localeCompare(b.holder, "ko") || dateKey(b.cdate).localeCompare(dateKey(a.cdate)));
+    return out;
+  }
+  function ddaRows(data, ym) {
+    const out = [], seen = new Set(), follow = data.follow || { files: new Set(), rows: [] };
+    const base = (e, id) => {
+      const cts = data.contracts.filter((c) => String(c.row["계약자ID"] || "").trim() === id && !DEAD_STATUS.includes(c.row["계약상태"] || c.row["상태"] || ""));
+      const prods = cts.map((c) => ({ name: productName(c.row["상품명"]), fee: c.row["합계보험료"] || c.row["보험료"] || "" })).filter((p) => p.name);
+      const recFcs = [...new Set(cts.map((c) => String(c.row["모집FC"] || "").trim()).filter(Boolean))];
+      const cd = cts.map((c) => c.row["최초계약일"] || c.row["계약일"] || "").sort((a, b) => dateKey(b).localeCompare(dateKey(a)))[0] || "";
+      return {
+        key: "u:" + id, cid: "", custId: id, fc: e.fc, srcFc: e.fc, ref: false, ent: e, fileId: e.src && e.src.fileId, holder: e.name, ins: "",
+        prods, product: prods.length === 1 ? prods[0].name : prods.length ? "" : "계약 정보 없음(조회 제한)", // 계약 2건 이상이면 이름 아래 줄마다 상품명·보험료
+        fee: prods.length === 1 ? prods[0].fee : "", cdate: cd, bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
+        job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC") || recFcs.join(", "), status: ""
+      };
+    };
+    const ownOf = (id) => { const mine = data.custById.get(id); return mine ? (mine.find((x) => x.fc === primaryFc(mine)) || mine[0]) : null; };
+    // B: 따행 시트가 있는 파일 — 선택한 대상년월의 행
+    follow.rows.filter((f) => ymOfFollow(f["대상년월"]) === ymOfFollow(ym)).forEach((f) => {
+      const id = f["고객ID"], e = ownOf(id);
+      if (!e || e.type === "피보험자" || seen.has(id)) return;
+      seen.add(id);
+      const r = base(e, id);
+      r.fileId = f._fileId; r.follow = f;
+      r.dda = { done: f["방문완료일"] || (["방문완료", "설문발송", "설문응답", "쿠폰발송"].includes(String(f["접촉현황"] || "").trim()) ? "방문완료" : ""), send: f["설문발송일"], resp: f["설문응답일"], coupon: f["쿠폰발송일"], assign: "", apply: "", due: f["방문약속일"], gift: f["선물"], deliver: f["전달여부"], cls: f["따행분류"], active: f["캠페인대상여부"], contact: f["접촉현황"] };
+      out.push(r);
+    });
+    // A: 따행 시트가 없는 파일 — 고객 시트의 따행 필드 (따행대상='예' 전체, 월 무관)
+    data.lists.forEach((e) => {
+      const id = idOf(e);
+      if (!id || e.sheet !== CUST_SHEET || e.type === "피보험자" || seen.has(id)) return;
+      if (follow.files.has(e.src && e.src.fileId)) return; // B 파일은 위에서 처리
+      const mine = data.custById.get(id);
+      const own = mine.find((x) => x.fc === primaryFc(mine)) || e; // 담당 FC 행
+      if (own !== e) return;
+      if (fieldOf(e, "따행대상") !== "예") return;
+      seen.add(id);
+      const r = base(e, id);
+      r.dda = { send: fieldOf(e, "설문발송일"), resp: fieldOf(e, "설문응답일"), coupon: fieldOf(e, "쿠폰발송일"), assign: fieldOf(e, "따행배정일"), apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달"), cls: "", active: "", contact: "" };
+      out.push(r);
+    });
+    out.sort((a, b) => a.holder.localeCompare(b.holder, "ko") || dateKey(a.bday).localeCompare(dateKey(b.bday)) || dateKey(a.dda.assign).localeCompare(dateKey(b.dda.assign))); // 이름 오름차순(가나다), 같은 이름은 생년월일 → 배정일 빠른 순
+    return out;
+  }
+  // 따행 필터: 활동대상(기본) → 접촉현황(방문완료 칸 값 유무) → 따행분류. totals는 활동대상 기준 전체(SOL 조회와 같은 73·16·57), classes는 접촉현황 필터 후의 분류별 건수
+  function ddaFilter(baseRows, bMode, st) {
+    const afterAct = baseRows.filter((r) => !bMode || !st.dact || !r.dda.active || r.dda.active === "활동대상");
+    const afterCt = afterAct.filter((r) => !st.dct || (st.dct === "done" ? !!r.dda.done : !r.dda.done));
+    const cc = new Map(); afterCt.forEach((r) => { if (r.dda.cls) cc.set(r.dda.cls, (cc.get(r.dda.cls) || 0) + 1); });
+    return {
+      rows: st.dcls ? afterCt.filter((r) => r.dda.cls === st.dcls) : afterCt,
+      classes: [...cc.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0], "ko")),
+      totals: { all: afterAct.length, done: afterAct.filter((r) => r.dda.done).length, open: afterAct.filter((r) => !r.dda.done).length }
+    };
+  }
+  // 따행 필터 막대 (대상년월은 위 월 이동): 접촉현황 · 따행분류 · 활동대상 · 분류별 건수
+  function ddaBarHtml(st) { // st: { dct, dcls, dact, classes: [[이름, 건수]], totals }
+    const seg = [["", "전체"], ["done", "방문완료"], ["open", "미활동"]].map(([v, l]) => `<button type="button" data-dct="${v}" class="${st.dct === v ? "on" : ""}">${l}</button>`).join("");
+    const opts = [`<option value="">따행분류: 전체</option>`].concat(st.classes.map(([n, c]) => `<option value="${esc(n)}"${st.dcls === n ? " selected" : ""}>${esc(n)} (${c})</option>`)).join("");
+    const chips = st.classes.map(([n, c]) => `<button type="button" class="cls-chip${st.dcls === n ? " on" : ""}" data-dcls="${esc(n)}">${esc(n)} ${c}</button>`).join("");
+    return `<div class="dbar"><div class="dseg">${seg}</div><div class="drow"><select id="dclsSel" aria-label="따행분류">${opts}</select><button type="button" id="dactBtn" class="act-pill${st.dact ? " on" : ""}" aria-pressed="${st.dact ? "true" : "false"}">활동대상</button></div></div>` +
+      `<div class="dsum"><b>${st.totals.all}명</b> · 방문완료 <b>${st.totals.done}</b> · 미활동 <b>${st.totals.open}</b></div>` + (chips ? `<div class="dchips">${chips}</div>` : "");
+  }
+  // ---- 화면 ----
+  const salesBtn = (r, kind, mark, ctx) => {
+    const lab = kind === "call" ? "전화" : "문자", has = !!r.phone, ts = mark && mark[kind];
+    const href = has ? (kind === "call" ? `tel:${r.phone}` : smsHref(r.phone, fillSms((ctx && ctx.tpl) || "", r, ctx && ctx.fcName))) : "";
+    return `<a class="sbtn ${kind}${ts ? " done" : ""}${has ? "" : " off"}" ${has ? `href="${esc(href)}" data-contact="${kind}" data-key="${esc(r.key)}"` : ""}>${lab}${ts ? " ✓" : ""}</a>`;
+  };
+  // 한 건 = 3줄: ① 계약자 · 피보 · 상품명 · 보험료 ② 계약일 · 생일 · 연락처 [전화][문자] · 직업 ③ 주소 · 모집FC (줄 안에서 항목이 나란히, 길면 줄바꿈)
+  // 따행 칩 4개 (필드 값이 있으면 ON): 방문완료=따행방문완료일 · 설문발송=설문발송일 · 설문응답=설문응답일 · 쿠폰발송=쿠폰발송일
+  const DCHIPS = [["done", "방문완료", "done", "따행방문완료일"], ["send", "설문발송", "send", "설문발송일"], ["resp", "설문응답", "resp", "설문응답일"], ["coupon", "쿠폰발송", "cpn", "쿠폰발송일"]];
+  // v93d 배치: ① 순번·이름(→피보) [이관 50% / 따행 30%] + 오른쪽 끝(이관 상태 칩 / 따행 칩 4개) ② 상품·보험료(아래 줄, 계약마다) ③ 계약일·생일·연락처[전화][문자]·직업(+따행은 모집FC) ④ 주소(+이관은 모집FC)
+  function salesRowsHtml(rows, mark, ctx, openSet) {
+    const it = (cls, lb, v) => (v === "" || v == null ? "" : `<span class="si ${cls || ""}">${lb ? `<i class="lb">${lb}</i>` : ""}${v}</span>`);
+    return `<div class="slist">` + rows.map((r, idx) => {
+      const mk = mark.get(r.key) || {};
+      const isD = !!r.dda, lock = isD && isRO(r.fc);
+      const st = r.status && r.status !== "유지" ? `<span class="st">${esc(r.status === "납입면제" ? "납면" : r.status)}</span>` : "";
+      const times = [mk.call ? `전화 시도 ✓ ${tsShow(mk.call)}` : "", mk.sms ? `문자 시도 ✓ ${tsShow(mk.sms)}` : ""].filter(Boolean).join(" · ");
+      const chips = isD ? DCHIPS.map(([f, lab, cls]) => `<button type="button" class="dc ${cls} ${r.dda[f] ? "on" : "off"}${lock ? " lock" : ""}" data-chip="${f}" data-key="${esc(r.key)}" aria-pressed="${r.dda[f] ? "true" : "false"}">${lab}</button>`).join("") : st;
+      const prodLines = isD
+        ? (r.prods && r.prods.length ? r.prods : [{ name: "계약 정보 없음(조회 제한)", fee: "" }])
+        : [{ name: r.product, fee: r.fee }];
+      const detail = isD ? `<div class="sline sub detail">방문완료 ${esc(r.dda.done || "-")} · 설문발송일 ${esc(r.dda.send || "-")} · 설문응답일 ${esc(r.dda.resp || "-")} · 쿠폰발송일 ${esc(r.dda.coupon || "-")}</div>` : "";
+      return `<div class="srow${r.ref ? " ref" : ""}${isD ? (r.dda.done ? " d-done" : " d-open") + " fold" + (openSet && openSet.has(r.key) ? " open" : "") : ""}" data-fold="${esc(r.key)}">
+        <div class="sline l1"><span class="no">${idx + 1}</span><span class="nmw ${isD ? "n30" : "n50"}">${r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder)}${r.ins ? ` <small class="ins">→ ${esc(r.ins)}</small>` : ""}</span><span class="rt">${chips}</span></div>
+        ${prodLines.map((p) => `<div class="sline prod"><span class="si pd">${esc(p.name)}</span><span class="si fe">${esc(p.fee ? wonText(p.fee) : "")}</span></div>`).join("")}
+        <div class="sline l2">${it("", "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span>${it("", "직업", esc(r.job))}${isD ? it("", "모집", esc(r.recFc)) : ""}</div>
+        <div class="sline l3">${it("ad", "", esc(r.addr))}${isD ? "" : it("", "모집", esc(r.recFc))}</div>
+        ${times ? `<div class="sline sub ok">${times}</div>` : ""}${detail}</div>`;
+    }).join("") + `</div>`;
+  }
+  // ---- 따행 칩 터치: 필드에 오늘 날짜(방문완료는 '방문완료')를 쓰거나 비움, 이력에 '수동 변경' 기록 ----
+  const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; };
+  function setTextCell(info, keyCol, keyVal, col, value) {
+    const kc = info.colOf(keyCol);
+    if (kc < 0) return false;
+    for (let r = info.hr + 1; r <= info.rg.e.r; r++) {
+      if (info.txt(r, kc) !== keyVal) continue;
+      const c = ensureColumn(info, col);
+      if (value === "") delete info.ws[info.enc(r, c)]; else info.ws[info.enc(r, c)] = { t: "s", v: value };
+      return true;
+    }
+    return false;
+  }
+  async function writeFollowField(row, field, value, prev) {
+    const wb = XLSX.read(await stGet(row.fileId), { type: "array", cellNF: true }); // 저장 직전 최신 파일
+    const cu = sheetInfo(wb, CUST_SHEET, ID_COL);
+    if (!cu || !setTextCell(cu, ID_COL, row.custId, field, value)) throw new Error("고객 시트에서 이 고객 줄을 찾지 못했습니다.");
+    const hist = sheetInfo(wb, "이력", "고객ID");
+    if (hist) {
+      const stamp = tsDigits(nowStamp());
+      appendRow(hist, { 일시: { stamp }, 고객ID: row.custId, 계약ID: "", 담당FC: row.fc || "", 유형: "따행필드", 결과: value ? "입력" : "비움", 내용: `${field} ${value ? "입력 " + value : "비움(이전 " + (prev || "-") + ")"} (영업 화면 수동 변경)`, 입력일시: { stamp } });
+    }
+    await stPut(row.fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[row.fileId];
+    histCache = null;
+  }
+  const setEntField = (e, k, v) => { const f = e.fields.find(([x]) => x.trim() === k); if (v === "") { if (f) e.fields.splice(e.fields.indexOf(f), 1); } else if (f) f[1] = v; else e.fields.push([k, v]); };
+  function undoToast(msg, onUndo) {
+    const el = document.createElement("div");
+    el.className = "toast2";
+    el.innerHTML = `<span>${esc(msg)}</span><b role="button" tabindex="0">되돌리기</b>`;
+    document.body.appendChild(el);
+    const done = () => el.remove();
+    el.querySelector("b").addEventListener("click", () => { done(); onUndo(); });
+    setTimeout(done, 6500);
+  }
+  async function applyFollowField(row, field, value, prev) {
+    const e = row.ent;
+    setEntField(e, field, value); // 화면은 바로 바꾸고(낙관적), 저장이 실패하면 되돌림
+    renderSales(true);
+    try { await writeFollowField(row, field, value, prev); return true; }
+    catch (err) { setEntField(e, field, prev || ""); renderSales(true); handleError(err); return false; }
+  }
+  // B: 칩 → 따행 시트 열 (방문완료는 접촉현황도 함께, 쿠폰발송은 쿠폰발송 글자도 함께)
+  function followCells(f, value) {
+    if (f === "done") return { "방문완료일": value, "접촉현황": value ? "방문완료" : "미활동" };
+    if (f === "send") return { "설문발송일": value };
+    if (f === "resp") return { "설문응답일": value };
+    return { "쿠폰발송일": value }; // 쿠폰발송 열은 읽지도 쓰지도 않음 (활동 계획 화면의 버튼 글자)
+  }
+  // logs: [{ col: 따행 시트 열 이름, value: 새 값, prev: 이전 값 }] — 이력에 남길 변경
+  async function writeFollowRow(row, cells, logs) {
+    const fo = row.follow, wb = XLSX.read(await stGet(row._fileId || fo._fileId), { type: "array", cellNF: true }); // 저장 직전 최신 파일
+    const info = sheetInfo(wb, "따행", "고객ID");
+    if (!info) throw new Error("따행 시트를 찾지 못했습니다.");
+    const kc = info.colOf("고객ID"), mc = info.colOf("대상년월");
+    let r0 = -1;
+    for (let r = info.hr + 1; r <= info.rg.e.r; r++) if (info.txt(r, kc) === row.custId && ymOfFollow(info.txt(r, mc)) === ymOfFollow(fo["대상년월"])) { r0 = r; break; }
+    if (r0 < 0) throw new Error("따행 시트에서 이 고객의 해당 대상년월 줄을 찾지 못했습니다.");
+    Object.entries(cells).forEach(([col, v]) => { const c = ensureColumn(info, col); if (v === "") delete info.ws[info.enc(r0, c)]; else info.ws[info.enc(r0, c)] = { t: "s", v }; });
+    const hist = sheetInfo(wb, "이력", "고객ID");
+    if (hist) {
+      const stamp = tsDigits(nowStamp());
+      // 이력 내용은 '<따행 시트 열 이름> 입력|비움 … 대상 YYYY-MM (영업 화면 수동 변경)' 형식 (데이터 갱신 스크립트가 필드 이름으로 읽어 보호). 바뀐 열마다 한 줄
+      logs.forEach(({ col, value, prev }) => appendRow(hist, { 일시: { stamp }, 고객ID: row.custId, 계약ID: "", 담당FC: row.fc || "", 유형: "따행필드", 결과: value ? "입력" : "비움", 내용: `${col} ${value ? "입력 " + value : "비움(이전 " + (prev || "-") + ")"} 대상 ${fo["대상년월"]} (영업 화면 수동 변경)`, 입력일시: { stamp } }));
+    }
+    await stPut(row._fileId || fo._fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[row._fileId || fo._fileId];
+    histCache = null;
+  }
+  async function applyChip(row, f, value, prev) {
+    const field = DCHIPS.find((c) => c[0] === f)[3];
+    if (!row.follow) return applyFollowField(row, field, value, prev);
+    const fo = row.follow, cells = followCells(f, value), before = {};
+    Object.keys(cells).forEach((k) => { before[k] = fo[k] || ""; });
+    Object.assign(fo, cells); // 화면 먼저
+    renderSales(true);
+    try { await writeFollowRow(row, cells, [{ col: { done: "방문완료일", send: "설문발송일", resp: "설문응답일", coupon: "쿠폰발송일" }[f], value, prev }]); return true; }
+    catch (err) { Object.assign(fo, before); renderSales(true); handleError(err); return false; }
+  }
+  async function toggleChip(row, f) {
+    const [, lab, , field] = DCHIPS.find((c) => c[0] === f);
+    if (isRO(row.fc)) return toast("보기 전용 권한이라 수정할 수 없습니다.");
+    const prev = String(row.dda[f] || "");
+    if (!prev) { // OFF → ON: 설문·쿠폰은 오늘 날짜, 방문완료는 '방문완료'
+      await applyChip(row, f, f === "done" ? "방문완료" : todayStr(), "");
+      return;
+    }
+    // ON → OFF: 지우기 전에 확인 (SOL에서 가져온 값일 수 있음) + 6초 되돌리기
+    if (!confirm(`${field} ${prev} 값을 지울까요?\nSOL에서 가져온 값일 수 있습니다. 지우면 칩이 꺼집니다.`)) return;
+    if (await applyChip(row, f, "", prev)) undoToast(`${lab} 지웠습니다`, () => applyChip(row, f, prev, ""));
+  }
+  // ---- FC 선택 · 초기화 ----
+  const salesFcKey = () => "shlife.salesFc." + me();
+  async function myFcName() { try { if (!permNamesCache) await readPerms(); return String((permNamesCache || {})[me()] || ""); } catch (e) { return ""; } }
+  // 이 달·이 탭·이 FC의 '시도' 표시를 없던 것으로: 시트 최근*일시를 비우고 이력의 해당 행은 지우지 않고 결과를 '취소(초기화)'로 바꿈
+  function clearContacts(wbInfo, targets, ym) {
+    const { ct, cu, hist } = wbInfo;
+    let n = 0;
+    const clearCell = (info, keyCol, keyVal) => {
+      const kc = info && info.colOf(keyCol);
+      if (!info || kc < 0) return;
+      for (let r = info.hr + 1; r <= info.rg.e.r; r++) {
+        if (info.txt(r, kc) !== keyVal) continue;
+        ["최근통화일시", "최근문자일시"].forEach((col) => { const c = info.colOf(col); if (c >= 0 && monthOf(info.txt(r, c)) === ym) { delete info.ws[info.enc(r, c)]; n++; } });
+        break;
+      }
+    };
+    targets.forEach((t) => { if (t.cid) clearCell(ct, "계약ID", t.cid); else clearCell(cu, ID_COL, t.custId); });
+    if (hist) {
+      const cs = { t: hist.colOf("일시"), u: hist.colOf("고객ID"), k: hist.colOf("계약ID"), y: hist.colOf("유형"), res: hist.colOf("결과") };
+      if (cs.t >= 0 && cs.u >= 0 && cs.res >= 0) {
+        for (let r = hist.hr + 1; r <= hist.rg.e.r; r++) {
+          const y = cs.y >= 0 ? hist.txt(r, cs.y) : "";
+          if (monthOf(hist.txt(r, cs.t)) !== ym || !["통화", "문자"].includes(y) || hist.txt(r, cs.res) !== "시도") continue; // 앱의 '시도' 행만 취소 처리 (다른 통화·상담 기록은 그대로)
+          const kid = cs.k >= 0 ? hist.txt(r, cs.k) : "", uid = hist.txt(r, cs.u);
+          if (targets.some((t) => (t.cid ? kid === t.cid : kid === "" && uid === t.custId))) { hist.ws[hist.enc(r, cs.res)] = { t: "s", v: "취소(초기화)" }; n++; }
+        }
+      }
+    }
+    return n;
+  }
+  // 이력 시트의 한 줄을 지우고 아래 줄을 한 칸씩 올림
+  function deleteSheetRow(info, r) {
+    const { ws, enc, rg } = info;
+    for (let rr = r; rr < rg.e.r; rr++) for (let c = rg.s.c; c <= rg.e.c; c++) { const nx = ws[enc(rr + 1, c)]; if (nx) ws[enc(rr, c)] = nx; else delete ws[enc(rr, c)]; }
+    for (let c = rg.s.c; c <= rg.e.c; c++) delete ws[enc(rg.e.r, c)];
+    rg.e.r -= 1;
+    ws["!ref"] = XLSX.utils.encode_range(rg);
+  }
+  // 한 건·한 종류(전화/문자)의 이 달 '시도' 기록 삭제: 기기 대기 기록 + 시트 최근통화/문자일시 + 이력의 '시도' 행(앱 기록만, 실제 통화·상담 기록은 그대로)
+  async function cancelContact(row, kind, ym) {
+    const sameKey = (it) => (row.cid ? it.cid === row.cid : !it.cid && it.custId === row.custId);
+    writeQueue(readQueue().filter((it) => !(it.kind === kind && monthOf(it.ts) === ym && sameKey(it))));
+    if (!row.fileId) return;
+    for (let i = 0; flushing && i < 25; i++) await sleep(200); // 대기 기록을 올리는 중이면 끝나길 잠깐 기다림
+    const wb = XLSX.read(await stGet(row.fileId), { type: "array", cellNF: true }); // 최신 파일
+    const col = kind === "call" ? "최근통화일시" : "최근문자일시", yname = kind === "call" ? "통화" : "문자";
+    const info = row.cid ? sheetInfo(wb, "계약", "계약ID") : sheetInfo(wb, CUST_SHEET, ID_COL), keyCol = row.cid ? "계약ID" : ID_COL, keyVal = row.cid || row.custId;
+    if (info) {
+      const kc = info.colOf(keyCol), cc = info.colOf(col);
+      if (kc >= 0 && cc >= 0) for (let r = info.hr + 1; r <= info.rg.e.r; r++) if (info.txt(r, kc) === keyVal) { if (monthOf(info.txt(r, cc)) === ym) delete info.ws[info.enc(r, cc)]; break; }
+    }
+    const hist = sheetInfo(wb, "이력", "고객ID");
+    if (hist) {
+      const cs = { t: hist.colOf("일시"), u: hist.colOf("고객ID"), k: hist.colOf("계약ID"), y: hist.colOf("유형"), res: hist.colOf("결과") };
+      if (cs.t >= 0 && cs.u >= 0 && cs.y >= 0 && cs.res >= 0) {
+        for (let r = hist.rg.e.r; r > hist.hr; r--) { // 아래에서 위로 (지우면 줄이 올라오므로)
+          if (monthOf(hist.txt(r, cs.t)) !== ym || hist.txt(r, cs.y) !== yname || hist.txt(r, cs.res) !== "시도") continue;
+          const kid = cs.k >= 0 ? hist.txt(r, cs.k) : "", uid = hist.txt(r, cs.u);
+          if (row.cid ? kid === row.cid : kid === "" && uid === row.custId) deleteSheetRow(hist, r);
+        }
+      }
+    }
+    await stPut(row.fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[row.fileId];
+    histCache = null; contractCache = null; listCache = null;
+  }
+  async function resetSalesMarks(rows, mark, ym, tabLabel, fcSel) {
+    const targets = rows.filter((r) => r.key && mark.get(r.key) && r.fileId && !r.ref);
+    const pending = readQueue().filter((it) => monthOf(it.ts) === ym && rows.some((r) => r.key === (it.cid ? "c:" + it.cid : "u:" + it.custId)));
+    if (!targets.length && !pending.length) return toast("초기화할 시도 표시가 없습니다.");
+    if (!confirm(`${ymLabel(ym)} · ${fcSel || "전체"} · ${tabLabel}의 전화·문자 '시도' 표시 ${new Set([...targets.map((r) => r.key), ...pending.map((it) => (it.cid ? "c:" + it.cid : "u:" + it.custId))]).size}건을 초기화할까요?\n\n· 목록의 ✓ 표시가 없어지고, 시트의 최근통화·최근문자 일시가 비워집니다.\n· 이력 시트의 기록은 지우지 않고 결과를 '취소(초기화)'로 바꿔 보존합니다.\n· 아직 저장 안 된 이 기기의 기록도 함께 지웁니다.`)) return;
+    try {
+      const byFile = new Map();
+      targets.forEach((r) => { if (!byFile.has(r.fileId)) byFile.set(r.fileId, []); byFile.get(r.fileId).push(r); });
+      for (const [fileId, ts] of byFile) {
+        const wb = XLSX.read(await stGet(fileId), { type: "array", cellNF: true });
+        const info = { ct: sheetInfo(wb, "계약", "계약ID"), cu: sheetInfo(wb, CUST_SHEET, ID_COL), hist: sheetInfo(wb, "이력", "고객ID") };
+        clearContacts(info, ts, ym);
+        await stPut(fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        delete bookCache[fileId];
+      }
+      const keys = new Set(rows.map((r) => r.key));
+      writeQueue(readQueue().filter((it) => !(monthOf(it.ts) === ym && keys.has(it.cid ? "c:" + it.cid : "u:" + it.custId))));
+      histCache = null; contractCache = null; listCache = null;
+      toast("초기화했습니다.");
+    } catch (e) { handleError(e); }
+    renderSales(true);
+  }
+
+  // ---- 영업 화면 스크롤 복귀: 화면 맨 위에 보이는 행(key)과 그 행의 위치(오프셋)를 기준으로 저장·복원. 월·필터·탭·FC 변경은 맨 위 ----
+  const SALES_SAVE_KEY = "shlife.salesResume";
+  let SALES_BOOT = null; // 이 탭이 새로 로드됐을 때(브라우저가 탭을 내렸다가 다시 열 때 등) 직전 영업 화면 상태 (30분 이내, 같은 계정)
+  try { const s = JSON.parse(sessionStorage.getItem(SALES_SAVE_KEY) || "null"); if (s && s.acc === gAccount() && Date.now() - s.t < 30 * 60 * 1000) SALES_BOOT = s; } catch (e) { /* 무시 */ }
+  try { history.scrollRestoration = "manual"; } catch (e) { /* 무시 */ }
+  const topbarH = () => { const t = document.querySelector(".topbar"); return t ? t.getBoundingClientRect().height : 0; };
+  function salesAnchor() {
+    const h = topbarH(), rows = [...document.querySelectorAll("#salesView .srow")];
+    const i = rows.findIndex((el) => el.getBoundingClientRect().bottom > h + 1);
+    if (i < 0) return { key: "", off: 0, after: [], y: Math.round(window.scrollY) };
+    return { key: rows[i].dataset.fold || "", off: Math.round(rows[i].getBoundingClientRect().top - h), after: rows.slice(i + 1, i + 7).map((el) => el.dataset.fold || "").filter(Boolean), y: Math.round(window.scrollY) };
+  }
+  let salesRestoreStop = null;
+  function salesRestore(a) {
+    if (!a) return;
+    if (salesRestoreStop) salesRestoreStop();
+    let stop = false;
+    const evs = ["touchstart", "wheel", "keydown", "mousedown"];
+    const onUser = () => { stop = true; };
+    evs.forEach((n) => window.addEventListener(n, onUser, { once: true, passive: true }));
+    const halt = () => { stop = true; cleanup(); };
+    const cleanup = () => { evs.forEach((n) => window.removeEventListener(n, onUser)); SALES.restoring = false; if (salesRestoreStop === halt) salesRestoreStop = null; };
+    salesRestoreStop = halt;
+    SALES.restoring = true;
+    const apply = () => {
+      if (stop) return;
+      const els = [...document.querySelectorAll("#salesView .srow")];
+      let el = null, off = a.off || 0;
+      for (const k of [a.key, ...(a.after || [])]) { if (!k) continue; el = els.find((e) => e.dataset.fold === k); if (el) { if (k !== a.key) off = 0; break; } } // 앵커 행이 사라졌으면 그 다음 행
+      const y = el ? el.getBoundingClientRect().top + window.scrollY - topbarH() - off : a.y || 0;
+      window.scrollTo(0, Math.max(0, Math.round(y)));
+    };
+    apply();
+    setTimeout(() => { apply(); setTimeout(() => { apply(); cleanup(); }, 150); }, 50); // 레이아웃이 자리 잡은 뒤 한 번 더 맞춤 (타이머: 화면이 가려져 있어도 멈추지 않음)
+  }
+  function salesSaveState() { // 새로 로드돼도 이어 보도록 (영업 화면을 보고 있을 때만)
+    if ($("salesView").hidden || SALES.resume) return;
+    try { sessionStorage.setItem(SALES_SAVE_KEY, JSON.stringify({ acc: gAccount(), t: Date.now(), tab: SALES.tab, ym: SALES.ym, fc: SALES.fc, dct: SALES.dct, dcls: SALES.dcls, dact: SALES.dact, df: SALES.df, open: [...SALES.open].slice(0, 300), a: salesAnchor() })); } catch (e) { /* 무시 */ }
+  }
+  function salesClearState() { try { sessionStorage.removeItem(SALES_SAVE_KEY); } catch (e) { /* 무시 */ } }
+  let salesSaveTimer = 0;
+  window.addEventListener("scroll", () => { clearTimeout(salesSaveTimer); salesSaveTimer = setTimeout(salesSaveState, 300); }, { passive: true });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") salesSaveState(); });
+  window.addEventListener("pagehide", salesSaveState);
+
+  let salesReq = 0;
+  // keep: true = 지금 위치 그대로(칩·초기화·자동 반영), 위치 객체 = 그 위치로(고객 카드에서 돌아올 때), 없으면 맨 위(월·필터·탭·FC 변경)
+  async function renderSales(keep) {
+    const req = ++salesReq;
+    let anchor = keep && keep !== true ? keep : keep ? salesAnchor() : null;
+    if (!anchor && SALES.resume) anchor = SALES.resume;
+    SALES.resume = null;
+    show("salesView", !!keep);
+    const box = $("salesView");
+    if (!SALES.ym) SALES.ym = ymNow();
+    const ym = SALES.ym;
+    const top = (fcHtml) => `<div class="sales-top">
+        <div class="seg"><button type="button" data-stab="transfer" class="${SALES.tab === "transfer" ? "on" : ""}">이달 이관</button><button type="button" data-stab="dda" class="${SALES.tab === "dda" ? "on" : ""}">따행</button></div>
+        <div class="sline2${fcHtml ? "" : " center"}"><div class="ymnav"><button type="button" data-ym="-1" aria-label="이전 달">‹</button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달">›</button>${top.note || ""}</div>${fcHtml}</div></div>`;
+    if (!keep || !box.querySelector("#salesBody .slist, #salesBody .sales-info")) box.innerHTML = top("") + `<div id="salesBody"><p class="hint pad">불러오는 중…</p></div>`; // keep이면 기존 목록을 그대로 두고 새 내용으로 바꿈
+    try {
+      const data = await loadSalesData();
+      if (req !== salesReq) return;
+      await loadMyPrefs().catch(() => {});
+      const myFc = await myFcName();
+      if (req !== salesReq) return;
+      // FC 선택: 접근 가능한 FC들(고객이 등록된 FC). 기본은 내 FC(권한 파일 이름), 없으면 첫 FC. 선택은 이 기기에 기억
+      const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc)].filter(Boolean))].sort((a, b) => { const o = CFG.fcOrder || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, "ko"); }); // 직급 먼저 → 사번순(config.fcOrder)
+      let saved = ""; try { saved = localStorage.getItem(salesFcKey()) || ""; } catch (e) { /* 무시 */ }
+      if (!isAdmin()) SALES.fc = fcs.includes(myFc) ? myFc : fcs[0] || ""; // 일반 계정: 선택창 없이 본인 FC
+      else if (!SALES.fc || !fcs.includes(SALES.fc)) SALES.fc = fcs.includes(saved) ? saved : fcs.includes(myFc) ? myFc : fcs[0] || "";
+      const fcSel = SALES.fc;
+      const baseRows = (SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : ddaRows(data, ym)).filter((r) => !fcSel || r.srcFc === fcSel);
+      // 따행: 활동대상 → 접촉현황 → 따행분류 (SOL 조회 조건과 같은 기준: 대상년월 · 활동대상 기본)
+      const bMode = SALES.tab === "dda" && baseRows.some((r) => r.follow);
+      let allRows = baseRows, ddaTotals = null, classes = [];
+      if (SALES.tab === "dda") ({ rows: allRows, totals: ddaTotals, classes } = ddaFilter(baseRows, bMode, { dct: "", dcls: "", dact: true })); // v94: 접촉현황·분류 전체, 활동대상 기본 고정 (화면에서 바꾸지 않음)
+      const ymNote = "";
+      // 따행 필터: 설문발송·설문응답·쿠폰(체크한 것 모두 채워진 고객만, AND)
+      const df = SALES.df, dfOn = SALES.tab === "dda" && (df.send || df.resp || df.coupon);
+      const rows = dfOn ? allRows.filter((r) => (!df.send || r.dda.send) && (!df.resp || r.dda.resp) && (!df.coupon || r.dda.coupon)) : allRows;
+      const mark = contactMarks(data, ym);
+      const ctx = { tpl: smsTemplate(SALES.tab === "dda" ? "dda" : "transfer"), fcName: fcSel || myFc };
+      const holders = new Set(rows.map((r) => r.custId || r.holder)).size;
+      const refN = SALES.tab === "transfer" ? data.contracts.filter((c) => c.type === "이관" && monthOf(c.row["이관일자"] || c.row["이관일"]) === ym && c.fc && c.srcFc && c.fc !== c.srcFc && (!fcSel || c.srcFc === fcSel)).length : 0;
+      const marked = rows.filter((r) => r.key && mark.get(r.key)).length;
+      SALES.data = data;
+      top.note = ymNote;
+      box.innerHTML = top(isAdmin() && fcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${fcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : "") +
+        `<div id="salesBody">${SALES.tab === "dda" ? "" : `<div class="sales-info"><span>${SALES.tab === "dda" ? (bMode ? `${(SALES.dct || SALES.dcls || dfOn) ? `필터 ${rows.length}명` : `표시 ${rows.length}명`}` : `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}`) : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "transfer" ? `<span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span>` : ""}</div>`}` +
+        (SALES.tab === "dda" ? `<div class="dfilter"><span class="dfl"><label><input type="checkbox" data-df="send" ${df.send ? "checked" : ""}> 설문발송</label><label><input type="checkbox" data-df="resp" ${df.resp ? "checked" : ""}> 설문응답</label><label><input type="checkbox" data-df="coupon" ${df.coupon ? "checked" : ""}> 쿠폰</label></span><button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></div>` : "") +
+        (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.</p>`) +
+        `<p class="hint pad">전화·문자는 버튼을 누른 '시도'만 기록됩니다(실제 통화·발송 여부는 알 수 없음).${readQueue().length ? ` 아직 저장 안 된 기록 ${readQueue().length}건은 앱이 다시 열리면 반영합니다.` : ""}</p></div>`;
+      box._rows = rows; box._mark = mark;
+      if (anchor) salesRestore(anchor); else if (!keep) window.scrollTo(0, 0);
+    } catch (e) { if (req === salesReq) { $("salesBody").innerHTML = ""; handleError(e); } }
+  }
+  function openSales() { renderSales(); flushContacts(); }
+  $("salesView").addEventListener("click", (ev) => {
+    const chip = ev.target.closest("[data-chip]");
+    if (chip) { // 칩 터치 = ON/OFF 전환만 (접힘/펼침·전화·문자와 별개)
+      const row = (($("salesView")._rows) || []).find((r) => r.key === chip.dataset.key);
+      if (row && row.dda) toggleChip(row, chip.dataset.chip);
+      return;
+    }
+    const fold = ev.target.closest(".srow.fold");
+    if (fold && !ev.target.closest("a, button, input, label, .sbtns, .sline.l1")) { // 칩이 있는 이름 줄은 접힘/펼침 제외 // 따행 행 접힘/펼침 (전화·문자 버튼과 이름 링크는 제외)
+      const k = fold.dataset.fold, on = fold.classList.toggle("open");
+      if (on) SALES.open.add(k); else SALES.open.delete(k);
+      return;
+    }
+    const dct = ev.target.closest("[data-dct]");
+    if (dct) { SALES.dct = dct.dataset.dct; return renderSales(); }
+    const dcl = ev.target.closest("[data-dcls]");
+    if (dcl) { SALES.dcls = SALES.dcls === dcl.dataset.dcls ? "" : dcl.dataset.dcls; return renderSales(); }
+    if (ev.target.closest("#dactBtn")) { SALES.dact = !SALES.dact; return renderSales(); }
+    const st = ev.target.closest("[data-stab]");
+    if (st) { SALES.tab = st.dataset.stab; return renderSales(); }
+    const ym = ev.target.closest("[data-ym]");
+    if (ym) { SALES.ym = ymShift(SALES.ym || ymNow(), +ym.dataset.ym); return renderSales(); }
+    if (ev.target.closest("#salesReset")) { const b = $("salesView"); return resetSalesMarks(b._rows || [], b._mark || new Map(), SALES.ym, SALES.tab === "transfer" ? "이달 이관" : "이달 따행", SALES.fc); }
+    const cu = ev.target.closest("[data-cust]");
+    if (cu) {
+      ev.preventDefault();
+      const es = (SALES.data && SALES.data.custById.get(cu.dataset.cust)) || [];
+      if (es.length) { const g = groupCustomers(es); g.forEach((x) => { x.entries.sort((a, b) => prio(a.type) - prio(b.type)); x.name = x.entries[0].name; }); openCustomer(g[0]); }
+      return;
+    }
+    const ct = ev.target.closest("[data-contact]");
+    if (ct && !ct.classList.contains("off")) { // 전화·문자: 링크는 그대로 열리게 두고, 그 전에 기기에 대기 기록을 먼저 저장
+      const row = ((($("salesView")._rows) || []).find((r) => r.key === ct.dataset.key));
+      if (!row) return;
+      if (ct.classList.contains("done")) { // 이미 시도 표시된 버튼을 다시 누르면: 전화·문자 앱은 열지 않고 표시와 기록을 지움
+        ev.preventDefault();
+        if (isRO(row.fc)) return toast("보기 전용 권한이라 수정할 수 없습니다.");
+        const kind = ct.dataset.contact, ymNow = SALES.ym;
+        ct.classList.remove("done"); ct.textContent = ct.textContent.replace(/\s*✓\s*$/, "");
+        toast("시도 표시를 취소하고 기록을 지우는 중…");
+        cancelContact(row, kind, ymNow).then(() => { toast("시도 표시와 기록을 지웠습니다."); renderSales(true); })
+          .catch((e) => { handleError(e); renderSales(true); });
+        return;
+      }
+      if (row.ref || !row.fileId || !row.key) { toast(row.ref ? "담당이 다른 FC 계약이라 기록하지 않습니다." : "새 구조 파일의 계약만 기록합니다."); return; }
+      const q = readQueue();
+      q.push({ uid: Date.now() + "-" + Math.random().toString(36).slice(2, 7), kind: ct.dataset.contact, ts: nowStamp(), cid: row.cid, custId: row.custId, fc: row.fc, fileId: row.fileId, src: SALES.tab === "dda" ? "영업 화면(따행)" : "영업 화면(이관)" });
+      writeQueue(q);
+      ct.classList.add("done");
+      if (!ct.textContent.includes("✓")) ct.textContent += " ✓";
+      setTimeout(flushContacts, 4000);
+    }
+  });
+  document.addEventListener("click", (ev) => { // 고객 카드 따행 섹션: 대상년월 선택
+    const b = ev.target.closest && ev.target.closest("[data-fidx]");
+    if (b && current && !$("customerView").hidden) { current.followIdx = +b.dataset.fidx; selectTab("basic"); }
+  });
+  document.addEventListener("click", (ev) => { // 고객 범위 옵션 (전체 = 해제하고 바로 검색 / 본인·이관·DB·따행·가망 = 다중 선택)
+    const b = ev.target.closest && ev.target.closest("#searchOpts [data-opt]");
+    if (!b) return;
+    const id = b.dataset.opt;
+    if (id === "all") optSel.clear(); else if (optSel.has(id)) optSel.delete(id); else optSel.add(id);
+    syncOpts();
+    search(curQuery(), true);
+  });
+  document.addEventListener("change", (ev) => {
+    if (!ev.target) return;
+    if (ev.target.id === "salesRef") { SALES.showRef = ev.target.checked; renderSales(); }
+    if (ev.target.id === "dclsSel") { SALES.dcls = ev.target.value; renderSales(); }
+    if (ev.target.dataset && ev.target.dataset.df) { SALES.df[ev.target.dataset.df] = ev.target.checked; renderSales(); }
+    if (ev.target.id === "salesFc") { SALES.fc = ev.target.value; try { localStorage.setItem(salesFcKey(), SALES.fc); } catch (e) { /* 무시 */ } renderSales(); }
+  });
+
+  (async function init() {
+    if (CFG.clientId === "YOUR-CLIENT-ID") {
+      show("loginView");
+      $("loginBtn").disabled = true;
+      toast("config.js에 clientId를 넣어 주세요.");
+      return;
+    }
+    if (GD) {
+      // 구글 토큰이 살아 있으면 바로 시작, 아니면 로그인(다시 연결) 버튼 (팝업은 버튼을 눌러야 열림)
+      if (gAccount() && storedGToken()) startApp(); else showGLogin();
+      return;
+    }
+    await msal.initialize();
+    try { await msal.handleRedirectPromise(); } catch (e) { handleError(e); }
+    if (msal.getAllAccounts().length) startApp();
+    else show("loginView");
+  })();
+
+  function startApp() {
+    if (!GD && sessionStorage.getItem("openAdmin") && isAdmin()) {
+      sessionStorage.removeItem("openAdmin");
+      openAdmin();
+    } else if (SALES_BOOT) { // 새로 로드됐을 때 영업 화면을 보던 중이었으면 그 탭·월·FC·필터·위치로
+      const s = SALES_BOOT; SALES_BOOT = null;
+      Object.assign(SALES, { tab: s.tab || "transfer", ym: s.ym || "", fc: s.fc || "", dct: "", dcls: "", dact: true, /* v94: 따행 필터는 이어보기에서도 기본값 */ df: { send: !!(s.df || {}).send, resp: !!(s.df || {}).resp, coupon: !!(s.df || {}).coupon }, open: new Set(s.open || []), resume: s.a || null });
+      loadSettings().then(() => openSales());
+    } else {
+      schedMode = "day"; schedDate = dayStart(new Date());
+      loadSettings().then(() => openSchedule()); // 첫 화면: 일정 Today (설정을 읽은 뒤)
+    }
+    loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
+    if (!isAdmin()) loadMyPrefs(); // 일반 사용자 설정 (캘린더·데이터 절약)
+    loadLists().then(showScope).catch(handleError); // 미리 불러오기
+  }
+})();
