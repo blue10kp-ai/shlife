@@ -1,0 +1,39 @@
+/* 신한FC 공통 디자인 기준 (엠 · 데탑 공용) — 시안 단계(2026-11-12)
+   업무용 보험 영업 도구. 표면은 차분한 회색, 색은 강조 한 가지(파랑)와 의미 색(양호·주의·오류)에만 쓴다. */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
+:root {
+  /* 표면·글자: 차가운 흑연 계열 한 줄 */
+  --bg: #F4F5F7;          /* 화면 바탕 */
+  --surface: #FFFFFF;     /* 카드·목록 */
+  --raised: #F0F2F5;      /* 눌림·선택 줄 배경 */
+  --line: rgba(20, 30, 50, .10);
+  --t1: #151A22;          /* 본문 */
+  --t2: #4B5361;          /* 보조 */
+  --t3: #6B7382;          /* 흐린 글자(메타) */
+  /* 강조: 현재 엠의 브랜드 파랑을 그대로 쓰고 데탑도 같은 값으로 맞춘다 */
+  --accent: #1F4E8C;
+  --accent-ink: #FFFFFF;  /* 강조 위의 글자 */
+  --accent-weak: rgba(31, 78, 140, .08);
+  /* 의미 색: 뜻이 있을 때만 */
+  --ok: #1D7A46; --warn: #A8620B; --bad: #C0392B;
+  /* 글꼴 */
+  --font: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+  /* 글자 크기(엠 / 데탑 같은 단계 이름) */
+  --fs-meta: 12px; --fs-small: 13px; --fs-body: 15px; --fs-title: 17px; --fs-head: 22px;
+  /* 간격: 4px 격자 */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px;
+  /* 모서리: 안쪽 = 바깥 − 간격 */
+  --r-ctl: 8px; --r-card: 12px; --r-panel: 16px;
+  /* 움직임 */
+  --ease: cubic-bezier(.2, .8, .2, 1); --t-fast: 120ms; --t-in: 200ms;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0F1217; --surface: #171B22; --raised: #1E232B; --line: rgba(255, 255, 255, .09);
+    --t1: #E8EBF0; --t2: #A5ADBA; --t3: #747C8A;
+    --accent: #7FAEF0; --accent-ink: #0F1217; --accent-weak: rgba(127, 174, 240, .12);
+    --ok: #4CC282; --warn: #E0A04A; --bad: #EF7A6C;
+  }
+}
+.num { font-variant-numeric: tabular-nums; }

@@ -279,7 +279,7 @@
 
   // ---------- 화면 전환 ----------
   const views = ["loginView", "scheduleView", "searchView", "customerView", "salesView", "adminView"];
-  const APP_NAME = "신한FC M";
+  const APP_NAME = "신한FC m";
   const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "관리자" };
   const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin" };
   function show(view, keepScroll) {
@@ -1185,6 +1185,7 @@
     consultShowAll = false; // 상담기록은 처음엔 최근 10건
     $("avatar").classList.remove("has-photo");
     $("custSub").innerHTML = custSubHtml(cust);
+    { const tel = custTelHtml(cust); $("custTel").innerHTML = tel; $("custTel").hidden = !tel; } // 명함 카드 안 전화 줄(표시만 추가, 기능 그대로)
     $("tabBody").innerHTML = '<p class="hint pad">고객 정보를 불러오는 중…</p>';
     $("tabs").innerHTML = "";
     history.pushState({ v: "customer" }, "");
@@ -1404,13 +1405,27 @@
     const m = PHONE_COLS.includes(k.trim()) && String(v).match(MOBILE_RE);
     if (m) {
       const num = m[0].replace(/\D/g, "");
-      btns = `<a class="act-btn" href="tel:${num}" aria-label="전화 걸기">📞<span>Call</span></a>
-        <a class="act-btn" href="sms:${num}" aria-label="문자 보내기">💬<span>SMS</span></a>`;
+      btns = `<a class="act-btn" href="tel:${num}" aria-label="전화 걸기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg><span>Call</span></a>
+        <a class="act-btn" href="sms:${num}" aria-label="문자 보내기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>SMS</span></a>`;
     } else if (/이메일|e-?mail/i.test(k) && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v).trim())) {
-      btns = `<a class="act-btn" href="mailto:${esc(String(v).trim())}" aria-label="메일 보내기">✉️<span>@</span></a>`;
+      btns = `<a class="act-btn" href="mailto:${esc(String(v).trim())}" aria-label="메일 보내기"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg><span>@</span></a>`;
     }
     return btns ? `<div class="val-row"><span class="val ${m ? "nowrap" : ""}">${esc(v)}</span><span class="acts">${btns}</span></div>`
       : `<div>${esc(v)}</div>`;
+  }
+
+  // 명함 카드 안 전화 줄: 고객 리스트의 휴대전화 번호와 전화·문자 버튼 (정보 탭의 연락처 줄과 같은 값)
+  function custTelHtml(c) {
+    for (const e of c.entries) for (const [k, v] of e.fields) {
+      if (PHONE_COLS.includes(k.trim()) && String(v).match(MOBILE_RE)) {
+        const num = String(v).match(MOBILE_RE)[0];
+        const d = num.replace(/\D/g, "");
+        return `<div class="n"><small>휴대전화</small>${esc(num)}</div><span class="acts">` +
+          `<a class="act-btn" href="tel:${d}" aria-label="전화 걸기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></a>` +
+          `<a class="act-btn" href="sms:${d}" aria-label="문자 보내기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></a></span>`;
+      }
+    }
+    return "";
   }
 
   // 맨 위: 생년월일 (남) · [계약] · 담당: 최수진FC   (계약/이관 등은 색 태그)
@@ -2641,7 +2656,7 @@
     const em = gAccount();
     $("loginBtn").textContent = em ? "Google 다시 연결 (" + em + ")" : "Google 계정으로 로그인";
     const lead = document.querySelector("#loginView .lead");
-    if (lead) lead.innerHTML = "<b>신한FC M</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.";
+    if (lead) lead.innerHTML = "<b>신한FC m</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.";
     const hint = document.querySelector("#loginView .hint");
     if (hint) hint.textContent = "고객 정보는 Google Drive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.";
     $("loginOtherBtn").hidden = false;
@@ -3296,7 +3311,7 @@
     return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head">${evLine(e)}</div>
         <button type="button" class="ev-edit" data-evedit="${i}">수정</button>
         <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
-      <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}>📍 ${esc(e.location)}</p>
+      <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}><svg class="pin" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(e.location)}</p>
       <div id="evForm${i}"></div>
       ${it.all.length ? (it.ignored
         ? `<div class="ev-tools ev-ignored"><span class="hint">검색된 고객 ${it.all.length}명을 숨겼어요</span><button type="button" class="pick-btn" data-unignore="${i}">되돌리기</button></div>`
@@ -3395,7 +3410,7 @@
       await gcalPatch(it.e.calId, it.e.eventId, { location: text });
       it.e.location = text;
       const loc = $("loc" + i);
-      loc.textContent = "📍 " + text; loc.hidden = false;
+      loc.innerHTML = `<svg class="pin" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(text)}`; loc.hidden = false;
       toast("일정 장소에 입력했습니다.");
       if (it.custs.length > 1) { await pickCustomer(it, c, btn); return; }
       btn.textContent = "입력됨";

@@ -5,19 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1f4e8c">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="신한FC M">
-  <title>신한FC M</title>
-  <link rel="manifest" href="manifest.webmanifest?v=4">
+  <meta name="apple-mobile-web-app-title" content="신한FC m">
+  <title>신한FC m</title>
+  <link rel="manifest" href="manifest.webmanifest?v=5">
   <link rel="icon" href="favicon.png?v=2" type="image/png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
-  <link rel="stylesheet" href="style.css?v=102">
+  <link rel="stylesheet" href="style.css?v=104">
+  <link rel="stylesheet" href="tokens.css?v=104">
+  <link rel="stylesheet" href="design.css?v=104b">
 </head>
 <body>
   <header class="topbar">
     <button id="backBtn" class="back-btn" hidden aria-label="뒤로 가기"><span class="chev-l">‹</span><span id="backLabel">고객 정보</span></button>
     <h1 id="title">고객</h1>
     <form id="topSearch" class="top-search" hidden role="search">
-      <input id="q" type="search" placeholder="🔍 검색" autocomplete="off" enterkeyhint="search" aria-label="고객 검색 (이름·연락처·주소·미팅장소)">
+      <input id="q" type="search" placeholder="검색" autocomplete="off" enterkeyhint="search" aria-label="고객 검색 (이름·연락처·주소·미팅장소)">
       <ul id="recentList" class="recent" hidden></ul>
     </form>
     <button id="logoutBtn" class="text-btn icon-btn" hidden aria-label="로그아웃" title="로그아웃"><svg class="power-ico" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
@@ -27,7 +29,7 @@
     <!-- 로그인 화면 -->
     <section id="loginView" class="view" hidden>
       <div class="card center">
-        <p class="lead"><b>신한FC M</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.</p>
+        <p class="lead"><b>신한FC m</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.</p>
         <button id="loginBtn" class="primary big">Google 계정으로 로그인</button>
         <p><button id="loginOtherBtn" type="button" class="link-btn" hidden>다른 계정으로 로그인</button></p>
         <p class="hint">고객 정보는 Google Drive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.</p>
@@ -64,9 +66,10 @@
             <div id="custSub" class="cust-sub"></div>
           </div>
         </div>
+        <div id="custTel" class="cust-tel" hidden></div>
         <div id="photoMenu" class="photo-menu" hidden>
-          <button type="button" id="photoPick">📷 사진 바꾸기</button>
-          <button type="button" id="photoDel" class="danger">🗑 사진 삭제</button>
+          <button type="button" id="photoPick">사진 바꾸기</button>
+          <button type="button" id="photoDel" class="danger">사진 삭제</button>
           <button type="button" id="photoMenuClose">취소</button>
         </div>
         <div id="gradeBtns" class="grade-btns" hidden></div>
@@ -88,10 +91,10 @@
 
   <!-- 큰 메뉴 -->
   <nav id="mainNav" class="mainnav" hidden>
-    <button type="button" data-section="schedule"><span class="ni">📅</span>일정</button>
-    <button type="button" data-section="customer"><span class="ni">👤</span>고객</button>
-    <button type="button" data-section="sales"><span class="ni">💼</span>영업</button>
-    <button type="button" data-section="admin" id="navAdmin" hidden><span class="ni">⚙️</span><span id="navAdminLabel">설정</span></button>
+    <button type="button" data-section="schedule"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>일정</button>
+    <button type="button" data-section="customer"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>고객</button>
+    <button type="button" data-section="sales"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M2 13h20"/></svg></span>영업</button>
+    <button type="button" data-section="admin" id="navAdmin" hidden><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></svg></span><span id="navAdminLabel">설정</span></button>
   </nav>
 
   <!-- 프로필 사진 자르기 (원 안에 맞추기) -->
@@ -116,7 +119,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="config.js?v=102"></script>
-  <script src="app.js?v=102"></script>
+  <script src="config.js?v=104"></script>
+  <script src="app.js?v=104"></script>
 </body>
 </html>
