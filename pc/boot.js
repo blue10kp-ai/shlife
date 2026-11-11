@@ -4,7 +4,7 @@
   // 데이터 사본(data\*.js)은 쓰지 않는다. 로그인 전에는 어떤 고객·수수료 정보도 화면에 없다.
   var main = document.getElementById('main'), nav = document.getElementById('nav');
   var esc = function (x) { return String(x == null ? '' : x).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
-  var SCRIPTS = ['access.js', 'page-dashboard.js', 'page-contract.js', 'page-team.js', 'page-customer.js', 'page-fee.js', 'page-settings.js', 'app.js'];
+  var SCRIPTS = ['access.js', 'page-dashboard.js', 'page-contract.js', 'page-team.js', 'page-customer.js', 'page-fee.js', 'admin-perm.js', 'page-settings.js', 'app.js'];
 
   function box(html) { main.innerHTML = '<div class="bootbox">' + html + '</div>'; }
   function loginView(msg) {

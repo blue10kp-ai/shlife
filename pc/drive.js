@@ -257,6 +257,37 @@
     var f = await gd(API + '/files/' + encodeURIComponent(id) + '?fields=' + encodeURIComponent('permissions(type,role,emailAddress)') + '&supportsAllDrives=true');
     return (f.permissions || []).map(function (p) { return { email: String(p.emailAddress || (p.type === 'anyone' ? '(링크 공개)' : '')).toLowerCase(), role: p.role, type: p.type }; });
   }
+  // 내 설정(shlife-내설정.json, 앱 설정 폴더): 엠의 '문자 문구'(sms.transfer / sms.dda)가 들어 있는 파일. 모르는 키는 그대로 두고 patch 한 항목만 바꾼다. 파일이 없으면 새로 만든다.
+  var MYF = 'shlife-내설정.json', MYDIR = '개인설정', myDirCache = null;
+  // 소유자의 개인 설정은 공유 설정 폴더가 아니라 같은 상위 폴더 아래 공유하지 않는 '개인설정' 폴더에 둔다(엠과 같은 위치)
+  async function myDirId(create) {
+    if (myDirCache) return myDirCache;
+    var f = await gd(API + '/files/' + encodeURIComponent(APPDIR) + '?fields=parents&supportsAllDrives=true'), par = f.parents && f.parents[0];
+    if (!par) throw new Error('설정 폴더의 상위 폴더를 찾지 못했습니다.');
+    var a = await qlist("'" + qv(par) + "' in parents and name='" + MYDIR + "' and mimeType='" + FOLDER + "' and trashed=false");
+    if (a[0]) return (myDirCache = a[0].id);
+    if (!create) return null;
+    var r = await gd(API + '/files?fields=id&supportsAllDrives=true', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: MYDIR, mimeType: FOLDER, parents: [par] }) });
+    return (myDirCache = r.id);
+  }
+  async function myPrefsFile(dir) { if (!dir) return null; var a = await qlist("'" + dir + "' in parents and name='" + MYF + "' and trashed=false"); return a[0] || null; }
+  async function readMyPrefs() {
+    var f = await myPrefsFile(await myDirId(false));
+    if (!f) return {};
+    return (await gd(API + '/files/' + encodeURIComponent(f.id) + '?alt=media&supportsAllDrives=true')) || {};
+  }
+  function writeMyPrefs(patch) {
+    return serialize(async function () {
+      var dir = await myDirId(true), f = await myPrefsFile(dir), cur = {};
+      if (f) cur = (await gd(API + '/files/' + encodeURIComponent(f.id) + '?alt=media&supportsAllDrives=true')) || {};
+      var next = Object.assign({}, cur, patch), body = JSON.stringify(next, null, 2);
+      if (f) { await gd(UP + '/files/' + encodeURIComponent(f.id) + '?uploadType=media&supportsAllDrives=true', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: body }); return next; }
+      var b = 'shfc' + Date.now();
+      var multipart = new Blob(['--' + b + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify({ name: MYF, parents: [dir] }) + '\r\n--' + b + '\r\nContent-Type: application/json\r\n\r\n', body, '\r\n--' + b + '--']);
+      await gd(UP + '/files?uploadType=multipart&supportsAllDrives=true', { method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + b }, body: multipart });
+      return next;
+    });
+  }
   async function readSettings() {
     var f = await settingsFile();
     if (!f) return {};
@@ -274,6 +305,6 @@
   }
 
   async function baseShares() { var b = await baseId(); return (await folderShares(b)).some(function (s) { return s.role !== 'owner'; }); }
-  window.DRIVE = { on: on, email: email, login: login, logout: logout, onChange: onChange, updateCustomer: updateCustomer, updateContract: updateContract, consultOp: consultOp, refresh: refresh, calendarList: calendarList, calReady: calReady, baseShares: baseShares, readPerms: readPerms, folderShares: folderShares, appDirId: APPDIR, readSettings: readSettings, writeSettings: writeSettings,
-    _i: { get cache() { return cache; }, API: API, gd: gd, qlist: qlist, qv: qv, baseId: baseId, fcFolders: fcFolders, listFile: listFile, extraFile: extraFile, getWB: getWB } };
+  window.DRIVE = { on: on, email: email, login: login, logout: logout, onChange: onChange, updateCustomer: updateCustomer, updateContract: updateContract, consultOp: consultOp, refresh: refresh, calendarList: calendarList, calReady: calReady, baseShares: baseShares, readPerms: readPerms, folderShares: folderShares, appDirId: APPDIR, readMyPrefs: readMyPrefs, writeMyPrefs: writeMyPrefs, readSettings: readSettings, writeSettings: writeSettings,
+    _i: { get cache() { return cache; }, API: API, gd: gd, qlist: qlist, qv: qv, baseId: baseId, fcFolders: fcFolders, listFile: listFile, extraFile: extraFile, getWB: getWB, serialize: serialize } };
 })();

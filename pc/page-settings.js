@@ -25,7 +25,7 @@
     return { items: DEFAULT.map(function (x) { return Object.assign({}, x); }), done: {} };
   })();
   var state = { sub: '', filter: 'all', draft: null };
-  var SUBS = [['perm', '권한·공유 현황'], ['common', '공통 설정(M과 공유)'], ['updates', '업데이트 일정']];
+  var SUBS = [['perm', '권한·공유 현황'], ['common', '공통 설정(M과 공유)'], ['sms', '문자 문구(M과 공유)'], ['updates', '업데이트 일정']];
   var pageTitle = function () { return window.SETTINGS_ADMIN && window.SETTINGS_ADMIN() ? '관리자' : '설정'; };
   var pageHead = function (sub) { return '<h1>' + pageTitle() + '</h1><p class="sub">' + sub + '</p><div class="tabs">' + SUBS.map(function (x) { return '<button class="' + (state.sub === x[0] ? 'on' : '') + '" data-sub="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
   var cs = { data: null, err: '', busy: false, msg: '', cals: null, calMsg: '', calBusy: false, calTried: false };   // 공통 설정(Drive)
@@ -44,6 +44,7 @@
   var pm = { data: null, err: '', busy: false };
   var roleKo = { owner: '소유자', writer: '편집', commenter: '댓글', reader: '보기' };
   function permHtml() {
+    if (window.ADMINPERM) return pageHead('계정별로 볼 FC를 지정하면 Drive 폴더 공유가 함께 바뀝니다(저장 전 확인창에서 내용을 확인합니다).') + window.ADMINPERM.html();
     var h = pageHead('권한·공유 현황은 읽기 전용입니다. 수정은 신한FC M의 관리자 화면에서 합니다(Drive 공유도 함께 바뀌기 때문).');
     if (!(window.DRIVE && DRIVE.on())) return h + '<section><p class="mut">Drive에 로그인하면 불러옵니다.</p></section>';
     var d = pm.data;
@@ -79,6 +80,56 @@
         return DRIVE.baseShares().then(function (root) { pm.data = { perms: perms, shares: shares, appShares: appShares, rootShared: root }; pm.busy = false; window.APP.rerender(); });
       });
     }).catch(function (e) { pm.busy = false; pm.err = '불러오지 못했습니다: ' + (e && e.message || e); window.APP.rerender(); });
+  }
+
+  // ===== 문자 문구 (엠의 '문자 문구'와 같은 파일: shlife-내설정.json 의 sms.transfer / sms.dda) =====
+  //   영업 화면의 [문자] 버튼에 미리 채워지는 문구. 기본 문구와 같으면 저장하지 않고(나중에 기본이 바뀌면 따라감), 지우면 빈 문구로 저장한다. 엠의 다른 값은 건드리지 않는다.
+  var SMS_DEFAULT = {   // 엠 config.js smsDefaults 와 같은 기본 문구
+    transfer: '{고객명}님, 안녕하세요. 신한라이프 담당 FC {FC명}입니다. 앞으로 보험 관리를 맡게 되어 인사드립니다. 편하신 시간에 통화 가능하실까요?',
+    dda: '{고객명}님, 안녕하세요. 신한라이프 {FC명}입니다. 작은 선물을 전해 드리려고 방문 일정을 여쭙니다. 편하신 날짜와 시간을 알려 주세요.'
+  };
+  var sm = { data: null, err: '', busy: false, msg: '' };
+  var smsFill = function (t) { return String(t || '').replace(/\{고객명\}/g, '홍길동').replace(/\{FC명\}/g, '최수진').replace(/\{상품명\}/g, '종신보험').replace(/\{이관일\}/g, '11월 9일'); };
+  var smsOf = function (kind) { var m = (sm.data && sm.data.sms) || {}; return typeof m[kind] === 'string' ? m[kind] : SMS_DEFAULT[kind]; };
+  function smsHtml() {
+    var h = pageHead("영업 화면의 [문자] 버튼에 채워지는 문구입니다. 신한FC M과 같은 파일(shlife-내설정.json)을 읽고 쓰며, 여기서 저장하면 M에도 반영됩니다.");
+    if (!(window.DRIVE && DRIVE.on())) return h + '<section><p class="mut">Drive에 로그인하면 불러옵니다.</p></section>';
+    // 이 화면은 소유자(관리자) 본인의 개인 설정 파일만 다룬다. 다른 계정은 자기 Drive의 개인 설정 위치를 써야 하므로(엠 방식) 아직 열지 않는다.
+    if (!(window.SETTINGS_ADMIN && window.SETTINGS_ADMIN())) return h + '<section><p class="mut">문자 문구는 사용자마다 자기 Drive의 개인 설정에 저장됩니다. 이 화면은 소유자(관리자) 본인 문구만 다룹니다.</p></section>';
+    if (!sm.data) return h + '<section><p class="mut">' + (sm.err ? esc(sm.err) : '불러오는 중…') + '</p>' + (sm.err ? '<button class="btn" id="smReload">다시 불러오기</button>' : '') + '</section>';
+    var ta = function (id, label) { return '<div class="fr smf"><span>' + label + '</span><span><textarea id="' + id + '" rows="4" maxlength="300" style="width:100%"></textarea><span class="mut" id="' + id + 'N"></span> <button type="button" class="btn" data-smreset="' + id + '">기본값으로 되돌리기</button></span></div>'; };
+    return h + '<section><h2>문자 문구</h2><p class="mut">쓸 수 있는 항목: <b>{고객명} {FC명} {상품명} {이관일}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {이관일}은 따행 목록에서는 비어 있습니다.</p><div class="fg">' +
+      ta('smTransfer', '이관 문자 문구') + ta('smDda', '따행 문자 문구') + '</div><p class="mut" id="smPreview"></p>' +
+      '<div class="ue-act"><button type="button" class="btn pri" id="smSave" disabled>문구 저장</button> <span class="mut" id="smMsg">' + esc(sm.msg) + '</span></div></section>';
+  }
+  function loadSms() {
+    sm.err = ''; sm.busy = true;
+    return DRIVE.readMyPrefs().then(function (d) { sm.data = d; sm.busy = false; window.APP.rerender(); })
+      .catch(function (e) { sm.busy = false; sm.err = '불러오지 못했습니다: ' + (e && e.message || e); window.APP.rerender(); });
+  }
+  function bindSms(rr) {
+    if (!(window.SETTINGS_ADMIN && window.SETTINGS_ADMIN())) return;
+    var g = function (id) { return document.getElementById(id); };
+    if (window.DRIVE && DRIVE.on() && !sm.data && !sm.busy && !sm.err) loadSms();
+    if (g('smReload')) g('smReload').onclick = function () { sm.data = null; sm.err = ''; loadSms(); };
+    if (!g('smTransfer')) return;
+    var KIND = { smTransfer: 'transfer', smDda: 'dda' }, ids = Object.keys(KIND);
+    ids.forEach(function (id) { g(id).value = smsOf(KIND[id]); });
+    var read = function () { return JSON.stringify(ids.map(function (id) { return g(id).value.trim(); })); }, base0 = read();
+    var cnt = function () { ids.forEach(function (id) { var n = g(id).value.length; g(id + 'N').textContent = n + '자' + (n > 45 ? ' · 45자 초과(장문 문자)' : ''); }); };
+    var prev = function (id) { g('smPreview').textContent = g(id).value.trim() ? '미리보기: ' + smsFill(g(id).value) : ''; };
+    cnt();
+    ids.forEach(function (id) {
+      g(id).oninput = function () { cnt(); prev(id); g('smSave').disabled = read() === base0; };
+      g(id).onfocus = function () { prev(id); };
+    });
+    document.querySelectorAll('[data-smreset]').forEach(function (b) { b.onclick = function () { var id = b.getAttribute('data-smreset'); g(id).value = SMS_DEFAULT[KIND[id]]; cnt(); prev(id); g('smSave').disabled = read() === base0; }; });
+    g('smSave').onclick = function () {
+      var sms = {}; ids.forEach(function (id) { var v = g(id).value.trim(); if (v !== SMS_DEFAULT[KIND[id]]) sms[KIND[id]] = v; });   // 엠과 같은 저장 규칙
+      g('smSave').disabled = true; g('smMsg').textContent = '저장 중…';
+      DRIVE.writeMyPrefs({ sms: sms }).then(function (n) { sm.data = n; sm.msg = '문구를 저장했습니다.'; rr(); })
+        .catch(function (e) { sm.msg = '저장하지 못했습니다: ' + (e && e.message || e); rr(); });
+    };
   }
   function commonHtml() {
     var on = window.DRIVE && DRIVE.on(), d = cs.data;
@@ -144,6 +195,7 @@
   function render() {
     var menu = '<div class="tabs">' + SUBS.map(function (x) { return '<button class="' + (state.sub === x[0] ? 'on' : '') + '" data-sub="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
     if (state.sub === 'perm') return permHtml();
+    if (state.sub === 'sms') return smsHtml();
     if (state.sub === 'common') return commonHtml();
     if (state.sub !== 'updates') return '<h1>' + pageTitle() + '</h1><p class="sub">세부 메뉴를 선택하세요</p>' + menu;
     var t = today(), ts = ymd(t), h = '<h1>' + pageTitle() + '</h1><p class="sub">업데이트 일정 · 체크하면 오늘 날짜로 완료가 기록됩니다 (이 브라우저에 저장)</p>' + menu;
@@ -180,7 +232,9 @@
     var rr = function () { window.APP.rerender(); };
     document.querySelectorAll('[data-sub]').forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-sub'); state.sub = state.sub === k ? '' : k; state.draft = null; rr(); }; });
     var g0 = function (id) { return document.getElementById(id); };
-    if (state.sub === 'perm' && window.DRIVE && DRIVE.on() && !pm.data && !pm.busy && !pm.err) loadPerm();
+    if (state.sub === 'sms') bindSms(rr);
+    if (state.sub === 'perm' && window.ADMINPERM) window.ADMINPERM.bind(rr);
+    else if (state.sub === 'perm' && window.DRIVE && DRIVE.on() && !pm.data && !pm.busy && !pm.err) loadPerm();
     if (g0('pmReload')) g0('pmReload').onclick = function () { pm.data = null; pm.err = ''; loadPerm(); };
     if (window.DRIVE && DRIVE.on() && !pulled && !cs.busy) { pulled = true; loadCommon(); }
     if (g0('csReload')) g0('csReload').onclick = function () { cs.msg = ''; cs.data = null; loadCommon(); };

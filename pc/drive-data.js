@@ -224,6 +224,21 @@
     return errors;
   }
 
+  // 접속 명단 저장(_양식\사용자권한.json): 저장 직전에 최신을 읽고 fn으로 바꾼 뒤 올림(다른 항목 보존)
+  function updateRoster(fn) {
+    return I.serialize(async function () {
+      var cur = await claudeId(), f = await child(cur, '_양식', true);
+      f = f && await child(f.id, '사용자권한.json', false);
+      if (!f) throw new Error("'_양식\\사용자권한.json' 을(를) 찾지 못했습니다.");
+      var data = (await I.gd(I.API + '/files/' + encodeURIComponent(f.id) + '?alt=media&supportsAllDrives=true')) || {};
+      data.users = data.users || [];
+      var next = fn(data) || data;
+      await I.gd('https://www.googleapis.com/upload/drive/v3/files/' + encodeURIComponent(f.id) + '?uploadType=media&supportsAllDrives=true', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next, null, 2) });
+      return next;
+    });
+  }
+
+  D.updateRoster = updateRoster;
   D.loadAll = loadAll;
   D.customerFiles = customerFiles;
   D.readJson = readJson;
