@@ -65,7 +65,7 @@
     }
     var dv = window.DRIVE;
     if (dv) h += '<div class="drv">' + (dv.on() ? '<span class="drvok">● Google Drive 연결됨</span><small>' + (dv.email() || '') + '</small><button type="button" id="drvOut" class="asSel">연결 해제</button>' : '<button type="button" id="drvIn" class="asSel">Google Drive 연결 (로그인)</button><small>연결하면 고객 정보 수정이 엑셀에 바로 저장됩니다</small>') + '</div>';
-    h += '<div style="margin-top:8px">로컬 테스트 버전<br><span id="stamp"></span></div>';
+    h += '<div style="margin-top:8px">데탑 v1 · 2026-11-11<br><span id="stamp"></span></div>';
     foot.innerHTML = h;
     var sel = document.getElementById('asSel'); if (sel) sel.onchange = function () { AC.viewAs(sel.value); };
     var di = document.getElementById('drvIn'); if (di) di.onclick = function () { di.disabled = true; di.textContent = '로그인 창을 확인하세요…'; DRIVE.login().then(function () { location.reload(); }).catch(function (e) { alert(e.message || e); userBox(); }); };
