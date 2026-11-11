@@ -4048,6 +4048,42 @@
     }
     return n;
   }
+  // 이력 시트의 한 줄을 지우고 아래 줄을 한 칸씩 올림
+  function deleteSheetRow(info, r) {
+    const { ws, enc, rg } = info;
+    for (let rr = r; rr < rg.e.r; rr++) for (let c = rg.s.c; c <= rg.e.c; c++) { const nx = ws[enc(rr + 1, c)]; if (nx) ws[enc(rr, c)] = nx; else delete ws[enc(rr, c)]; }
+    for (let c = rg.s.c; c <= rg.e.c; c++) delete ws[enc(rg.e.r, c)];
+    rg.e.r -= 1;
+    ws["!ref"] = XLSX.utils.encode_range(rg);
+  }
+  // 한 건·한 종류(전화/문자)의 이 달 '시도' 기록 삭제: 기기 대기 기록 + 시트 최근통화/문자일시 + 이력의 '시도' 행(앱 기록만, 실제 통화·상담 기록은 그대로)
+  async function cancelContact(row, kind, ym) {
+    const sameKey = (it) => (row.cid ? it.cid === row.cid : !it.cid && it.custId === row.custId);
+    writeQueue(readQueue().filter((it) => !(it.kind === kind && monthOf(it.ts) === ym && sameKey(it))));
+    if (!row.fileId) return;
+    for (let i = 0; flushing && i < 25; i++) await sleep(200); // 대기 기록을 올리는 중이면 끝나길 잠깐 기다림
+    const wb = XLSX.read(await stGet(row.fileId), { type: "array", cellNF: true }); // 최신 파일
+    const col = kind === "call" ? "최근통화일시" : "최근문자일시", yname = kind === "call" ? "통화" : "문자";
+    const info = row.cid ? sheetInfo(wb, "계약", "계약ID") : sheetInfo(wb, CUST_SHEET, ID_COL), keyCol = row.cid ? "계약ID" : ID_COL, keyVal = row.cid || row.custId;
+    if (info) {
+      const kc = info.colOf(keyCol), cc = info.colOf(col);
+      if (kc >= 0 && cc >= 0) for (let r = info.hr + 1; r <= info.rg.e.r; r++) if (info.txt(r, kc) === keyVal) { if (monthOf(info.txt(r, cc)) === ym) delete info.ws[info.enc(r, cc)]; break; }
+    }
+    const hist = sheetInfo(wb, "이력", "고객ID");
+    if (hist) {
+      const cs = { t: hist.colOf("일시"), u: hist.colOf("고객ID"), k: hist.colOf("계약ID"), y: hist.colOf("유형"), res: hist.colOf("결과") };
+      if (cs.t >= 0 && cs.u >= 0 && cs.y >= 0 && cs.res >= 0) {
+        for (let r = hist.rg.e.r; r > hist.hr; r--) { // 아래에서 위로 (지우면 줄이 올라오므로)
+          if (monthOf(hist.txt(r, cs.t)) !== ym || hist.txt(r, cs.y) !== yname || hist.txt(r, cs.res) !== "시도") continue;
+          const kid = cs.k >= 0 ? hist.txt(r, cs.k) : "", uid = hist.txt(r, cs.u);
+          if (row.cid ? kid === row.cid : kid === "" && uid === row.custId) deleteSheetRow(hist, r);
+        }
+      }
+    }
+    await stPut(row.fileId, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    delete bookCache[row.fileId];
+    histCache = null; contractCache = null; listCache = null;
+  }
   async function resetSalesMarks(rows, mark, ym, tabLabel, fcSel) {
     const targets = rows.filter((r) => r.key && mark.get(r.key) && r.fileId && !r.ref);
     const pending = readQueue().filter((it) => monthOf(it.ts) === ym && rows.some((r) => r.key === (it.cid ? "c:" + it.cid : "u:" + it.custId)));
@@ -4203,6 +4239,16 @@
     if (ct && !ct.classList.contains("off")) { // 전화·문자: 링크는 그대로 열리게 두고, 그 전에 기기에 대기 기록을 먼저 저장
       const row = ((($("salesView")._rows) || []).find((r) => r.key === ct.dataset.key));
       if (!row) return;
+      if (ct.classList.contains("done")) { // 이미 시도 표시된 버튼을 다시 누르면: 전화·문자 앱은 열지 않고 표시와 기록을 지움
+        ev.preventDefault();
+        if (isRO(row.fc)) return toast("보기 전용 권한이라 수정할 수 없습니다.");
+        const kind = ct.dataset.contact, ymNow = SALES.ym;
+        ct.classList.remove("done"); ct.textContent = ct.textContent.replace(/\s*✓\s*$/, "");
+        toast("시도 표시를 취소하고 기록을 지우는 중…");
+        cancelContact(row, kind, ymNow).then(() => { toast("시도 표시와 기록을 지웠습니다."); renderSales(true); })
+          .catch((e) => { handleError(e); renderSales(true); });
+        return;
+      }
       if (row.ref || !row.fileId || !row.key) { toast(row.ref ? "담당이 다른 FC 계약이라 기록하지 않습니다." : "새 구조 파일의 계약만 기록합니다."); return; }
       const q = readQueue();
       q.push({ uid: Date.now() + "-" + Math.random().toString(36).slice(2, 7), kind: ct.dataset.contact, ts: nowStamp(), cid: row.cid, custId: row.custId, fc: row.fc, fileId: row.fileId, src: SALES.tab === "dda" ? "영업 화면(따행)" : "영업 화면(이관)" });

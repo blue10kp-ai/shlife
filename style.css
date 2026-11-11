@@ -455,7 +455,7 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 .perm-mail { font-size: 12px; color: var(--muted); word-break: break-all; padding-left: 4px; }
 
 /* 고객 페이지 안 검색창: 화면 아래쪽, 하단 메뉴에서 조금 띄워서 */
-#pageSearch { position: fixed; left: 16px; right: 16px; bottom: calc(144px + env(safe-area-inset-bottom)); max-width: 608px; margin: 0 auto; z-index: 8;
+#pageSearch { position: fixed; left: 16px; right: 16px; bottom: calc(115px + max(6px, calc(env(safe-area-inset-bottom) - 10px))); max-width: 608px; margin: 0 auto; z-index: 8;
   box-shadow: 0 4px 16px rgba(0,0,0,.14); }
 #pageSearch[hidden] { display: none; }
 .tag.t-가망 { background: #fff1d6; color: #a86b00; }
@@ -622,9 +622,9 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .chip-all[hidden] { display: none; }
 
 
-/* 고객 범위 옵션: 아래쪽 고객 검색 바로 밑(하단 메뉴 위)에 고정, 오른쪽 정렬 */
-#searchOpts { position: fixed; left: 16px; right: 16px; bottom: calc(96px + env(safe-area-inset-bottom)); max-width: 608px; margin: 0 auto; z-index: 8; display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 6px; padding: 6px 4px; }
-#searchView { padding-bottom: 48px; }
+/* 고객 범위 옵션: 하단 메뉴 바로 위에 고정 · 가운데 정렬 · 목록과 겹치지 않게 바탕을 깔고 목록 아래에 여백 */
+#searchOpts { position: fixed; left: 0; right: 0; bottom: calc(59px + max(6px, calc(env(safe-area-inset-bottom) - 10px))); z-index: 9; display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; padding: 8px 12px; background: var(--bg); border-top: 1px solid var(--line); }
+#searchView { padding-bottom: 64px; }
 .sopts button { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .sopts button.on { background: var(--brand-weak); border-color: var(--brand); color: var(--brand); font-weight: 700; }
 .rinfo { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; white-space: nowrap; }
