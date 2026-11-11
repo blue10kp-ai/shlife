@@ -133,19 +133,95 @@
   }
 
   // 폴더 안 목록
-  async function stList(id) {
+  async function stList0(id) {
     return GD ? gdQuery("'" + qv(id) + "' in parents and trashed=false") : listChildren(itemPath(id) + "/children");
   }
   // 파일 내용 (ArrayBuffer)
-  async function stGet(id) {
+  async function stGet0(id) {
     return GD ? gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?alt=media&supportsAllDrives=true", null, true)
       : graph(itemPath(id) + "/content", true);
   }
   // 파일 내용 바꾸기
-  async function stPut(id, data, mime) {
+  async function stPut0(id, data, mime) {
     if (!GD) return gx("PUT", itemPath(id) + "/content", data, mime);
     return gdNorm(await gdFetch(GDUP + "/files/" + encodeURIComponent(id) + "?uploadType=media&supportsAllDrives=true&fields=" + GD_FIELDS,
       { method: "PATCH", headers: { "Content-Type": mime }, body: data }));
+  }
+
+  // ---------- JSON 저장소 층 (2026-11-11) ----------
+  // FC 폴더의 data.json, 고객 폴더의 고객추가정보.json 이 있으면 엑셀 대신 그것을 원본으로 쓴다.
+  //   앱의 나머지 코드는 그대로 엑셀(시트) 모양으로 읽고 쓰므로, 여기서 JSON ↔ 엑셀 모양을 바꿔 준다.
+  //   목록에서는 JSON을 "99999999 - …리스트.xlsx" 라는 가상 파일로 보여 주어 항상 가장 최신으로 고르게 한다(같은 폴더의 옛 엑셀은 무시됨).
+  //   저장 때 파일 버전을 확인해, 읽은 뒤 다른 곳에서 바뀌었으면 덮어쓰지 않고 멈춘다.
+  const JSON_FILES = { "data.json": " - 리스트.xlsx", "고객추가정보.json": " - 고객추가정보.xlsx" };
+  const jsonInfo = new Map(); // fileId → { name, meta, ver }
+  const isoText = (d) => d.y + "-" + String(d.m).padStart(2, "0") + "-" + String(d.d).padStart(2, "0");
+  function jsonToBook(doc) {
+    const wb = XLSX.utils.book_new();
+    Object.keys(doc.sheets || {}).forEach((name) => {
+      const sh = doc.sheets[name];
+      const ws = XLSX.utils.aoa_to_sheet([sh.columns].concat(sh.rows.map((r) => r.map((v) => (v == null ? "" : v)))));
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    });
+    return wb;
+  }
+  function bookToDoc(wb, meta) {
+    const sheets = {};
+    wb.SheetNames.forEach((name) => {
+      if (name.includes("(구)")) return;
+      const ws = wb.Sheets[name]; if (!ws || !ws["!ref"]) { sheets[name] = { columns: [], rows: [] }; return; }
+      const rg = XLSX.utils.decode_range(ws["!ref"]), val = (r, c) => {
+        const x = ws[XLSX.utils.encode_cell({ r, c })];
+        if (!x || x.v == null || x.v === "") return null;
+        if (x.t === "n" && x.z && XLSX.SSF.is_date(x.z)) {
+          const d = XLSX.SSF.parse_date_code(x.v);
+          if (d) return isoText(d) + (d.H || d.M || Math.round(d.S) ? " " + String(d.H).padStart(2, "0") + ":" + String(d.M).padStart(2, "0") + ":" + String(Math.round(d.S) % 60).padStart(2, "0") : "");
+        }
+        if (x.t === "d" && x.v instanceof Date) return x.v.toISOString().slice(0, 10);
+        return x.v;
+      };
+      const columns = [];
+      for (let c = rg.s.c; c <= rg.e.c; c++) { const h = val(rg.s.r, c); columns.push(h == null ? "" : String(h).trim()); }
+      while (columns.length && columns[columns.length - 1] === "") columns.pop();
+      const rows = [];
+      for (let r = rg.s.r + 1; r <= rg.e.r; r++) {
+        const row = columns.map((_, i) => val(r, rg.s.c + i));
+        if (row.some((v) => v != null)) rows.push(row);
+      }
+      sheets[name] = { columns, rows };
+    });
+    return { schema: 1, ...meta, made: new Date().toISOString().slice(0, 19), sheets };
+  }
+  async function stList(id) {
+    const items = await stList0(id);
+    if (!GD) return items;
+    const virt = [];
+    items.forEach((i) => {
+      const suffix = i.file && JSON_FILES[i.name];
+      if (!suffix) return;
+      jsonInfo.set(i.id, { name: i.name, meta: null, ver: null });
+      virt.push({ ...i, name: "99999999" + (i.name === "data.json" ? " - JSON" : "") + suffix });
+    });
+    return virt.length ? virt.concat(items.filter((i) => !(i.file && JSON_FILES[i.name]))) : items;
+  }
+  async function stGet(id) {
+    const info = jsonInfo.get(id);
+    if (!info) return stGet0(id);
+    const m = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=version&supportsAllDrives=true");
+    const doc = JSON.parse(new TextDecoder().decode(await stGet0(id)).replace(/^\uFEFF/, ""));
+    info.ver = m.version; info.meta = { fc: doc.fc, source: doc.source };
+    return XLSX.write(jsonToBook(doc), { type: "array", bookType: "xlsx" });
+  }
+  async function stPut(id, data, mime) {
+    const info = jsonInfo.get(id);
+    if (!info) return stPut0(id, data, mime);
+    const m = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=version&supportsAllDrives=true");
+    if (info.ver != null && String(m.version) !== String(info.ver)) throw new Error("다른 곳에서 먼저 수정되었습니다. 새로고침한 뒤 다시 시도해 주세요.");
+    const doc = bookToDoc(XLSX.read(data, { type: "array", cellNF: true }), info.meta || {});
+    const out = await stPut0(id, new Blob([JSON.stringify(doc)], { type: "application/json" }), "application/json");
+    const m2 = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=version&supportsAllDrives=true");
+    info.ver = m2.version;
+    return out;
   }
   // 폴더(dir = {id, driveId?}) 안에 이름으로 저장 (같은 이름이 있으면 그 파일을 고침)
   async function stPutIn(dir, name, data, mime) {
