@@ -1374,7 +1374,10 @@
     const chips = extraKeys.filter((k) => (ev[k] || "").trim()).map((k) =>
       `<span class="chip" title="${esc(k)}">${esc(EXTRA.monthDayCols.includes(k) ? mdText(ev[k]) : ev[k])}</span>`).join("");
     const rest = [...merged];
+    const introContracts = (current.contracts || []).filter((k) => k.row["유입경로"] === "소개"); // 소개 계약은 계약자·피보험자 모두 소개로 표시
+    const introNames = [...new Set(introContracts.map((k) => k.row["소개자"]).filter(Boolean))].join(", ");
     const info = `<div class="card" id="infoCard"><dl class="kv">
+        ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
         ${phones.length ? row("연락처", phones.map(([k, v]) => valueWithActions(k, v)).join("")) : row("연락처", '<span class="hint">-</span>')}
         ${backs.length ? row("후번호", backs.map(([, v]) => valueWithActions("연락처", v)).join("")) : ""}
         ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
@@ -1456,7 +1459,9 @@
     { label: "후번호", cols: ["후번호"], type: "tel", paired: true },
     { label: "주소", cols: ["주소"], type: "text", multi: true },
     { label: "계좌", cols: ["계좌"], type: "text", ph: "예: 신한 110-123-456789" },
-    { label: "이메일", cols: EMAIL_COLS, type: "email" }
+    { label: "이메일", cols: EMAIL_COLS, type: "email" },
+    { label: "유입경로", col: "최초유입경로", cols: ["최초유입경로"], type: "text", ph: "DB / 이관 / 지인 / 소개", list: "routeList" },
+    { label: "소개자", col: "소개자명", cols: ["소개자명"], type: "text", ph: "소개자 이름" }
   ];
   function currentValue(c, cols) {
     for (const e of c.entries) for (const k of cols) { const f = e.fields.find(([fk]) => fk.trim() === k); if (f && f[1]) return f[1]; }
@@ -1470,7 +1475,7 @@
     const canList = c.entries.some((e) => e.src);
     const fld = (f) => `<label class="fld"><span>${esc(f.label)}</span>
         ${f.multi ? `<textarea data-edit="${esc(f.label)}" rows="2">${esc(currentValue(c, f.cols))}</textarea>`
-          : `<input data-edit="${esc(f.label)}" value="${esc(currentValue(c, f.cols))}" type="${f.type}" autocomplete="off"${f.ph ? ` placeholder="${esc(f.ph)}"` : ""}>`}</label>`;
+          : `<input data-edit="${esc(f.label)}" value="${esc(currentValue(c, f.cols))}" type="${f.type}" autocomplete="off"${f.list ? ` list="${f.list}"` : ""}${f.ph ? ` placeholder="${esc(f.ph)}"` : ""}>`}</label>`;
     const listFields = canList ? EDIT_FIELDS.filter((f) => !f.paired).map((f) => f.pair
       ? `<div class="fld-2">${fld(f)}${fld(EDIT_FIELDS.find((x) => x.label === f.pair))}</div>` : fld(f)).join("") : "";
     const field = (k) => {
@@ -1494,6 +1499,7 @@
         ${listFields}
         ${x.missing || x.error ? `<p class="hint">추가 정보 엑셀을 읽지 못해 통신사·차량번호·갱신일은 수정할 수 없습니다.</p>` : more.map(field).join("")}
         ${followFormHtml()}
+        <datalist id="routeList"><option value="DB"><option value="이관"><option value="지인"><option value="소개"></datalist>
         <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
         <div class="file-actions">
           <button type="button" class="secondary" id="infoCancel">취소</button>
@@ -1527,7 +1533,7 @@
       body.querySelectorAll("[data-edit]").forEach((i) => {
         const f = EDIT_FIELDS.find((x) => x.label === i.dataset.edit);
         if (i.value.trim() === currentValue(c, f.cols).trim()) return;
-        const col = c.entries.flatMap((e) => e.fields.map(([k]) => k.trim())).find((k) => f.cols.includes(k)) || f.label;
+        const col = c.entries.flatMap((e) => e.fields.map(([k]) => k.trim())).find((k) => f.cols.includes(k)) || f.col || f.label;
         listValues[col] = i.value.trim();
       });
       // 고객추가정보: 바뀐 칸이 있으면
@@ -1872,7 +1878,9 @@
     ["최초계약일", ["최초계약일", "계약일"]],
     ["납입기간", ["납입기간"]],
     ["합계보험료", ["합계보험료", "보험료"]],
-    ["이체일", ["이체일"]]
+    ["이체일", ["이체일"]],
+    ["유입경로", ["유입경로"]],
+    ["소개자", ["소개자"]]
   ];
 
   // 고객 폴더의 계약 PDF: "날짜 - 고객 - FC - 상품명 - 금액원.pdf"
