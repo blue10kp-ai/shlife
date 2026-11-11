@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   // Drive 폴더 공유(권한) 읽기·변경 + 접근 권한 파일(shlife-권한.json)·접속 명단(사용자권한.json) 저장.
-  // 신한FC M의 관리자 화면(grantFolders·unshareFolders·shareMatches)과 같은 규칙을 데스크톱에 옮긴 것이다.
+  // 신한FC m의 관리자 화면(grantFolders·unshareFolders·shareMatches)과 같은 규칙을 데스크톱에 옮긴 것이다.
   //   고객\<FC> 폴더: 체크한 FC = 보기(reader), 수정 체크 = 편집(writer) / 앱 설정 폴더: 보기 / 빠진 FC 폴더는 공유 해제
   //   고객 루트·상위 폴더(Claude 등)에 직접 공유돼 있으면 해제(그대로 두면 FC 제한이 Drive에서 안 걸리기 때문)
   // 이 파일의 함수는 호출하는 쪽(관리자 화면)이 확인창을 거친 뒤에만 부른다.

@@ -1,7 +1,7 @@
 (function () {
   'use strict';
   var K = window.CUSTOMERS;
-  // 고객추가정보 엑셀(신한FC M이 쓰는 '기본'·'상담기록' 시트)에서 읽은 data/extra.js: 통신사·차량번호·자동차보험갱신일·미팅장소·메모, 상담기록
+  // 고객추가정보 엑셀(신한FC m이 쓰는 '기본'·'상담기록' 시트)에서 읽은 data/extra.js: 통신사·차량번호·자동차보험갱신일·미팅장소·메모, 상담기록
   //   고객 찾기: 담당FC + 이름 (이름 뒤 '(YYMMDD)'는 같은 이름 구분용이라 생년월일과 맞을 때만)
   var X = window.CUSTEXTRA || { basic: [], consult: [] };
   var xKey = function (fc, name, birth) {

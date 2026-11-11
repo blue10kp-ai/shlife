@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  // 구글 로그인 + Google Drive 엑셀 읽기·쓰기 (신한FC M과 같은 파일·같은 구조)
+  // 구글 로그인 + Google Drive 엑셀 읽기·쓰기 (신한FC m과 같은 파일·같은 구조)
   //   고객 정보: 고객\<FC>\날짜 - FC - 리스트.xlsx 의 '고객' 시트 (고객ID 줄)
   //   상담기록: 고객\날짜 - 고객추가정보.xlsx 의 '상담기록' 시트
   // 로그인은 사용자가 직접 한다. 토큰은 이 탭(sessionStorage)에만 보관한다.
@@ -240,7 +240,7 @@
     return { customers: n, errors: errs };
   }
 
-  // 공통 설정: 신한FC M과 같은 앱 설정 파일(shlife-설정.json). 읽을 때마다 최신을 읽고, 쓸 때는 바꾼 항목만 합쳐 저장 (M이 쓰는 다른 항목은 그대로 둠)
+  // 공통 설정: 신한FC m과 같은 앱 설정 파일(shlife-설정.json). 읽을 때마다 최신을 읽고, 쓸 때는 바꾼 항목만 합쳐 저장 (M이 쓰는 다른 항목은 그대로 둠)
   var APPDIR = '1ERsiC6gUGh0LljPSKxRx04Z5dZUGJGC0', SETF = 'shlife-설정.json';
   async function settingsFile() {
     var a = await qlist("'" + APPDIR + "' in parents and name='" + SETF + "' and trashed=false");

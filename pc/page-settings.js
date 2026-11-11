@@ -45,7 +45,7 @@
   var roleKo = { owner: '소유자', writer: '편집', commenter: '댓글', reader: '보기' };
   function permHtml() {
     if (window.ADMINPERM) return pageHead('계정별로 볼 FC를 지정하면 Drive 폴더 공유가 함께 바뀝니다(저장 전 확인창에서 내용을 확인합니다).') + window.ADMINPERM.html();
-    var h = pageHead('권한·공유 현황은 읽기 전용입니다. 수정은 신한FC M의 관리자 화면에서 합니다(Drive 공유도 함께 바뀌기 때문).');
+    var h = pageHead('권한·공유 현황은 읽기 전용입니다. 수정은 신한FC m의 관리자 화면에서 합니다(Drive 공유도 함께 바뀌기 때문).');
     if (!(window.DRIVE && DRIVE.on())) return h + '<section><p class="mut">Drive에 로그인하면 불러옵니다.</p></section>';
     var d = pm.data;
     if (!d) return h + '<section><p class="mut">' + (pm.err ? esc(pm.err) : '불러오는 중…') + '</p>' + (pm.err ? '<button class="btn" id="pmReload">다시 불러오기</button>' : '') + '</section>';
@@ -92,7 +92,7 @@
   var smsFill = function (t) { return String(t || '').replace(/\{고객명\}/g, '홍길동').replace(/\{FC명\}/g, '최수진').replace(/\{상품명\}/g, '종신보험').replace(/\{이관일\}/g, '11월 9일'); };
   var smsOf = function (kind) { var m = (sm.data && sm.data.sms) || {}; return typeof m[kind] === 'string' ? m[kind] : SMS_DEFAULT[kind]; };
   function smsHtml() {
-    var h = pageHead("영업 화면의 [문자] 버튼에 채워지는 문구입니다. 신한FC M과 같은 파일(shlife-내설정.json)을 읽고 쓰며, 여기서 저장하면 M에도 반영됩니다.");
+    var h = pageHead("영업 화면의 [문자] 버튼에 채워지는 문구입니다. 신한FC m과 같은 파일(shlife-내설정.json)을 읽고 쓰며, 여기서 저장하면 M에도 반영됩니다.");
     if (!(window.DRIVE && DRIVE.on())) return h + '<section><p class="mut">Drive에 로그인하면 불러옵니다.</p></section>';
     // 이 화면은 소유자(관리자) 본인의 개인 설정 파일만 다룬다. 다른 계정은 자기 Drive의 개인 설정 위치를 써야 하므로(엠 방식) 아직 열지 않는다.
     if (!(window.SETTINGS_ADMIN && window.SETTINGS_ADMIN())) return h + '<section><p class="mut">문자 문구는 사용자마다 자기 Drive의 개인 설정에 저장됩니다. 이 화면은 소유자(관리자) 본인 문구만 다룹니다.</p></section>';
@@ -133,7 +133,7 @@
   }
   function commonHtml() {
     var on = window.DRIVE && DRIVE.on(), d = cs.data;
-    var h = '<h1>' + pageTitle() + '</h1><p class="sub">신한FC M의 관리자 › 설정과 같은 파일(shlife-설정.json)을 읽고 씁니다. 여기서 저장하면 M에도 바로 반영됩니다.</p>';
+    var h = '<h1>' + pageTitle() + '</h1><p class="sub">신한FC m의 관리자 › 설정과 같은 파일(shlife-설정.json)을 읽고 씁니다. 여기서 저장하면 M에도 바로 반영됩니다.</p>';
     h += '<div class="tabs">' + SUBS.map(function (x) { return '<button class="' + (state.sub === x[0] ? 'on' : '') + '" data-sub="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
     if (!on) return h + '<section><p class="mut">왼쪽 아래 Drive 연결(구글 로그인)을 하면 공통 설정을 불러옵니다.</p></section>';
     if (!d) return h + '<section><p class="mut">' + (cs.err ? esc(cs.err) : '불러오는 중…') + '</p>' + (cs.err ? '<button class="btn" id="csReload">다시 불러오기</button>' : '') + '</section>';
