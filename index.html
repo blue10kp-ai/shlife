@@ -2,121 +2,13 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#1f4e8c">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="신한FC M">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>신한FC M</title>
-  <link rel="manifest" href="manifest.webmanifest?v=4">
-  <link rel="icon" href="favicon.png?v=2" type="image/png">
-  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
-  <link rel="stylesheet" href="style.css?v=100">
+  <meta http-equiv="refresh" content="0; url=m/">
+  <script>location.replace("m/" + location.search + location.hash);</script>
 </head>
-<body>
-  <header class="topbar">
-    <button id="backBtn" class="back-btn" hidden aria-label="뒤로 가기"><span class="chev-l">‹</span><span id="backLabel">고객 정보</span></button>
-    <h1 id="title">고객</h1>
-    <form id="topSearch" class="top-search" hidden role="search">
-      <input id="q" type="search" placeholder="🔍 검색" autocomplete="off" enterkeyhint="search" aria-label="고객 검색 (이름·연락처·주소·미팅장소)">
-      <ul id="recentList" class="recent" hidden></ul>
-    </form>
-    <button id="logoutBtn" class="text-btn icon-btn" hidden aria-label="로그아웃" title="로그아웃"><svg class="power-ico" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
-  </header>
-
-  <main>
-    <!-- 로그인 화면 -->
-    <section id="loginView" class="view" hidden>
-      <div class="card center">
-        <p class="lead"><b>신한FC M</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.</p>
-        <button id="loginBtn" class="primary big">Google 계정으로 로그인</button>
-        <p><button id="loginOtherBtn" type="button" class="link-btn" hidden>다른 계정으로 로그인</button></p>
-        <p class="hint">고객 정보는 Google Drive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.</p>
-      </div>
-    </section>
-
-    <!-- 일정 화면 -->
-    <section id="scheduleView" class="view" hidden></section>
-
-    <!-- 고객 검색 화면 -->
-    <section id="searchView" class="view" hidden>
-
-      <p id="scopeHint" class="hint"></p>
-      <!-- 검색 결과가 없을 때(처음 들어왔을 때 포함) 화면 안 검색창 -->
-      <form id="pageSearch" class="card page-search" role="search">
-        <p class="hint">고객 이름·연락처·주소·미팅장소로 검색하세요.</p>
-        <div class="search">
-          <input id="q2" type="search" placeholder="고객 검색" autocomplete="off" enterkeyhint="search" aria-label="고객 검색">
-          <button class="primary" type="submit">검색</button>
-        </div>
-      </form>
-      <div id="searchOpts" class="sopts" role="group" aria-label="고객 범위"><button type="button" data-opt="all" class="on">전체</button><button type="button" data-opt="contract">본인</button><button type="button" data-opt="transfer">이관</button><button type="button" data-opt="db">DB</button><button type="button" data-opt="ddahaeng">따행</button><button type="button" data-opt="plan">가망</button></div>
-      <p id="searchStatus" class="hint"></p>
-      <ul id="results" class="list"></ul>
-    </section>
-
-    <!-- 고객 상세 화면 -->
-    <section id="customerView" class="view" hidden>
-      <div class="card cust-card">
-        <div class="cust-head">
-          <div class="avatar" id="avatar"></div>
-          <div class="cust-main">
-            <div class="name-row"><h2 id="custName"></h2><button type="button" id="editBtn" class="edit-mini">수정</button></div>
-            <div id="custSub" class="cust-sub"></div>
-          </div>
-        </div>
-        <div id="photoMenu" class="photo-menu" hidden>
-          <button type="button" id="photoPick">📷 사진 바꾸기</button>
-          <button type="button" id="photoDel" class="danger">🗑 사진 삭제</button>
-          <button type="button" id="photoMenuClose">취소</button>
-        </div>
-        <div id="gradeBtns" class="grade-btns" hidden></div>
-        <input type="file" id="photoInput" accept="image/*" hidden>
-      </div>
-      <nav id="tabs" class="tabs"></nav>
-      <div id="tabBody"></div>
-    </section>
-
-    <!-- 관리자 화면 (관리자 아이디만) -->
-    <!-- 영업 화면 (이달 이관·이달 따행) -->
-    <section id="salesView" class="view" hidden></section>
-
-    <section id="adminView" class="view" hidden>
-      <div id="adminBody"></div>
-    </section>
-  </main>
-
-
-  <!-- 큰 메뉴 -->
-  <nav id="mainNav" class="mainnav" hidden>
-    <button type="button" data-section="schedule"><span class="ni">📅</span>일정</button>
-    <button type="button" data-section="customer"><span class="ni">👤</span>고객</button>
-    <button type="button" data-section="sales"><span class="ni">💼</span>영업</button>
-    <button type="button" data-section="admin" id="navAdmin" hidden><span class="ni">⚙️</span><span id="navAdminLabel">설정</span></button>
-  </nav>
-
-  <!-- 프로필 사진 자르기 (원 안에 맞추기) -->
-  <div id="cropModal" class="modal" hidden>
-    <div class="modal-box">
-      <h3 class="sec-title">사진 위치·크기 맞추기</h3>
-      <p class="hint">사진을 끌어서 옮기고, 아래 막대(또는 두 손가락)로 크기를 조절하세요.</p>
-      <div id="cropView" class="crop-view"><img id="cropImg" alt="" draggable="false"></div>
-      <input id="cropZoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="사진 크기">
-      <div class="file-actions">
-        <button type="button" class="secondary" id="cropCancel">취소</button>
-        <button type="button" class="primary" id="cropOk">적용</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 사진 크게 보기 -->
-  <div id="photoViewer" class="viewer" hidden><img id="photoViewerImg" alt="고객 사진"></div>
-
-  <div id="toast" class="toast" hidden></div>
-
-  <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.27.0/lib/msal-browser.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="config.js?v=100"></script>
-  <script src="app.js?v=100"></script>
+<body style="font-family:'Malgun Gothic',sans-serif;padding:24px">
+  <p>신한FC M은 새 주소로 옮겼습니다. 자동으로 이동하지 않으면 <a href="m/">여기</a>를 누르세요.</p>
+  <p style="color:#666;font-size:14px">홈 화면에 추가해 둔 앱은 새 주소(…/shlife/m/)에서 다시 추가해 주세요.</p>
 </body>
 </html>
