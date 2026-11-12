@@ -505,14 +505,11 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .mainnav .nav-ai.on .ni img { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* 오른손 모드: AI 아이콘도 다른 메뉴와 함께 오른쪽 2/3 묶음의 맨 왼쪽(.rh .mainnav 여백이 그대로 적용됨) */
 .ai-scrim { position: fixed; inset: 0; z-index: 9; background: rgba(10, 15, 25, .45); }
-.ai-sheet { position: fixed; left: 0; right: 0; bottom: var(--navh, 60px); z-index: 9; max-width: 640px; margin: 0 auto; max-height: calc(100vh - var(--navh, 60px) - 56px); display: flex; flex-direction: column; background: var(--surface); border-radius: 20px 20px 0 0; box-shadow: 0 -6px 24px rgba(0, 0, 0, .18); transition: transform var(--t-in, 200ms) var(--ease, ease-out); animation: aiUp var(--t-in, 200ms) var(--ease, ease-out); }
+.ai-sheet { overscroll-behavior: contain; position: fixed; left: 0; right: 0; bottom: var(--navh, 60px); z-index: 9; max-width: 640px; margin: 0 auto; max-height: calc(100vh - var(--navh, 60px) - 56px); display: flex; flex-direction: column; background: var(--surface); border-radius: 20px 20px 0 0; box-shadow: 0 -6px 24px rgba(0, 0, 0, .18); transition: transform var(--t-in, 200ms) var(--ease, ease-out); animation: aiUp var(--t-in, 200ms) var(--ease, ease-out); }
 @keyframes aiUp { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 .ai-sheet[hidden], .ai-scrim[hidden] { display: none; }
-.ai-head { flex: none; padding: 8px 16px 4px; touch-action: none; cursor: grab; }
-.ai-grab { width: 40px; height: 5px; border-radius: 3px; background: var(--t3); opacity: .5; margin: 2px auto 6px; }
-.ai-hrow { display: flex; align-items: center; justify-content: space-between; }
-.ai-hrow b { font-size: 16px; }
-.ai-x { width: 32px; height: 32px; min-height: 0; padding: 0; border: 0; border-radius: 50%; background: var(--raised); color: var(--t2); display: inline-flex; align-items: center; justify-content: center; }
+.ai-head { flex: none; padding: 8px 16px 2px; }
+.ai-grab { width: 40px; height: 5px; border-radius: 3px; background: var(--t3); opacity: .5; margin: 2px auto 8px; }
 .ai-body { overflow-y: auto; padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 10px; text-align: center; }
 .ai-q { margin: 6px 0 0; font-size: 15px; color: var(--t2); }
 .ai-mic { width: 76px; height: 76px; min-height: 0; padding: 0; border: 0; border-radius: 50%; margin: 0 auto; background: var(--accent); color: var(--accent-ink); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; box-shadow: 0 0 0 9px var(--accent-weak); }
@@ -525,5 +522,4 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .ai-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
 .ai-chips button { min-height: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 10px; font-size: 12.5px; color: var(--t2); }
 .ai-msg { margin: 0; padding: 10px 12px; border-radius: var(--r-card); background: var(--accent-weak); color: var(--t1); font-size: 13.5px; text-align: left; }
-.ai-how { margin: 2px 0 0; font-size: 12px; color: var(--t3); }
-html.ai-open { overflow: hidden; }
+html.ai-open { overflow: hidden; overscroll-behavior-y: contain; }

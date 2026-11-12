@@ -4362,16 +4362,32 @@
     $("aiMsg").hidden = true;
   }
   $("navAi").addEventListener("click", () => { if ($("aiSheet").hidden) aiOpen(); else aiClose(); }); // 아이콘 다시 누르면 닫힘
-  $("aiClose").addEventListener("click", () => aiClose());
   $("aiScrim").addEventListener("click", () => aiClose());
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("aiSheet").hidden) aiClose(); });
-  // 아래로 끌어서 닫기: 위쪽 손잡이 줄을 80px 넘게 끌면 닫힘
-  { let y0 = null, dy = 0;
-    const h = $("aiHead");
-    h.addEventListener("pointerdown", (e) => { if (e.target.closest("#aiClose")) return; y0 = e.clientY; dy = 0; try { h.setPointerCapture(e.pointerId); } catch (x) { /* 무시 */ } $("aiSheet").style.transition = "none"; });
-    h.addEventListener("pointermove", (e) => { if (y0 === null) return; dy = Math.max(0, e.clientY - y0); $("aiSheet").style.transform = "translateY(" + dy + "px)"; });
-    const end = () => { if (y0 === null) return; y0 = null; $("aiSheet").style.transition = ""; if (dy > 80) aiClose(); else $("aiSheet").style.transform = ""; };
-    h.addEventListener("pointerup", end); h.addEventListener("pointercancel", end);
+  // 아래로 끌어서 닫기: 팝업 안 어디를 잡고 내려도 됨. 세로로 8px 넘게 끌 때부터 끌기로 보고(짧은 탭은 그대로 동작),
+  // 80px 넘게 끌면 닫히고 덜 끌면 제자리로. 내용이 스크롤되는 중이면(맨 위가 아니면) 스크롤이 먼저. 입력칸에서 시작한 터치는 건드리지 않음.
+  { const sh = $("aiSheet"), bd = sh.querySelector(".ai-body");
+    let y0 = null, dy = 0, drag = false, mouse = false;
+    const begin = (y, tgt, isMouse) => { if (tgt && tgt.closest && tgt.closest("input")) return; y0 = y; dy = 0; drag = false; mouse = isMouse; };
+    const move = (y, ev) => {
+      if (y0 === null) return;
+      const d = y - y0;
+      if (!drag) {
+        if (d > 8 && bd.scrollTop <= 0) { drag = true; sh.style.transition = "none"; } // 맨 위에서 아래로 끌 때만
+        else if (d < -8 || bd.scrollTop > 0) { y0 = null; return; } // 위로 끌거나 스크롤 중이면 끌기 아님
+        else return;
+      }
+      dy = Math.max(0, d); sh.style.transform = "translateY(" + dy + "px)";
+      if (ev && ev.cancelable) ev.preventDefault(); // 폰 브라우저의 당겨서 새로고침·스크롤과 겹치지 않게
+    };
+    const end = () => { if (y0 === null) return; const was = drag; y0 = null; drag = false; sh.style.transition = ""; if (!was) return; if (dy > 80) aiClose(); else sh.style.transform = ""; };
+    sh.addEventListener("touchstart", (e) => begin(e.touches[0].clientY, e.target, false), { passive: true });
+    sh.addEventListener("touchmove", (e) => move(e.touches[0].clientY, e), { passive: false });
+    sh.addEventListener("touchend", end); sh.addEventListener("touchcancel", end);
+    // 마우스(PC 화면 시험용)
+    sh.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") begin(e.clientY, e.target, true); });
+    window.addEventListener("pointermove", (e) => { if (mouse) move(e.clientY, null); });
+    window.addEventListener("pointerup", () => { if (mouse) { end(); mouse = false; } });
   }
   $("aiMic").addEventListener("click", (e) => dictate($("aiInp"), e.currentTarget));
   $("aiChips").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $("aiInp").value = b.textContent; $("aiInp").focus(); });
