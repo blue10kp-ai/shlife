@@ -320,7 +320,6 @@
   rhApply();
   const rhOptHtml = () => `<div class="fld rh-fld">
         <label class="rh-opt"><span>오른손 모드</span><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}></label>
-        <p class="hint">하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다.</p>
       </div>`;
   const rhCardHtml = () => `<div class="card"><h3 class="sec-title">화면</h3>${rhOptHtml()}</div>`;
   document.addEventListener("change", (ev) => {
@@ -2718,7 +2717,6 @@
     $("adminBody").innerHTML = `
       <div class="card">
         <h3 class="sec-title">사용 FC 현황</h3>
-        <p class="hint">이름(FC명)을 적고, 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다. 저장을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
         ${(() => {
           const sh = adminState.shares, adm = (CFG.admins || []).map((a) => a.toLowerCase());
           const hits = ((sh && sh.anc) || []).flatMap((a) => a.perms.filter((p) => p.role !== "owner" && !adm.includes(p.email)).map((p) => esc((perms.names || {})[p.email] || p.email) + " ← '" + esc(a.name) + "' 폴더(" + p.role + ")"));
@@ -2733,7 +2731,7 @@
               <span class="perm-btns"><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>저장</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></span>
             </div>
             <div class="perm-sens"><label class="chip"><input type="checkbox" class="cb" data-sens="${esc(em)}" ${(perms.sensitive || []).includes(em) ? "checked" : ""} aria-label="${esc(em)} 민감정보 접근"> 민감정보 접근 허용</label></div>
-            <div class="perm-sales"><p class="hint">영업(이달이관·따행)에서 추가로 볼 FC <span class="hint">— 선택창에 나옵니다. 위 FC 보기 권한이 있는 FC만 보입니다</span></p><div class="perm-fcs">${fcs.map((fc) => { const own = !!nameOfEm(em) && fc === nameOfEm(em); return `<span class="chip"><label><input type="checkbox" class="cb" data-sf="${esc(em)}|${esc(fc)}" ${own ? 'data-own="1" checked disabled' : ((perms.salesFcs || {})[em] || []).includes(fc) ? "checked" : ""} aria-label="${esc(em)} 영업 ${esc(fc)}"> ${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</label></span>`; }).join("")}</div></div>
+            <div class="perm-sales"><p class="hint">영업 추가 FC</p><div class="perm-fcs">${fcs.map((fc) => { const own = !!nameOfEm(em) && fc === nameOfEm(em); return `<span class="chip"><label><input type="checkbox" class="cb" data-sf="${esc(em)}|${esc(fc)}" ${own ? 'data-own="1" checked disabled' : ((perms.salesFcs || {})[em] || []).includes(fc) ? "checked" : ""} aria-label="${esc(em)} 영업 ${esc(fc)}"> ${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</label></span>`; }).join("")}</div></div>
             <div class="perm-fcs">
               <label class="chip chip-all" ${isAll(em) ? "" : "hidden"} title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
               ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC 고객 정보를 수정할 수 있음 (체크 안 하면 보기만)"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 수정"> 수정</label></span>`).join("")}
@@ -2741,19 +2739,17 @@
           </div>`).join("")}
         </div>
         ${users.length ? "" : '<p class="hint">아직 권한을 준 사용자가 없습니다. 아래에서 이메일을 추가하세요.</p>'}
-        <div class="file-actions">
-          <button class="secondary" id="resetPerms" disabled>되돌리기</button>
-          <button class="primary" id="savePerms" disabled>변경 저장</button>
-        </div>
-      </div>
-      <div class="card">
-        <h3 class="sec-title">사용자 추가</h3>
+        <div class="add-user"><h4 class="sub-title">사용자 추가</h4>
         <form id="addUserForm" class="search">
           <input id="newName" type="text" placeholder="이름(FC명)" autocomplete="off" maxlength="20" style="max-width:130px">
           <input id="newUser" type="email" placeholder="${GD ? "구글 계정 이메일 (예: name@gmail.com)" : "Microsoft 계정 이메일"}" autocomplete="off" required>
           <button class="primary" type="submit">추가</button>
         </form>
-        <p class="hint">추가하면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 '변경 저장'을 누르세요.</p>
+        </div>
+        <div class="file-actions">
+          <button class="secondary" id="resetPerms" disabled>되돌리기</button>
+          <button class="primary" id="savePerms" disabled>변경 저장</button>
+        </div>
       </div>` + settingsCardHtml() + smsCardHtml(); // 오른손 모드는 '설정' 카드 안에 있음
 
     $("addUserForm").addEventListener("submit", (ev) => {
@@ -3016,6 +3012,30 @@
   // 영업 화면 위쪽 줄(이달이관·따행 선택, 월 이동, FC 선택)의 높이를 재 두어, 그 아래 '설문 발송' 줄이 바로 밑에 붙어 고정되게 함
   new MutationObserver(() => { const st = document.querySelector("#salesView .sales-top"); if (st) document.documentElement.style.setProperty("--salestop", Math.round(st.getBoundingClientRect().height) + "px"); }).observe($("salesView"), { subtree: true, childList: true });
   const fsWait = async (b) => { for (let i = 0; i < 160 && b.isConnected && /저장 중/.test(b.textContent); i++) await new Promise((r) => setTimeout(r, 150)); };
+  // ---------- 설명서: 관리자·설정 화면의 설명을 한곳에 모음 (아래 '설명서' 버튼) ----------
+  function helpHtml() {
+    const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
+    const common = [
+      sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭, 이동 거리·예상 시간, 회사 출발·도착을 계산합니다. 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]),
+      sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 기본 문구가 미리 들어 있고, 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]),
+      sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]),
+      sec("저장과 취소", ["바뀐 내용이 있을 때만 아래 [저장]·[취소]가 켜집니다. 저장은 바뀐 모든 카드를 한꺼번에 저장하고, 취소는 바뀐 내용을 버리고 처음 상태로 되돌립니다."])
+    ];
+    if (!isAdmin()) return common.join("");
+    const adm = [
+      sec("사용 FC 현황 (권한)", ["이름(FC명)을 적고, 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 추가 FC</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 위에서 보기 권한을 준 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]),
+      sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]),
+      sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다.", "<b>구글 캘린더 설정</b>: 관리자의 기본 캘린더와 영업·정보 캘린더를 고릅니다."])
+    ];
+    return adm.join("") + common.join("");
+  }
+  function openHelp() {
+    let box = $("helpModal");
+    if (!box) { box = document.createElement("div"); box.id = "helpModal"; box.className = "help-modal"; document.body.appendChild(box); box.addEventListener("click", (e) => { if (e.target === box || e.target.closest("[data-helpclose]")) box.hidden = true; }); }
+    box.innerHTML = `<div class="help-sheet" role="dialog" aria-label="설명서"><div class="help-head"><b>설명서</b><button type="button" class="secondary" data-helpclose>닫기</button></div><div class="help-body">${helpHtml()}</div></div>`;
+    box.hidden = false;
+  }
+  $("fsHelp").addEventListener("click", openHelp);
   $("fsSave").addEventListener("click", async () => {
     const sb = $("fsSave"); sb.dataset.busy = "1"; sb.disabled = true; $("fsCancel").disabled = true; sb.textContent = "저장 중…";
     try {
@@ -4324,12 +4344,9 @@
     const ta = (id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="8" maxlength="600"></textarea>
         <span class="smsrow"><button type="button" class="link-btn" data-sms-reset="${id}">기본값으로 되돌리기</button><small class="cnt" data-for="${id}"></small></span></label>`;
     return `<div class="card" id="smsCard"><details class="fold"><summary class="sec-title">문자 문구</summary>
-      <p class="hint">영업 화면에서 [문자]를 누르면 아래 문구가 채워진 문자 작성 화면이 열립니다. 기본 문구가 미리 들어 있고, 고치거나 지우면 내 설정으로 저장됩니다(지우면 문구 없이 작성 화면만 열림).<br>
-      쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)</p>
       ${ta("smsMyTransfer", "이관 문자 문구")}
       ${ta("smsMyDda", "따행 문자 문구")}
       <p class="hint" id="smsPreview"></p>
-      <p class="hint">※ 문자는 [문자]를 눌러 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다.</p>
       <div class="file-actions"><button type="button" class="primary" id="smsSave" disabled>문구 저장</button></div></details></div>`;
   }
   async function bindSmsCard() {
