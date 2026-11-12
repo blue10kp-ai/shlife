@@ -472,3 +472,7 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 /* 설명서 창 닫기 버튼도 다른 버튼과 같은 모양 */
 .help-head { padding: 8px 16px; }
 .help-head .secondary { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 30px; min-height: 0; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t2); font-size: 13px; font-weight: 600; line-height: 1; box-shadow: none; }
+/* 영업: 전화번호 + 전화·문자 버튼은 줄의 맨 오른쪽으로 */
+#salesView .sline.l2 .ph { order: 99; margin-left: auto; justify-content: flex-end; flex-wrap: nowrap; }
+/* 영업: 상품명 줄은 순번 아래 왼쪽 끝에서 시작 */
+#salesView .sline.prod { padding-left: 0; }
