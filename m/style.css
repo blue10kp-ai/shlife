@@ -629,3 +629,6 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .sopts button { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--text); cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .sopts button.on { background: var(--brand-weak); border-color: var(--brand); color: var(--brand); font-weight: 700; }
 .rinfo { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 4px; white-space: nowrap; }
+.sline .nmw.grade-good a { color: #1a8a4a; }
+.sline .nmw.grade-bad a { color: #e68a00; }
+.sline .nmw.grade-shit a { color: #e53935; }
