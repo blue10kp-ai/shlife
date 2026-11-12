@@ -57,6 +57,17 @@
   var cmpYears = years.filter(function (y) { return y < D.upto.slice(0, 4); }).slice(0, 2);
   var isCur = function (no) { return D.current.indexOf(no) >= 0; };
 
+  // 데이터 갱신 시각: 읽은 FC별 data.json의 made(UTC). 여러 FC면 가장 오래된 것 기준(마우스를 올리면 FC별)
+  function refreshDStamp() {
+    var el = document.getElementById('dstamp'); if (!el) return;
+    var st = window.DATASTAMP || {}, ks = Object.keys(st).filter(function (k) { return st[k]; });
+    var fmt = function (m) { var d = new Date(m + (/Z|[+-]\d\d:?\d\d$/.test(m) ? '' : 'Z')); if (isNaN(d)) return ''; var p = function (n) { return (n < 10 ? '0' : '') + n; }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); };
+    if (!ks.length) { el.textContent = ''; el.title = ''; return; }
+    ks.sort(function (a, b) { return st[a] < st[b] ? -1 : 1; });
+    el.textContent = 'Drive 데이터 ' + fmt(st[ks[0]]) + (ks.length > 1 ? ' (가장 오래된 FC 기준)' : '');
+    el.title = ks.map(function (k) { return k + ' ' + fmt(st[k]); }).join(' · ');
+  }
+  window.refreshDStamp = refreshDStamp;
   function userBox() {
     var foot = document.querySelector('.foot'); if (!foot) return;
     var h = '<div class="ub"><b>' + AC.user.name + '</b> · ' + AC.role + (AC.canEdit ? '' : ' · 열람 전용') + '</div>';
@@ -65,8 +76,9 @@
     }
     var dv = window.DRIVE;
     if (dv) h += '<div class="drv">' + (dv.on() ? '<span class="drvok">● Google Drive 연결됨</span><small>' + (dv.email() || '') + '</small><button type="button" id="drvOut" class="asSel">연결 해제</button>' : '<button type="button" id="drvIn" class="asSel">Google Drive 연결 (로그인)</button><small>연결하면 고객 정보 수정이 엑셀에 바로 저장됩니다</small>') + '</div>';
-    h += '<div style="margin-top:8px">데탑 v3 · 2026-11-12<br><span id="stamp"></span></div>';
+    h += '<div style="margin-top:8px">데탑 v3 · 2026-11-12<br><span id="stamp"></span><br><span id="dstamp"></span></div>';
     foot.innerHTML = h;
+    refreshDStamp();
     var sel = document.getElementById('asSel'); if (sel) sel.onchange = function () { AC.viewAs(sel.value); };
     var di = document.getElementById('drvIn'); if (di) di.onclick = function () { di.disabled = true; di.textContent = '로그인 창을 확인하세요…'; DRIVE.login().then(function () { location.reload(); }).catch(function (e) { alert(e.message || e); userBox(); }); };
     var dout = document.getElementById('drvOut'); if (dout) dout.onclick = function () { DRIVE.logout(); };

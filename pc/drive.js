@@ -167,7 +167,9 @@
     var parent;
     if (TESTJ) { var fo0 = await qfind(await testRootId(), fc, true); if (!fo0) return null; parent = fo0.id; }
     else { var fo = (await fcFolders()).filter(function (x) { return x.name === fc; })[0]; if (!fo) return null; parent = fo.id; }
-    return qfind(parent, 'data.json', false);
+    var jf = await qfind(parent, 'data.json', false);
+    if (jf) jf.parent = parent;   // 저장 직전 반영중 표시(.반영중.lock) 확인용
+    return jf;
   }
   async function extraJsonFile() { return qfind(TESTJ ? await testRootId() : await baseId(), '고객추가정보.json', false); }
   async function revOf(id) { var m = await gd(API + '/files/' + encodeURIComponent(id) + '?fields=headRevisionId,version&supportsAllDrives=true'); return m.headRevisionId || ('v' + m.version); }
@@ -177,8 +179,10 @@
       var doc = await gd(API + '/files/' + encodeURIComponent(file.id) + '?alt=media&supportsAllDrives=true');
       var res = mutate(doc);
       doc.made = new Date().toISOString().slice(0, 19);
+      if (file.parent && (await qfind(file.parent, '.반영중.lock', false))) throw new Error('데이터 반영 중이라 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.');   // 데이터 수집 반영 중에는 저장을 막음(저장 직전에만 확인)
       if ((await revOf(file.id)) !== rev) continue;   // 그사이 다른 곳에서 바뀜 → 다시 읽어서 바뀐 칸만 합쳐 씀
       await gd(UP + '/files/' + encodeURIComponent(file.id) + '?uploadType=media&supportsAllDrives=true', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(doc) });
+      if (doc.fc && doc.made && window.DATASTAMP) { window.DATASTAMP[doc.fc] = doc.made; if (window.refreshDStamp) window.refreshDStamp(); }   // 저장하면 데이터 시각도 바로 갱신
       return res;
     }
     throw new Error('다른 곳에서 계속 수정되고 있어 저장하지 못했습니다. 잠시 후 다시 시도하세요.');

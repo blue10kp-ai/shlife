@@ -76,6 +76,8 @@
   var won = function (v) { return v == null || v === '' ? '-' : Math.round(v).toLocaleString('ko-KR'); };
   var visible = function (c) { return c['현재단계'] !== '가망'; };   // 가망은 회사 분류라 고객 목록·집계에서 제외 (데이터는 그대로)
   var custAll = function () { return K.customers.filter(visible); };
+  var custHaeng = function () { return K.customers; };   // 따행으로 표시된 고객은 현재단계(가망 포함)와 상관없이 따행 목록·칩 카운트에 모두 나온다
+  var custTransfer = function () { return K.teamCustomers || K.customers; };   // 이달이관: 이관일자가 이번 달인 계약의 계약자는 현재단계(가망 포함)와 상관없이 나온다
   var custTeam = function () { return (K.teamCustomers || K.customers).filter(visible); };
   // 고객 분류 칩: 전체 / 본인(계약) / 이관(이관관리) / DB / 가망 | 이달이관 / 따행
   var CHIP_STAGES = [['계약', '본인'], ['이관관리', '이관'], ['DB', 'DB']];   // 가망은 회사 분류라 칩에서 뺌 (진행이 비슷한 개념)
@@ -83,8 +85,8 @@
   // FC 드롭다운 목록: 이달 이관은 내 팀 전체, 그 외는 지금 보기 범위의 고객 FC (직급 먼저, 같은 직급은 사번순)
   var fcCache = {};
   function fcList() {
-    var key = state.transfer || state.progress ? 'team' : 'view';
-    if (!fcCache[key]) { var a = []; (state.transfer || state.progress ? custTeam() : custAll()).forEach(function (c) { if (a.indexOf(c['담당FC']) < 0) a.push(c['담당FC']); }); a.sort(function (x, y) { return window.ACCESS.fcCompare({ name: x }, { name: y }); }); fcCache[key] = a; }
+    var key = state.transfer ? 'transfer' : state.progress ? 'team' : state.haeng ? 'haeng' : 'view';
+    if (!fcCache[key]) { var a = []; (state.transfer ? custTransfer() : state.progress ? custTeam() : state.haeng ? custHaeng() : custAll()).forEach(function (c) { if (a.indexOf(c['담당FC']) < 0) a.push(c['담당FC']); }); a.sort(function (x, y) { return window.ACCESS.fcCompare({ name: x }, { name: y }); }); fcCache[key] = a; }
     return fcCache[key];
   }
   var SRC = []; custAll().forEach(function (c) { var s = c['최초유입경로'] || '(없음)'; if (SRC.indexOf(s) < 0) SRC.push(s); });
@@ -98,7 +100,7 @@
   function active(x) { return x.st === '유지' || x.st === '완납' || x.st === '납입면제' || x.st === '연금지급'; }
   function filtered() {
     var q = state.q.trim().toLowerCase();
-    return (state.transfer || state.progress ? custTeam() : custAll()).filter(function (c) {
+    return (state.transfer ? custTransfer() : state.progress ? custTeam() : state.haeng ? custHaeng() : custAll()).filter(function (c) {
       if (state.fc && c['담당FC'] !== state.fc) return false;
       if (state.stage && c['현재단계'] !== state.stage) return false;
       if (state.src && (c['최초유입경로'] || '(없음)') !== state.src) return false;
@@ -129,13 +131,13 @@
     if (cs.some(function (x) { return VALID_ST.indexOf(x.st) >= 0; })) return '';
     return cs.some(function (x) { return x.st === '실효'; }) ? '실효' : '해지';
   }
-  var churnTag = function (c) { var k = churnOf(c); return k ? ' <span class="churn ' + (k === '실효' ? 'lapse' : 'gone') + '">' + (k === '해지' ? '해지 고객' : '실효') + '</span>' : ''; };
+  var churnTag = function (c) { var k = churnOf(c); return k ? ' <span class="churn ' + (k === '실효' ? 'lapse' : 'gone') + '">' + (k === '해지' ? '해지' : '실효') + '</span>' : ''; };
   var churnNote = function (c) { return churnOf(c) === '해지' && !c['연락처'] && !c['주소'] ? '<p class="churnnote">해지 고객이라 정보 조회 불가</p>' : ''; };
   var insMark = function (c) { var t = churnTag(c); return t ? '<br>' + t.trim() : ''; };   // 이름은 이름 그대로(피보험자 표시 없음). 해지 고객·실효 표시만 이름 아래 줄에(이름 칸이 좁아 옆에 두면 잘림)
   var cellPhone = function (c) {
     var hs = holdersOf(c); if (!hs.length) return esc(c['연락처'] || '-');
     var h = hs[0];   // 연락처 칸에는 계약자 이름과 연락처만 (계약자가 여럿이면 '외 N명'만 덧붙임)
-    return '<span class="insk">계약자</span> <a class="inslink" role="button" tabindex="0" data-hid="' + esc(h.p['고객ID']) + '">' + esc(h.p['이름']) + '</a> ' + esc(h.p['연락처'] || '') + (hs.length > 1 ? ' <span class="sm">외 ' + (hs.length - 1) + '명</span>' : '');
+    return '<a class="inslink" role="button" tabindex="0" data-hid="' + esc(h.p['고객ID']) + '">' + esc(h.p['이름']) + '</a> ' + esc(h.p['연락처'] || '') + (hs.length > 1 ? ' <span class="sm">외 ' + (hs.length - 1) + '명</span>' : '');
   };
   var cellPerson = function (c) { return '<td class="l job" title="' + esc(c['직업'] || '') + '">' + esc(c['직업'] || '-') + '</td><td class="l">' + esc(c['지역'] || '-') + '</td><td class="l">' + esc(c['주소'] || '-') + '</td>'; };
   function transferBody(view) {
@@ -257,7 +259,7 @@
       ? rowE('휴대전화', '<span class="efr">' + carrierSel(c) + inp(c, '연락처', '', 'tel') + '</span>') + rowE('자택', '<span class="efr">' + inp(c, '자택전화', '', 'tel') + pick('자택전화') + '</span>') + rowE('직장', '<span class="efr">' + inp(c, '직장전화', '', 'tel') + pick('직장전화') + '</span>') + rowE('이메일', inp(c, '이메일', '', 'email')) + rowE('미팅장소', inp(c, '미팅장소')) + rowE('주소', inp(c, '주소')) + rowE('계좌', inp(c, '계좌', '예: 신한 110-123-456789')) + rowE('차량번호', inp(c, '차량번호', '예: 123가4321')) + rowE('자동차보험갱신일', mdSel(c)) + '<input type="hidden" data-e="자동차보험갱신일" value="' + esc(c['자동차보험갱신일'] || '') + '">'
       : rowH('휴대전화', phoneView) + row('자택', c['자택전화']) + row('직장', c['직장전화']) + row('이메일', c['이메일']) + row('미팅장소', c['미팅장소']) + row('주소', c['주소']) + row('계좌', c['계좌']) + rowH('차량', [c['차량번호'] ? esc(c['차량번호']) : '', c['자동차보험갱신일'] ? esc(mdText(c['자동차보험갱신일'])) : ''].filter(Boolean).join(' | '))) + '</div>';
     return '<div class="drawer"><div class="dh"><div><div class="nmrow"><h2 class="' + gcls(c) + '">' + esc(c['이름']) + '</h2>' + (E ? gradeDots(c) : '') + churnTag(c) + '</div><span class="tag t3">' + esc(c['현재단계'] === '이관관리' ? '이관' : c['현재단계']) + '</span> <span class="mut">' + esc(c['담당FC']) + ' · ' + esc(c['고객ID']) + '</span></div><div class="dhb">' +
-      (canE && !E ? '<button class="btn" id="editD">수정</button>' : '') + (E ? '<button class="btn pri" id="eSave">저장</button><button class="btn" id="eCancel">취소</button>' : '') + '</div></div>' +
+      (canE && !E ? '<button class="btn" id="editD">수정</button>' : '') + (E ? '<button class="btn pri" id="eSave">확인</button><button class="btn" id="eCancel">취소</button>' : '<button class="btn" id="closeD">닫기</button>') + '</div></div>' +
       churnNote(c) + covanSection(c) + basic + contact +
       memoBox + consHtml +
       '<h3>계약 ' + cs.length + '건</h3>' + (cs.length ? '<div class="wrap"><table class="ct"><tr><th class="l">상품명</th><th>상태</th><th>보험료</th><th>계약일</th><th>모집유형</th><th>유입</th></tr>' + ct + '</table></div>' : '<p class="mut">등록된 계약이 없습니다.</p>') +
@@ -286,7 +288,7 @@
     var cnt = {}; custAll().forEach(function (c) { if (!state.fc || c['담당FC'] === state.fc) cnt[c['현재단계']] = (cnt[c['현재단계']] || 0) + 1; });
     var chips = '<button class="chip ' + (state.stage ? '' : 'on') + '" data-stage="">전체 ' + Object.keys(cnt).reduce(function (a, k) { return a + cnt[k]; }, 0) + '</button>' + CHIP_STAGES.map(function (p) { return '<button class="chip ' + (state.stage === p[0] ? 'on' : '') + '" data-stage="' + p[0] + '">' + p[1] + ' ' + (cnt[p[0]] || 0) + '</button>'; }).join('');
     var hc = { all: 0, done: 0, plan: 0, todo: 0 };
-    custAll().forEach(function (c) { if (state.fc && c['담당FC'] !== state.fc) return; var x = hStatus(c); if (x) { hc.all++; hc[x]++; } });
+    custHaeng().forEach(function (c) { if (state.fc && c['담당FC'] !== state.fc) return; var x = hStatus(c); if (x) { hc.all++; hc[x]++; } });
     chips += '<span class="csep" aria-hidden="true">|</span>';
     chips += '<button class="chip haeng ' + (state.transfer ? 'on' : '') + '" data-transfer="1">이달이관</button>';
     chips += '<button class="chip haeng ' + (state.haeng ? 'on' : '') + '" data-haeng="1">따행</button>';
@@ -443,6 +445,7 @@
     }; });
     var dl = g('dlEdits'); if (dl) dl.onclick = function () { var ed2 = readEdits(), cons2 = readCons(), out = Object.keys(ed2).map(function (id) { var e = ed2[id], ch = {}; Object.keys(e.v || {}).forEach(function (k) { ch[k] = { 전: (e.o || {})[k] || '', 후: e.v[k] }; }); return { 고객ID: id, 이름: e.name, 담당FC: e.fc, 수정일: e.at, 변경: ch }; }); var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({ 고객정보수정: out, 상담기록변경: cons2 }, null, 1)], { type: 'application/json' })); a.download = '고객수정내역.json'; a.click(); };
     
+    var cd = g('closeD'); if (cd) cd.onclick = function () { state.sel = null; state.edit = false; state.cedit = ''; rr(); };
     if (!window.__drawerEsc) { window.__drawerEsc = true; document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && state.sel && !state.edit && !state.cedit && !/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) { state.sel = null; rr(); } }); }   // 닫기 버튼 대신 Esc로 닫기
     var rq = g('reqCovan');
     if (rq) rq.onclick = function () {

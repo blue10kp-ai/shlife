@@ -127,7 +127,9 @@
   }
   function buildCustomers(results, errs) {
     var out = { customers: [], contracts: {}, history: {}, haeng: {}, files: {} }, fcFolderIds = [];
+    var stamps = {};   // FC별 데이터 시각(JSON의 made = 데이터를 만들거나 저장한 때, UTC) — 추가 요청 없이 읽은 파일에서 얻음
     results.filter(Boolean).forEach(function (res) {
+      if (res.doc && res.doc.made) stamps[res.doc.fc || res.fc] = res.doc.made;
       var wb = res.wb, rowsOf2 = function (name) { return res.doc ? sheetObjs(res.doc, name) : rowsOf(wb.Sheets[name]); };
       out.files[res.fc] = res.file;
       fcFolderIds.push({ id: res.folderId, name: res.fc });
@@ -161,6 +163,7 @@
     });
     var t = new Date(); out.made = t.getFullYear() + '-' + p2(t.getMonth() + 1) + '-' + p2(t.getDate());
     window.CUSTOMERS = out;
+    window.DATASTAMP = stamps;
     learned.fcs = fcFolderIds;   // 위치 기억용
     I.cache.fcFolderIds = fcFolderIds;
     window.CUSTFILES = { made: out.made, byId: {} };
