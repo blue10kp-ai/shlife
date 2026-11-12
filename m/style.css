@@ -664,3 +664,4 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .mic-btn { flex: none; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--brand); }
 .mic-btn.rec { color: #fff; background: #e53935; border-color: #e53935; animation: micpulse 1.1s ease-in-out infinite; }
 @keyframes micpulse { 50% { box-shadow: 0 0 0 5px rgba(229,57,53,.25); } }
+.mic-btn.rec { width: auto; padding: 0 10px; font-size: 12px; font-weight: 700; }

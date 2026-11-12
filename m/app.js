@@ -3468,6 +3468,8 @@
     rec.lang = "ko-KR"; rec.continuous = true; rec.interimResults = true;
     const base = inp.value.trim();
     let finalT = "";
+    const iconHtml = btn.innerHTML;
+    const stopOnTouch = () => micStop(); // 글씨 쓰는 칸을 터치하면 녹음을 멈추고 그대로 직접 고칠 수 있게
     const put = (interim) => {
       inp.value = [base, (finalT + interim).trim()].filter(Boolean).join(" ");
       inp.dispatchEvent(new Event("input", { bubbles: true })); // 저장 버튼 켜기
@@ -3483,12 +3485,18 @@
     rec.onerror = (ev) => {
       toast(ev.error === "not-allowed" || ev.error === "service-not-allowed" ? "마이크 사용을 허용해 주세요." : ev.error === "no-speech" ? "말소리가 들리지 않았습니다." : "음성 입력을 하지 못했습니다.");
     };
-    rec.onend = () => { btn.classList.remove("rec"); btn.setAttribute("aria-pressed", "false"); if (micRec === rec) { micRec = null; micBtn = null; } };
+    rec.onend = () => {
+      btn.classList.remove("rec"); btn.setAttribute("aria-pressed", "false"); btn.innerHTML = iconHtml; // 마이크 모양으로 되돌림
+      inp.removeEventListener("pointerdown", stopOnTouch);
+      if (micRec === rec) { micRec = null; micBtn = null; }
+    };
     try {
       rec.start();
       micRec = rec; micBtn = btn;
       btn.classList.add("rec"); btn.setAttribute("aria-pressed", "true");
-      toast("말씀하세요. 다시 누르면 멈춥니다.");
+      btn.textContent = "완료"; // 녹음 중에는 '완료' 버튼: 누르면 녹음을 끝냄
+      inp.addEventListener("pointerdown", stopOnTouch);
+      toast("말씀하세요. 끝나면 '완료'를 누르세요.");
     } catch (e) { toast("음성 입력을 시작하지 못했습니다."); }
   }
   async function saveMemo(it, i, j, btn) {
