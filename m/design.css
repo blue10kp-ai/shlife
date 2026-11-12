@@ -392,3 +392,11 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 #adminView .primary:disabled, #adminView .secondary:disabled { opacity: .4; }
 #adminView .file-actions { gap: 8px; }
 #adminView .file-actions > * { min-width: 0; }
+/* 카카오 키: 잠긴 입력칸 + 수정 버튼 */
+.key-row { display: flex; gap: 8px; align-items: center; }
+.key-row input { flex: 1; min-width: 0; }
+.key-row input[readonly] { background: var(--raised); color: var(--t2); }
+/* 취소/저장: 바 없이 버튼 두 개만 떠 있게 (위치는 하단 메뉴 바로 위 오른쪽) */
+.float-save { background: transparent; border-top: 0; padding: 0 16px 10px; pointer-events: none; }
+.float-save button { pointer-events: auto; box-shadow: 0 2px 8px rgba(0,0,0,.22); }
+.float-save .secondary { background: var(--surface); }

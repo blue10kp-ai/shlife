@@ -2384,8 +2384,8 @@
           <div id="gCalBox"></div></details>
         <label class="fld"><span>회사 주소 (일정 이동시간 계산의 출발·도착 기준)</span>
           <input id="setCompany" value="${esc(s.companyAddress || "")}" placeholder="예: 광주광역시 서구 상무중앙로 98" autocomplete="off"></label>
-        <label class="fld"><span>카카오 REST API 키 (이동 거리·시간 계산용)</span>
-          <input id="setKakao" value="${esc(s.kakaoRestKey || "")}" placeholder="developers.kakao.com › 앱 › 플랫폼 키" autocomplete="off" spellcheck="false"></label>
+        <div class="fld"><span>카카오 REST API 키 (이동 거리·시간 계산용)</span>
+          <div class="key-row"><input id="setKakao" value="${esc(s.kakaoRestKey || "")}" placeholder="developers.kakao.com › 앱 › 플랫폼 키" autocomplete="off" spellcheck="false" readonly><button type="button" class="secondary" id="kakaoEdit">수정</button></div></div>
         ${rhOptHtml()}
         <div class="file-actions"><button type="button" class="primary" id="setSave" disabled>설정 저장</button></div>
       </div>`;
@@ -2403,11 +2403,16 @@
     const calKey = (g) => JSON.stringify([((g || {}).calendars || []).map((c) => c.id).sort(), salesArr((g || {}).sales).map((c) => c.id).sort(), salesArr((g || {}).info).map((c) => c.id).sort()]);
     const dirty = () => { const v = read(); return v.companyAddress !== (appSettings.companyAddress || "") || v.kakaoRestKey !== (appSettings.kakaoRestKey || "") || calKey(v.google) !== calKey(appSettings.google); };
     ["input", "change"].forEach((ev) => $("settingsCard").addEventListener(ev, () => { btn.disabled = !dirty(); }));
+    // 카카오 키는 실수로 바꾸지 않게 잠가 두고, '수정'을 눌러야 고칠 수 있음 (저장하면 다시 잠금)
+    const kk = $("setKakao"), kb = $("kakaoEdit");
+    const kakaoLock = (lock) => { kk.readOnly = lock; kb.textContent = lock ? "수정" : "잠금"; if (!lock) { kk.focus(); } };
+    kb.addEventListener("click", () => { if (kk.readOnly) kakaoLock(false); else { kakaoLock(true); } });
     btn.addEventListener("click", async () => {
       btn.disabled = true; btn.textContent = "저장 중…";
       try {
         await saveSettings(read());
         toast("설정을 저장했습니다.");
+        kakaoLock(true);
       } catch (e) { handleError(e); }
       btn.textContent = "설정 저장";
       btn.disabled = !dirty();
