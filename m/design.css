@@ -193,8 +193,8 @@ details.fold { border-radius: var(--r-ctl); }
 .rh .mainnav { padding-left: calc(100% / 3); }
 .rh .tabs { justify-content: flex-end; }
 .rh .seg { width: 67%; margin-left: auto; }
-.rh .sched-top { flex-direction: row-reverse; }
-.rh .sched-top .sched-modes { flex: none; width: 67%; }
+.rh .sched-top { justify-content: flex-end; }
+.rh .sched-top .sched-modes { flex: none; width: 62%; }
 .rh .file-actions { justify-content: flex-end; }
 .rh .file-actions > * { flex: 0 0 auto; min-width: 33%; }
 .rh-opt { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500; padding: 4px 0; }
@@ -205,3 +205,22 @@ details.fold { border-radius: var(--r-ctl); }
 .sched-nav .sched-label { flex: none; padding: 0 6px; }
 /* 일정 '초기화': Today/Week/Month와 같은 버튼 모양 */
 .sched-top .link-btn { background: var(--raised); color: var(--t2); border: 0; border-radius: var(--r-ctl); min-height: 36px; padding: 0 14px; font-size: 13px; font-weight: 500; text-decoration: none; }
+#smsCard > details.fold, #smsCard > details.fold > summary { border: 0; background: none; padding: 0; box-shadow: none; border-radius: 0; min-height: 0; }
+/* 일정 카드 버튼 통일: 선택·다시 선택·되돌리기·메모 저장을 '수정' 버튼과 같은 모양(작은 테두리 버튼)으로 */
+.pick-btn, .memo-btn { border: 1px solid var(--line); background: var(--surface); color: var(--accent); border-radius: var(--r-ctl); font-size: 12px; font-weight: 700; }
+.pick-btn { padding: 2px 8px; }
+.memo-btn { padding: 0 12px; }
+.pick-btn:disabled, .memo-btn:disabled { opacity: .45; }
+.ev-cust:has(.pick-btn) .ev-name { padding-right: 76px; }
+/* 일정 화면의 나머지 버튼도 '수정' 버튼과 같은 크기·모양: 입력(주소·미팅장소), 수정 중 취소·완료 */
+.put-btn { border: 1px solid var(--line); background: var(--surface); color: var(--accent); border-radius: var(--r-ctl); padding: 2px 8px; font-size: 12px; font-weight: 700; }
+.ev-edit-acts .ev-edit { padding: 2px 8px; font-size: 12px; }
+/* 고객 정보 위쪽 카드 컴팩트 */
+.cust-card { padding: 14px 14px 12px; }
+.cust-card .avatar { width: 40px; height: 40px; font-size: 16px; }
+.cust-card .name-row h2, .cust-head h2 { font-size: 19px; margin-bottom: 2px; }
+.cust-sub { font-size: 12px; line-height: 1.4; }
+.cust-tel { margin-top: 10px; padding-top: 10px; }
+.cust-tel .n { font-size: 17px; }
+.cust-tel .act-btn { width: 36px; height: 36px; }
+.cust-card .grade-btns { margin-top: 10px; padding-top: 8px; }

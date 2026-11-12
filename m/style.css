@@ -652,3 +652,10 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .edit-btns[hidden] { display: none; }
 .data-stamp { margin: 16px 0 8px; text-align: center; font-size: 11px; color: var(--muted); }
 .data-stamp:empty { display: none; }
+/* 접히는 카드 (문자 문구) */
+.fold > summary { cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between; margin: 0; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::after { content: ""; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); margin: -4px 4px 0 0; transition: transform .15s; }
+.fold[open] > summary::after { transform: rotate(-135deg); margin-top: 4px; }
+.fold[open] > summary { margin-bottom: 6px; }
+#smsCard > details.fold, #smsCard > details.fold > summary { border: 0; background: none; padding: 0; box-shadow: none; border-radius: 0; min-height: 0; }

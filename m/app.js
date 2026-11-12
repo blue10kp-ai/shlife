@@ -1500,7 +1500,7 @@
     const n = Number(t.replace(/,/g, ""));
     return (t && isFinite(n) ? n.toLocaleString("ko-KR") : t) + "원";
   };
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시"];
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류"]; // 정보 탭 보기에서 숨기는 항목
   const BIRTH_KEYS = ["생년월일", "생일"];
   const EMAIL_COLS = ["이메일", "e-mail", "Email"];
   let editMode = false;
@@ -1535,7 +1535,7 @@
       if (PHONE_COLS.includes(k.trim()) && String(v).match(MOBILE_RE)) {
         const num = String(v).match(MOBILE_RE)[0];
         const d = num.replace(/\D/g, "");
-        return `<div class="n"><small>휴대전화</small>${esc(num)}</div><span class="acts">` +
+        return `<div class="n">${esc(num)}</div><span class="acts">` +
           `<a class="act-btn" href="tel:${d}" aria-label="전화 걸기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></a>` +
           `<a class="act-btn" href="sms:${d}" aria-label="문자 보내기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></a></span>`;
       }
@@ -2546,7 +2546,7 @@
     const ACC = GD ? "구글 계정" : "아이디";
 
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
-    $("adminBody").innerHTML = `
+    $("adminBody").innerHTML = rhCardHtml() + `
       <div class="card">
         <h3 class="sec-title">사용 FC 현황</h3>
         <p class="hint">이름(FC명)을 적고, 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다. 저장을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
@@ -2583,7 +2583,7 @@
           <button class="primary" type="submit">추가</button>
         </form>
         <p class="hint">추가하면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 '변경 저장'을 누르세요.</p>
-      </div>` + settingsCardHtml() + smsCardHtml() + rhCardHtml();
+      </div>` + settingsCardHtml() + smsCardHtml();
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
@@ -3833,14 +3833,14 @@
   function smsCardHtml() {
     const ta = (id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="8" maxlength="600"></textarea>
         <span class="smsrow"><button type="button" class="link-btn" data-sms-reset="${id}">기본값으로 되돌리기</button><small class="cnt" data-for="${id}"></small></span></label>`;
-    return `<div class="card" id="smsCard"><h3 class="sec-title">문자 문구</h3>
+    return `<div class="card" id="smsCard"><details class="fold"><summary class="sec-title">문자 문구</summary>
       <p class="hint">영업 화면에서 [문자]를 누르면 아래 문구가 채워진 문자 작성 화면이 열립니다. 기본 문구가 미리 들어 있고, 고치거나 지우면 내 설정으로 저장됩니다(지우면 문구 없이 작성 화면만 열림).<br>
       쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)</p>
       ${ta("smsMyTransfer", "이관 문자 문구")}
       ${ta("smsMyDda", "따행 문자 문구")}
       <p class="hint" id="smsPreview"></p>
       <p class="hint">※ 문자는 [문자]를 눌러 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다.</p>
-      <div class="file-actions"><button type="button" class="primary" id="smsSave" disabled>문구 저장</button></div></div>`;
+      <div class="file-actions"><button type="button" class="primary" id="smsSave" disabled>문구 저장</button></div></details></div>`;
   }
   async function bindSmsCard() {
     const KINDS = { smsMyTransfer: "transfer", smsMyDda: "dda" };
