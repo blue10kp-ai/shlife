@@ -1303,7 +1303,7 @@
     const box = $("gradeBtns");
     box.hidden = !editMode;
     box.innerHTML = editMode ? '<span class="grade-title">성향</span>' + GRADES.map((x) =>
-      `<button type="button" class="grade-opt${x.id === g ? " on" : ""}" data-grade="${x.id}" aria-label="성향 ${x.label}"><span class="grade-dot" style="background:${x.color}"></span><span>${x.label}</span></button>`).join("") : "";
+      `<button type="button" class="grade-opt gl-${x.id}${x.id === g ? " on" : ""}" data-grade="${x.id}" aria-label="성향 ${x.label}" aria-pressed="${x.id === g}"><span class="grade-dot">${x.id.charAt(0)}</span></button>`).join("") : "";
     box.querySelectorAll("[data-grade]").forEach((b) => b.addEventListener("click", () => { if (b.dataset.grade !== g) saveGrade(cust, b.dataset.grade); }));
   }
 
@@ -3050,9 +3050,11 @@
   const fsWait = async (b) => { for (let i = 0; i < 160 && b.isConnected && /저장 중/.test(b.textContent); i++) await new Promise((r) => setTimeout(r, 150)); };
   // ---------- 설명서: 관리자·설정 화면의 설명을 한곳에 모음 (아래 '설명서' 버튼) ----------
   function helpHtml() {
-    const iconBox = `<div class="help-icon"><img src="icon.svg?v=3" width="72" height="72" alt="신한FC 앱 아이콘"><div><b>앱 아이콘 안내</b><p>고객의 보장을 지키는 <b>방패</b> 안에, 계약과 실적이 꾸준히 <b>오르는 화살표</b>를 담았습니다. 보험 설계사의 일(고객을 지키고, 함께 성장하는 것)을 한 그림으로 줄였습니다.</p><p>연한 하늘색 바탕과 파란 선은 신뢰감 있고 차분한 업무용 앱의 느낌을 주고, 굵은 윤곽선 방패는 작은 홈 화면 아이콘에서도 또렷하게 보이도록 단순하게 만들었습니다. 모바일 화면 위쪽에는 "신한FC M", PC 화면 왼쪽 위에는 "신한FC"로 함께 표시됩니다.</p></div></div>`;
+    const iconBox = `<div class="help-icon"><img src="icon.svg?v=3" width="72" height="72" alt="신한FC m 앱 아이콘"><div><b>앱 아이콘 안내</b><p>고객의 보장을 지키는 <b>방패</b> 안에, 계약과 실적이 꾸준히 <b>오르는 화살표</b>를 담았습니다. 보험 설계사의 일(고객을 지키고, 함께 성장하는 것)을 한 그림으로 줄였습니다.</p><p>연한 하늘색 바탕과 파란 선은 신뢰감 있고 차분한 업무용 앱의 느낌을 주고, 굵은 윤곽선 방패는 작은 홈 화면 아이콘에서도 또렷하게 보이도록 단순하게 만들었습니다. 신한FC m(모바일)에서는 아래 메뉴 맨 왼쪽의 이 아이콘을 누르면 AI 도우미가 열리고, PC 화면 왼쪽 위에는 "신한FC"로 표시됩니다.</p></div></div>`;
     const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
     const common = [
+      sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>현재 상태</b>: 지금은 화면만 준비된 단계입니다. [보내기]를 눌러도 \"아직 준비 중\"이라는 안내만 나옵니다. 말을 알아듣고 고객 검색·일정 입력을 실행하는 기능은 다음 단계에서 연결하며, 그때 이 설명서도 함께 고칩니다."]),
+      sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]),
       sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭, 이동 거리·예상 시간, 회사 출발·도착을 계산합니다. 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]),
       sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 기본 문구가 미리 들어 있고, 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]),
       sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]),
@@ -3202,6 +3204,7 @@
   // v2 = 캘린더(읽기·수정) / v3 = Google Drive 모드: Drive + 캘린더 + 이메일
   const GTOKEN_V = GD ? 3 : 2;
   const GSCOPE = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events" +
+    " https://www.googleapis.com/auth/tasks" + // v221: 구글 할 일 권한도 로그인 때 한 번에 받음
     (GD ? " https://www.googleapis.com/auth/drive openid email" : "");
   function storedGToken() {
     try {
@@ -3225,7 +3228,7 @@
         callback: (r) => {
           if (r.error) return reject(new Error("구글 연결 실패: " + r.error));
           if (GD && !google.accounts.oauth2.hasGrantedAllScopes(r, "https://www.googleapis.com/auth/drive")) return reject(new Error("Google Drive 권한을 허용해야 합니다. 다시 로그인하면서 모든 항목에 체크해 주세요."));
-          try { localStorage.setItem(GTOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, v: GTOKEN_V })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ }
+          try { localStorage.setItem(GTOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, v: GTOKEN_V, tk: google.accounts.oauth2.hasGrantedAllScopes(r, "https://www.googleapis.com/auth/tasks") })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ }
           gTokenMem = r.access_token;
           resolve(r.access_token);
         },
@@ -3651,9 +3654,11 @@
   //   캘린더·드라이브 로그인과 따로, '할 일 연결' 버튼을 눌러 한 번 허용하면 이 폰에 1시간 단위로 기억 (만료되면 다시 연결)
   const TASKS_KEY = "shlife.gtasks", TASKS_SCOPE = "https://www.googleapis.com/auth/tasks", GTASKS = "https://tasks.googleapis.com/tasks/v1";
   function storedTasksToken() {
-    try { const t = JSON.parse(localStorage.getItem(TASKS_KEY) || "null"); return t && t.exp > Date.now() + 60000 ? t.token : null; } catch (e) { return null; }
+    try { const t = JSON.parse(localStorage.getItem(TASKS_KEY) || "null"); if (t && t.exp > Date.now() + 60000) return t.token; } catch (e) { /* 아래로 */ }
+    try { const m = JSON.parse(localStorage.getItem(GTOKEN_KEY) || "null"); if (m && m.tk && m.v === GTOKEN_V && m.exp > Date.now() + 60000) return m.token; } catch (e) { /* 없음 */ } // 로그인 때 할 일 권한도 받은 경우 그 토큰을 같이 씀
+    return null;
   }
-  function requestTasksToken() {
+  function requestTasksToken(prompt) {
     return new Promise((resolve, reject) => {
       const g = window.google && window.google.accounts && window.google.accounts.oauth2;
       if (!g) return reject(new Error("구글 로그인 모듈을 불러오지 못했습니다. 잠시 후 다시 시도하세요."));
@@ -3667,8 +3672,18 @@
         },
         error_callback: (e) => reject(new Error(e && e.type === "popup_closed" ? "구글 로그인 창이 닫혔습니다." : "구글 로그인 창을 열 수 없습니다. 팝업 차단을 확인하세요."))
       });
-      client.requestAccessToken({ prompt: "" });
+      client.requestAccessToken({ prompt: prompt === undefined ? "" : prompt });
     });
+  }
+  // 연결이 풀렸을 때 버튼을 누르기 전에 조용히 한 번 다시 연결 시도 (구글·브라우저가 허락하면 성공, 아니면 그대로 연결 버튼). 5분에 한 번만.
+  let tasksSilentBusy = false;
+  async function trySilentTasks() {
+    if (tasksSilentBusy) return false;
+    let last = 0; try { last = Number(sessionStorage.getItem("shlife.tasksSilent") || 0); } catch (e) { /* 무시 */ }
+    if (Date.now() - last < 300000) return false;
+    try { sessionStorage.setItem("shlife.tasksSilent", String(Date.now())); } catch (e) { /* 무시 */ }
+    tasksSilentBusy = true;
+    try { await requestTasksToken("none"); return !!storedTasksToken(); } catch (e) { return false; } finally { tasksSilentBusy = false; }
   }
   async function gtasks(path, opt) {
     const t = storedTasksToken();
@@ -3708,7 +3723,7 @@
   // 하루 보기 맨 위 '할 일' 카드
   async function loadDayTasks(box, d, req) {
     if (!box) return;
-    if (!storedTasksToken()) { box.innerHTML = taskConnectHtml(); return; }
+    if (!storedTasksToken()) { box.innerHTML = taskConnectHtml(); trySilentTasks().then((ok) => { if (ok && req === schedReq) loadDayTasks(box, d, req); }); return; }
     try {
       const list = await fetchTasks(d, addDays(d, 1));
       if (req !== schedReq) return;
@@ -3726,7 +3741,7 @@
   }
   // 주간 보기: 요일 카드마다 그날 마감인 할 일을 한 줄씩 덧붙임 (보기만)
   async function loadWeekTasks(from, req) {
-    if (!storedTasksToken()) return;
+    if (!storedTasksToken()) { trySilentTasks().then((ok) => { if (ok && req === schedReq) loadWeekTasks(from, req); }); return; }
     try {
       const list = await fetchTasks(from, addDays(from, 7));
       taskOwnerCal = await taskOwnerName();
@@ -4346,24 +4361,47 @@
 
 
   // ---- AI 도우미 창 (v214: 화면 틀만. 말하기·입력칸·예시. 말을 알아듣고 실행하는 것은 다음 단계) ----
+  // 상태: aiIsOpen(열려 있음), aiClosing(내려가는 중), aiHist(뒤로가기용으로 쌓아 둔 기록이 있음)
+  var aiIsOpen = false, aiClosing = null, aiHist = false, aiExpectPop = false, aiSkipOther = false; // var: 앞쪽 코드(show)에서 먼저 불려도 안전
+  function aiFinish() { // 내려가는 애니메이션이 끝났을 때(또는 바로 다시 열 때) 완전히 숨김
+    if (!aiClosing) return;
+    clearTimeout(aiClosing); aiClosing = null;
+    const sh = $("aiSheet");
+    $("aiScrim").hidden = true; sh.hidden = true; sh.style.transform = ""; sh.style.transition = ""; sh.style.opacity = "";
+    document.documentElement.classList.remove("ai-open");
+  }
   function aiOpen() {
-    if (!account()) return; // 로그인 전에는 열지 않음
+    if (!account() || aiIsOpen) return; // 로그인 전에는 열지 않음
+    aiFinish();
+    aiIsOpen = true;
     $("aiScrim").hidden = false; $("aiSheet").hidden = false;
     $("aiSheet").style.transform = "";
     $("navAi").classList.add("on"); $("navAi").setAttribute("aria-expanded", "true");
     document.documentElement.classList.add("ai-open");
+    history.pushState({ v: "ai" }, ""); aiHist = true; // 폰의 뒤로가기로 닫을 수 있게 기록 한 칸 쌓기
   }
-  function aiClose() {
-    if ($("aiSheet").hidden) return;
+  // 닫기: 끌기·AI 버튼·바깥·Esc·뒤로가기 모두 같은 방식(항상 아래로 내려감). fromPop=뒤로가기로 이미 기록이 빠진 경우
+  function aiClose(fromPop) {
+    if (!aiIsOpen) return;
+    aiIsOpen = false;
     micStop();
-    $("aiScrim").hidden = true; $("aiSheet").hidden = true; $("aiSheet").style.transform = "";
+    const sh = $("aiSheet");
+    sh.style.transition = "transform 200ms var(--ease, ease-out)"; sh.style.transform = "translateY(100%)";
     $("navAi").classList.remove("on"); $("navAi").setAttribute("aria-expanded", "false");
-    document.documentElement.classList.remove("ai-open");
     $("aiMsg").hidden = true;
+    aiClosing = setTimeout(aiFinish, 220);
+    if (aiHist) { // 쌓아 둔 기록 정리: 뒤로가기로 닫은 게 아니면 한 칸 되돌려 이중 이동을 막음
+      aiHist = false;
+      if (fromPop !== "pop") { aiExpectPop = true; history.back(); }
+    }
   }
-  $("navAi").addEventListener("click", () => { if ($("aiSheet").hidden) aiOpen(); else aiClose(); }); // 아이콘 다시 누르면 닫힘
+  window.addEventListener("popstate", () => { // 다른 뒤로가기 처리(고객 정보 → 목록)보다 먼저 등록되어 먼저 실행됨
+    if (aiExpectPop) { aiExpectPop = false; aiSkipOther = true; return; } // 우리가 되돌린 기록: 다른 처리는 건너뜀
+    if (aiIsOpen) { aiClose("pop"); aiSkipOther = true; } // 폰 뒤로가기: AI 창만 닫고 화면은 그대로
+  });
+  $("navAi").addEventListener("click", () => { if (aiIsOpen) aiClose(); else aiOpen(); }); // 아이콘 다시 누르면 닫힘
   $("aiScrim").addEventListener("click", () => aiClose());
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("aiSheet").hidden) aiClose(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && aiIsOpen) aiClose(); });
   // 아래로 끌어서 닫기: 팝업 안 어디를 잡고 내려도 됨. 세로로 8px 넘게 끌 때부터 끌기로 보고(짧은 탭은 그대로 동작),
   // 80px 넘게 끌면 닫히고 덜 끌면 제자리로. 내용이 스크롤되는 중이면(맨 위가 아니면) 스크롤이 먼저. 입력칸에서 시작한 터치는 건드리지 않음.
   { const sh = $("aiSheet"), bd = sh.querySelector(".ai-body");
@@ -4406,7 +4444,7 @@
     else if (s === "sales") openSales();
     else resetSearch(); // 고객: 검색을 지우고 처음 화면
   }));
-  window.addEventListener("popstate", () => { if (!$("customerView").hidden) { if (returnView === "scheduleView") openSchedule(); else if (returnView === "salesView") renderSales(SALES.cardAnchor || true); else show("searchView"); } });
+  window.addEventListener("popstate", () => { if (aiSkipOther) { aiSkipOther = false; return; } if (!$("customerView").hidden) { if (returnView === "scheduleView") openSchedule(); else if (returnView === "salesView") renderSales(SALES.cardAnchor || true); else show("searchView"); } });
 
   function resetSearch() {
     $("q").value = ""; $("q2").value = "";

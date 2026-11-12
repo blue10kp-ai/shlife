@@ -487,7 +487,7 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .sline.l4 .ad { flex: 1 1 60%; color: var(--text); }
 /* 고객 페이지 검색 버튼: 옆 마이크 버튼과 같은 높이(30) */
 #pageSearch .search button.primary { box-sizing: border-box; height: 30px; min-height: 0; padding: 0 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
-/* 화면 왼쪽 위: 아이콘 + 신한FC M(구분 표시) + 페이지 이름 */
+/* 화면 왼쪽 위: 페이지 이름 (아이콘은 v214부터 아래 메뉴 맨 왼쪽 AI 버튼) */
 .tb-ico { flex: none; width: 30px; height: 30px; border-radius: 8px; }
 .tb-title { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 1.15; flex: none; }
 .topbar:not(:has(#topSearch:not([hidden]))) .tb-title { flex: 1; }
@@ -500,9 +500,7 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .tb-title { justify-content: center; }
 
 /* ── AI 도우미 (v214): 하단 메뉴 맨 왼쪽 아이콘 + 아래에서 올라오는 창 ── */
-.mainnav .nav-ai .ni img { display: block; width: 26px; height: 26px; border-radius: 7px; }
 .mainnav .nav-ai.on { color: var(--accent); }
-.mainnav .nav-ai.on .ni img { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* 오른손 모드: AI 아이콘도 다른 메뉴와 함께 오른쪽 2/3 묶음의 맨 왼쪽(.rh .mainnav 여백이 그대로 적용됨) */
 .ai-scrim { position: fixed; inset: 0; z-index: 9; background: rgba(10, 15, 25, .45); }
 .ai-sheet { overscroll-behavior: contain; position: fixed; left: 0; right: 0; bottom: var(--navh, 60px); z-index: 9; max-width: 640px; margin: 0 auto; max-height: calc(100vh - var(--navh, 60px) - 56px); display: flex; flex-direction: column; background: var(--surface); border-radius: 20px 20px 0 0; box-shadow: 0 -6px 24px rgba(0, 0, 0, .18); transition: transform var(--t-in, 200ms) var(--ease, ease-out); animation: aiUp var(--t-in, 200ms) var(--ease, ease-out); }
@@ -523,3 +521,21 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .ai-chips button { min-height: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 10px; font-size: 12.5px; color: var(--t2); }
 .ai-msg { margin: 0; padding: 10px 12px; border-radius: var(--r-card); background: var(--accent-weak); color: var(--t1); font-size: 13.5px; text-align: left; }
 html.ai-open { overflow: hidden; overscroll-behavior-y: contain; }
+
+/* 고객 페이지 아래 고객 검색창: 위아래를 조금 키움(v220) */
+#pageSearch { padding-top: 22px; padding-bottom: 22px; }
+#pageSearch input[type="search"], #pageSearch .mic-btn, #pageSearch .page-mic, #pageSearch .search button.primary { height: 40px; }
+#pageSearch input[type="search"] { font-size: 15px; }
+#pageSearch .page-mic { width: 40px; }
+#pageSearch .search button.primary { font-size: 14px; padding: 0 16px; }
+
+/* 고객 성향 선택(수정 모드): G·B·S 글자 원. 선택된 것만 색(G 초록·B 주황·S 빨강), 나머지는 회색 (v221) */
+.grade-opt { gap: 0; }
+.grade-opt .grade-dot { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border: 0; box-shadow: none; background: var(--raised); color: var(--t3); font-size: 16px; font-weight: 700; line-height: 1; }
+.grade-opt.on .grade-dot { border: 0; box-shadow: none; color: #fff; }
+.grade-opt.gl-Good.on .grade-dot { background: var(--ok); }
+.grade-opt.gl-Bad.on .grade-dot { background: #f39c12; }
+.grade-opt.gl-Shit.on .grade-dot { background: var(--bad); }
+
+/* AI 버튼 아이콘(v224): 옆 메뉴와 같은 선 아이콘 — 평소 회색, 눌리면 파랑. 옆 그림보다 조금 크게 */
+.mainnav .nav-ai .ni svg { width: 28px; height: 28px; stroke-width: 1.5; }
