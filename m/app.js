@@ -1500,7 +1500,7 @@
     const n = Number(t.replace(/,/g, ""));
     return (t && isFinite(n) ? n.toLocaleString("ko-KR") : t) + "원";
   };
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류"]; // 정보 탭 보기에서 숨기는 항목
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류", "고객등급", "고객 등급", "마케팅동의 만료일", "마케팅 동의 만료일", "계약안내 수신", "통신사"]; // 정보 탭 보기에서 숨기는 항목
   const BIRTH_KEYS = ["생년월일", "생일"];
   const EMAIL_COLS = ["이메일", "e-mail", "Email"];
   let editMode = false;
@@ -1530,12 +1530,17 @@
   }
 
   // 명함 카드 안 전화 줄: 고객 리스트의 휴대전화 번호와 전화·문자 버튼 (정보 탭의 연락처 줄과 같은 값)
+  function carrierOf(c) {
+    for (const e of c.entries) { const v = fieldOf(e, EXTRA.carrierCol); if (v) return String(v).trim(); }
+    return String(((current && current.extra && current.extra.values) || {})[EXTRA.carrierCol] || "").trim();
+  }
   function custTelHtml(c) {
     for (const e of c.entries) for (const [k, v] of e.fields) {
       if (PHONE_COLS.includes(k.trim()) && String(v).match(MOBILE_RE)) {
         const num = String(v).match(MOBILE_RE)[0];
         const d = num.replace(/\D/g, "");
-        return `<div class="n">${esc(num)}</div><span class="acts">` +
+        const carrier = carrierOf(c); // 통신사는 번호 왼쪽에 작게
+        return `<div class="n">${carrier ? `<span class="carrier">${esc(carrier)}</span>` : ""}${esc(num)}</div><span class="acts">` +
           `<a class="act-btn" href="tel:${d}" aria-label="전화 걸기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/></svg></a>` +
           `<a class="act-btn" href="sms:${d}" aria-label="문자 보내기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></a></span>`;
       }
@@ -1563,6 +1568,7 @@
     const c = current.cust;
     const x = current.extra || { values: {}, fields: [] };
     const ev = x.values || {};
+    { const tel = custTelHtml(c); $("custTel").innerHTML = tel; $("custTel").hidden = !tel; } // 통신사는 추가정보를 읽은 뒤에 알 수 있어 정보 탭을 그릴 때 위쪽 전화 줄도 다시 그림
     // 고객리스트 항목 (같은 항목은 한 번만)
     const merged = new Map();
     c.entries.forEach((e) => e.fields.forEach(([k, v]) => {
@@ -1575,7 +1581,7 @@
     const phones = take(PHONE_COLS), backs = take(["후번호"]), emails = take(EMAIL_COLS), addrs = take(["주소"]), accts = take(["계좌"]);
     const row = (label, html) => `<dt>${esc(label)}</dt><dd>${html}</dd>`;
     // 통신사 / 차량번호 / 자동차보험갱신일 (+ 미팅장소·메모가 아닌 추가 항목) — 주소 밑 한 줄
-    const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k));
+    const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k) && k !== EXTRA.carrierCol);
     const chips = extraKeys.filter((k) => (ev[k] || "").trim()).map((k) =>
       `<span class="chip" title="${esc(k)}">${esc(EXTRA.monthDayCols.includes(k) ? mdText(ev[k]) : ev[k])}</span>`).join("");
     const rest = [...merged];
@@ -3199,8 +3205,8 @@
 
   function scheduleShell() {
     return `<div class="sched-top"><div class="sched-modes">${[["day", "Today"], ["week", "Week"], ["month", "Month"]].map(([m, l]) =>
-      `<button type="button" data-sm="${m}" class="${schedMode === m ? "on" : ""}">${l}</button>`).join("")}</div><button type="button" class="link-btn" id="pickReset" hidden>초기화</button></div>
-      <div class="sched-nav"><button type="button" id="schedPrev" aria-label="이전"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      `<button type="button" data-sm="${m}" class="${schedMode === m ? "on" : ""}">${l}</button>`).join("")}</div></div>
+      <div class="sched-nav"><button type="button" class="link-btn" id="pickReset" hidden>초기화</button><button type="button" id="schedPrev" aria-label="이전"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
         <button type="button" id="schedLabel" class="sched-label"></button>
         <button type="button" id="schedNext" aria-label="다음"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button></div>
       <div id="schedBody"></div>`;

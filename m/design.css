@@ -100,7 +100,7 @@ main { padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
 
 /* ── 9. 고객 상세: 명함 카드 ── */
 .cust-card { background: var(--surface); color: var(--t1); border: 1px solid var(--line); border-radius: var(--r-panel); padding: 24px 20px 20px; position: relative; }
-.cust-card::before { content: ""; position: absolute; left: 20px; top: -1px; width: 40px; height: 3px; background: var(--accent); border-radius: 0 0 2px 2px; }
+/* 카드 위쪽 파란 짧은 선은 삭제 */
 .cust-card .avatar { background-color: var(--raised); border: 1px solid var(--line); color: var(--t2); width: 48px; height: 48px; font-size: 18px; font-weight: 600; }
 .cust-card .avatar.editable { outline: 2px dashed var(--accent); outline-offset: 3px; }
 .cust-card .avatar.editable::after { content: ""; width: 16px; height: 16px; border-radius: 50%; background: var(--accent) center / 10px 10px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'/%3E%3Ccircle cx='12' cy='13' r='4'/%3E%3C/svg%3E"); transform: translate(26px, 26px); }
@@ -193,12 +193,11 @@ details.fold { border-radius: var(--r-ctl); }
 .rh .mainnav { padding-left: calc(100% / 3); }
 .rh .tabs { justify-content: flex-end; }
 .rh .seg { width: 67%; margin-left: auto; }
-.rh .sched-top { justify-content: flex-end; }
-.rh .sched-top .sched-modes { flex: none; width: 62%; }
+.rh .sched-top .sched-modes { width: 67%; margin-left: auto; }
 .rh .file-actions { justify-content: flex-end; }
 .rh .file-actions > * { flex: 0 0 auto; min-width: 33%; }
 .rh-opt { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500; padding: 4px 0; }
-.rh .sched-nav { padding-left: 20%; } /* 날짜 이동 화살표도 살짝 오른쪽으로 */
+.rh .sched-nav { padding-left: 12%; } /* 날짜 이동 화살표도 살짝 오른쪽으로 */
 /* 일정 날짜 이동: 둥근 화살표 아이콘 버튼, 날짜와 가깝게 가운데 모음 */
 .sched-nav { justify-content: center; gap: 4px; }
 .sched-nav button#schedPrev, .sched-nav button#schedNext { width: 34px; height: 34px; border-radius: 50%; background: var(--raised); color: var(--t1); display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 0; }
@@ -224,3 +223,7 @@ details.fold { border-radius: var(--r-ctl); }
 .cust-tel .n { font-size: 17px; }
 .cust-tel .act-btn { width: 36px; height: 36px; }
 .cust-card .grade-btns { margin-top: 10px; padding-top: 8px; }
+/* 초기화: 날짜 이동 줄의 오른쪽 끝 */
+.sched-nav #pickReset { position: absolute; right: 0; top: 50%; transform: translateY(-50%); min-height: 32px; padding: 0 12px; }
+.sched-nav #pickReset { width: auto; height: 32px; background: var(--raised); color: var(--t2); border: 0; border-radius: var(--r-ctl); font-size: 13px; font-weight: 500; text-decoration: none; }
+.cust-tel .n .carrier { font-size: 12px; font-weight: 400; color: var(--t3); margin-right: 8px; letter-spacing: 0; }
