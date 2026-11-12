@@ -445,3 +445,30 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .perm-row.locked .perm-name { border-bottom-color: transparent; background: transparent; }
 .perm-row.locked [inert] { opacity: .75; }
 .perm-lbl { margin: 10px 0 4px; }
+#adminView [hidden] { display: none !important; } /* 버튼 모양 규칙(display) 때문에 hidden이 무시되던 문제 */
+/* 구글 캘린더 설정 접이식 칸: 위아래 높이 줄임 (닫힌 상태 약 34) */
+#settingsCard > details.fold { padding: 4px 12px; margin: 6px 0 10px; }
+#settingsCard > details.fold > summary { min-height: 0; line-height: 24px; font-size: 13px; }
+#settingsCard > details.fold[open] > summary { margin-bottom: 6px; }
+/* 고객 페이지 접근 허용: FC별 한 줄 (이름 | 보기 | 수정) */
+.fc-lines .fc-line { display: grid; grid-template-columns: 1fr 56px 56px; align-items: center; min-height: 32px; border-top: 1px solid var(--line); font-size: 14px; }
+.fc-lines .fc-head { border-top: 0; min-height: 24px; font-size: 12px; color: var(--t3); }
+.fc-lines .fc-c { display: flex; justify-content: center; align-items: center; }
+.fc-lines .fc-nm { padding-left: 4px; }
+.fc-lines .fc-line.own { background: var(--raised); }
+.fc-lines input[disabled] { opacity: .6; }
+.perm-fcs.fc-lines { display: block; }
+/* 사용자 추가: 위쪽 줄을 없애고 FC 설정 카드처럼 테두리 상자로 */
+.add-user { margin: 10px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-top: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface); }
+.add-user .sub-title { margin: 0 0 8px; }
+/* 오른손 모드: 글자를 체크박스 바로 앞에, 아래 빈 공간 줄임 */
+.rh-opt { justify-content: flex-start; width: auto; padding: 0; font-size: 15px; }
+.rh-opt span { margin: 0; font-size: 15px; color: var(--t1); }
+.rh-fld { margin-bottom: 0; }
+/* 문자 문구 접이식 카드: 위아래 높이 줄임 */
+#smsCard { padding-top: 8px; padding-bottom: 8px; }
+#smsCard > details.fold > summary { line-height: 24px; font-size: 14px; }
+#smsCard > details.fold[open] > summary { margin-bottom: 8px; }
+/* 설명서 창 닫기 버튼도 다른 버튼과 같은 모양 */
+.help-head { padding: 8px 16px; }
+.help-head .secondary { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 30px; min-height: 0; padding: 0 14px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t2); font-size: 13px; font-weight: 600; line-height: 1; box-shadow: none; }

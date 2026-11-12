@@ -831,7 +831,7 @@
   let gradeFilter = "Good";
   function syncGradeOpt() {
     const b = $("gradeOpt"); if (!b) return;
-    b.textContent = "성향 " + gradeFilter;
+    b.textContent = "고객 성향"; b.setAttribute("aria-label", "성향 " + gradeFilter);
     b.classList.toggle("g-bad", gradeFilter === "Bad");
     b.classList.toggle("g-shit", gradeFilter === "Shit");
   }
@@ -2708,15 +2708,20 @@
     const users = [...new Set([...Object.keys(perms.users), ...extraUsers])].sort();
     const listOf = (em) => perms.users[em] || [];
     const isAll = (em) => listOf(em).includes("*");
-    const has = (em, fc) => isAll(em) || listOf(em).some((g) => grantFc(g) === fc);
-    const canEdit = (em, fc) => isAll(em) || listOf(em).includes(fc); // 'FC' = 수정 가능, 'FC:r' = 보기만
     const nameOfEm = (em) => (perms.names || {})[em] || "";
+    const ownFc = (em) => (nameOfEm(em) && fcs.includes(nameOfEm(em)) ? nameOfEm(em) : ""); // 본인 FC: 항상 보기+수정 (바꿀 수 없음)
+    const has = (em, fc) => isAll(em) || fc === ownFc(em) || listOf(em).some((g) => grantFc(g) === fc);
+    const canEdit = (em, fc) => isAll(em) || fc === ownFc(em) || listOf(em).includes(fc); // 'FC' = 수정 가능, 'FC:r' = 보기만
+    const effList = (em) => (ownFc(em) && !listOf(em).some((g) => grantFc(g) === ownFc(em) && g === ownFc(em)) ? [...listOf(em).filter((g) => grantFc(g) !== ownFc(em)), ownFc(em)] : listOf(em));
+    // FC 순서: 본인 → 직급(ESL > SSL > GSL > FC) → 사번순 (config.fcOrder), 명단에 없는 FC는 맨 뒤 이름순
+    const fcRank = (fc) => { const o = CFG.fcOrder || [], i = o.indexOf(fc); return i < 0 ? 999 : i; };
+    const fcsFor = (em) => [...fcs].sort((a, b) => (a === ownFc(em) ? -1 : b === ownFc(em) ? 1 : 0) || fcRank(a) - fcRank(b) || a.localeCompare(b, "ko"));
     const ACC = GD ? "구글 계정" : "아이디";
 
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
     $("adminBody").innerHTML = `
       <div class="card">
-        <h3 class="sec-title">사용 FC 현황</h3>
+        <h3 class="sec-title">FC 사용 설정</h3>
         ${(() => {
           const sh = adminState.shares, adm = (CFG.admins || []).map((a) => a.toLowerCase());
           const hits = ((sh && sh.anc) || []).flatMap((a) => a.perms.filter((p) => p.role !== "owner" && !adm.includes(p.email)).map((p) => esc((perms.names || {})[p.email] || p.email) + " ← '" + esc(a.name) + "' 폴더(" + p.role + ")"));
@@ -2731,11 +2736,12 @@
               <span class="perm-btns"><button type="button" class="secondary" data-rowedit="${esc(em)}">수정</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button><button type="button" class="secondary" data-rowcancel="${esc(em)}" hidden>취소</button><button type="button" class="primary row-save" data-rowsave="${esc(em)}" hidden>저장</button></span>
             </div>
             <div class="perm-sens"><label class="chip"><input type="checkbox" class="cb" data-sens="${esc(em)}" ${(perms.sensitive || []).includes(em) ? "checked" : ""} aria-label="${esc(em)} 민감정보 접근"> 민감정보 접근 허용</label></div>
-            <div class="perm-sales"><p class="hint">영업 페이지 접근 허용</p><div class="perm-fcs">${fcs.map((fc) => { const own = !!nameOfEm(em) && fc === nameOfEm(em); return `<span class="chip"><label><input type="checkbox" class="cb" data-sf="${esc(em)}|${esc(fc)}" ${own ? 'data-own="1" checked disabled' : ((perms.salesFcs || {})[em] || []).includes(fc) ? "checked" : ""} aria-label="${esc(em)} 영업 ${esc(fc)}"> ${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</label></span>`; }).join("")}</div></div>
-            <p class="hint perm-lbl">고객 페이지 접근 허용</p>
-            <div class="perm-fcs">
-              <label class="chip chip-all" ${isAll(em) ? "" : "hidden"} title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
-              ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC 고객 정보를 수정할 수 있음 (체크 안 하면 보기만)"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 수정"> 수정</label></span>`).join("")}
+            <div class="perm-sales"><p class="hint perm-lbl">• 영업 페이지 접근 허용</p><div class="perm-fcs">${fcsFor(em).map((fc) => { const own = !!nameOfEm(em) && fc === nameOfEm(em); return `<span class="chip"><label><input type="checkbox" class="cb" data-sf="${esc(em)}|${esc(fc)}" ${own ? 'data-own="1" checked disabled' : ((perms.salesFcs || {})[em] || []).includes(fc) ? "checked" : ""} aria-label="${esc(em)} 영업 ${esc(fc)}"> ${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</label></span>`; }).join("")}</div></div>
+            <p class="hint perm-lbl">• 고객 페이지 접근 허용</p>
+            <div class="perm-fcs fc-lines">
+              <label class="chip chip-all" hidden title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
+              <div class="fc-line fc-head"><span class="fc-nm">FC</span><span class="fc-c">보기</span><span class="fc-c">수정</span></div>
+              ${fcsFor(em).map((fc) => { const own = fc === ownFc(em); return `<div class="fc-line${own ? " own" : ""}"><span class="fc-nm">${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</span><label class="fc-c"><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} ${own ? 'data-own="1" disabled' : ""} aria-label="${esc(em)} ${esc(fc)} 보기"></label><label class="fc-c"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${own || isAll(em) ? 'data-own="1" disabled' : ""} aria-label="${esc(em)} ${esc(fc)} 수정"></label></div>`; }).join("")}
             </div>
           </div>`).join("")}
         </div>
@@ -2778,7 +2784,7 @@
     const nameVal = (row) => row.querySelector("[data-name]").value.trim();
     // 체크가 바뀐 줄 + Drive 공유가 체크 상태와 다른 줄(예: 예전 방식 공유)도 '변경 저장' 대상으로 표시
     const needsShare = (r) => GD && adminState.shares && sel(r).length > 0 && !shareMatches(r.dataset.em, sel(r));
-    const isDiff = (r) => !same(sel(r), listOf(r.dataset.em)) || needsShare(r) || nameVal(r) !== nameOfEm(r.dataset.em);
+    const isDiff = (r) => !same(sel(r), effList(r.dataset.em)) || needsShare(r) || nameVal(r) !== nameOfEm(r.dataset.em);
     const changed = () => rows.filter(isDiff);
     const refresh = () => {
       rows.forEach((r) => { r.classList.toggle("changed", isDiff(r)); });
@@ -2793,16 +2799,21 @@
       const eds = [...row.querySelectorAll("input[data-edit]")];
       const syncEd = () => eds.forEach((e) => {
         const fb = boxes.find((b) => b.dataset.fc === e.dataset.edit);
+        if (e.dataset.own) { e.checked = true; if (fb) fb.checked = true; return; } // 본인 FC는 항상 보기+수정
         if (all.checked) { e.checked = true; e.disabled = true; } // 전체 = 보기+수정
-        else { e.disabled = !(fb && fb.checked); if (e.disabled) e.checked = false; }
+        else { e.disabled = false; if (!(fb && fb.checked)) e.checked = false; } // 수정 칸은 항상 누를 수 있음 (누르면 보기도 함께 켜짐)
       });
       const syncAll = () => { all.indeterminate = !all.checked && boxes.some((b) => b.checked); syncEd(); };
       all.addEventListener("change", () => { boxes.forEach((b) => (b.checked = all.checked)); syncAll(); refresh(); });
       boxes.forEach((b) => b.addEventListener("change", () => {
-        if (!b.checked) all.checked = false; // (모든 FC를 체크해도 '전체'로 바뀌지 않음 — '전체'는 앞으로 생길 FC까지 열림)
+        if (!b.checked) { all.checked = false; const ed = eds.find((x) => x.dataset.edit === b.dataset.fc); if (ed) ed.checked = false; } // 보기를 끄면 수정도 꺼짐
+        // (모든 FC를 체크해도 '전체'로 바뀌지 않음 — '전체'는 앞으로 생길 FC까지 열림)
         syncAll(); refresh();
       }));
-      eds.forEach((e) => e.addEventListener("change", refresh));
+      eds.forEach((e) => e.addEventListener("change", () => { // 수정을 켜면 보기도 같이 켜지고, 수정을 다시 꺼도 보기는 그대로 둠
+        if (e.checked) { const fb = boxes.find((b) => b.dataset.fc === e.dataset.edit); if (fb && !fb.checked) fb.checked = true; }
+        syncAll(); refresh();
+      }));
       row.querySelector("[data-name]").addEventListener("input", refresh);
       syncAll();
     });
@@ -2874,7 +2885,7 @@
     rows.forEach((r) => {
       rowLock(r, true);
       r.querySelector("[data-rowedit]").addEventListener("click", () => rowLock(r, false));
-      r.querySelector("[data-rowcancel]").addEventListener("click", () => { applyRows([[r.dataset.em, listOf(r.dataset.em), nameOfEm(r.dataset.em)]]); rowLock(r, true); refresh(); }); // 바꾼 내용을 버리고 처음 값으로
+      r.querySelector("[data-rowcancel]").addEventListener("click", () => { applyRows([[r.dataset.em, effList(r.dataset.em), nameOfEm(r.dataset.em)]]); rowLock(r, true); refresh(); }); // 바꾼 내용을 버리고 처음 값으로
       r.querySelector("[data-rowsave]").addEventListener("click", () => { if (!isDiff(r)) { rowLock(r, true); return; } savePerms([[r.dataset.em, sel(r), nameVal(r)]]); }); // 이 계정만 저장 (저장하면 화면을 다시 그려 잠김)
     });
 
@@ -3037,7 +3048,7 @@
     ];
     if (!isAdmin()) return common.join("");
     const adm = [
-      sec("사용 FC 현황 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]),
+      sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]),
       sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]),
       sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다.", "<b>구글 캘린더 설정</b>: 관리자의 기본 캘린더와 영업·정보 캘린더를 고릅니다."])
     ];
