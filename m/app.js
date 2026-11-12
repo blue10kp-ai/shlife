@@ -1721,7 +1721,7 @@
       const followChanges = {};
       if (fcur) body.querySelectorAll("[data-fl]").forEach((i) => { if (i.value.trim() !== (fcur[i.dataset.fl] || "")) followChanges[i.dataset.fl] = i.value.trim(); });
       if (!Object.keys(listValues).length && !extraDirty && !Object.keys(followChanges).length) { done(); return true; }
-      btn.disabled = true; btn.textContent = "저장 중…";
+      btn.disabled = true; btn.textContent = "저장 중…"; $("editSave").disabled = true; $("editSave").textContent = "저장 중…";
       try {
         if (Object.keys(listValues).length) {
           listValues[PRIORITY_COL] = 1;
@@ -1744,7 +1744,7 @@
         done();
         return true;
       } catch (e) {
-        btn.disabled = false; btn.textContent = "저장";
+        btn.disabled = false; btn.textContent = "저장"; $("editSave").disabled = false; $("editSave").textContent = "확인";
         saveError(e);
         return false;
       }
@@ -3752,7 +3752,7 @@
   // 아이폰은 sms:번호&body=, 안드로이드·그 외는 sms:번호?body= (표준). 문구가 없으면 번호만.
   const smsHref = (phone, body) => (body ? `sms:${phone}${isIOS() ? "&" : "?"}body=${encodeURIComponent(body)}` : `sms:${phone}`);
   function smsCardHtml() {
-    const ta = (id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="4" maxlength="300"></textarea>
+    const ta = (id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="8" maxlength="600"></textarea>
         <span class="smsrow"><button type="button" class="link-btn" data-sms-reset="${id}">기본값으로 되돌리기</button><small class="cnt" data-for="${id}"></small></span></label>`;
     return `<div class="card" id="smsCard"><h3 class="sec-title">문자 문구</h3>
       <p class="hint">영업 화면에서 [문자]를 누르면 아래 문구가 채워진 문자 작성 화면이 열립니다. 기본 문구가 미리 들어 있고, 고치거나 지우면 내 설정으로 저장됩니다(지우면 문구 없이 작성 화면만 열림).<br>

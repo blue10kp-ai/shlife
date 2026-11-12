@@ -633,3 +633,5 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .sline .nmw.grade-bad a { color: #e68a00; }
 .sline .nmw.grade-shit a { color: #e53935; }
 .edit-btns { flex: none; display: inline-flex; gap: 6px; }
+/* 수정 화면: 저장·취소는 위쪽에만 (아래 버튼은 숨김, 저장 처리용으로만 남김) */
+.file-actions:has(#infoSave) { display: none; }
