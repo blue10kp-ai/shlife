@@ -212,6 +212,14 @@
     if (!jsonDocP.has(id)) jsonDocP.set(id, stGet0(id).then((buf) => JSON.parse(new TextDecoder().decode(buf).replace(/^\uFEFF/, ""))).catch((e) => { jsonDocP.delete(id); throw e; }));
     return jsonDocP.get(id);
   }
+  // 데이터 갱신 시각: 읽은 FC별 data.json의 Drive 수정시각(목록 조회 때 이미 받은 값). 여러 FC면 가장 오래된 것 기준(자세히는 길게 눌러/마우스를 올려 FC별로 표시)
+  const stampText = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+  function renderDataStamp() {
+    const es = [...jsonInfo.values()].filter((x) => x.name === "data.json" && x.mod).sort((a, b) => (a.mod < b.mod ? -1 : 1));
+    const txt = es.length ? "데이터 " + stampText(es[0].mod) + (es.length > 1 ? " (가장 오래된 FC 기준)" : "") : "";
+    const tip = es.map((x) => ((x.meta && x.meta.fc) || "FC") + " " + stampText(x.mod)).join(" · ");
+    document.querySelectorAll(".data-stamp").forEach((el) => { el.textContent = txt; el.title = tip; });
+  }
   async function stList(id) {
     const items = await stList0(id);
     if (!GD) return items;
@@ -219,7 +227,7 @@
     items.forEach((i) => {
       const suffix = i.file && JSON_FILES[i.name];
       if (!suffix) return;
-      jsonInfo.set(i.id, { name: i.name, meta: null, ver: null });
+      jsonInfo.set(i.id, { name: i.name, meta: null, ver: null, mod: i.lastModifiedDateTime || "", parent: id });
       virt.push({ ...i, name: "99999999" + (i.name === "data.json" ? " - JSON" : "") + suffix });
     });
     return virt.length ? virt.concat(items.filter((i) => !(i.file && JSON_FILES[i.name]))) : items;
@@ -237,9 +245,12 @@
     if (!info) return stPut0(id, data, mime);
     const m = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=version&supportsAllDrives=true");
     if (info.ver != null && String(m.version) !== String(info.ver)) throw new Error("다른 곳에서 먼저 수정되었습니다. 새로고침한 뒤 다시 시도해 주세요.");
+    // 데이터 반영(수집) 중에는 FC 폴더에 .반영중.lock 이 있다 → 저장 직전에만 확인해 막는다(읽기는 그대로)
+    if (info.name === "data.json" && info.parent && (await gdFindIn(info.parent, ".반영중.lock"))) throw new Error("데이터 반영 중이라 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
     const doc = bookToDoc(XLSX.read(data, { type: "array", cellNF: true }), info.meta || {});
     const out = await stPut0(id, new Blob([JSON.stringify(doc)], { type: "application/json" }), "application/json");
     jsonDocP.delete(id);
+    if (out && out.lastModifiedDateTime) { info.mod = out.lastModifiedDateTime; renderDataStamp(); } // 저장하면 데이터 시각도 바로 갱신
     const m2 = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=version&supportsAllDrives=true");
     info.ver = m2.version;
     return out;
@@ -605,6 +616,7 @@
       });
     }));
     listCache = out;
+    renderDataStamp();
     return out;
   }
 
@@ -698,7 +710,7 @@
     if (st.some((s) => VALID_ST.includes(s))) return null;
     return st.includes("실효") ? "실효" : "해지";
   }
-  const churnTagHtml = (k) => k ? `<span class="tag t-${k}">${k === "해지" ? "해지 고객" : "실효"}</span>` : "";
+  const churnTagHtml = (k) => k ? `<span class="tag t-${k}">${k === "해지" ? "해지" : "실효"}</span>` : "";
   // 이 고객의 담당 FC: '담당FC' 칸이 자기 파일의 FC와 같은 행의 FC (없으면 첫 행의 FC)
   function primaryFc(entries) {
     const p = entries.find((e) => { const f = fieldOf(e, "담당FC") || fieldOf(e, "담당 FC"); return f && e.fc === f; });
@@ -855,7 +867,7 @@
       const insLineHtml = (c) => {
         const hs = insLines.get(c); if (!hs) return "";
         const h = hs[0]; // 계약자 이름과 연락처만 (계약자가 여럿이면 '외 N명'만 덧붙임)
-        return `<div class="ins-line"><span class="ins-k">계약자</span> <a role="button" tabindex="0" class="ins-link" data-ins="${esc(h.id)}">${esc(h.rec.name)}</a>${h.rec.phone ? ` <span class="num">${esc(h.rec.phone)}</span>` : ""}${hs.length > 1 ? `<span class="ins-more"> 외 ${hs.length - 1}명</span>` : ""}</div>`;
+        return `<div class="ins-line"><a role="button" tabindex="0" class="ins-link" data-ins="${esc(h.id)}">${esc(h.rec.name)}</a>${h.rec.phone ? ` <span class="num">${esc(h.rec.phone)}</span>` : ""}${hs.length > 1 ? `<span class="ins-more"> 외 ${hs.length - 1}명</span>` : ""}</div>`;
       };
       const openHolder = (id) => { // 계약자 상세로 이동
         const grp = groupCustomers(records.filter((r) => idOf(r) === id))[0]; if (!grp) return;
@@ -1258,6 +1270,7 @@
     $("editBtn").hidden = false;
     $("editBtn").classList.remove("on");
     $("editBtns").hidden = true;
+    $("closeCust").hidden = false;
     $("photoMenu").hidden = true;
     $("avatar").classList.remove("editable");
     consultShowAll = false; // 상담기록은 처음엔 최근 10건
@@ -1315,7 +1328,7 @@
       current.extra = extra;
       { // 해지 고객 표시(머리 카드): 계약을 불러온 뒤 판단
         const k = churnOf(custIds, contracts), tg = $("custChurn"), note = $("custNote");
-        tg.className = k ? `tag t-${k}` : "tag"; tg.textContent = k === "해지" ? "해지 고객" : k === "실효" ? "실효" : ""; tg.hidden = !k;
+        tg.className = k ? `tag t-${k}` : "tag"; tg.textContent = k === "해지" ? "해지" : k === "실효" ? "실효" : ""; tg.hidden = !k;
         const noInfo = !cust.entries.some((e) => fieldOf(e, "연락처") || entryAddr(e));
         note.textContent = k === "해지" && noInfo ? "해지 고객이라 정보 조회 불가" : ""; note.hidden = !note.textContent;
       }
@@ -1757,6 +1770,7 @@
     $("editBtn").textContent = "수정";
     $("editBtn").hidden = on || !!(current && isRO(current.fc)); // 수정 중에는 위쪽에 저장·취소
     $("editBtns").hidden = !on;
+    $("closeCust").hidden = on; // 일반 모드: 수정/닫기, 수정 모드: 확인/취소
     $("photoMenu").hidden = true;
     renderGrade(current.cust);
     $("avatar").classList.toggle("editable", on);
@@ -2837,6 +2851,7 @@
     }
   });
   $("editBtn").addEventListener("click", () => { if (current) setEditMode(!editMode); });
+  $("closeCust").addEventListener("click", async () => { if (await confirmLeaveEdit()) history.back(); });
   $("editCancel").addEventListener("click", () => { if (current) setEditMode(false); });
   $("editSave").addEventListener("click", () => { if (!current) return; if ($("infoSave")) saveInfo(); else setEditMode(false); });
   $("photoPick").addEventListener("click", () => { $("photoMenu").hidden = true; $("photoInput").click(); });
@@ -4044,7 +4059,7 @@
     // B: 따행 시트가 있는 파일 — 선택한 대상년월의 행
     follow.rows.filter((f) => ymOfFollow(f["대상년월"]) === ymOfFollow(ym)).forEach((f) => {
       const id = f["고객ID"], e = ownOf(id);
-      if (!e || e.type === "피보험자" || seen.has(id)) return;
+      if (!e || seen.has(id)) return;
       seen.add(id);
       const r = base(e, id);
       r.fileId = f._fileId; r.follow = f;
@@ -4054,7 +4069,7 @@
     // A: 따행 시트가 없는 파일 — 고객 시트의 따행 필드 (따행대상='예' 전체, 월 무관)
     data.lists.forEach((e) => {
       const id = idOf(e);
-      if (!id || e.sheet !== CUST_SHEET || e.type === "피보험자" || seen.has(id)) return;
+      if (!id || e.sheet !== CUST_SHEET || seen.has(id)) return;
       if (follow.files.has(e.src && e.src.fileId)) return; // B 파일은 위에서 처리
       const mine = data.custById.get(id);
       const own = mine.find((x) => x.fc === primaryFc(mine)) || e; // 담당 FC 행

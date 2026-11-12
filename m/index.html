@@ -10,9 +10,9 @@
   <link rel="manifest" href="manifest.webmanifest?v=5">
   <link rel="icon" href="favicon.png?v=2" type="image/png">
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=2">
-  <link rel="stylesheet" href="style.css?v=111">
-  <link rel="stylesheet" href="tokens.css?v=111">
-  <link rel="stylesheet" href="design.css?v=111">
+  <link rel="stylesheet" href="style.css?v=117">
+  <link rel="stylesheet" href="tokens.css?v=117">
+  <link rel="stylesheet" href="design.css?v=117">
 </head>
 <body>
   <header class="topbar">
@@ -54,6 +54,7 @@
       <div id="searchOpts" class="sopts" role="group" aria-label="고객 범위"><button type="button" data-opt="all" class="on">전체</button><button type="button" data-opt="contract">본인</button><button type="button" data-opt="transfer">이관</button><button type="button" data-opt="db">DB</button><button type="button" data-opt="ddahaeng">따행</button><button type="button" data-opt="plan">가망</button></div>
       <p id="searchStatus" class="hint"></p>
       <ul id="results" class="list"></ul>
+      <p class="data-stamp"></p>
     </section>
 
     <!-- 고객 상세 화면 -->
@@ -62,7 +63,7 @@
         <div class="cust-head">
           <div class="avatar" id="avatar"></div>
           <div class="cust-main">
-            <div class="name-row"><h2 id="custName"></h2><span id="custChurn" class="tag" hidden></span><button type="button" id="editBtn" class="edit-mini">수정</button><span id="editBtns" class="edit-btns" hidden><button type="button" id="editCancel" class="edit-mini">취소</button><button type="button" id="editSave" class="edit-mini on">확인</button></span></div>
+            <div class="name-row"><h2 id="custName"></h2><span id="custChurn" class="tag" hidden></span><button type="button" id="editBtn" class="edit-mini">수정</button><button type="button" id="closeCust" class="edit-mini">닫기</button><span id="editBtns" class="edit-btns" hidden><button type="button" id="editCancel" class="edit-mini">취소</button><button type="button" id="editSave" class="edit-mini on">확인</button></span></div>
             <div id="custSub" class="cust-sub"></div>
           </div>
         </div>
@@ -86,6 +87,7 @@
 
     <section id="adminView" class="view" hidden>
       <div id="adminBody"></div>
+      <p class="data-stamp"></p>
     </section>
   </main>
 
@@ -119,7 +121,7 @@
 
   <script async src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
-  <script src="config.js?v=111"></script>
-  <script src="app.js?v=111"></script>
+  <script src="config.js?v=117"></script>
+  <script src="app.js?v=117"></script>
 </body>
 </html>

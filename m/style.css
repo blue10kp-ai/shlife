@@ -635,3 +635,6 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .edit-btns { flex: none; display: inline-flex; gap: 6px; }
 /* 수정 화면: 저장·취소는 위쪽에만 (아래 버튼은 숨김, 저장 처리용으로만 남김) */
 .file-actions:has(#infoSave) { display: none; }
+.edit-btns[hidden] { display: none; }
+.data-stamp { margin: 16px 0 8px; text-align: center; font-size: 11px; color: var(--muted); }
+.data-stamp:empty { display: none; }
