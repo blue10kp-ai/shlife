@@ -227,3 +227,13 @@ details.fold { border-radius: var(--r-ctl); }
 .sched-nav #pickReset { position: absolute; right: 0; top: 50%; transform: translateY(-50%); min-height: 32px; padding: 0 12px; }
 .sched-nav #pickReset { width: auto; height: 32px; background: var(--raised); color: var(--t2); border: 0; border-radius: var(--r-ctl); font-size: 13px; font-weight: 500; text-decoration: none; }
 .cust-tel .n .carrier { font-size: 12px; font-weight: 400; color: var(--t3); margin-right: 8px; letter-spacing: 0; }
+.ev-del { color: var(--bad); }
+/* 삭제한 일정: 흐리게 + 삭제 버튼이 '원위치' 버튼으로 바뀜 */
+.ev-card.deleted .ev-head, .ev-card.deleted .ev-cust, .ev-card.deleted .ev-tools, .ev-card.deleted .ev-loc { opacity: .4; pointer-events: none; }
+.ev-card.deleted .ev-title { text-decoration: line-through; }
+.ev-card.deleted [data-evedit] { display: none; }
+.ev-card.deleted .ev-del { color: var(--accent); }
+/* 이동 줄: 왼쪽 회사 출발·도착, 오른쪽 🚗 거리·시간 */
+.travel { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.travel[hidden] { display: none; }
+.travel .tr { margin-left: auto; text-align: right; }

@@ -2983,6 +2983,16 @@
     if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
     return res.json();
   }
+  // 일정 삭제 (구글 캘린더에서 지움 — 되돌릴 수 없어 누르기 전에 한 번 확인)
+  async function gcalDelete(calId, eventId) {
+    const t = storedGToken() || gTokenMem;
+    if (!t) throw new Error("GOOGLE_AUTH");
+    const res = await fetch(GCAL + "/calendars/" + encodeURIComponent(calId) + "/events/" + encodeURIComponent(eventId), { method: "DELETE", headers: { Authorization: "Bearer " + t } });
+    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 403) throw new Error("이 캘린더의 일정을 삭제할 권한이 없습니다.");
+    if (res.status === 404 || res.status === 410) return; // 이미 없음
+    if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
+  }
   const calAlias = (id, name) => ((GCFG.calendarNames || {})[id] || name);
   const calName = (c) => calAlias(c.id, String(c.summaryOverride || c.summary || "").trim());
   async function calendarList() {
@@ -3096,7 +3106,7 @@
   const WD = ["일", "월", "화", "수", "목", "금", "토"];
   const dayLabel = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})`;
   const weekStart = (d) => addDays(dayStart(d), -((d.getDay() + 6) % 7)); // 월요일 시작
-  const timeText = (e) => (e.allDay ? "종일" : `${hm(e.start)} ~ ${hm(e.end)}`);
+  const timeText = (e) => (e.allDay ? "종일" : `${hm(e.start)}~${hm(e.end)}`);
   const onDay = (e, d) => e.start < addDays(dayStart(d), 1) && e.end > dayStart(d) || (e.allDay && sameDay(e.start, d));
 
   // ---------- 일정 제목 → 고객 찾기 ----------
@@ -3469,7 +3479,7 @@
   function dayCardHtml(it, i) {
     const e = it.e;
     return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head">${evLine(e)}</div>
-        <button type="button" class="ev-edit" data-evedit="${i}">수정</button>
+        <button type="button" class="ev-edit" data-evedit="${i}">수정</button><button type="button" class="ev-edit ev-del" data-evdel="${i}">삭제</button>
         <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
       <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}><svg class="pin" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(e.location)}</p>
       <div id="evForm${i}"></div>
@@ -3509,6 +3519,7 @@
       if (m && ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); const b = card.querySelector(`[data-memo="${m.dataset.memoin}"]`); if (b && !b.disabled) b.click(); }
     });
     card.querySelector("[data-evedit]").addEventListener("click", () => toggleEventForm(it, i));
+    card.querySelector("[data-evdel]").addEventListener("click", (ev) => deleteEvent(it, ev.currentTarget));
   }
   function fillCust(it, c, i, j) {
     const x = c.extra || {};
@@ -3592,6 +3603,31 @@
     }
   }
 
+  async function deleteEvent(it, btn) {
+    const e = it.e, card = btn.closest(".ev-card");
+    const authMsg = (err) => (err.message === "GOOGLE_AUTH" ? "구글 연결이 끊겼습니다. 다시 눌러 주세요." : err.message);
+    if (btn.dataset.restore) { // 삭제한 뒤의 '원위치' 버튼: 구글 캘린더에서 지운 일정을 되살림 (새로고침하기 전까지)
+      btn.disabled = true; btn.textContent = "되돌리는 중";
+      try {
+        await ensureGWrite();
+        await gcalPatch(e.calId, e.eventId, { status: "confirmed" });
+        delete btn.dataset.restore; card.classList.remove("deleted"); btn.textContent = "삭제";
+        toast("일정을 원위치했습니다.");
+      } catch (err) { btn.textContent = "원위치"; toast(authMsg(err)); }
+      btn.disabled = false;
+      return;
+    }
+    if (!confirm(`'${e.title}' 일정을 구글 캘린더에서 정말 삭제할까요?` + String.fromCharCode(10) + "삭제 뒤에는 '원위치' 버튼으로 되돌릴 수 있지만, 화면을 새로 고치면 더는 되돌릴 수 없습니다.")) return;
+    btn.disabled = true; btn.textContent = "삭제 중";
+    try {
+      await ensureGWrite();
+      await gcalDelete(e.calId, e.eventId);
+      card.classList.add("deleted"); btn.dataset.restore = "1"; btn.textContent = "원위치"; // 삭제 버튼 → 원위치 버튼
+      toast("일정을 삭제했습니다. '원위치'를 누르면 되돌립니다.");
+    } catch (err) { btn.textContent = "삭제"; toast(authMsg(err)); }
+    btn.disabled = false;
+  }
+
   // 일정 수정 모드: 제목 · 날짜 · 시간 · 장소 · 설명
   const ymdStr = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   // 일정 수정 모드: 이 일정만 '수정' 대신 '취소 · 완료'(맨 위 오른쪽), 다른 일정의 '수정'은 숨김
@@ -3599,7 +3635,7 @@
     const box = $("evForm" + i), acts = $("evActs" + i);
     if (!on) box.innerHTML = "";
     acts.hidden = !on;
-    document.querySelectorAll("#dayList [data-evedit]").forEach((b) => { b.hidden = on; });
+    document.querySelectorAll("#dayList [data-evedit], #dayList [data-evdel]").forEach((b) => { b.hidden = on; });
     $("ev" + i).classList.toggle("editing", on);
   }
   function toggleEventForm(it, i) {
@@ -3687,22 +3723,22 @@
     if (company && pts[0]) {
       const r = await route(company, pts[0].p);
       const leave = r ? new Date(timed[0].e.start - r.min * 60000) : null;
-      show(timed[0].i, `${leave ? `<b>🏢 회사 출발 ${hm(leave)}</b> · ` : "🏢 회사에서 "}${legTxt(r)}`);
+      show(timed[0].i, `<span class="tl">${leave ? `<b>🏢 회사 출발 ${hm(leave)}</b>` : "🏢 회사에서"}</span><span class="tr">${legTxt(r)}</span>`); // 왼쪽: 회사 출발 / 오른쪽: 🚗 거리·시간
     }
     for (let k = 1; k < timed.length; k++) {
       if (req !== schedReq) return;
       const a = pts[k - 1], b = pts[k];
       const r = a && b ? await route(a.p, b.p) : null;
       const gap = Math.round((timed[k].e.start - timed[k - 1].e.end) / 60000);
-      const late = r && gap < r.min ? ` <span class="warn">⚠ 이동시간 부족 (여유 ${Math.max(gap, 0)}분)</span>` : "";
-      show(timed[k].i, legTxt(r) + late);
+      const late = r && gap < r.min ? `<span class="warn" title="이동시간 부족 (여유 ${Math.max(gap, 0)}분)" aria-label="이동시간 부족">⚠</span> ` : ""; // 문구 없이 빨간 ⚠ 표시만, 맨 앞에
+      show(timed[k].i, `<span class="tr">${late}${legTxt(r)}</span>`);
     }
     // 회사 복귀: 마지막 1팀 일정 뒤
     const last = timed[timed.length - 1], lp = pts[pts.length - 1];
     if (company && lp) {
       const r = await route(lp.p, company);
       const back = r ? new Date(+last.e.end + r.min * 60000) : null;
-      show(last.i + 1, `${legTxt(r)}${back ? ` · <b>🏢 회사 도착 ${hm(back)}</b>` : ""}`);
+      show(last.i + 1, `<span class="tl">${back ? `<b>🏢 회사 도착 ${hm(back)}</b>` : ""}</span><span class="tr">${legTxt(r)}</span>`);
     }
   }
 
