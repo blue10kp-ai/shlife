@@ -416,6 +416,10 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 .ev-cust { position: relative; }
 .pick-btn { position: absolute; top: 6px; right: 0; border: 1px solid var(--brand); color: var(--brand); background: var(--card); border-radius: 8px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
 .pick-btn:disabled { opacity: .6; }
+.ev-memo { display: flex; gap: 8px; margin-top: 10px; }
+.ev-memo input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; background: var(--card); color: var(--text); }
+.memo-btn { flex: none; height: 40px; padding: 0 16px; border: 1px solid var(--brand); border-radius: 10px; background: var(--card); color: var(--brand); font-size: 14px; font-weight: 600; }
+.memo-btn:disabled { opacity: .45; }
 .ev-cust:has(.pick-btn) .ev-name { padding-right: 64px; }
 /* 일정: 검색된 고객 무시/되돌리기 */
 .ev-tools { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 6px 0 0; }

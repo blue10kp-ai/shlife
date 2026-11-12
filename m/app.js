@@ -313,6 +313,22 @@
   }
 
   // ---------- 화면 전환 ----------
+  // 오른손 모드: 설정에서 켜면(이 폰에만 저장) 하단 메뉴·탭·선택 버튼을 오른쪽으로 모음 (모양은 design.css의 .rh)
+  const RH_KEY = "shlife.rightHand";
+  const rhOn = () => { try { return localStorage.getItem(RH_KEY) === "1"; } catch (e) { return false; } };
+  const rhApply = () => document.documentElement.classList.toggle("rh", rhOn());
+  rhApply();
+  const rhCardHtml = () => `<div class="card">
+        <h3 class="sec-title">화면</h3>
+        <label class="rh-opt"><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}> 오른손 모드</label>
+        <p class="hint">하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다.</p>
+      </div>`;
+  document.addEventListener("change", (ev) => {
+    if (!ev.target || ev.target.id !== "rhMode") return;
+    try { localStorage.setItem(RH_KEY, ev.target.checked ? "1" : "0"); } catch (e) { /* 저장 못 해도 이번엔 적용 */ }
+    rhApply();
+    toast(ev.target.checked ? "오른손 모드를 켰습니다." : "오른손 모드를 껐습니다.");
+  });
   const views = ["loginView", "scheduleView", "searchView", "customerView", "salesView", "adminView"];
   const APP_NAME = "신한FC m";
   const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "관리자" };
@@ -2466,7 +2482,7 @@
   async function openMySettings() {
     show("adminView");
     const body = $("adminBody");
-    body.innerHTML = `<div class="card" id="myCalCard">
+    body.innerHTML = rhCardHtml() + `<div class="card" id="myCalCard">
         <h3 class="sec-title">구글 캘린더</h3>
         <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
       </div>
@@ -2568,7 +2584,7 @@
           <button class="primary" type="submit">추가</button>
         </form>
         <p class="hint">추가하면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 '변경 저장'을 누르세요.</p>
-      </div>` + settingsCardHtml() + smsCardHtml();
+      </div>` + settingsCardHtml() + smsCardHtml() + rhCardHtml();
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
@@ -3398,6 +3414,27 @@
     renderTravel(items, req);
   }
 
+  // 일정 카드의 한 줄 메모 → 그 고객의 상담기록(고객 정보 › 상담과 같은 곳)에 날짜·시간과 함께 추가
+  const memoFcOf = (c) => primaryFc(c.entries) || (c.entries.find((x) => x.fc) || {}).fc || "";
+  async function saveMemo(it, i, j, btn) {
+    const c = it.custs[j], inp = $("memo" + i + "-" + j);
+    const text = inp ? inp.value.trim() : "";
+    if (!c || !text) return;
+    const fc = memoFcOf(c);
+    btn.disabled = true; btn.textContent = "저장 중…"; inp.disabled = true;
+    try {
+      const list = await saveConsults(fc, c.name, [{ text, when: new Date() }], []);
+      c.extra = { ...(c.extra || {}), consults: list };
+      inp.value = "";
+      fillCust(it, c, i, j);
+      btn.textContent = "저장됨";
+      toast("상담기록에 저장했습니다.");
+      setTimeout(() => { if (btn.textContent === "저장됨") btn.textContent = "저장"; }, 1800);
+    } catch (e) {
+      btn.disabled = false; btn.textContent = "저장";
+      saveError(e);
+    } finally { inp.disabled = false; }
+  }
   const putBtn = (i, j, kind) => `<button type="button" class="put-btn" data-put="${i}-${j}-${kind}" aria-label="일정 장소에 입력">입력</button>`;
   // multi: 동명이인 여러 명 → '선택' / pinned: 동명이인 중 한 명으로 묶인 상태 → '다시 선택'(되돌리기)
   function custBlockHtml(c, i, j, multi, pinned) {
@@ -3416,6 +3453,7 @@
           ${addr ? `<dt>주소</dt><dd class="put-row"><span>${esc(addr)}</span>${putBtn(i, j, "addr")}</dd>` : ""}
           <dt id="mpl${i}-${j}" hidden>미팅장소</dt><dd id="mp${i}-${j}" class="put-row" hidden></dd>
         </dl>
+        ${isRO(memoFcOf(c)) ? "" : `<div class="ev-memo"><input type="text" id="memo${i}-${j}" data-memoin="${i}-${j}" maxlength="200" placeholder="한 줄 메모 (상담기록에 저장)" autocomplete="off" enterkeyhint="done"><button type="button" class="memo-btn" data-memo="${i}-${j}" disabled>저장</button></div>`}
         <div id="cs${i}-${j}"></div></div>`;
   }
   function dayCardHtml(it, i) {
@@ -3447,6 +3485,18 @@
       if (ig) setIgnore(it, true, ig);
       const ui = ev.target.closest("[data-unignore]");
       if (ui) setIgnore(it, false, ui);
+      const mm = ev.target.closest("[data-memo]");
+      if (mm) { const [mi, mj] = mm.dataset.memo.split("-").map(Number); saveMemo(it, mi, mj, mm); }
+    });
+    card.addEventListener("input", (ev) => {
+      const m = ev.target.closest("[data-memoin]");
+      if (!m) return;
+      const b = card.querySelector(`[data-memo="${m.dataset.memoin}"]`);
+      if (b && b.textContent === "저장") b.disabled = !m.value.trim();
+    });
+    card.addEventListener("keydown", (ev) => {
+      const m = ev.target.closest && ev.target.closest("[data-memoin]");
+      if (m && ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); const b = card.querySelector(`[data-memo="${m.dataset.memoin}"]`); if (b && !b.disabled) b.click(); }
     });
     card.querySelector("[data-evedit]").addEventListener("click", () => toggleEventForm(it, i));
   }

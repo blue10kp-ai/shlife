@@ -26,7 +26,7 @@ main { padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
 .recent { box-shadow: none; border-radius: var(--r-card); }
 
 /* ── 2. 하단 메뉴: 선 아이콘 + 글자, 선택은 위쪽 책갈피 선 ── */
-.mainnav { background: var(--surface); border-top: 1px solid var(--line); padding: 0 8px max(0px, calc(env(safe-area-inset-bottom) - 10px)) calc(100% / 3); } /* 넓은 폰: 메뉴는 오른쪽 약 2/3에 모아 둠 (v120) */
+.mainnav { background: var(--surface); border-top: 1px solid var(--line); padding: 0 8px max(0px, calc(env(safe-area-inset-bottom) - 10px)); }
 .mainnav button { min-height: 60px; gap: 4px; font-size: 11px; font-weight: 500; color: var(--t3); border-radius: 0; background: none; position: relative; }
 .mainnav .ni { display: block; line-height: 0; filter: none; opacity: 1; }
 .mainnav .ni svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -188,3 +188,11 @@ details.fold { border-radius: var(--r-ctl); }
 .cust-card .name-row { align-items: center; }
 .cust-note { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--t2); }
 .cust-note[hidden] { display: none; }
+
+/* ── 오른손 모드 (설정 › 화면 › 오른손 모드, 이 폰에만): 하단 메뉴·탭·선택 버튼을 오른쪽으로 모음. 꺼져 있으면 예전 그대로 ── */
+.rh .mainnav { padding-left: calc(100% / 3); }
+.rh .tabs { justify-content: flex-end; }
+.rh .sched-modes, .rh .seg { width: 67%; margin-left: auto; }
+.rh .file-actions { justify-content: flex-end; }
+.rh .file-actions > * { flex: 0 0 auto; min-width: 33%; }
+.rh-opt { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500; padding: 4px 0; }
