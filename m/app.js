@@ -331,6 +331,7 @@
     $("navAdminLabel").textContent = isAdmin() ? "관리자" : "설정";
     if (view === "searchView") $("pageSearch").hidden = $("results").children.length > 0; // 보이는 고객 목록이 없으면 화면 안 검색창
     if (view !== "salesView" && view !== "customerView" && view !== "loginView") salesClearState(); // 영업 화면을 떠나면 이어보기 상태 삭제
+    if (view !== "scheduleView" && view !== "customerView" && view !== "loginView") schedClearState(); // 일정 화면을 떠나도 마찬가지
     $("mainNav").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.section === SECTION[view]));
     if (!keepScroll) window.scrollTo(0, 0);
   }
@@ -3222,6 +3223,7 @@
   }
 
   function needGoogle(msg) {
+    schedResumeY = null; schedHold = 0;
     $("schedBody").innerHTML = `<div class="card center"><p class="lead">구글 캘린더 연결</p>
       <p class="hint">${esc(msg || "일정을 보려면 구글 계정으로 한 번 로그인해 주세요.")}${isAdmin() && appSettings.google && appSettings.google.account ? "<br>연결 계정: " + esc(appSettings.google.account) : ""}</p>
       <button type="button" class="primary" id="gConnect">구글 계정 연결</button></div>`;
@@ -3232,6 +3234,7 @@
 
   async function renderSchedule() {
     const req = ++schedReq;
+    schedHold = Infinity; // 그리는 동안은 스크롤 위치를 저장하지 않음 (다 그린 뒤 schedApplyResume이 풀어 줌)
     const body = $("schedBody");
     let from, to, label;
     if (schedMode === "day") {
@@ -3265,8 +3268,8 @@
     }
     if (req !== schedReq) return;
     if (schedMode === "day") return renderDay(events, req);
-    if (schedMode === "week") return renderWeek(events, from);
-    return renderMonth(events, from, to);
+    if (schedMode === "week") { renderWeek(events, from); return schedApplyResume(); }
+    renderMonth(events, from, to); return schedApplyResume();
   }
 
   const calDot = (e) => `<span class="cal-dot" style="background:${esc(e.cal.color || "var(--brand)")}"></span>`;
@@ -3327,7 +3330,7 @@
     const d = schedDate;
     const evs = events.filter((e) => onDay(e, d));
     const body = $("schedBody");
-    if (!evs.length) { body.innerHTML = '<div class="card center"><p class="hint">일정이 없습니다.</p></div>'; return; }
+    if (!evs.length) { body.innerHTML = '<div class="card center"><p class="hint">일정이 없습니다.</p></div>'; schedApplyResume(); return; }
     body.innerHTML = '<div class="day-tools"><button type="button" class="link-btn" id="pickReset">초기화</button></div><div id="dayList"></div>';
     // 초기화: 동명이인 지정을 지우고, 고객 주소·미팅장소로 '입력'해 둔 일정 장소도 지움
     let dayItems = [];
@@ -3380,6 +3383,7 @@
     list.innerHTML = items.map((it, i) => `<div class="travel" id="tr${i}" hidden></div>${dayCardHtml(it, i)}`).join("") +
       `<div class="travel" id="tr${items.length}" hidden></div>`;
     items.forEach((it, i) => bindDayCard(it, i, req));
+    schedApplyResume();
     // 추가정보(미팅장소, 상담기록)
     await Promise.all(items.map(async (it, i) => {
       await Promise.all(it.custs.map(async (c, j) => {
@@ -4364,6 +4368,35 @@
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") salesSaveState(); });
   window.addEventListener("pagehide", salesSaveState);
 
+  // ---- 일정 화면 이어보기: 새로고침해도 일정 화면(보던 날짜·Today/Week/Month)과 스크롤 위치로 돌아옴 (30분 이내, 같은 계정) ----
+  const SCHED_SAVE_KEY = "shlife.schedResume";
+  let SCHED_BOOT = null;
+  try { const s = JSON.parse(sessionStorage.getItem(SCHED_SAVE_KEY) || "null"); if (s && s.acc === gAccount() && Date.now() - s.t < 30 * 60 * 1000) SCHED_BOOT = s; } catch (e) { /* 무시 */ }
+  let schedHold = 0;       // 이 시각 전에는 저장하지 않음 (일정을 새로 그리는 동안 스크롤이 0으로 튀는 것을 저장하지 않게)
+  let schedResumeY = null; // 새로 로드된 뒤 돌아갈 스크롤 위치
+  function schedSaveState() {
+    if ($("scheduleView").hidden || schedResumeY != null || Date.now() < schedHold) return;
+    try { sessionStorage.setItem(SCHED_SAVE_KEY, JSON.stringify({ acc: gAccount(), t: Date.now(), mode: schedMode, d: +schedDate, y: Math.round(window.scrollY) })); } catch (e) { /* 무시 */ }
+  }
+  function schedClearState() { try { sessionStorage.removeItem(SCHED_SAVE_KEY); } catch (e) { /* 무시 */ } }
+  function schedApplyResume() { // 일정이 그려진 뒤 호출: 내용이 자리 잡는 동안 몇 번 맞춤, 사용자가 손대면 멈춤
+    schedHold = Date.now() + 1500;
+    if (schedResumeY == null) return;
+    const y = schedResumeY; schedResumeY = null;
+    let stop = false;
+    const evs = ["touchstart", "wheel", "keydown", "mousedown"];
+    const onUser = () => { stop = true; };
+    evs.forEach((n) => window.addEventListener(n, onUser, { once: true, passive: true }));
+    const apply = () => { if (!stop) window.scrollTo(0, y); };
+    apply();
+    [60, 250, 700, 1500].forEach((ms) => setTimeout(apply, ms));
+    setTimeout(() => { evs.forEach((n) => window.removeEventListener(n, onUser)); }, 1600);
+  }
+  let schedSaveTimer = 0;
+  window.addEventListener("scroll", () => { clearTimeout(schedSaveTimer); schedSaveTimer = setTimeout(schedSaveState, 300); }, { passive: true });
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") schedSaveState(); });
+  window.addEventListener("pagehide", schedSaveState);
+
   let salesReq = 0;
   // keep: true = 지금 위치 그대로(칩·초기화·자동 반영), 위치 객체 = 그 위치로(고객 카드에서 돌아올 때), 없으면 맨 위(월·필터·탭·FC 변경)
   async function renderSales(keep) {
@@ -4519,6 +4552,13 @@
       const s = SALES_BOOT; SALES_BOOT = null;
       Object.assign(SALES, { tab: s.tab || "transfer", ym: s.ym || "", fc: s.fc || "", dct: "", dcls: "", dact: true, /* v94: 따행 필터는 이어보기에서도 기본값 */ df: { send: !!(s.df || {}).send, resp: !!(s.df || {}).resp, coupon: !!(s.df || {}).coupon }, open: new Set(s.open || []), resume: s.a || null });
       loadSettings().then(() => openSales());
+    } else if (SCHED_BOOT) { // 새로 로드됐을 때 일정 화면을 보던 중이었으면 그 날짜·보기·위치로
+      const s = SCHED_BOOT; SCHED_BOOT = null;
+      schedMode = ["day", "week", "month"].includes(s.mode) ? s.mode : "day";
+      schedDate = s.d ? dayStart(new Date(s.d)) : dayStart(new Date());
+      if (isNaN(+schedDate)) schedDate = dayStart(new Date());
+      schedResumeY = s.y > 0 ? s.y : null;
+      loadSettings().then(() => openSchedule());
     } else {
       schedMode = "day"; schedDate = dayStart(new Date());
       resetSearch(); // 첫 화면: 고객 (일정은 하단 메뉴에서 열 때 불러옴 — 캘린더 호출이 첫 화면을 늦추지 않게)
