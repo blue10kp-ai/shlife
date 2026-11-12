@@ -476,3 +476,14 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 #salesView .sline.l2 .ph { order: 99; margin-left: auto; justify-content: flex-end; flex-wrap: nowrap; }
 /* 영업: 상품명 줄은 순번 아래 왼쪽 끝에서 시작 */
 #salesView .sline.prod { padding-left: 0; }
+/* 사용자 카드: 이메일을 이름 오른쪽으로 (크기는 그대로) */
+.perm-id { flex-direction: row; align-items: center; gap: 8px; flex-wrap: wrap; }
+.perm-id .perm-name { flex: 0 1 auto; width: auto; min-width: 0; max-width: 45%; }
+.perm-id .perm-mail { flex: 1 1 auto; min-width: 0; padding-left: 0; }
+/* 고객 페이지 접근 허용 표: 칸을 줄여 오른쪽으로 모음 */
+.fc-lines .fc-line { grid-template-columns: 84px 40px 40px; justify-content: end; min-height: 28px; font-size: 13px; }
+.fc-lines .fc-head { min-height: 20px; font-size: 11px; }
+.fc-lines .cb { width: 16px; height: 16px; }
+.sline.l4 .ad { flex: 1 1 60%; color: var(--text); }
+/* 고객 페이지 검색 버튼: 옆 마이크 버튼과 같은 높이(30) */
+#pageSearch .search button.primary { box-sizing: border-box; height: 30px; min-height: 0; padding: 0 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }

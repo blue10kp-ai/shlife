@@ -216,7 +216,7 @@
   const stampText = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
   function renderDataStamp() {
     const es = [...jsonInfo.values()].filter((x) => x.name === "data.json" && x.mod).sort((a, b) => (a.mod < b.mod ? -1 : 1));
-    const txt = es.length ? "데이터 " + stampText(es[0].mod) + (es.length > 1 ? " (가장 오래된 FC 기준)" : "") : "";
+    const txt = es.length ? "데이터 " + stampText(es[0].mod) : "";
     const tip = es.map((x) => ((x.meta && x.meta.fc) || "FC") + " " + stampText(x.mod)).join(" · ");
     document.querySelectorAll(".data-stamp").forEach((el) => { el.textContent = txt; el.title = tip; });
   }
@@ -4723,8 +4723,9 @@
       return `<div class="srow${r.ref ? " ref" : ""}${isD ? (r.dda.done ? " d-done" : " d-open") + " fold" + (openSet && openSet.has(r.key) ? " open" : "") : ""}" data-fold="${esc(r.key)}">
         <div class="sline l1"><span class="no">${idx + 1}</span><span class="nmw ${isD ? "n30" : "n50"} ${gradeClass(gradeOf({ entries: (SALES.data && SALES.data.custById && SALES.data.custById.get(r.custId)) || [] })) || "grade-good"}">${r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder)}${r.ins ? ` <small class="ins">→ ${esc(r.ins)}</small>` : ""}</span><span class="rt">${chips}</span></div>
         ${prodLines.map((p) => `<div class="sline prod"><span class="si pd">${esc(p.name)}</span><span class="si fe">${esc(p.fee ? wonText(p.fee) : "")}</span></div>`).join("")}
-        <div class="sline l2">${it("", "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span>${it("", "직업", esc(r.job))}${it("", "모집", esc(r.recFc))}</div>
-        <div class="sline l3">${it("ad", "", esc(r.addr))}</div>
+        <div class="sline l2">${it("", "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span></div>
+        <div class="sline l3">${it("", "직업", esc(r.job))}${it("", "모집", esc(r.recFc))}</div>
+        <div class="sline l4">${it("ad", "", esc(r.addr))}</div>
         ${times ? `<div class="sline sub ok">${times}</div>` : ""}${detail}</div>`;
     }).join("") + `</div>`;
   }
