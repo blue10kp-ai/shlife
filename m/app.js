@@ -340,6 +340,7 @@
     $("backBtn").hidden = view !== "customerView";
     $("title").hidden = view === "customerView";
     $("logoutBtn").hidden = view === "loginView";
+    $("reloadBtn").hidden = view === "loginView";
     $("topSearch").hidden = view === "loginView"; // 상단 검색창은 로그인 후 항상
     $("title").textContent = view === "adminView" && !isAdmin() ? "설정" : TITLES[view] || APP_NAME;
     $("mainNav").hidden = view === "loginView";
@@ -839,7 +840,11 @@
     const myFc = await myFcName();
     let saved = ""; try { saved = localStorage.getItem(listFcKey()) || ""; } catch (e) { /* 무시 */ }
     const sel = saved === FC_ALL || fcs.includes(saved) ? saved : fcs.includes(myFc) ? myFc : FC_ALL;
-    box.innerHTML = [[FC_ALL, "전체"], ...fcs.map((f) => [f, f])].map(([v, l]) => `<button type="button" data-fco="${esc(v)}" class="${v === sel ? "on" : ""}">${esc(l)}</button>`).join("");
+    const opts = [[FC_ALL, "전체"], ...fcs.map((f) => [f, f])];
+    // FC가 5명 이하면 버튼 줄, 6명 이상이면 드롭박스(선택창)
+    box.innerHTML = fcs.length <= 5
+      ? opts.map(([v, l]) => `<button type="button" data-fco="${esc(v)}" class="${v === sel ? "on" : ""}">${esc(l)}</button>`).join("")
+      : `<select id="fcoSel" class="fco-sel" aria-label="고객 FC 선택">${opts.map(([v, l]) => `<option value="${esc(v)}"${v === sel ? " selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
     box.hidden = false;
     return sel;
   }
@@ -1520,7 +1525,7 @@
     const n = Number(t.replace(/,/g, ""));
     return (t && isFinite(n) ? n.toLocaleString("ko-KR") : t) + "원";
   };
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류", "고객등급", "고객 등급", "마케팅동의 만료일", "마케팅 동의 만료일", "계약안내 수신", "통신사", "보장요약", "생일구분", "생일 구분"]; // 정보 탭 보기에서 숨기는 항목
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류", "고객등급", "고객 등급", "마케팅동의 만료일", "마케팅 동의 만료일", "계약안내 수신", "통신사", "보장요약", "생일구분", "생일 구분", "차량번호", "자동차보험갱신일"]; // 차량번호·갱신일은 아래 '차량' 줄 하나로 합쳐 보여 줌 // 정보 탭 보기에서 숨기는 항목
   const BIRTH_KEYS = ["생년월일", "생일"];
   const EMAIL_COLS = ["이메일", "e-mail", "Email"];
   let editMode = false;
@@ -1603,7 +1608,7 @@
     const merged = new Map();
     c.entries.forEach((e) => e.fields.forEach(([k, v]) => {
       const key = k.trim();
-      if (BASIC_EXCLUDE.includes(key) || NAME_COLS.includes(key) || BIRTH_KEYS.includes(key)) return;
+      if (BASIC_EXCLUDE.includes(key) || NAME_COLS.includes(key) || BIRTH_KEYS.includes(key) || /^(차량번호|자동차보험갱신일)$/.test(key.replace(/\s+/g, ""))) return; // 띄어쓰기가 다른 이름도 차량 줄에 합쳐 보여 주므로 따로 표시 안 함
       if (!merged.has(key)) merged.set(key, []);
       if (!merged.get(key).includes(v)) merged.get(key).push(v);
     }));
@@ -1612,7 +1617,7 @@
     const row = (label, html) => `<dt>${esc(label)}</dt><dd>${html}</dd>`;
     // 통신사 / 차량번호 / 자동차보험갱신일 (+ 미팅장소·메모가 아닌 추가 항목) — 주소 밑 한 줄
     const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k) && k !== EXTRA.carrierCol && k !== CAR_NUM && k !== CAR_DATE);
-    const carRows = carRowsOf(ev);
+    const carRows = carRowsOf({ [CAR_NUM]: ev[CAR_NUM] || currentValue(c, [CAR_NUM]), [CAR_DATE]: ev[CAR_DATE] || currentValue(c, [CAR_DATE]) });
     const chips = extraKeys.filter((k) => (ev[k] || "").trim()).map((k) =>
       `<span class="chip" title="${esc(k)}">${esc(EXTRA.monthDayCols.includes(k) ? mdText(ev[k]) : ev[k])}</span>`).join("");
     const rest = [...merged];
@@ -1624,7 +1629,7 @@
         ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
         ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
         ${addrs.length ? row("주소", addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
-        ${carRows.length ? row("차량", carRows.map((r) => `<div>${esc(r.num || "-")}${r.d ? ` <span class="hint">· 보험 갱신 ${esc(mdText(r.d))}</span>` : ""}</div>`).join("")) : ""}
+        ${carRows.length ? row("차량", carRows.map((r) => `<div>${esc(r.num || "-")}${r.d ? ` · 보험 갱신 ${esc(mdText(r.d))}` : ""}</div>`).join("")) : ""}
         ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
         ${rest.map(([k, vs]) => /가입\s*설계\s*동의\s*만료일/.test(k) ? row("설계 동의 만료", vs.map((v) => `<div>${esc(v)}</div>`).join("")) : k === "신한라이프 유지계약" ? row("유지 계약", vs.map((v) => `<div>${esc(/^\d+$/.test(String(v).trim()) ? String(v).trim() + "건" : v)}</div>`).join("")) : row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
       </dl></div>`;
@@ -2946,6 +2951,11 @@
   }
   $("loginBtn").addEventListener("click", () => (GD ? googleLogin() : msal.loginRedirect({ scopes: SCOPES })));
   $("loginOtherBtn").addEventListener("click", () => (GD ? googleLogin(true) : msal.loginRedirect({ scopes: SCOPES, prompt: "select_account" })));
+  // 새로고침 버튼(로그아웃 왼쪽): 이 화면을 다시 불러옴. 영업·일정 화면은 보던 자리로 돌아옴
+  $("reloadBtn").addEventListener("click", async () => {
+    if (typeof confirmLeaveEdit === "function" && !(await confirmLeaveEdit())) return; // 수정 중이면 저장·취소 확인
+    location.reload();
+  });
   $("logoutBtn").addEventListener("click", async () => {
     await photoCacheClear(); // 기기에 저장한 고객 사진 지우기
     if (!GD) return msal.logoutRedirect();
@@ -4861,6 +4871,11 @@
     const b = ev.target.closest && ev.target.closest("#fcOpts [data-fco]");
     if (!b) return;
     try { localStorage.setItem(listFcKey(), b.dataset.fco); } catch (e) { /* 저장 못 해도 이번엔 적용 */ }
+    search(curQuery(), true);
+  });
+  document.addEventListener("change", (ev) => { // 고객 FC 선택창(FC가 6명 이상일 때)
+    if (!ev.target || ev.target.id !== "fcoSel") return;
+    try { localStorage.setItem(listFcKey(), ev.target.value); } catch (e) { /* 저장 못 해도 이번엔 적용 */ }
     search(curQuery(), true);
   });
   document.addEventListener("click", (ev) => { // 고객 범위 옵션 (전체 = 해제하고 바로 검색 / 본인·이관·DB·따행·가망 = 다중 선택)
