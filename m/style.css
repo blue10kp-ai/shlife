@@ -696,3 +696,12 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .cov-table td.none { color: var(--muted); }
 .perm-sales { margin: 6px 0 4px; }
 .perm-sales > .hint { margin: 0 0 4px; font-size: 12px; }
+.fc-opts { margin: 0 0 8px; }
+.fc-opts[hidden] { display: none; }
+/* 고객 검색칸 마이크 */
+.top-search { position: relative; }
+.top-search input { padding-right: 34px; }
+.top-mic { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; border-radius: 50%; border: 0; background: transparent; color: var(--t2, #6b7684); padding: 0; }
+.top-mic.rec { width: auto; padding: 0 8px; border-radius: 13px; }
+.page-mic { flex: none; width: 40px; height: 44px; }
+.page-mic.rec { width: auto; padding: 0 10px; }

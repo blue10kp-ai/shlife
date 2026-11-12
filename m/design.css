@@ -311,3 +311,8 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 /* 맨 위 검색칸 글씨는 가운데 정렬, 로그아웃(전원) 아이콘은 빨간색 */
 .top-search input { text-align: center; }
 #logoutBtn, #logoutBtn .power-ico { color: var(--bad, #c0392b); }
+/* 고객 검색칸 마이크 버튼 */
+.top-search .top-mic { position: absolute; right: 3px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; padding: 0; border: 0; background: transparent; color: var(--t2); border-radius: 50%; }
+.top-search .top-mic.rec { width: auto; padding: 0 9px; background: var(--bad); color: #fff; border-radius: 14px; }
+.search .page-mic { flex: none; width: 44px; height: 44px; border-radius: var(--r-ctl); }
+.search .page-mic.rec { width: auto; padding: 0 12px; }

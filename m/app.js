@@ -828,9 +828,24 @@
   const OPT_LABEL = { contract: "본인", transfer: "이관", db: "DB", ddahaeng: "따행", plan: "가망" };
   function syncOpts() { document.querySelectorAll("#searchOpts [data-opt]").forEach((b) => b.classList.toggle("on", b.dataset.opt === "all" ? optSel.size === 0 : optSel.has(b.dataset.opt))); }
   const typeOfOpt = (id) => (CFG.lists.find((l) => l.id === id) || {}).label;
+  // 고객 리스트의 FC 선택: 전체 / 각 FC. 기본은 내 FC(권한 파일의 내 이름), 고른 값은 이 폰에 기억. FC가 하나뿐이면 선택칸을 숨김
+  const FC_ALL = "__all__";
+  const listFcKey = () => "shlife.listFc." + me();
+  async function renderFcOpts(records) {
+    const box = $("fcOpts");
+    if (!box) return FC_ALL;
+    const fcs = [...new Set(records.map((r) => r.fc).filter(Boolean))].sort((a, b) => { const o = CFG.fcOrder || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, "ko"); });
+    if (fcs.length <= 1) { box.hidden = true; box.innerHTML = ""; return FC_ALL; }
+    const myFc = await myFcName();
+    let saved = ""; try { saved = localStorage.getItem(listFcKey()) || ""; } catch (e) { /* 무시 */ }
+    const sel = saved === FC_ALL || fcs.includes(saved) ? saved : fcs.includes(myFc) ? myFc : FC_ALL;
+    box.innerHTML = [[FC_ALL, "전체"], ...fcs.map((f) => [f, f])].map(([v, l]) => `<button type="button" data-fco="${esc(v)}" class="${v === sel ? "on" : ""}">${esc(l)}</button>`).join("");
+    box.hidden = false;
+    return sel;
+  }
   const curQuery = () => ((($("q") && $("q").value) || ($("q2") && $("q2").value) || "")).trim();
   // 검색 결과에서 같은 이름을 구분하도록 이름 옆에 작게: 생년 · 남/여 · 지역
-  function birthYear(b) { const x = String(b || "").replace(/D/g, ""); if (/^(19|20)d{2}($|d{4})/.test(x) && (x.length === 4 || x.length === 8)) return x.slice(0, 4); if (x.length >= 6) { const yy = +x.slice(0, 2), cy = new Date().getFullYear() % 100; return (yy > cy ? 1900 + yy : 2000 + yy) + ""; } return ""; }
+  function birthYear(b) { const raw = String(b || "").trim(), m4 = raw.match(/^((?:19|20)\d{2})(?:\D|$)/); if (m4) return m4[1]; const x = raw.replace(/\D/g, ""); if (/^(19|20)\d{2}($|\d{4})/.test(x) && (x.length === 4 || x.length === 8)) return x.slice(0, 4); if (x.length >= 6) { const yy = +x.slice(0, 2), cy = new Date().getFullYear() % 100; return (yy > cy ? 1900 + yy : 2000 + yy) + ""; } return ""; }
   const resultInfo = (c) => [birthYear(c.birth), genderOf(c), regionOf(c)].filter(Boolean).join(" · ");
   async function search(q, force) {
     q = q.trim();
@@ -844,6 +859,7 @@
     status.textContent = "찾는 중…";
     try {
       const records = await loadLists();
+      const fcPick = await renderFcOpts(records); // 위쪽 FC 선택 (전체 또는 FC 이름)
       const want = CFG.lists.find((l) => l.id === mode);
       if (want && !records.some((r) => r.type === want.label)) {
         status.textContent = want.folderGroup
@@ -859,6 +875,7 @@
         .concat(r.fields.filter(([k]) => k.trim() === "미팅장소").map(([, v]) => v)).join(" ");
       const optTypes = [...optSel]; // 고른 범위 (따행은 따행 시트 고객 + 고객 시트의 따행대상='예')
       const hits = records.filter((r) => {
+        if (fcPick !== FC_ALL && r.fc !== fcPick) return false;
         if (want && r.type !== want.label) return false;
         if (optTypes.length && !optTypes.some((id) => id === "ddahaeng" ? (r.type === typeOfOpt(id) || fieldOf(r, "따행대상") === "예") : r.type === typeOfOpt(id))) return false;
         if (!q) return true;
@@ -3569,7 +3586,7 @@
   let micRec = null, micBtn = null;
   function micStop() { if (micRec) { try { micRec.stop(); } catch (e) { /* 이미 멈춤 */ } } }
   function toggleMic(i, j, btn) { dictate($("memo" + i + "-" + j), btn); }
-  function dictate(inp, btn) {
+  function dictate(inp, btn, onEnd) {
     if (!inp) return;
     if (micRec && micBtn === btn) return micStop(); // 녹음 중 다시 누르면 멈춤
     micStop();
@@ -3600,6 +3617,7 @@
       btn.classList.remove("rec"); btn.setAttribute("aria-pressed", "false"); btn.innerHTML = iconHtml; // 마이크 모양으로 되돌림
       inp.removeEventListener("pointerdown", stopOnTouch);
       if (micRec === rec) { micRec = null; micBtn = null; }
+      if (typeof onEnd === "function") onEnd(); // 예: 고객 검색은 말이 끝나면 바로 검색
     };
     try {
       rec.start();
@@ -3657,6 +3675,13 @@
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") { pcAway = !!localStorage.getItem(PC_KEY); return; }
     if (pcAway) { pcAway = false; setTimeout(askContactNote, 400); } // 전화·문자 앱에 다녀온 뒤에만 묻기
+  });
+  // 고객 검색칸의 마이크: 말하면 글자로 들어가고, 끝나면(완료·칸 터치) 바로 검색
+  document.addEventListener("click", (ev) => {
+    const b = ev.target.closest && ev.target.closest("#topMic, #pageMic");
+    if (!b) return;
+    const top = b.id === "topMic", inp = $(top ? "q" : "q2"), form = $(top ? "topSearch" : "pageSearch");
+    dictate(inp, b, () => { if (inp.value.trim()) form.requestSubmit(); });
   });
   async function saveMemo(it, i, j, btn) {
     micStop();
@@ -4832,6 +4857,12 @@
     const b = ev.target.closest && ev.target.closest("[data-fidx]");
     if (b && current && !$("customerView").hidden) { current.followIdx = +b.dataset.fidx; selectTab("basic"); }
   });
+  document.addEventListener("click", (ev) => { // 고객 FC 선택 (전체 / FC 이름)
+    const b = ev.target.closest && ev.target.closest("#fcOpts [data-fco]");
+    if (!b) return;
+    try { localStorage.setItem(listFcKey(), b.dataset.fco); } catch (e) { /* 저장 못 해도 이번엔 적용 */ }
+    search(curQuery(), true);
+  });
   document.addEventListener("click", (ev) => { // 고객 범위 옵션 (전체 = 해제하고 바로 검색 / 본인·이관·DB·따행·가망 = 다중 선택)
     const b = ev.target.closest && ev.target.closest("#searchOpts [data-opt]");
     if (!b) return;
@@ -4892,6 +4923,6 @@
     setTimeout(askContactNote, 1500); // 전화·문자 중에 앱이 닫혔다가 다시 열린 경우
     loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
     if (!isAdmin()) loadMyPrefs(); // 일반 사용자 설정 (캘린더·데이터 절약)
-    loadLists().then(() => { showScope(); if ($("searchStatus").textContent === "고객 목록을 불러오는 중…") $("searchStatus").textContent = ""; }).catch(handleError); // 미리 불러오기
+    loadLists().then((recs) => { renderFcOpts(recs).catch(() => {}); showScope(); if ($("searchStatus").textContent === "고객 목록을 불러오는 중…") $("searchStatus").textContent = ""; }).catch(handleError); // 미리 불러오기
   }
 })();
