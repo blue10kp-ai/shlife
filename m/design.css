@@ -282,12 +282,24 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .put-row > .ev-acts { flex: none; }
 /* 일정 사이 이동 줄: 앞의 점선 삭제, 위아래 가운데 정렬 */
 .travel { border-left: 0; padding: 6px 6px; margin: 0 0 8px; align-items: center; }
-/* 수정 버튼: 글자색이던 파랑을 바탕으로, 글자는 흰색 (삭제 버튼과 대비) */
-.ev-edit[data-evedit] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
-/* 삭제 버튼: 글자색이던 빨강을 바탕으로, 글자는 흰색 */
-.ev-edit.ev-del { background: var(--bad); border-color: var(--bad); color: #fff; }
-/* 삭제한 뒤 '원위치' 버튼은 수정 버튼과 같은 파란 바탕 */
-.ev-card.deleted .ev-del { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
 /* 일정 카드: 제목 줄 아래의 가로 선 삭제 (고객이 여러 명일 때 고객 사이 구분선만 유지) */
 .ev-cust { border-top: 0; padding-top: 6px; }
 .ev-cust + .ev-cust { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 8px; }
+/* 맨 위 검색칸의 글자(안내 글씨 포함)는 오른쪽 정렬 */
+.top-search input { text-align: right; }
+/* 관리자: 사용 FC 현황의 FC·수정 체크칸을 '민감정보 접근 허용' 칸과 같은 서식으로 */
+.perm-fcs .chip, .perm-sens .chip { display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: var(--r-ctl); background: var(--raised); color: var(--t1); padding: 5px 10px; font-size: 14px; font-weight: 400; }
+.perm-fcs .chip-all { font-weight: 400; }
+.perm-fcs .cb, .perm-sens .cb, .perm-fcs .ro-lbl .cb { width: 16px; height: 16px; accent-color: var(--accent); }
+.perm-fcs .ro-lbl { font-size: 14px; color: var(--t1); border-left: 0; padding-left: 0; }
+/* 고객 정보 맨 위 전화번호: 전화·문자 아이콘 바로 왼쪽에 오른쪽 정렬 */
+.cust-tel { justify-content: flex-end; gap: 12px; }
+.cust-tel .n { text-align: right; }
+.cust-tel .acts { margin-left: 0; }
+/* 고객 정보 수정·닫기: 스크롤해도 처음 놓인 자리(상단바 아래 + 화면 여백 16px)에서 움직이지 않게 */
+.cust-bar { top: calc(var(--tbh, 56px) + 16px); }
+/* 영업: 월 이동은 FC 선택 바로 왼쪽(오른쪽 정렬), 이달이관·따행 선택도 오른쪽 */
+.sline2:not(.center) { justify-content: flex-end; }
+.sales-top .seg { align-self: flex-end; width: auto; }
+.sales-top .seg button { flex: none; padding: 0 16px; }
+.rh .seg { width: auto; margin-left: 0; }

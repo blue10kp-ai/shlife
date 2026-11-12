@@ -441,14 +441,17 @@
   // names: { 이메일: "FC 이름" } — 관리자 화면에서 아이디와 이름을 짝지음(화면에는 이름을 먼저 보여 줌)
   const grantFc = (s) => String(s).replace(/:r$/, "");
   const grantRo = (s) => /:r$/.test(String(s));
+  const canSens = () => isAdmin() || !!base.owner || sensOk; // 관리자는 항상, 그 밖의 계정은 권한 파일의 민감정보 허용 목록에 있을 때만
+  let sensOk = false; // 민감정보(주민번호·계좌) 볼 수 있는 계정: 관리자 또는 관리자 화면에서 '민감정보 접근 허용'을 체크한 계정
   let roFcs = new Set(); // 내가 '보기만' 권한인 FC (화면에서 수정 버튼 숨김 — 실제 막는 것은 Drive 공유 권한)
   let fcFolderIds = {}; // FC 이름 → Drive 폴더 ID (관리자가 변경 저장할 때 권한 파일에 기록)
   const isRO = (fc) => !!fc && roFcs.has(fc);
 
   // 지금 로그인한 아이디가 볼 수 있는 FC: "*" 또는 FC 이름 목록
   async function myAllowedFcs() {
-    if (isAdmin() || base.owner) return "*";
+    if (isAdmin() || base.owner) { sensOk = true; return "*"; }
     const perms = await readPerms();
+    sensOk = (perms.sensitive || []).includes(me());
     fcFolderIds = perms.fcFolders || {};
     const list = (perms.users[me()] || []).filter((g) => g !== "*"); // 전체("*")는 관리자 전용 — 일반 계정은 FC 이름 목록만 인정
     roFcs = new Set(list.filter(grantRo).map(grantFc));
@@ -1565,6 +1568,14 @@
     return editMode ? basicFormHtml() : basicViewHtml();
   }
 
+  // 주민번호 = 생년월일(앞 6자리) + 후번호(뒤 7자리). 민감정보 접근이 허용된 계정에게만 보임. 후번호만 있으면 후번호로 표시
+  function ssnRow(c, backs, row) {
+    const bd = String(c.birth || "").replace(/\D/g, ""), front = bd.length >= 8 ? bd.slice(2, 8) : bd.slice(0, 6);
+    const back = String((backs[0] || [])[1] || "").replace(/\D/g, "");
+    if (front.length === 6 && back) return row("주민번호", `<div>${esc(front + "-" + back)}</div>`);
+    if (back) return row("후번호", `<div>${esc(back)}</div>`);
+    return "";
+  }
   function basicViewHtml() {
     const c = current.cust;
     const x = current.extra || { values: {}, fields: [] };
@@ -1590,12 +1601,12 @@
     const introNames = [...new Set(introContracts.map((k) => k.row["소개자"]).filter(Boolean))].join(", ");
     const info = `<div class="card" id="infoCard"><dl class="kv">
         ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
-        ${backs.length ? row("후번호", backs.map(([, v]) => valueWithActions("연락처", v)).join("")) : ""}
+        ${canSens() ? ssnRow(c, backs, row) : ""}
         ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
         ${addrs.length ? row("주소", addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
-        ${row("계좌", accts.length ? accts.map(([, v]) => `<div>${esc(v)}</div>`).join("") : '<span class="hint">-</span>')}
+        ${canSens() && accts.length ? row("계좌", accts.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
         ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
-        ${rest.map(([k, vs]) => k === "신한라이프 유지계약" ? row("유지 계약", vs.map((v) => `<div>${esc(/^\d+$/.test(String(v).trim()) ? String(v).trim() + "건" : v)}</div>`).join("")) : row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
+        ${rest.map(([k, vs]) => /가입\s*설계\s*동의\s*만료일/.test(k) ? row("설계 동의 만료", vs.map((v) => `<div>${esc(v)}</div>`).join("")) : k === "신한라이프 유지계약" ? row("유지 계약", vs.map((v) => `<div>${esc(/^\d+$/.test(String(v).trim()) ? String(v).trim() + "건" : v)}</div>`).join("")) : row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
       </dl></div>`;
     const prim = (x.fields || []).filter((k) => EXTRA.primary.includes(k));
     // 미팅장소·메모: 수정 모드가 아니어도 바로 입력하고 저장
@@ -1614,14 +1625,13 @@
     if (!fl.length) return "";
     const idx = Math.min(current.followIdx || 0, fl.length - 1), f = fl[idx];
     const months = fl.length > 1 ? `<div class="fl-months">${fl.map((x, i) => `<button type="button" class="cls-chip${i === idx ? " on" : ""}" data-fidx="${i}">${esc(x["대상년월"])}</button>`).join("")}</div>` : "";
-    const v = (k) => esc(f[k] || "-");
-    const period = f["활동기한시작일"] || f["활동기한종료일"] ? `${esc(f["활동기한시작일"] || "-")} ~ ${esc(f["활동기한종료일"] || "-")}` : "-";
+    // 내용이 없는 항목은 보여 주지 않음
+    const period = f["활동기한시작일"] || f["활동기한종료일"] ? `${f["활동기한시작일"] || "-"} ~ ${f["활동기한종료일"] || "-"}` : "";
+    const frows = [["따행분류", f["따행분류"]], ["접촉현황", f["접촉현황"]], ["캠페인대상", f["캠페인대상여부"]], ["활동기한", period], ["방문약속일", f["방문약속일"]], ["방문완료일", f["방문완료일"]], ["설문발송일", f["설문발송일"]], ["설문응답일", f["설문응답일"]], ["쿠폰발송", f["쿠폰발송일"]], ["선물", f["선물"]], ["전달여부", f["전달여부"]]]
+      .filter(([, val]) => String(val == null ? "" : val).trim());
     return `<div class="card" id="followCard"><div class="fl-head"><b>따행</b> <span class="hint">${esc(f["대상년월"])}</span></div>${months}
-      <dl class="kv">
-        <dt>따행분류</dt><dd>${v("따행분류")}</dd><dt>접촉현황</dt><dd>${v("접촉현황")}</dd><dt>캠페인대상</dt><dd>${v("캠페인대상여부")}</dd><dt>활동기한</dt><dd>${period}</dd>
-        <dt>방문약속일</dt><dd>${v("방문약속일")}</dd><dt>방문완료일</dt><dd>${v("방문완료일")}</dd><dt>설문발송일</dt><dd>${v("설문발송일")}</dd><dt>설문응답일</dt><dd>${v("설문응답일")}</dd>
-        <dt>쿠폰발송</dt><dd>${esc(f["쿠폰발송일"] || "-")}</dd><dt>선물</dt><dd>${v("선물")}</dd><dt>전달여부</dt><dd>${v("전달여부")}</dd>
-      </dl></div>`;
+      ${frows.length ? `<dl class="kv">${frows.map(([k, val]) => `<dt>${esc(k)}</dt><dd>${esc(val)}</dd>`).join("")}</dl>` : '<p class="hint">입력된 내용이 없습니다.</p>'}
+      </div>`;
   }
   // 수정 모드의 따행 입력칸 (선택한 대상년월의 따행 행에 저장)
   const FOLLOW_EDIT = [["방문약속일", "date"], ["방문완료일", "text"], ["선물", "text"], ["전달여부", "sel"]];
@@ -1687,8 +1697,9 @@
     const fld = (f) => `<label class="fld"><span>${esc(f.label)}</span>
         ${f.multi ? `<textarea data-edit="${esc(f.label)}" rows="2">${esc(currentValue(c, f.cols))}</textarea>`
           : `<input data-edit="${esc(f.label)}" value="${esc(currentValue(c, f.cols))}" type="${f.type}" autocomplete="off"${f.list ? ` list="${f.list}"` : ""}${f.ph ? ` placeholder="${esc(f.ph)}"` : ""}>`}</label>`;
-    const listFields = canList ? EDIT_FIELDS.filter((f) => !f.paired).map((f) => f.pair
-      ? `<div class="fld-2">${fld(f)}${fld(EDIT_FIELDS.find((x) => x.label === f.pair))}</div>` : fld(f)).join("") : "";
+    // 후번호·계좌는 민감정보 접근이 허용된 계정에게만 수정 칸을 보여 줌
+    const listFields = canList ? EDIT_FIELDS.filter((f) => !f.paired && (canSens() || f.label !== "계좌")).map((f) => f.pair
+      ? (canSens() ? `<div class="fld-2">${fld(f)}${fld(EDIT_FIELDS.find((x) => x.label === f.pair))}</div>` : fld(f)) : fld(f)).join("") : "";
     const field = (k) => {
       const v = esc(ev[k] || "");
       let input;
@@ -3980,7 +3991,7 @@
     });
   }
 
-  // ---------- 영업 (이달 이관 · 이달 따행) + 전화·문자 '시도' 기록 ----------
+  // ---------- 영업 (이달이관 · 이달 따행) + 전화·문자 '시도' 기록 ----------
   //   이관: 계약 단위(계약 시트 최근통화일시·최근문자일시 + 이력 시트에 계약ID와 함께 한 줄) / 따행: 고객 단위(고객 시트 최근통화일시·최근문자일시 + 이력에 계약ID 비움)
   const SALES = { tab: "transfer", ym: "", showRef: false, data: null, df: { send: false, resp: false, coupon: false }, open: new Set(), dct: "", dcls: "", dact: true };
   const ymNow = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1); };
@@ -4571,7 +4582,7 @@
     if (!SALES.ym) SALES.ym = ymNow();
     const ym = SALES.ym;
     const top = (fcHtml) => `<div class="sales-top">
-        <div class="seg"><button type="button" data-stab="transfer" class="${SALES.tab === "transfer" ? "on" : ""}">이달 이관</button><button type="button" data-stab="dda" class="${SALES.tab === "dda" ? "on" : ""}">따행</button></div>
+        <div class="seg"><button type="button" data-stab="transfer" class="${SALES.tab === "transfer" ? "on" : ""}">이달이관</button><button type="button" data-stab="dda" class="${SALES.tab === "dda" ? "on" : ""}">따행</button></div>
         <div class="sline2${fcHtml ? "" : " center"}"><div class="ymnav"><button type="button" data-ym="-1" aria-label="이전 달">‹</button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달">›</button>${top.note || ""}</div>${fcHtml}</div></div>`;
     if (!keep || !box.querySelector("#salesBody .slist, #salesBody .sales-info")) box.innerHTML = top("") + `<div id="salesBody"><p class="hint pad">불러오는 중…</p></div>`; // keep이면 기존 목록을 그대로 두고 새 내용으로 바꿈
     try {
@@ -4634,7 +4645,7 @@
     if (st) { SALES.tab = st.dataset.stab; return renderSales(); }
     const ym = ev.target.closest("[data-ym]");
     if (ym) { SALES.ym = ymShift(SALES.ym || ymNow(), +ym.dataset.ym); return renderSales(); }
-    if (ev.target.closest("#salesReset")) { const b = $("salesView"); return resetSalesMarks(b._rows || [], b._mark || new Map(), SALES.ym, SALES.tab === "transfer" ? "이달 이관" : "이달 따행", SALES.fc); }
+    if (ev.target.closest("#salesReset")) { const b = $("salesView"); return resetSalesMarks(b._rows || [], b._mark || new Map(), SALES.ym, SALES.tab === "transfer" ? "이달이관" : "이달 따행", SALES.fc); }
     const cu = ev.target.closest("[data-cust]");
     if (cu) {
       ev.preventDefault();
