@@ -423,6 +423,9 @@
   }
   // 영업 화면이 매번 권한 파일을 다시 읽지 않도록 'FC 이름(names)'만 세션 캐시. 권한 파일을 읽거나 쓸 때마다 갱신 (관리자 화면은 열 때 최신을 읽음). 접근 FC 판단(myAllowedFcs)은 캐시를 쓰지 않음
   let permNamesCache = null;
+  let salesExtraAt = 0;
+  // 영업 화면을 열 때(1분에 한 번) 권한 파일을 다시 읽어, 관리자가 방금 바꾼 '추가 FC'도 앱을 다시 열지 않고 반영
+  async function refreshSalesExtra() { if (Date.now() - salesExtraAt < 60000) return; salesExtraAt = Date.now(); try { await readPerms(); } catch (e) { /* 이전 값 유지 */ } }
   let salesExtra = []; // 영업(이달이관·따행) 화면의 FC 선택창에 추가로 보이는 FC (관리자 화면에서 계정마다 지정)
   async function writePerms(perms) {
     await resolveAppDir();
@@ -437,6 +440,7 @@
     const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [], salesFcs: (p && p.salesFcs && typeof p.salesFcs === "object") ? p.salesFcs : {} }; // salesFcs: { 이메일: [영업 화면에서 추가로 볼 수 있는 FC 이름] } / sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
     permNamesCache = { ...out.names };
     salesExtra = Array.isArray(out.salesFcs[me()]) ? out.salesFcs[me()].slice() : [];
+    salesExtraAt = Date.now();
     return out;
   }
   // 권한 항목: "최수진"(보기+수정) / "최수진:r"(보기만) / "*"(전체 FC, 보기+수정)
@@ -2660,7 +2664,7 @@
               <span class="perm-btns"><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>저장</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></span>
             </div>
             <div class="perm-sens"><label class="chip"><input type="checkbox" class="cb" data-sens="${esc(em)}" ${(perms.sensitive || []).includes(em) ? "checked" : ""} aria-label="${esc(em)} 민감정보 접근"> 민감정보 접근 허용</label></div>
-            <div class="perm-sales"><p class="hint">영업(이달이관·따행)에서 추가로 볼 FC <span class="hint">— 선택창에 나옵니다. 위 FC 보기 권한이 있는 FC만 보입니다</span></p><div class="perm-fcs">${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-sf="${esc(em)}|${esc(fc)}" ${((perms.salesFcs || {})[em] || []).includes(fc) ? "checked" : ""} aria-label="${esc(em)} 영업 ${esc(fc)}"> ${esc(fc)}</label></span>`).join("")}</div></div>
+            <div class="perm-sales"><p class="hint">영업(이달이관·따행)에서 추가로 볼 FC <span class="hint">— 선택창에 나옵니다. 위 FC 보기 권한이 있는 FC만 보입니다</span></p><div class="perm-fcs">${fcs.map((fc) => { const own = !!nameOfEm(em) && fc === nameOfEm(em); return `<span class="chip"><label><input type="checkbox" class="cb" data-sf="${esc(em)}|${esc(fc)}" ${own ? 'data-own="1" checked disabled' : ((perms.salesFcs || {})[em] || []).includes(fc) ? "checked" : ""} aria-label="${esc(em)} 영업 ${esc(fc)}"> ${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</label></span>`; }).join("")}</div></div>
             <div class="perm-fcs">
               <label class="chip chip-all" ${isAll(em) ? "" : "hidden"} title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
               ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC 고객 정보를 수정할 수 있음 (체크 안 하면 보기만)"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 수정"> 수정</label></span>`).join("")}
@@ -2758,9 +2762,9 @@
       });
     });
     // 영업 추가 FC 체크: 누르는 즉시 권한 파일(salesFcs)에 저장 (FC 보기·편집 '변경 저장'과 따로)
-    $("adminBody").querySelectorAll("[data-sf]").forEach((cb) => cb.addEventListener("change", async () => {
+    $("adminBody").querySelectorAll("[data-sf]:not([data-own])").forEach((cb) => cb.addEventListener("change", async () => {
       const em = cb.dataset.sf.split("|")[0];
-      const group = [...$("adminBody").querySelectorAll("[data-sf]")].filter((x) => x.dataset.sf.split("|")[0] === em);
+      const group = [...$("adminBody").querySelectorAll("[data-sf]:not([data-own])")].filter((x) => x.dataset.sf.split("|")[0] === em);
       group.forEach((x) => (x.disabled = true));
       try {
         const perms = await readPerms(); // 저장 직전 최신 파일
@@ -4733,6 +4737,7 @@
       const data = await loadSalesData();
       if (req !== salesReq) return;
       await loadMyPrefs().catch(() => {});
+      await refreshSalesExtra();
       const myFc = await myFcName();
       if (req !== salesReq) return;
       // FC 선택: 접근 가능한 FC들(고객이 등록된 FC). 기본은 내 FC(권한 파일 이름), 없으면 첫 FC. 선택은 이 기기에 기억
