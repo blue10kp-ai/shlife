@@ -335,6 +335,7 @@
   const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin" };
   function show(view, keepScroll) {
     views.forEach((v) => ($(v).hidden = v !== view));
+    document.documentElement.dataset.view = view; // 화면별 모양 조정용 (예: 일정 화면은 위 막대 밑 선 없음)
     // 고객 정보 화면: "‹ 고객 정보" 전체가 뒤로 가기 버튼
     $("backBtn").hidden = view !== "customerView";
     $("title").hidden = view === "customerView";
@@ -432,7 +433,7 @@
   async function readPerms() {
     await resolveAppDir();
     const p = await stReadJsonIn(appDir, PERM_FILE);
-    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {} };
+    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [] }; // sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
     permNamesCache = { ...out.names };
     return out;
   }
@@ -2569,6 +2570,7 @@
               <span class="perm-id"><input type="text" class="perm-name" data-name placeholder="이름(FC명) 입력" value="${esc(nameOfEm(em))}" maxlength="20" aria-label="${esc(em)} 이름"><span class="perm-mail">${esc(em)}</span></span>
               <span class="perm-btns"><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>저장</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></span>
             </div>
+            <div class="perm-sens"><label class="chip"><input type="checkbox" class="cb" data-sens="${esc(em)}" ${(perms.sensitive || []).includes(em) ? "checked" : ""} aria-label="${esc(em)} 민감정보 접근"> 민감정보 접근 허용</label></div>
             <div class="perm-fcs">
               <label class="chip chip-all" ${isAll(em) ? "" : "hidden"} title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
               ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC 고객 정보를 수정할 수 있음 (체크 안 하면 보기만)"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 수정"> 수정</label></span>`).join("")}
@@ -2665,6 +2667,21 @@
         btn.textContent = "저장";
       });
     });
+    // 민감정보 접근 체크박스: 누르는 즉시 권한 파일(sensitive 목록)에 저장 — FC 보기·편집 '변경 저장'과는 따로 동작
+    $("adminBody").querySelectorAll("[data-sens]").forEach((cb) => cb.addEventListener("change", async () => {
+      const em = cb.dataset.sens, want = cb.checked;
+      cb.disabled = true;
+      try {
+        const perms = await readPerms(); // 저장 직전 최신 파일
+        const set = new Set(perms.sensitive || []);
+        if (want) set.add(em); else set.delete(em);
+        perms.sensitive = [...set].sort();
+        await writePerms(perms);
+        adminState.perms = { ...adminState.perms, sensitive: perms.sensitive };
+        toast(`${nameOfEm(em) || em}: 민감정보 접근을 ${want ? "허용" : "해제"}했습니다.`);
+      } catch (e) { cb.checked = !want; handleError(e); }
+      cb.disabled = false;
+    }));
     $("adminBody").querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => deleteUser(b.dataset.del)));
     $("adminBody").querySelectorAll("[data-share]").forEach((b) => b.addEventListener("click", () => shareFolders(b.dataset.share)));
     collectPending = collectRows;
@@ -2699,6 +2716,7 @@
       const perms = await readPerms();
       delete perms.users[em];
       if (perms.names) delete perms.names[em];
+      perms.sensitive = (perms.sensitive || []).filter((x) => x !== em); // 삭제한 계정의 민감정보 허용도 함께 정리
       extraUsers.delete(em);
       await writePerms(perms);
       adminState.perms = perms;
@@ -3436,7 +3454,45 @@
 
   // 일정 카드의 한 줄 메모 → 그 고객의 상담기록(고객 정보 › 상담과 같은 곳)에 날짜·시간과 함께 추가
   const memoFcOf = (c) => primaryFc(c.entries) || (c.entries.find((x) => x.fc) || {}).fc || "";
+  // 마이크 버튼: 누르면 말하는 내용이 바로 메모 칸에 글자로 들어감 (브라우저 음성 인식, 다시 누르면 멈춤)
+  let micRec = null, micBtn = null;
+  function micStop() { if (micRec) { try { micRec.stop(); } catch (e) { /* 이미 멈춤 */ } } }
+  function toggleMic(i, j, btn) {
+    const inp = $("memo" + i + "-" + j);
+    if (!inp) return;
+    if (micRec && micBtn === btn) return micStop(); // 녹음 중 다시 누르면 멈춤
+    micStop();
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return toast("이 브라우저는 음성 입력을 지원하지 않습니다. 키보드의 마이크 버튼을 써 주세요.");
+    const rec = new SR();
+    rec.lang = "ko-KR"; rec.continuous = true; rec.interimResults = true;
+    const base = inp.value.trim();
+    let finalT = "";
+    const put = (interim) => {
+      inp.value = [base, (finalT + interim).trim()].filter(Boolean).join(" ");
+      inp.dispatchEvent(new Event("input", { bubbles: true })); // 저장 버튼 켜기
+    };
+    rec.onresult = (ev) => {
+      let interim = "";
+      for (let k = ev.resultIndex; k < ev.results.length; k++) {
+        const t = ev.results[k][0].transcript;
+        if (ev.results[k].isFinal) finalT += t; else interim += t;
+      }
+      put(interim);
+    };
+    rec.onerror = (ev) => {
+      toast(ev.error === "not-allowed" || ev.error === "service-not-allowed" ? "마이크 사용을 허용해 주세요." : ev.error === "no-speech" ? "말소리가 들리지 않았습니다." : "음성 입력을 하지 못했습니다.");
+    };
+    rec.onend = () => { btn.classList.remove("rec"); btn.setAttribute("aria-pressed", "false"); if (micRec === rec) { micRec = null; micBtn = null; } };
+    try {
+      rec.start();
+      micRec = rec; micBtn = btn;
+      btn.classList.add("rec"); btn.setAttribute("aria-pressed", "true");
+      toast("말씀하세요. 다시 누르면 멈춥니다.");
+    } catch (e) { toast("음성 입력을 시작하지 못했습니다."); }
+  }
   async function saveMemo(it, i, j, btn) {
+    micStop();
     const c = it.custs[j], inp = $("memo" + i + "-" + j);
     const text = inp ? inp.value.trim() : "";
     if (!c || !text) return;
@@ -3473,19 +3529,20 @@
           ${addr ? `<dt>주소</dt><dd class="put-row"><span>${esc(addr)}</span>${putBtn(i, j, "addr")}</dd>` : ""}
           <dt id="mpl${i}-${j}" hidden>미팅장소</dt><dd id="mp${i}-${j}" class="put-row" hidden></dd>
         </dl>
-        ${isRO(memoFcOf(c)) ? "" : `<div class="ev-memo"><input type="text" id="memo${i}-${j}" data-memoin="${i}-${j}" maxlength="200" placeholder="한 줄 메모 (상담기록에 저장)" autocomplete="off" enterkeyhint="done"><button type="button" class="memo-btn" data-memo="${i}-${j}" disabled>저장</button></div>`}
+        ${isRO(memoFcOf(c)) ? "" : `<div class="ev-memo"><input type="text" id="memo${i}-${j}" data-memoin="${i}-${j}" maxlength="200" placeholder="한 줄 메모 (상담기록에 저장)" autocomplete="off" enterkeyhint="done"><button type="button" class="mic-btn" data-mic="${i}-${j}" aria-label="음성으로 입력(녹음)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><button type="button" class="memo-btn" data-memo="${i}-${j}" disabled>저장</button></div>`}
         <div id="cs${i}-${j}"></div></div>`;
   }
   function dayCardHtml(it, i) {
     const e = it.e;
-    return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head">${evLine(e)}</div>
+    return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head"><span class="ev-time">${esc(timeText(e))}</span></div>
         <button type="button" class="ev-edit" data-evedit="${i}">수정</button><button type="button" class="ev-edit ev-del" data-evdel="${i}">삭제</button>
         <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
+      <div class="ev-line2"><span class="ev-title-l"><span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}</span></span>${it.all.length ? (it.ignored
+        ? `<button type="button" class="ev-edit" data-unignore="${i}">되돌리기</button>`
+        : `<button type="button" class="ev-edit" data-ignore="${i}">해당 없음</button>`) : ""}</div>
+      ${it.ignored ? `<p class="hint ev-hid">검색된 고객 ${it.all.length}명을 숨겼어요</p>` : ""}
       <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}><svg class="pin" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(e.location)}</p>
       <div id="evForm${i}"></div>
-      ${it.all.length ? (it.ignored
-        ? `<div class="ev-tools ev-ignored"><span class="hint">검색된 고객 ${it.all.length}명을 숨겼어요</span><button type="button" class="pick-btn" data-unignore="${i}">되돌리기</button></div>`
-        : `<div class="ev-tools"><button type="button" class="ev-edit" data-ignore="${i}">해당 없음</button></div>`) : ""}
       ${it.custs.map((c, j) => custBlockHtml(c, i, j, !it.pinned, it.pinned)).join("")}</div>`;
   }
   function bindDayCard(it, i, req) {
@@ -3505,6 +3562,8 @@
       if (ig) setIgnore(it, true, ig);
       const ui = ev.target.closest("[data-unignore]");
       if (ui) setIgnore(it, false, ui);
+      const mc = ev.target.closest("[data-mic]");
+      if (mc) { const [ci, cj] = mc.dataset.mic.split("-").map(Number); toggleMic(ci, cj, mc); }
       const mm = ev.target.closest("[data-memo]");
       if (mm) { const [mi, mj] = mm.dataset.memo.split("-").map(Number); saveMemo(it, mi, mj, mm); }
     });

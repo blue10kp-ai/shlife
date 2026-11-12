@@ -237,3 +237,22 @@ details.fold { border-radius: var(--r-ctl); }
 .travel { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .travel[hidden] { display: none; }
 .travel .tr { margin-left: auto; text-align: right; }
+/* 맨 위 검색칸을 조금 넓게 */
+.top-search { flex: 0 1 38%; min-width: 120px; }
+/* 영업 화면의 전화·문자 버튼: 일정의 수정·삭제 버튼과 같은 모양 */
+.sbtn { padding: 2px 8px; border-radius: var(--r-ctl); border: 1px solid var(--line); background: var(--surface); color: var(--accent); font-size: 12px; font-weight: 700; }
+/* 일정 화면: 맨 위 막대 아래 가는 선 삭제 */
+html[data-view="scheduleView"] .topbar { border-bottom: 0; }
+/* 영업 화면 초기화: 일정의 초기화와 같은 모양 */
+#salesView .reset-btn { background: var(--raised); color: var(--t2); border: 0; border-radius: var(--r-ctl); min-height: 0; height: 32px; padding: 0 12px; font-size: 13px; font-weight: 500; }
+#salesView .reset-btn:disabled { opacity: .45; }
+/* 오른손 모드: 영업의 월 이동도 오른쪽으로 */
+.rh .sline2.center { justify-content: flex-end; }
+.mic-btn { border-radius: var(--r-ctl); border-color: var(--line); background: var(--surface); color: var(--accent); }
+.mic-btn.rec { color: #fff; background: var(--bad); border-color: var(--bad); }
+/* 일정 카드 머리: 1줄 시간 + 수정·삭제 / 2줄 제목 + 끝에 해당 없음 */
+.ev-line2 { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.ev-line2 .ev-title-l { flex: 1; min-width: 0; font-size: 15px; line-height: 1.5; }
+.ev-line2 .ev-edit { margin-left: 0; }
+.ev-hid { margin: 2px 0 0; }
+.ev-card.deleted .ev-line2 { opacity: .4; pointer-events: none; }
