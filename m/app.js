@@ -1396,7 +1396,7 @@
 
   function renderTabs() {
     $("tabs").innerHTML = CFG.tabs.map((t) => {
-      const n = t.id === "contact" || t.id === "all" || t.id === "basic" ? "" :
+      const n = t.id === "contact" || t.id === "all" || t.id === "basic" || t.id === "claim" ? "" :
         t.id === "consult" ? ((current.extra && current.extra.consults) || []).length :
         filesForTab(t).length + (t.id === "contract" ? ownContracts().length : 0);
       const refN = t.id === "contract" ? refContracts().length : 0;
@@ -1460,9 +1460,10 @@
 
     if (id === "contact") return renderContact();
     if (id === "consult") { body.innerHTML = consultHtml(); bindConsult(); return; }
+    if (id === "claim") { body.innerHTML = '<div class="card"><p class="hint">청구 기능은 준비 중입니다.</p></div>'; return; } // 보험금 청구: 나중에 따로 만듦
 
     const files = filesForTab(tab);
-    const listHtml = id === "basic" ? basicHtml() : id === "contract" ? contractHtml() : "";
+    const listHtml = id === "basic" ? basicHtml() : id === "contract" ? contractHtml() : id === "analysis" ? coverageSummaryHtml() : ""; // 보장 요약은 분석 탭 맨 위
     if (!files.length) {
       body.innerHTML = listHtml; // 파일이 없으면 안내 문구 없이 비워 둠
       if (id === "basic") bindExtra();
@@ -1470,23 +1471,17 @@
     }
     body.innerHTML = listHtml + files.map((f, i) => {
       const k = kind(f.name);
-      return `<div class="card file" data-i="${i}">
-        <div class="file-row">
-          <span class="badge ${k}">${KIND_LABEL[k]}</span>
-          <div class="file-name">${fileLabel(f)}</div>
-        </div>
-        <div class="file-actions">
-          ${k === "excel" ? `<button class="secondary" data-act="view">내용 보기</button>` : ""}
-          ${k === "pdf" ? `<button class="secondary" data-open="${esc(f.id)}">열기</button>`
-            : `<a class="secondary" href="${esc(f.webUrl)}" target="_blank" rel="noopener">열기</a>`}
-        </div>
-        <div class="sheet" hidden></div>
-      </div>`;
+      // 따로 '열기' 버튼 없이 칸(줄) 전체를 누르면 열림: 엑셀 = 내용 펼치기/접기, PDF = PDF 열기, 그 밖 = 새 창
+      const inner = `<span class="badge ${k}">${KIND_LABEL[k]}</span><div class="file-name">${fileLabel(f)}</div>${k === "excel" ? '<span class="file-hint">내용 보기</span>' : ""}<span class="chev">›</span>`;
+      const row = k === "excel" ? `<div class="file-row tap" data-act="view" role="button" tabindex="0">${inner}</div>`
+        : k === "pdf" ? `<div class="file-row tap" data-open="${esc(f.id)}" role="button" tabindex="0">${inner}</div>`
+        : `<a class="file-row tap" href="${esc(f.webUrl)}" target="_blank" rel="noopener">${inner}</a>`;
+      return `<div class="card file" data-i="${i}">${row}<div class="sheet" hidden></div></div>`;
     }).join("");
     body.querySelectorAll('[data-act="view"]').forEach((b) =>
       b.addEventListener("click", () => {
         const card = b.closest(".file");
-        toggleSheet(card, files[+card.dataset.i], b);
+        toggleSheet(card, files[+card.dataset.i], b.querySelector(".file-hint") || b);
       }));
     // 엑셀이 하나뿐이면 바로 펼치기
     const excels = body.querySelectorAll('[data-act="view"]');
@@ -1504,7 +1499,7 @@
     const n = Number(t.replace(/,/g, ""));
     return (t && isFinite(n) ? n.toLocaleString("ko-KR") : t) + "원";
   };
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류", "고객등급", "고객 등급", "마케팅동의 만료일", "마케팅 동의 만료일", "계약안내 수신", "통신사"]; // 정보 탭 보기에서 숨기는 항목
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류", "고객등급", "고객 등급", "마케팅동의 만료일", "마케팅 동의 만료일", "계약안내 수신", "통신사", "보장요약", "생일구분", "생일 구분"]; // 정보 탭 보기에서 숨기는 항목
   const BIRTH_KEYS = ["생년월일", "생일"];
   const EMAIL_COLS = ["이메일", "e-mail", "Email"];
   let editMode = false;
@@ -1558,7 +1553,9 @@
     const types = [...new Set(c.entries.map((e) => e.type))];
     const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
     // 왼쪽: 생년월일 · 담당 / 오른쪽 끝: 분류(계약·이관 등) 한 줄
-    const left = [c.birth ? esc(c.birth + (g ? ` (${g})` : "")) : "", fcs.length ? esc("담당: " + fcs.map((f) => f + "FC").join(", ")) : ""].filter(Boolean).join(" · ");
+    const cal = c.entries.map((e) => fieldOf(e, "생일구분")).find(Boolean) || ""; // 양력/음력 → 생년월일 앞에 (양)·(음)
+    const calMark = /음/.test(cal) ? "(음) " : /양/.test(cal) ? "(양) " : "";
+    const left = [c.birth ? esc(calMark + c.birth + (g ? ` (${g})` : "")) : "", fcs.length ? esc("담당: " + fcs.map((f) => f + "FC").join(", ")) : ""].filter(Boolean).join(" · ");
     return `<span class="sub-l">${left}</span><span class="sub-tags">${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join(" ")}</span>`;
   }
 
@@ -1600,11 +1597,11 @@
     const introContracts = (current.contracts || []).filter((k) => k.row["유입경로"] === "소개"); // 소개 계약은 계약자·피보험자 모두 소개로 표시
     const introNames = [...new Set(introContracts.map((k) => k.row["소개자"]).filter(Boolean))].join(", ");
     const info = `<div class="card" id="infoCard"><dl class="kv">
-        ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
         ${canSens() ? ssnRow(c, backs, row) : ""}
+        ${canSens() && accts.length ? row("계좌", accts.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
+        ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
         ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
         ${addrs.length ? row("주소", addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
-        ${canSens() && accts.length ? row("계좌", accts.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
         ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
         ${rest.map(([k, vs]) => /가입\s*설계\s*동의\s*만료일/.test(k) ? row("설계 동의 만료", vs.map((v) => `<div>${esc(v)}</div>`).join("")) : k === "신한라이프 유지계약" ? row("유지 계약", vs.map((v) => `<div>${esc(/^\d+$/.test(String(v).trim()) ? String(v).trim() + "건" : v)}</div>`).join("")) : row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
       </dl></div>`;
@@ -2125,7 +2122,7 @@
     return best;
   }
   const pdfButton = (f) => f
-    ? `<div class="file-actions"><button class="secondary" data-open="${esc(f.id)}">📄 계약 열기</button></div>`
+    ? `<div class="file-actions pdf-mini"><button class="secondary" data-open="${esc(f.id)}">계약서 열기</button></div>`
     : "";
 
   // 상품명에서 '무배당'이 들어간 괄호 삭제: "신한통합건강보험 원(ONE)(무배당, 해약환급금 미지급형)" → "신한통합건강보험 원(ONE)"
@@ -2136,6 +2133,27 @@
   const ownContracts = () => current.contracts.filter((c) => !isRefContract(c));
   const refContracts = () => current.contracts.filter(isRefContract);
   const hideRefOn = () => { try { return localStorage.getItem("shlife.hideRefContracts") === "1"; } catch (e) { return false; } };
+  // 분석 탭 맨 위 '보장 요약': 고객 시트의 '보장요약' 칸(JSON 글자)을 읽어 보여 줌. 스마트보장분석에서 미리 뽑아 저장해 둔 값이라 따로 불러오지 않음.
+  //   형식: {"기준":"2026-10-05","실손":{"세대":"3세대","상품":"…","가입일":"2018-05","혜택":["…"]},"담보":{"진단비":"…","수술비":"…","입원비":"…"}}
+  function coverageSummaryHtml() {
+    const raw = (current.cust.entries.map((e) => fieldOf(e, "보장요약")).find(Boolean)) || "";
+    if (!raw) return "";
+    let j = null;
+    try { j = JSON.parse(raw); } catch (e) { return ""; }
+    if (!j || typeof j !== "object") return "";
+    const sil = j["실손"];
+    let silHtml = "";
+    if (sil && typeof sil === "object" && (sil["세대"] || sil["상품"])) {
+      const meta = [sil["상품"], sil["가입일"] ? sil["가입일"] + " 가입" : ""].filter(Boolean).join(" · ");
+      const ben = Array.isArray(sil["혜택"]) ? sil["혜택"].filter(Boolean) : [];
+      silHtml = `<div class="cov-sil"><b>실손${sil["세대"] ? " " + esc(sil["세대"]) : ""}</b>${meta ? ` <span class="hint">${esc(meta)}</span>` : ""}${ben.length ? `<ul>${ben.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}</div>`;
+    } else if (sil === "없음" || sil === null || sil === "") {
+      silHtml = `<div class="cov-sil"><b>실손</b> <span class="hint">없음</span></div>`;
+    }
+    const cov = j["담보"] && typeof j["담보"] === "object" ? Object.entries(j["담보"]).filter(([, v]) => String(v == null ? "" : v).trim()) : [];
+    if (!silHtml && !cov.length) return "";
+    return `<div class="card cov"><h3 class="sec-title">보장 요약</h3>${silHtml}${cov.length ? `<dl class="kv">${cov.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}${j["기준"] ? `<p class="hint">스마트보장분석 ${esc(j["기준"])} 기준</p>` : ""}</div>`;
+  }
   function contractHtml() {
     const all = current.contracts;
     const list = hideRefOn() ? ownContracts() : all;
@@ -2499,11 +2517,11 @@
   async function openMySettings() {
     show("adminView");
     const body = $("adminBody");
-    body.innerHTML = rhCardHtml() + `<div class="card" id="myCalCard">
+    body.innerHTML = `<div class="card" id="myCalCard">
         <h3 class="sec-title">구글 캘린더</h3>
         <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
       </div>
-      <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>` + smsCardHtml();
+      <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>` + smsCardHtml() + rhCardHtml();
     bindSmsCard();
     let cals;
     try { [cals] = await Promise.all([calendarList(), loadMyPrefs(), loadSettings()]); } catch (e) {
@@ -2564,7 +2582,7 @@
     const ACC = GD ? "구글 계정" : "아이디";
 
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
-    $("adminBody").innerHTML = rhCardHtml() + `
+    $("adminBody").innerHTML = `
       <div class="card">
         <h3 class="sec-title">사용 FC 현황</h3>
         <p class="hint">이름(FC명)을 적고, 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다. 저장을 누르세요.${GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""}</p>
@@ -2602,7 +2620,7 @@
           <button class="primary" type="submit">추가</button>
         </form>
         <p class="hint">추가하면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 '변경 저장'을 누르세요.</p>
-      </div>` + settingsCardHtml() + smsCardHtml();
+      </div>` + settingsCardHtml() + smsCardHtml() + rhCardHtml(); // 화면(오른손 모드) 설정은 맨 아래
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
@@ -3468,8 +3486,8 @@
   // 마이크 버튼: 누르면 말하는 내용이 바로 메모 칸에 글자로 들어감 (브라우저 음성 인식, 다시 누르면 멈춤)
   let micRec = null, micBtn = null;
   function micStop() { if (micRec) { try { micRec.stop(); } catch (e) { /* 이미 멈춤 */ } } }
-  function toggleMic(i, j, btn) {
-    const inp = $("memo" + i + "-" + j);
+  function toggleMic(i, j, btn) { dictate($("memo" + i + "-" + j), btn); }
+  function dictate(inp, btn) {
     if (!inp) return;
     if (micRec && micBtn === btn) return micStop(); // 녹음 중 다시 누르면 멈춤
     micStop();
@@ -3510,6 +3528,54 @@
       toast("말씀하세요. 끝나면 '완료'를 누르세요.");
     } catch (e) { toast("음성 입력을 시작하지 못했습니다."); }
   }
+  // ---- 전화·문자를 누른 뒤 앱으로 돌아오면 "상담 내용을 남길까요?" 물어보기 (추가 내용은 글자나 마이크로 입력) ----
+  const PC_KEY = "shlife.pendingContact";
+  let pcAway = false;
+  document.addEventListener("click", (ev) => {
+    const a = ev.target.closest && ev.target.closest('a[href^="tel:"], a[href^="sms:"]');
+    if (!a || a.closest("#salesView, #contactSheet")) return; // 영업 화면은 따로 '시도'를 기록함
+    let name = "", fc = "";
+    const ctx = a.closest("[data-cn]");
+    if (ctx) { name = ctx.dataset.cn; fc = ctx.dataset.cfc || ""; }
+    else if (a.closest("#customerView") && current && current.cust) { name = current.cust.name; fc = current.fc || ""; }
+    if (!name || (fc && isRO(fc))) return;
+    const kind = a.getAttribute("href").startsWith("tel:") ? "전화" : "문자";
+    try { localStorage.setItem(PC_KEY, JSON.stringify({ name, fc, kind, t: Date.now() })); } catch (e) { /* 저장 못 하면 묻지 않음 */ }
+    pcAway = false;
+  }, true);
+  function askContactNote() {
+    let pc = null;
+    try { pc = JSON.parse(localStorage.getItem(PC_KEY) || "null"); } catch (e) { pc = null; }
+    if (!pc) return;
+    if (Date.now() - pc.t > 45 * 60 * 1000) { try { localStorage.removeItem(PC_KEY); } catch (e) {} return; }
+    if (document.getElementById("contactSheet") || $("loginView") && !$("loginView").hidden) return;
+    const box = document.createElement("div");
+    box.id = "contactSheet"; box.className = "modal";
+    box.innerHTML = `<div class="modal-box"><h3 class="sec-title">상담 내용을 남길까요?</h3>
+      <p class="hint">${esc(pc.name)} · ${esc(pc.kind)}</p>
+      <div class="ev-memo"><input type="text" id="pcText" maxlength="300" placeholder="추가로 남길 내용 (없으면 비워 두세요)" autocomplete="off"><button type="button" class="mic-btn" id="pcMic" aria-label="음성으로 입력"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button></div>
+      <div class="file-actions"><button type="button" class="secondary" id="pcNo">안 남기기</button><button type="button" class="primary" id="pcYes">남기기</button></div></div>`;
+    document.body.appendChild(box);
+    const close = () => { micStop(); box.remove(); try { localStorage.removeItem(PC_KEY); } catch (e) {} };
+    $("pcMic").addEventListener("click", (e) => dictate($("pcText"), e.currentTarget));
+    $("pcNo").addEventListener("click", close);
+    $("pcYes").addEventListener("click", async () => {
+      micStop();
+      const note = $("pcText").value.trim();
+      const text = `[${pc.kind}]${note ? " " + note : pc.kind === "전화" ? " 통화" : " 문자 발송"}`;
+      const btn = $("pcYes"); btn.disabled = true; btn.textContent = "저장 중…";
+      try {
+        const list = await saveConsults(pc.fc, pc.name, [{ text, when: new Date() }], []);
+        if (current && current.cust && current.cust.name === pc.name) current.extra = { ...(current.extra || {}), consults: list };
+        toast("상담기록에 남겼습니다.");
+        close();
+      } catch (e) { btn.disabled = false; btn.textContent = "남기기"; saveError(e); }
+    });
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") { pcAway = !!localStorage.getItem(PC_KEY); return; }
+    if (pcAway) { pcAway = false; setTimeout(askContactNote, 400); } // 전화·문자 앱에 다녀온 뒤에만 묻기
+  });
   async function saveMemo(it, i, j, btn) {
     micStop();
     const c = it.custs[j], inp = $("memo" + i + "-" + j);
@@ -3543,7 +3609,7 @@
         ${multi ? `<button type="button" class="pick-btn" data-pick="${i}-${j}">선택</button>` : ""}${pinned ? `<button type="button" class="pick-btn" data-unpick="${i}">다시 선택</button>` : ""}</div>
         <dl class="ev-info">
           ${c.birth ? `<dt>생년월일</dt><dd>${esc(c.birth)}${g ? ` (${esc(g)})` : ""}</dd>` : ""}
-          ${phone ? (() => { const num = (String(phone).match(MOBILE_RE) || [phone])[0], dg = String(num).replace(/[^\d+]/g, ""); return `<dt>연락처</dt><dd class="put-row"><span><a class="nowrap" href="tel:${esc(dg)}">${esc(phone)}</a></span><span class="ev-acts"><a class="ev-act" href="tel:${esc(dg)}">전화</a><a class="ev-act" href="${esc(smsHref(dg, ""))}">문자</a></span></dd>`; })() : ""}
+          ${phone ? (() => { const num = (String(phone).match(MOBILE_RE) || [phone])[0], dg = String(num).replace(/[^\d+]/g, ""); return `<dt>연락처</dt><dd class="put-row" data-cn="${esc(c.name)}" data-cfc="${esc(memoFcOf(c))}"><span><a class="nowrap" href="tel:${esc(dg)}">${esc(phone)}</a></span><span class="ev-acts"><a class="ev-act" href="tel:${esc(dg)}">전화</a><a class="ev-act" href="${esc(smsHref(dg, ""))}">문자</a></span></dd>`; })() : ""}
           ${addr ? `<dt>주소</dt><dd class="put-row"><span>${esc(addr)}</span>${putBtn(i, j, "addr")}</dd>` : ""}
           <dt id="mpl${i}-${j}" hidden>미팅장소</dt><dd id="mp${i}-${j}" class="put-row" hidden></dd>
         </dl>
@@ -4737,6 +4803,7 @@
       resetSearch(); // 첫 화면: 고객 (일정은 하단 메뉴에서 열 때 불러옴 — 캘린더 호출이 첫 화면을 늦추지 않게)
       $("searchStatus").textContent = "고객 목록을 불러오는 중…";
     }
+    setTimeout(askContactNote, 1500); // 전화·문자 중에 앱이 닫혔다가 다시 열린 경우
     loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
     if (!isAdmin()) loadMyPrefs(); // 일반 사용자 설정 (캘린더·데이터 절약)
     loadLists().then(() => { showScope(); if ($("searchStatus").textContent === "고객 목록을 불러오는 중…") $("searchStatus").textContent = ""; }).catch(handleError); // 미리 불러오기

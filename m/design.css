@@ -303,3 +303,8 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .sales-top .seg { align-self: flex-end; width: auto; }
 .sales-top .seg button { flex: none; padding: 0 16px; }
 .rh .seg { width: auto; margin-left: 0; }
+/* 고객 정보 표 안의 이메일·전화 아이콘 버튼은 작게 (칸이 위아래로 커지지 않게) */
+.kv .act-btn { width: 26px; height: 26px; }
+.kv .act-btn svg { width: 14px; height: 14px; }
+.kv .val-row { align-items: center; }
+.kv dd:has(.val-row) { padding-top: 7px; padding-bottom: 7px; }

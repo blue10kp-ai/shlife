@@ -71,7 +71,8 @@ window.APP_CONFIG = {
     { id: "contract", label: "계약", keywords: ["계약", "증권", "청약"] },
     // 고객 계약 PDF("날짜 - 고객 - FC - 상품명 - 금액원.pdf")는 보장분석에서 제외
     { id: "analysis", label: "분석", keywords: ["보장", "분석", "covan"], exclude: "\\d[\\d,]*원\\.pdf$" },
-    { id: "consult",  label: "상담", keywords: ["상담", "메모", "기록", "통화"] }
+    { id: "consult",  label: "상담", keywords: ["상담", "메모", "기록", "통화"] },
+    { id: "claim",    label: "청구", keywords: [] } // 보험금 청구 (기능은 나중에 따로 만듦)
   ],
 
   // 상담 탭: 처음에 보여줄 상담기록 수 (나머지는 '더보기')
