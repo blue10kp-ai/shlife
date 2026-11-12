@@ -349,6 +349,7 @@
     if (view !== "salesView" && view !== "customerView" && view !== "loginView") salesClearState(); // 영업 화면을 떠나면 이어보기 상태 삭제
     if (view !== "scheduleView" && view !== "customerView" && view !== "loginView") schedClearState(); // 일정 화면을 떠나도 마찬가지
     $("mainNav").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.section === SECTION[view]));
+    document.documentElement.style.setProperty("--tbh", Math.round(topbarH()) + "px"); // 떠 있는 줄(일정 날짜·고객 수정/닫기)의 위치 기준
     if (!keepScroll) window.scrollTo(0, 0);
   }
 
@@ -1547,10 +1548,9 @@
     const g = genderOf(c);
     const types = [...new Set(c.entries.map((e) => e.type))];
     const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
-    return [c.birth ? esc(c.birth + (g ? ` (${g})` : "")) : "",
-      types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join(" "),
-      fcs.length ? esc("담당: " + fcs.map((f) => f + "FC").join(", ")) : ""]
-      .filter(Boolean).join(" · ");
+    // 왼쪽: 생년월일 · 담당 / 오른쪽 끝: 분류(계약·이관 등) 한 줄
+    const left = [c.birth ? esc(c.birth + (g ? ` (${g})` : "")) : "", fcs.length ? esc("담당: " + fcs.map((f) => f + "FC").join(", ")) : ""].filter(Boolean).join(" · ");
+    return `<span class="sub-l">${left}</span><span class="sub-tags">${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join(" ")}</span>`;
   }
 
   const mdText = (v) => { const p = parseMonthDay(v); return p ? `${p[0]}월 ${p[1]}일` : String(v || ""); };
@@ -1583,13 +1583,12 @@
     const introNames = [...new Set(introContracts.map((k) => k.row["소개자"]).filter(Boolean))].join(", ");
     const info = `<div class="card" id="infoCard"><dl class="kv">
         ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
-        ${phones.length ? row("연락처", phones.map(([k, v]) => valueWithActions(k, v)).join("")) : row("연락처", '<span class="hint">-</span>')}
         ${backs.length ? row("후번호", backs.map(([, v]) => valueWithActions("연락처", v)).join("")) : ""}
         ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
         ${addrs.length ? row("주소", addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
         ${row("계좌", accts.length ? accts.map(([, v]) => `<div>${esc(v)}</div>`).join("") : '<span class="hint">-</span>')}
         ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
-        ${rest.map(([k, vs]) => row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
+        ${rest.map(([k, vs]) => k === "신한라이프 유지계약" ? row("유지 계약", vs.map((v) => `<div>${esc(/^\d+$/.test(String(v).trim()) ? String(v).trim() + "건" : v)}</div>`).join("")) : row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
       </dl></div>`;
     const prim = (x.fields || []).filter((k) => EXTRA.primary.includes(k));
     // 미팅장소·메모: 수정 모드가 아니어도 바로 입력하고 저장
@@ -3199,8 +3198,8 @@
   const schedCustCache = new Map(); // 일정 id → { cust, extra }
 
   function scheduleShell() {
-    return `<div class="sched-modes">${[["day", "Today"], ["week", "Week"], ["month", "Month"]].map(([m, l]) =>
-      `<button type="button" data-sm="${m}" class="${schedMode === m ? "on" : ""}">${l}</button>`).join("")}</div>
+    return `<div class="sched-top"><div class="sched-modes">${[["day", "Today"], ["week", "Week"], ["month", "Month"]].map(([m, l]) =>
+      `<button type="button" data-sm="${m}" class="${schedMode === m ? "on" : ""}">${l}</button>`).join("")}</div><button type="button" class="link-btn" id="pickReset" hidden>초기화</button></div>
       <div class="sched-nav"><button type="button" id="schedPrev" aria-label="이전">‹</button>
         <button type="button" id="schedLabel" class="sched-label"></button>
         <button type="button" id="schedNext" aria-label="다음">›</button></div>
@@ -3224,6 +3223,9 @@
       $("schedLabel").addEventListener("click", () => { schedDate = dayStart(new Date()); renderSchedule(); });
     }
     v.querySelectorAll("[data-sm]").forEach((x) => x.classList.toggle("on", x.dataset.sm === schedMode));
+    const setTbh = () => document.documentElement.style.setProperty("--tbh", Math.round(topbarH()) + "px"); // 날짜 줄을 상단바 바로 아래에 고정
+    setTbh();
+    if (!window.__tbhBound) { window.__tbhBound = true; window.addEventListener("resize", setTbh); }
     renderSchedule();
   }
   function moveSched(n) {
@@ -3250,6 +3252,7 @@
 
   async function renderSchedule() {
     const req = ++schedReq;
+    { const pr0 = $("pickReset"); if (pr0) pr0.hidden = true; }
     schedHold = Infinity; // 그리는 동안은 스크롤 위치를 저장하지 않음 (다 그린 뒤 schedApplyResume이 풀어 줌)
     const body = $("schedBody");
     let from, to, label;
@@ -3347,10 +3350,11 @@
     const evs = events.filter((e) => onDay(e, d));
     const body = $("schedBody");
     if (!evs.length) { body.innerHTML = '<div class="card center"><p class="hint">일정이 없습니다.</p></div>'; schedApplyResume(); return; }
-    body.innerHTML = '<div class="day-tools"><button type="button" class="link-btn" id="pickReset">초기화</button></div><div id="dayList"></div>';
+    body.innerHTML = '<div id="dayList"></div>';
+    const pr = $("pickReset"); if (pr) pr.hidden = false; // 초기화는 Today/Week/Month 줄 오른쪽에 있음 (일정이 있는 날 보기에서만)
     // 초기화: 동명이인 지정을 지우고, 고객 주소·미팅장소로 '입력'해 둔 일정 장소도 지움
     let dayItems = [];
-    $("pickReset").addEventListener("click", async () => {
+    pr.onclick = async () => {
       const filled = dayItems.filter((it) => it.e.location && it.all.some((c) =>
         [currentValue(c, ["주소"]), meetingOf(c)].map((v) => String(v || "").trim()).filter(Boolean).includes(it.e.location.trim())));
       const pinned = dayItems.filter((it) => it.e.pick);
@@ -3372,7 +3376,7 @@
         } catch (e) { toast(e.message === "GOOGLE_AUTH" ? "구글 연결이 끊겼습니다. 다시 눌러 주세요." : e.message); }
       }
       renderSchedule();
-    });
+    };
     // 고객 찾기 (고객 리스트 엑셀 + 계약일로 최근 등록 순)
     let records = [], contracts = [];
     if (evs.some(isInfoEvent)) {
@@ -3382,16 +3386,16 @@
     const picks = readPicks();
     const items = evs.map((e) => {
       const all = isInfoEvent(e) ? matchCustomers(e.title, records, contracts) : [];
-      let custs = all;
+      let custs = all, pinned = false; // pinned: 이 일정이 고객 한 명(고객ID)과 연결된 상태 (검색된 고객이 한 명이어도 '선택'으로 확인해 연결)
       const pk = e.pick || picks[e.id]; // 구글 일정에 저장된 값(모든 기기 공유)을 먼저
       const ignored = pk === IGNORE_KEY && all.length > 0;
       if (ignored) custs = [];
-      else if (pk && custs.length > 1) {
+      else if (pk && custs.length) {
         let one = custs.filter((c) => custKey(c) === pk);
-        if (!one.length) one = custs.filter((c) => custKeyOld(c) === pk); // 예전에 저장된 키
-        if (one.length) custs = one.slice(0, 1);
+        if (!one.length) { const old = custs.filter((c) => custKeyOld(c) === pk); if (old.length === 1) one = old; } // 예전에 저장된 키(한 명으로 좁혀질 때만)
+        if (one.length) { custs = one.slice(0, 1); pinned = true; }
       }
-      return { e, custs, all, ignored };
+      return { e, custs, all, ignored, pinned };
     });
     dayItems = items;
     items.forEach((it) => { it.cust = it.custs[0] || null; });
@@ -3465,8 +3469,8 @@
       <div id="evForm${i}"></div>
       ${it.all.length ? (it.ignored
         ? `<div class="ev-tools ev-ignored"><span class="hint">검색된 고객 ${it.all.length}명을 숨겼어요</span><button type="button" class="pick-btn" data-unignore="${i}">되돌리기</button></div>`
-        : `<div class="ev-tools"><button type="button" class="pick-btn ign" data-ignore="${i}">무시</button></div>`) : ""}
-      ${it.custs.map((c, j) => custBlockHtml(c, i, j, it.custs.length > 1, it.custs.length === 1 && it.all.length > 1)).join("")}</div>`;
+        : `<div class="ev-tools"><button type="button" class="ev-edit" data-ignore="${i}">해당 없음</button></div>`) : ""}
+      ${it.custs.map((c, j) => custBlockHtml(c, i, j, !it.pinned, it.pinned)).join("")}</div>`;
   }
   function bindDayCard(it, i, req) {
     it.custs.forEach((c, j) => {
@@ -3574,7 +3578,7 @@
       const loc = $("loc" + i);
       loc.innerHTML = `<svg class="pin" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(text)}`; loc.hidden = false;
       toast("일정 장소에 입력했습니다.");
-      if (it.custs.length > 1) { await pickCustomer(it, c, btn); return; }
+      if (!it.pinned) { await pickCustomer(it, c, btn); return; }
       btn.textContent = "입력됨";
     } catch (e) {
       btn.disabled = false; btn.textContent = "입력";

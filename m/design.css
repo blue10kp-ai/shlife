@@ -192,7 +192,10 @@ details.fold { border-radius: var(--r-ctl); }
 /* ── 오른손 모드 (설정 › 화면 › 오른손 모드, 이 폰에만): 하단 메뉴·탭·선택 버튼을 오른쪽으로 모음. 꺼져 있으면 예전 그대로 ── */
 .rh .mainnav { padding-left: calc(100% / 3); }
 .rh .tabs { justify-content: flex-end; }
-.rh .sched-modes, .rh .seg { width: 67%; margin-left: auto; }
+.rh .seg { width: 67%; margin-left: auto; }
+.rh .sched-top { flex-direction: row-reverse; }
+.rh .sched-top .sched-modes { flex: none; width: 67%; }
 .rh .file-actions { justify-content: flex-end; }
 .rh .file-actions > * { flex: 0 0 auto; min-width: 33%; }
 .rh-opt { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500; padding: 4px 0; }
+.rh .sched-nav { padding-left: 20%; } /* 날짜 이동 화살표도 살짝 오른쪽으로 */

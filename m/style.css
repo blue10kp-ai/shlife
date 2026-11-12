@@ -91,7 +91,7 @@ button:disabled { opacity: .5; }
   background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
 .modes button { min-height: 40px; border: 0; border-radius: 9px; background: none; color: var(--muted); font-weight: 600; }
 .modes button.on { background: var(--brand); color: #fff; }
-.r-name { min-width: 0; word-break: break-all; display: flex; flex-direction: column; }
+.r-name { flex: 1; min-width: 0; word-break: break-all; display: flex; flex-direction: column; } /* 이름 칸이 남는 폭을 차지 → 분류 태그(계약·이관 등)는 오른쪽 끝에 한 줄로 */
 .r-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
 .list button .tag + .tag { margin-left: -6px; }
 .tag.t-계약 { background: #e3f4ea; color: #1d7a46; }
@@ -262,7 +262,11 @@ th { background: var(--brand-weak); }
 .sched-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
 .sched-modes button { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 10px; padding: 8px 0; font-size: 14px; }
 .sched-modes button.on { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
-.sched-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.sched-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; padding: 2px 0; position: sticky; top: var(--tbh, 52px); z-index: 4; background: var(--bg); } /* 스크롤해도 날짜 줄은 상단바 아래에 고정 */
+.sched-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.sched-top .sched-modes { flex: 1; min-width: 0; margin-bottom: 0; }
+.sched-top .link-btn { flex: none; white-space: nowrap; }
+.sched-top .link-btn[hidden] { display: none; }
 .sched-nav button { border: 0; background: transparent; color: var(--text); font-size: 22px; width: 40px; height: 36px; }
 .sched-nav .sched-label { flex: 1; font-size: 15px; font-weight: 600; width: auto; }
 .cal-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
@@ -311,9 +315,15 @@ th { background: var(--brand-weak); }
 .cust-card .cname { display: inline; padding: 0; border: 0; border-radius: 0; background: none; color: #fff; }
 .cust-card .cname.grade-bad { color: #ffb347; background: none; }
 .cust-card .cname.grade-shit { color: #ff6b6b; background: none; }
-.cust-sub { font-size: 13px; color: rgba(255,255,255,.85); line-height: 1.5; }
+.cust-sub { font-size: 13px; color: rgba(255,255,255,.85); line-height: 1.5; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cust-sub .sub-l { min-width: 0; }
+.cust-sub .sub-tags { flex: none; white-space: nowrap; }
 .edit-mini { flex: none; border: 1px solid rgba(255,255,255,.7); background: transparent; color: #fff; border-radius: 8px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
 .edit-mini.on { background: #fff; color: #1f4e8c; }
+/* 수정·닫기(수정 중엔 취소·확인): 스크롤해도 상단바 아래 같은 자리에 떠 있음 */
+.cust-bar { position: sticky; top: calc(var(--tbh, 56px) + 6px); z-index: 4; display: flex; justify-content: flex-end; gap: 6px; margin: 0 0 6px; pointer-events: none; }
+.cust-bar > * { pointer-events: auto; }
+.cust-bar .edit-mini { padding: 5px 12px; font-size: 13px; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
 .cust-card .grade-btns { display: flex; align-items: flex-start; gap: 18px; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.25); }
 .cust-card .grade-btns[hidden] { display: none; }
 .grade-title { font-size: 13px; color: rgba(255,255,255,.85); align-self: center; }
@@ -416,9 +426,9 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 .ev-cust { position: relative; }
 .pick-btn { position: absolute; top: 6px; right: 0; border: 1px solid var(--brand); color: var(--brand); background: var(--card); border-radius: 8px; padding: 4px 12px; font-size: 13px; font-weight: 600; }
 .pick-btn:disabled { opacity: .6; }
-.ev-memo { display: flex; gap: 8px; margin-top: 10px; }
-.ev-memo input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; background: var(--card); color: var(--text); }
-.memo-btn { flex: none; height: 40px; padding: 0 16px; border: 1px solid var(--brand); border-radius: 10px; background: var(--card); color: var(--brand); font-size: 14px; font-weight: 600; }
+.ev-memo { display: flex; gap: 6px; margin-top: 8px; }
+.ev-memo input { flex: 1; min-width: 0; height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; background: var(--card); color: var(--text); }
+.memo-btn { flex: none; height: 30px; padding: 0 12px; border: 1px solid var(--brand); border-radius: 8px; background: var(--card); color: var(--brand); font-size: 13px; font-weight: 700; }
 .memo-btn:disabled { opacity: .45; }
 .ev-cust:has(.pick-btn) .ev-name { padding-right: 64px; }
 /* 일정: 검색된 고객 무시/되돌리기 */
