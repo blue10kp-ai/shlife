@@ -268,3 +268,26 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .ev-namerow .ev-name { flex: 1; min-width: 0; width: auto; padding: 0 0 2px; }
 .ev-namerow .pick-btn { position: static; flex: none; }
 .ev-cust:has(.pick-btn) .ev-namerow .ev-name { padding-right: 0; }
+/* 일정 화면의 모든 버튼을 '선택'·'입력'과 같은 모양·크기로: 수정 삭제 해당 없음 취소 선택 입력 전화 문자 마이크 저장 */
+.ev-edit, .pick-btn, .put-btn, .ev-act, .memo-btn, .mic-btn { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 24px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--accent); font-size: 12px; font-weight: 700; line-height: 1; text-decoration: none; white-space: nowrap; }
+.ev-edit.ev-done { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.ev-del { color: var(--bad); }
+.mic-btn { width: 28px; padding: 0; }
+.mic-btn.rec { width: auto; padding: 0 9px; color: #fff; background: var(--bad); border-color: var(--bad); }
+.ev-acts { display: inline-flex; gap: 6px; flex: none; }
+.ev-edit-acts .ev-edit { padding: 0 9px; }
+.ev-card.deleted .ev-del { color: var(--accent); }
+.ev-memo { align-items: center; }
+.put-row { align-items: center; }
+.put-row > .ev-acts { flex: none; }
+/* 일정 사이 이동 줄: 앞의 점선 삭제, 위아래 가운데 정렬 */
+.travel { border-left: 0; padding: 6px 6px; margin: 0 0 8px; align-items: center; }
+/* 수정 버튼: 글자색이던 파랑을 바탕으로, 글자는 흰색 (삭제 버튼과 대비) */
+.ev-edit[data-evedit] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
+/* 삭제 버튼: 글자색이던 빨강을 바탕으로, 글자는 흰색 */
+.ev-edit.ev-del { background: var(--bad); border-color: var(--bad); color: #fff; }
+/* 삭제한 뒤 '원위치' 버튼은 수정 버튼과 같은 파란 바탕 */
+.ev-card.deleted .ev-del { background: var(--accent); border-color: var(--accent); color: var(--accent-ink, #fff); }
+/* 일정 카드: 제목 줄 아래의 가로 선 삭제 (고객이 여러 명일 때 고객 사이 구분선만 유지) */
+.ev-cust { border-top: 0; padding-top: 6px; }
+.ev-cust + .ev-cust { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 8px; }

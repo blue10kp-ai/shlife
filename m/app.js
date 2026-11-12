@@ -3124,7 +3124,7 @@
   const WD = ["일", "월", "화", "수", "목", "금", "토"];
   const dayLabel = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})`;
   const weekStart = (d) => addDays(dayStart(d), -((d.getDay() + 6) % 7)); // 월요일 시작
-  const timeText = (e) => (e.allDay ? "종일" : `${hm(e.start)}~${hm(e.end)}`);
+  const timeText = (e) => (e.allDay ? "종일" : `${hm(e.start)} ~ ${hm(e.end)}`);
   const onDay = (e, d) => e.start < addDays(dayStart(d), 1) && e.end > dayStart(d) || (e.allDay && sameDay(e.start, d));
 
   // ---------- 일정 제목 → 고객 찾기 ----------
@@ -3532,7 +3532,7 @@
         ${multi ? `<button type="button" class="pick-btn" data-pick="${i}-${j}">선택</button>` : ""}${pinned ? `<button type="button" class="pick-btn" data-unpick="${i}">다시 선택</button>` : ""}</div>
         <dl class="ev-info">
           ${c.birth ? `<dt>생년월일</dt><dd>${esc(c.birth)}${g ? ` (${esc(g)})` : ""}</dd>` : ""}
-          ${phone ? `<dt>연락처</dt><dd><a class="nowrap" href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${esc(phone)}</a></dd>` : ""}
+          ${phone ? (() => { const num = (String(phone).match(MOBILE_RE) || [phone])[0], dg = String(num).replace(/[^\d+]/g, ""); return `<dt>연락처</dt><dd class="put-row"><span><a class="nowrap" href="tel:${esc(dg)}">${esc(phone)}</a></span><span class="ev-acts"><a class="ev-act" href="tel:${esc(dg)}">전화</a><a class="ev-act" href="${esc(smsHref(dg, ""))}">문자</a></span></dd>`; })() : ""}
           ${addr ? `<dt>주소</dt><dd class="put-row"><span>${esc(addr)}</span>${putBtn(i, j, "addr")}</dd>` : ""}
           <dt id="mpl${i}-${j}" hidden>미팅장소</dt><dd id="mp${i}-${j}" class="put-row" hidden></dd>
         </dl>
