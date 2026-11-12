@@ -1708,7 +1708,7 @@
     { label: "주소", cols: ["주소"], type: "text", multi: true },
     { label: "계좌", cols: ["계좌"], type: "text", ph: "예: 신한 110-123-456789" },
     { label: "이메일", cols: EMAIL_COLS, type: "email" },
-    { label: "유입경로", col: "최초유입경로", cols: ["최초유입경로"], type: "text", ph: "DB / 이관 / 지인 / 소개", list: "routeList" },
+    { label: "유입경로", col: "최초유입경로", cols: ["최초유입경로"], type: "text", select: ["DB", "이관", "지인", "소개"] }, // 직접 쓰지 않고 선택창(드롭박스)에서 고름
     { label: "소개자", col: "소개자명", cols: ["소개자명"], type: "text", ph: "소개자 이름" }
   ];
   function currentValue(c, cols) {
@@ -1768,8 +1768,9 @@
     const x = current.extra || { values: {}, fields: [] };
     const ev = x.values || {};
     const canList = c.entries.some((e) => e.src);
+    const selOpts = (f) => { const cur = currentValue(c, f.cols); const list = cur && !f.select.includes(cur) ? [cur, ...f.select] : f.select; return `<option value=""></option>` + list.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join(""); };
     const fld = (f) => `<label class="fld"><span>${esc(f.label)}</span>
-        ${f.multi ? `<textarea data-edit="${esc(f.label)}" rows="2">${esc(currentValue(c, f.cols))}</textarea>`
+        ${f.select ? `<select data-edit="${esc(f.label)}">${selOpts(f)}</select>` : f.multi ? `<textarea data-edit="${esc(f.label)}" rows="2">${esc(currentValue(c, f.cols))}</textarea>`
           : `<input data-edit="${esc(f.label)}" value="${esc(currentValue(c, f.cols))}" type="${f.type}" autocomplete="off"${f.list ? ` list="${f.list}"` : ""}${f.ph ? ` placeholder="${esc(f.ph)}"` : ""}>`}</label>`;
     // 후번호·계좌는 민감정보 접근이 허용된 계정에게만 수정 칸을 보여 줌
     const listFields = canList ? EDIT_FIELDS.filter((f) => !f.paired && (canSens() || f.label !== "계좌")).map((f) => f.pair
@@ -2201,7 +2202,7 @@
     return best;
   }
   const pdfButton = (f) => f
-    ? `<div class="file-actions pdf-mini"><button class="secondary" data-open="${esc(f.id)}">증권 열기</button></div>`
+    ? `<div class="file-actions pdf-mini"><button class="secondary" data-open="${esc(f.id)}">계약 열기</button></div>`
     : "";
 
   // 상품명에서 '무배당'이 들어간 괄호 삭제: "신한통합건강보험 원(ONE)(무배당, 해약환급금 미지급형)" → "신한통합건강보험 원(ONE)"
@@ -2968,6 +2969,8 @@
     $("fsCancel").disabled = !dirty || busy;
   }
   new MutationObserver(fsRefresh).observe($("adminBody"), { subtree: true, childList: true, attributes: true, attributeFilter: ["disabled"] });
+  // 영업 화면 위쪽 줄(이달이관·따행 선택, 월 이동, FC 선택)의 높이를 재 두어, 그 아래 '설문 발송' 줄이 바로 밑에 붙어 고정되게 함
+  new MutationObserver(() => { const st = document.querySelector("#salesView .sales-top"); if (st) document.documentElement.style.setProperty("--salestop", Math.round(st.getBoundingClientRect().height) + "px"); }).observe($("salesView"), { subtree: true, childList: true });
   const fsWait = async (b) => { for (let i = 0; i < 160 && b.isConnected && /저장 중/.test(b.textContent); i++) await new Promise((r) => setTimeout(r, 150)); };
   $("fsSave").addEventListener("click", async () => {
     const sb = $("fsSave"); sb.dataset.busy = "1"; sb.disabled = true; $("fsCancel").disabled = true; sb.textContent = "저장 중…";
@@ -3570,8 +3573,14 @@
     const t = storedTasksToken();
     if (!t) throw new Error("TASKS_AUTH");
     const res = await fetch(GTASKS + path, { ...(opt || {}), headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" } });
-    if (res.status === 401 || res.status === 403) { try { localStorage.removeItem(TASKS_KEY); } catch (e) {} throw new Error("TASKS_AUTH"); }
-    if (!res.ok) throw new Error("Tasks " + res.status + ": " + (await res.text()).slice(0, 120));
+    if (res.status === 401) { try { localStorage.removeItem(TASKS_KEY); } catch (e) {} throw new Error("TASKS_AUTH"); } // 연결 시간이 지남
+    if (!res.ok) {
+      const txt = await res.text();
+      // 403: 구글 클라우드에서 Tasks API를 아직 안 켠 경우와, 권한을 허용하지 않은 경우를 구분
+      if (res.status === 403 && /accessNotConfigured|SERVICE_DISABLED|has not been used|is disabled/i.test(txt)) throw new Error("TASKS_API_OFF");
+      if (res.status === 403) { try { localStorage.removeItem(TASKS_KEY); } catch (e) {} throw new Error("TASKS_AUTH"); }
+      throw new Error("Tasks " + res.status + ": " + txt.slice(0, 120));
+    }
     return res.status === 204 ? null : res.json();
   }
   // from(포함) ~ to(미포함) 마감인 할 일, 모든 목록. due 는 날짜(UTC 0시)라 앞 10글자가 날짜
@@ -3597,7 +3606,9 @@
       box.innerHTML = list.length ? `<div class="card task-card"><h3 class="sec-title">할 일 <small class="hint">${list.filter((t) => !t.done).length}/${list.length}</small></h3><ul class="task-list">${list.map(taskItemHtml).join("")}</ul></div>` : "";
     } catch (e) {
       if (req !== schedReq) return;
-      box.innerHTML = e.message === "TASKS_AUTH" ? taskConnectHtml("할 일 연결이 만료됐거나 권한이 없습니다. 다시 연결해 주세요.") : "";
+      box.innerHTML = e.message === "TASKS_AUTH" ? taskConnectHtml("할 일 연결 시간이 지났거나 할 일 권한을 허용하지 않았습니다. 다시 연결해 주세요.")
+        : e.message === "TASKS_API_OFF" ? taskConnectHtml("구글 클라우드에서 'Google Tasks API'를 아직 켜지 않아 할 일을 불러올 수 없습니다. 관리자가 사용 설정을 한 뒤(몇 분 걸릴 수 있음) 다시 눌러 주세요.")
+        : taskConnectHtml("할 일을 불러오지 못했습니다: " + e.message);
       if (e.message !== "TASKS_AUTH") console.warn("tasks", e.message);
     }
   }

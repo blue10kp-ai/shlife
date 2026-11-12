@@ -342,3 +342,14 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .rh .sline2:not(.center) { justify-content: flex-end; }
 .rh .sline2:not(.center) .ymnav { margin: 0; gap: 18px; }
 .rh .sline2:not(.center) select { position: static; transform: none; padding: 8px 10px; font-size: 15px; }
+/* 고객 정보 탭: 값 칸(주민번호·계좌·주소 등)은 가운데 정렬 */
+#infoCard .kv dd { text-align: center; }
+#infoCard .kv dd .val-row { justify-content: center; gap: 8px; }
+/* 영업: 위쪽 줄(선택·월 이동)과 '설문 발송' 줄은 스크롤해도 상단바 아래에 고정 */
+#salesView .sales-top { position: sticky; top: var(--tbh, 56px); z-index: 4; background: var(--bg); padding: 6px 0 6px; margin-bottom: 0; }
+#salesView .dfilter { position: sticky; top: calc(var(--tbh, 56px) + var(--salestop, 100px)); z-index: 3; background: var(--bg); padding: 6px 0; margin: 0; }
+/* 관리자·설정 아래쪽 취소·저장: 작고 단정하게 (오른쪽 끝, 높이 36px) */
+.float-save { justify-content: flex-end; gap: 8px; padding: 6px 16px; }
+.float-save button { flex: none; min-height: 0; height: 36px; min-width: 76px; padding: 0 18px; font-size: 14px; font-weight: 600; border-radius: var(--r-ctl); }
+.float-save .secondary { background: var(--surface); color: var(--t2); border: 1px solid var(--line); }
+.float-save button:disabled { opacity: .4; }
