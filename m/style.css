@@ -705,3 +705,9 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .top-mic.rec { width: auto; padding: 0 8px; border-radius: 13px; }
 .page-mic { flex: none; width: 40px; height: 44px; }
 .page-mic.rec { width: auto; padding: 0 10px; }
+/* 관리자·설정: 저장·취소 하나로 (아래 메뉴 바로 위에 고정) */
+.float-save { position: fixed; left: 0; right: 0; bottom: var(--navh, 60px); z-index: 9; display: flex; gap: 8px; padding: 8px 16px; background: var(--card); border-top: 1px solid var(--line); }
+.float-save[hidden] { display: none; }
+.float-save button { flex: 1; min-height: 44px; }
+.file-actions:has(#setSave), .file-actions:has(#smsSave), .file-actions:has(#myCalSave), .file-actions:has(#savePerms) { display: none; }
+#adminView { padding-bottom: 72px; }

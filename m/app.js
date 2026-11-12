@@ -319,7 +319,7 @@
   const rhApply = () => document.documentElement.classList.toggle("rh", rhOn());
   rhApply();
   const rhOptHtml = () => `<div class="fld rh-fld">
-        <label class="rh-opt"><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}> 오른손 모드</label>
+        <label class="rh-opt"><span>오른손 모드</span><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}></label>
         <p class="hint">하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다.</p>
       </div>`;
   const rhCardHtml = () => `<div class="card"><h3 class="sec-title">화면</h3>${rhOptHtml()}</div>`;
@@ -352,6 +352,8 @@
     if (view !== "scheduleView" && view !== "customerView" && view !== "loginView") schedClearState(); // 일정 화면을 떠나도 마찬가지
     $("mainNav").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.section === SECTION[view]));
     document.documentElement.style.setProperty("--tbh", Math.round(topbarH()) + "px"); // 떠 있는 줄(일정 날짜·고객 수정/닫기)의 위치 기준
+    { const nv = $("mainNav"); if (nv && !nv.hidden) document.documentElement.style.setProperty("--navh", Math.round(nv.getBoundingClientRect().height) + "px"); } // 떠 있는 저장 줄은 아래 메뉴 바로 위
+    fsRefresh();
     if (!keepScroll) window.scrollTo(0, 0);
   }
 
@@ -2951,6 +2953,29 @@
   }
   $("loginBtn").addEventListener("click", () => (GD ? googleLogin() : msal.loginRedirect({ scopes: SCOPES })));
   $("loginOtherBtn").addEventListener("click", () => (GD ? googleLogin(true) : msal.loginRedirect({ scopes: SCOPES, prompt: "select_account" })));
+  // ---- 관리자·설정 화면의 저장·취소 하나로: 화면 안의 모든 저장 버튼을 한꺼번에 눌러 주고, 아래 메뉴 바로 위에 떠 있음 ----
+  //   저장 순서: 설정 → 문자 문구 → 내 캘린더 → (마지막) FC 권한. FC 권한 저장은 화면을 다시 그리므로 맨 마지막
+  const FS_BTNS = ["setSave", "smsSave", "myCalSave", "savePerms"];
+  const fsDirty = () => FS_BTNS.some((id) => { const b = $(id); return b && !b.disabled; });
+  function fsRefresh() {
+    const bar = $("floatSave");
+    if (!bar) return;
+    const on = !$("adminView").hidden;
+    bar.hidden = !on;
+    if (!on) return;
+    const dirty = fsDirty(), busy = $("fsSave").dataset.busy === "1";
+    $("fsSave").disabled = !dirty || busy;
+    $("fsCancel").disabled = !dirty || busy;
+  }
+  new MutationObserver(fsRefresh).observe($("adminBody"), { subtree: true, childList: true, attributes: true, attributeFilter: ["disabled"] });
+  const fsWait = async (b) => { for (let i = 0; i < 160 && b.isConnected && /저장 중/.test(b.textContent); i++) await new Promise((r) => setTimeout(r, 150)); };
+  $("fsSave").addEventListener("click", async () => {
+    const sb = $("fsSave"); sb.dataset.busy = "1"; sb.disabled = true; $("fsCancel").disabled = true; sb.textContent = "저장 중…";
+    try {
+      for (const id of FS_BTNS) { const b = $(id); if (b && !b.disabled) { b.click(); await new Promise((r) => setTimeout(r, 60)); await fsWait(b); } }
+    } finally { sb.dataset.busy = ""; sb.textContent = "저장"; fsRefresh(); }
+  });
+  $("fsCancel").addEventListener("click", () => { if (isAdmin()) renderAdmin(); else openMySettings(); toast("바뀐 내용을 취소했습니다."); });
   // 새로고침 버튼(로그아웃 왼쪽): 이 화면을 다시 불러옴. 영업·일정 화면은 보던 자리로 돌아옴
   $("reloadBtn").addEventListener("click", async () => {
     if (typeof confirmLeaveEdit === "function" && !(await confirmLeaveEdit())) return; // 수정 중이면 저장·취소 확인

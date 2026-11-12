@@ -299,7 +299,9 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 /* 고객 정보 수정·닫기: 스크롤해도 처음 놓인 자리(상단바 아래 + 화면 여백 16px)에서 움직이지 않게 */
 .cust-bar { top: calc(var(--tbh, 56px) + 16px); }
 /* 영업: 월 이동은 FC 선택 바로 왼쪽(오른쪽 정렬), 이달이관·따행 선택도 오른쪽 */
-.sline2:not(.center) { justify-content: flex-end; }
+.sline2:not(.center) .ymnav { flex: 1; justify-content: center; } /* 일반 모드: 월 이동은 가운데(FC 선택창이 있으면 그 왼쪽 빈자리의 가운데) */
+.rh .sline2:not(.center) { justify-content: flex-end; } /* 오른손 모드: FC 선택 바로 왼쪽, 오른쪽 정렬 */
+.rh .sline2:not(.center) .ymnav { flex: none; }
 .sales-top .seg { align-self: flex-end; width: auto; }
 .sales-top .seg button { flex: none; padding: 0 16px; }
 .rh .seg { width: auto; margin-left: 0; }
@@ -325,3 +327,11 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .car-view b { font-weight: 600; }
 .car-ren { font-size: 12px; color: var(--t3); background: var(--raised); border-radius: 6px; padding: 1px 8px; white-space: nowrap; }
 .car-ren em { font-style: normal; color: var(--t1); }
+/* 오른손 모드 설정: 글씨는 왼쪽, 체크박스는 오른쪽 끝 */
+.rh-opt { justify-content: space-between; width: 100%; }
+.rh-opt .cb { width: 20px; height: 20px; accent-color: var(--accent); }
+/* 일정 삭제 버튼 글씨: 조금 연한 빨강 */
+.ev-del { color: color-mix(in srgb, var(--bad) 70%, var(--surface)); }
+.ev-card.deleted .ev-del { color: var(--accent); }
+.float-save { background: var(--surface); border-top: 1px solid var(--line); }
+.rh .float-save { padding-left: calc(100% / 3); }
