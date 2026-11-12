@@ -63,13 +63,25 @@
     var parent = fcFolderId;
     if (TEST) { var tf = await child(await testRoot(), fcName, true); if (!tf) return null; parent = tf.id; }
     var f = await child(parent, 'data.json', false);
-    return f ? I.gd(I.API + '/files/' + encodeURIComponent(f.id) + '?alt=media&supportsAllDrives=true') : null;
+    if (f) { learned.fcJson = learned.fcJson || {}; learned.fcJson[fcName] = f.id; }
+    return f ? mediaOf(f.id) : null;
   }
   async function extraJson() {
     var parent = TEST ? await testRoot() : await I.baseId();
     var f = await child(parent, '고객추가정보.json', false);
-    return f ? I.gd(I.API + '/files/' + encodeURIComponent(f.id) + '?alt=media&supportsAllDrives=true') : null;
+    if (f) learned.extra = f.id;
+    return f ? mediaOf(f.id) : null;
   }
+
+  // ===== 위치(ID) 기억: 한 번 찾은 폴더·파일 ID를 이 기기에 저장해 두고 다음부터는 찾기 없이 바로 받는다 =====
+  //   Drive 호출 하나가 약 0.6초라서, 폴더 찾기가 줄줄이 이어지던 앞부분이 로딩의 절반 이상이었다.
+  //   기억한 ID가 맞지 않으면(파일을 옮기거나 지운 경우) 기억을 지우고 예전 방식으로 다시 찾는다. 시험 복사본(?json=test)에서는 쓰지 않는다.
+  var IDK = 'shfcd.idc.v1.';
+  var learned = { v: 1, paths: {}, fcs: null, extra: null };   // 이번에 찾은 것(성공하면 저장)
+  function idcLoad() { try { var o = JSON.parse(localStorage.getItem(IDK + String(D.email() || '').toLowerCase()) || 'null'); return o && o.v === 1 ? o : null; } catch (e) { return null; } }
+  function idcSave() { try { localStorage.setItem(IDK + String(D.email() || '').toLowerCase(), JSON.stringify(learned)); } catch (e) { /* 저장 못 해도 동작에는 문제 없음 */ } }
+  function idcClear() { try { localStorage.removeItem(IDK + String(D.email() || '').toLowerCase()); } catch (e) { /* 무시 */ } }
+  var mediaOf = function (id) { return I.gd(I.API + '/files/' + encodeURIComponent(id) + '?alt=media&supportsAllDrives=true'); };
 
   async function claudeId() {
     if (I.cache.claude) return I.cache.claude;
@@ -89,29 +101,36 @@
       if (!f) throw new Error("Drive에서 '" + path.join('\\') + "' 을(를) 찾지 못했습니다. (접근 권한이 없을 수도 있습니다)");
       cur = f.id;
     }
-    return I.gd(I.API + '/files/' + encodeURIComponent(cur) + '?alt=media&supportsAllDrives=true');
+    learned.paths[path.join('/')] = cur;
+    return mediaOf(cur);
   }
 
   async function loadCustomers(progress) {
-    var fcs = await I.fcFolders(), out = { customers: [], contracts: {}, history: {}, haeng: {}, files: {} }, errs = [], folders = {};
+    var fcs = await I.fcFolders(), out = { customers: [], contracts: {}, history: {}, haeng: {}, files: {} }, errs = [], fcFolderIds = [];
     var results = await Promise.all(fcs.slice().sort(function (a, b) { return a.name < b.name ? -1 : 1; }).map(async function (fo) {
       try {
         var js = await jsonOf(fo.name, fo.id), f = null, wb = null, doc = null;
         if (js) { doc = js; f = { name: js.source + ' (JSON)' }; }
         else { f = await I.listFile(fo.name); wb = await I.getWB(f); }
-        // 고객 폴더 지도: 고객ID → 폴더 ID (파일 목록은 상세를 열 때 읽는다)
-        var map = {};
-        try {
-          var cf = await child(fo.id, '_고객', true);
-          if (cf) (await I.qlist("'" + I.qv(cf.id) + "' in parents and mimeType='" + FOLDER + "' and trashed=false")).forEach(function (x) { var m = x.name.match(/ - (C\d{5,})\s*$/); if (m) map[m[1]] = x.id; });
-        } catch (e) { /* 파일 목록만 못 보임 */ }
-        return { fc: fo.name, file: f.name, wb: wb, doc: doc, map: map };
+        return { fc: fo.name, file: f.name, wb: wb, doc: doc, folderId: fo.id };
       } catch (e) { if (!/리스트\.xlsx가 없습니다/.test(e.message || '')) errs.push(fo.name + ': ' + e.message); return null; }   // 리스트가 없는 폴더(따행리스트·이관리스트 같은 내보내기 폴더)는 건너뜀
     }));
+    return buildCustomers(results, errs);
+  }
+  // FC별 읽은 결과 → 화면 자료(CUSTOMERS). 예전 방식과 기억한 위치 방식이 같이 쓴다
+  async function loadCustomersFast(C) {
+    var results = await Promise.all(C.fcs.slice().sort(function (a, b) { return a.name < b.name ? -1 : 1; }).map(async function (fo) {
+      var doc = await mediaOf(C.fcJson[fo.name]);   // 실패하면 전체를 예전 방식으로 다시 시도
+      return { fc: fo.name, file: doc.source + ' (JSON)', wb: null, doc: doc, folderId: fo.id };
+    }));
+    return buildCustomers(results, []);
+  }
+  function buildCustomers(results, errs) {
+    var out = { customers: [], contracts: {}, history: {}, haeng: {}, files: {} }, fcFolderIds = [];
     results.filter(Boolean).forEach(function (res) {
       var wb = res.wb, rowsOf2 = function (name) { return res.doc ? sheetObjs(res.doc, name) : rowsOf(wb.Sheets[name]); };
       out.files[res.fc] = res.file;
-      Object.assign(folders, res.map);
+      fcFolderIds.push({ id: res.folderId, name: res.fc });
       rowsOf2('고객').forEach(function (r) {
         var c = {};
         CUST_KEEP.forEach(function (k) { c[k] = r[k] == null ? '' : d10(r[k]); });
@@ -142,11 +161,22 @@
     });
     var t = new Date(); out.made = t.getFullYear() + '-' + p2(t.getMonth() + 1) + '-' + p2(t.getDate());
     window.CUSTOMERS = out;
-    I.cache.folders = folders;
+    learned.fcs = fcFolderIds;   // 위치 기억용
+    I.cache.fcFolderIds = fcFolderIds;
     window.CUSTFILES = { made: out.made, byId: {} };
     return errs;
   }
 
+  function setExtra(ej) {   // 고객추가정보.json → 화면 자료 (기억한 위치 방식)
+    var X = window.CUSTEXTRA = { file: ej.source + ' (JSON)', basic: [], consult: [] }, objs = function (n) { return sheetObjs(ej, n); };
+    X.basic = objs('기본').map(function (r) {
+      return { fc: s(r['담당 FC']), name: s(r['고객명']), meeting: s(r['미팅장소']), memo: s(r['메모']), carrier: s(r['통신사']), car: s(r['차량번호']), renew: s(r['자동차보험갱신일']) };
+    });
+    X.consult = objs('상담기록').filter(function (r) { return s(r['내용']); }).map(function (r) {
+      var at = r['저장날짜시간'] != null && r['저장날짜시간'] !== '' ? r['저장날짜시간'] : r['저장날짜'];
+      return { at: s(at).slice(0, 16), name: s(r['고객명']), fc: s(r['담당 FC']), text: s(r['내용']), voice: s(r['음성파일']) };
+    });
+  }
   async function loadExtra() {
     var ej = await extraJson(), ef = ej ? null : await I.extraFile();
     var X = window.CUSTEXTRA = { file: ej ? ej.source + ' (JSON)' : (ef ? ef.name : ''), basic: [], consult: [] };
@@ -161,8 +191,9 @@
     });
   }
 
-  async function loadFees() {
-    var d = await readJson(['수수료', '수수료명세서.json']), rows = [];
+  async function loadFees() { buildFees(await readJson(['수수료', '수수료명세서.json'])); }
+  function buildFees(d) {
+    var rows = [];
     d.forEach(function (r) {
       var pay = {};
       (r.a || []).concat(r.b || []).forEach(function (kv) { if (typeof kv[1] === 'number') pay[kv[0]] = kv[1]; });
@@ -188,6 +219,16 @@
   async function customerFiles(cid) {
     var C = window.CUSTFILES; if (!C) return [];
     if (C.byId[cid]) return C.byId[cid];
+    if (!I.cache.folders) {   // 처음 한 번: 각 FC의 _고객 폴더 목록으로 고객ID → 폴더 ID 지도를 만든다
+      var map = {}, fl = I.cache.fcFolderIds || [];
+      await Promise.all(fl.map(async function (fo) {
+        try {
+          var cf = await child(fo.id, '_고객', true);
+          if (cf) (await I.qlist("'" + I.qv(cf.id) + "' in parents and mimeType='" + FOLDER + "' and trashed=false")).forEach(function (x) { var m = x.name.match(/ - (C\d{5,})\s*$/); if (m) map[m[1]] = x.id; });
+        } catch (e) { /* 이 FC의 파일 목록만 못 보임 */ }
+      }));
+      I.cache.folders = map;
+    }
     var fid = (I.cache.folders || {})[cid]; if (!fid) return (C.byId[cid] = []);
     var out = [];
     async function walk(id, depth) {
@@ -205,13 +246,48 @@
   }
 
   // 한꺼번에 읽기. progress(문구)로 진행 상황을 알린다. 못 읽은 것은 errors에 모은다.
-  async function loadAll(progress) {
-    var say = progress || function () {}, errors = [];
-    say('권한 정보 읽는 중…');
-    window.ACCESS_CFG = await readJson(['_양식', '사용자권한.json']);
+  function checkMember() {
     var me = String(D.email() || '').toLowerCase();
     var ok = (window.ACCESS_CFG.users || []).some(function (u) { return String(u.email || '').toLowerCase() === me; });
     if (!ok) throw new Error('이 구글 계정(' + me + ')은 신한FC 접속 권한 목록에 없습니다. 관리자에게 요청하세요.');
+  }
+  // 고객 자료를 만들 때 FC별 JSON 본문을 받는 부분만 따로: 기억한 위치(ID)로 바로 받는다
+  async function loadAllFast(C, say, onRoster) {
+    var errors = [];
+    say('권한 정보 읽는 중…');
+    var rosterP = mediaOf(C.paths['_양식/사용자권한.json']).then(function (d) { window.ACCESS_CFG = d; checkMember(); if (onRoster) onRoster(d); return d; });
+    var customersP = loadCustomersFast(C);
+    var steps = [
+      rosterP,
+      customersP.then(function (e) { errors = errors.concat(e); }),
+      mediaOf(C.extra).then(function (d) { setExtra(d); }),
+      mediaOf(C.paths['업적/performance.json']).then(function (d) { window.PERF = d; }),
+      mediaOf(C.paths['계약/contracts.json']).then(function (d) { window.CONTRACTS = d; }),
+      mediaOf(C.paths['수수료/수수료명세서.json']).then(function (d) { buildFees(d); })
+    ];
+    say('고객·계약·이력 읽는 중…');
+    await Promise.all(steps);
+    return errors;
+  }
+  async function loadAll(progress, onRoster) {
+    var say = progress || function () {}, errors = [];
+    var C = TEST ? null : idcLoad();
+    if (C && C.paths && C.paths['_양식/사용자권한.json'] && C.paths['업적/performance.json'] && C.paths['계약/contracts.json'] && C.paths['수수료/수수료명세서.json'] && C.extra && C.fcs && C.fcs.length && C.fcJson && C.fcs.every(function (f) { return C.fcJson[f.name]; })) {
+      try { return await loadAllFast(C, say, onRoster); }
+      catch (e) {
+        if (e && (e.message === 'GOOGLE_AUTH' || /접속 권한 목록에 없습니다/.test(e.message))) throw e;
+        console.warn('기억한 위치가 맞지 않아 다시 찾습니다:', e && e.message); idcClear();
+      }
+    }
+    return loadAllSlow(say, onRoster);
+  }
+  async function loadAllSlow(say, onRoster) {
+    var errors = [];
+    learned = { v: 1, paths: {}, fcs: null, extra: null };
+    say('권한 정보 읽는 중…');
+    window.ACCESS_CFG = await readJson(['_양식', '사용자권한.json']);
+    checkMember();
+    if (onRoster) onRoster(window.ACCESS_CFG);
     say('고객·계약·이력 읽는 중…');
     var steps = [
       loadCustomers().then(function (e) { errors = errors.concat(e); }),
@@ -221,6 +297,8 @@
       loadFees().catch(function (e) { errors.push('수수료: ' + e.message); window.FEES = { made: '', rows: [] }; })
     ];
     await Promise.all(steps);
+    // 성공하면 찾은 위치를 기억(다음부터 찾기 없이 바로 받음)
+    if (!TEST && learned.paths['_양식/사용자권한.json'] && learned.paths['업적/performance.json'] && learned.paths['계약/contracts.json'] && learned.paths['수수료/수수료명세서.json'] && learned.extra && learned.fcs && learned.fcs.length && learned.fcJson) idcSave();
     return errors;
   }
 

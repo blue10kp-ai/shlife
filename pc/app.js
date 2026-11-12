@@ -204,7 +204,7 @@
     });
   }
   function route() {
-    var id = ((location.hash || '#/performance').replace('#/', '') || 'performance').split('?')[0];
+    var id = ((location.hash || '#/dashboard').replace('#/', '') || 'dashboard').split('?')[0];   // 첫 화면은 대시보드
     if (id === 'team' && AC.canTeam && AC.mode === 'self') { AC.setMode('team'); return; }   // 팀원 메뉴는 팀 보기로 열린다
     var m = MENUS.filter(function (x) { return x.id === id; })[0] || MENUS[0];
     nav(m.id);
