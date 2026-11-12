@@ -257,7 +257,7 @@
       ? rowE('휴대전화', '<span class="efr">' + carrierSel(c) + inp(c, '연락처', '', 'tel') + '</span>') + rowE('자택', '<span class="efr">' + inp(c, '자택전화', '', 'tel') + pick('자택전화') + '</span>') + rowE('직장', '<span class="efr">' + inp(c, '직장전화', '', 'tel') + pick('직장전화') + '</span>') + rowE('이메일', inp(c, '이메일', '', 'email')) + rowE('미팅장소', inp(c, '미팅장소')) + rowE('주소', inp(c, '주소')) + rowE('계좌', inp(c, '계좌', '예: 신한 110-123-456789')) + rowE('차량번호', inp(c, '차량번호', '예: 123가4321')) + rowE('자동차보험갱신일', mdSel(c)) + '<input type="hidden" data-e="자동차보험갱신일" value="' + esc(c['자동차보험갱신일'] || '') + '">'
       : rowH('휴대전화', phoneView) + row('자택', c['자택전화']) + row('직장', c['직장전화']) + row('이메일', c['이메일']) + row('미팅장소', c['미팅장소']) + row('주소', c['주소']) + row('계좌', c['계좌']) + rowH('차량', [c['차량번호'] ? esc(c['차량번호']) : '', c['자동차보험갱신일'] ? esc(mdText(c['자동차보험갱신일'])) : ''].filter(Boolean).join(' | '))) + '</div>';
     return '<div class="drawer"><div class="dh"><div><div class="nmrow"><h2 class="' + gcls(c) + '">' + esc(c['이름']) + '</h2>' + (E ? gradeDots(c) : '') + churnTag(c) + '</div><span class="tag t3">' + esc(c['현재단계'] === '이관관리' ? '이관' : c['현재단계']) + '</span> <span class="mut">' + esc(c['담당FC']) + ' · ' + esc(c['고객ID']) + '</span></div><div class="dhb">' +
-      (canE && !E ? '<button class="btn" id="editD">수정</button>' : '') + (E ? '<button class="btn pri" id="eSave">확인</button><button class="btn" id="eCancel">취소</button>' : '') + '<button class="btn" id="closeD">닫기</button></div></div>' +
+      (canE && !E ? '<button class="btn" id="editD">수정</button>' : '') + (E ? '<button class="btn pri" id="eSave">저장</button><button class="btn" id="eCancel">취소</button>' : '') + '</div></div>' +
       churnNote(c) + covanSection(c) + basic + contact +
       memoBox + consHtml +
       '<h3>계약 ' + cs.length + '건</h3>' + (cs.length ? '<div class="wrap"><table class="ct"><tr><th class="l">상품명</th><th>상태</th><th>보험료</th><th>계약일</th><th>모집유형</th><th>유입</th></tr>' + ct + '</table></div>' : '<p class="mut">등록된 계약이 없습니다.</p>') +
@@ -443,7 +443,7 @@
     }; });
     var dl = g('dlEdits'); if (dl) dl.onclick = function () { var ed2 = readEdits(), cons2 = readCons(), out = Object.keys(ed2).map(function (id) { var e = ed2[id], ch = {}; Object.keys(e.v || {}).forEach(function (k) { ch[k] = { 전: (e.o || {})[k] || '', 후: e.v[k] }; }); return { 고객ID: id, 이름: e.name, 담당FC: e.fc, 수정일: e.at, 변경: ch }; }); var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify({ 고객정보수정: out, 상담기록변경: cons2 }, null, 1)], { type: 'application/json' })); a.download = '고객수정내역.json'; a.click(); };
     
-    var cd = g('closeD'); if (cd) cd.onclick = function () { state.sel = null; state.edit = false; state.cedit = ''; rr(); };
+    if (!window.__drawerEsc) { window.__drawerEsc = true; document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && state.sel && !state.edit && !state.cedit && !/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) { state.sel = null; rr(); } }); }   // 닫기 버튼 대신 Esc로 닫기
     var rq = g('reqCovan');
     if (rq) rq.onclick = function () {
       var c = K.customers.filter(function (x) { return x['고객ID'] === state.sel; })[0]; if (!c) return;
