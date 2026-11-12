@@ -423,6 +423,7 @@
   }
   // 영업 화면이 매번 권한 파일을 다시 읽지 않도록 'FC 이름(names)'만 세션 캐시. 권한 파일을 읽거나 쓸 때마다 갱신 (관리자 화면은 열 때 최신을 읽음). 접근 FC 판단(myAllowedFcs)은 캐시를 쓰지 않음
   let permNamesCache = null;
+  let salesExtra = []; // 영업(이달이관·따행) 화면의 FC 선택창에 추가로 보이는 FC (관리자 화면에서 계정마다 지정)
   async function writePerms(perms) {
     await resolveAppDir();
     await stWriteJsonIn(appDir, PERM_FILE, perms);
@@ -433,8 +434,9 @@
   async function readPerms() {
     await resolveAppDir();
     const p = await stReadJsonIn(appDir, PERM_FILE);
-    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [] }; // sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
+    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [], salesFcs: (p && p.salesFcs && typeof p.salesFcs === "object") ? p.salesFcs : {} }; // salesFcs: { 이메일: [영업 화면에서 추가로 볼 수 있는 FC 이름] } / sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
     permNamesCache = { ...out.names };
+    salesExtra = Array.isArray(out.salesFcs[me()]) ? out.salesFcs[me()].slice() : [];
     return out;
   }
   // 권한 항목: "최수진"(보기+수정) / "최수진:r"(보기만) / "*"(전체 FC, 보기+수정)
@@ -2658,6 +2660,7 @@
               <span class="perm-btns"><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>저장</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></span>
             </div>
             <div class="perm-sens"><label class="chip"><input type="checkbox" class="cb" data-sens="${esc(em)}" ${(perms.sensitive || []).includes(em) ? "checked" : ""} aria-label="${esc(em)} 민감정보 접근"> 민감정보 접근 허용</label></div>
+            <div class="perm-sales"><p class="hint">영업(이달이관·따행)에서 추가로 볼 FC <span class="hint">— 선택창에 나옵니다. 위 FC 보기 권한이 있는 FC만 보입니다</span></p><div class="perm-fcs">${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-sf="${esc(em)}|${esc(fc)}" ${((perms.salesFcs || {})[em] || []).includes(fc) ? "checked" : ""} aria-label="${esc(em)} 영업 ${esc(fc)}"> ${esc(fc)}</label></span>`).join("")}</div></div>
             <div class="perm-fcs">
               <label class="chip chip-all" ${isAll(em) ? "" : "hidden"} title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
               ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC 고객 정보를 수정할 수 있음 (체크 안 하면 보기만)"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 수정"> 수정</label></span>`).join("")}
@@ -2754,6 +2757,22 @@
         btn.textContent = "저장";
       });
     });
+    // 영업 추가 FC 체크: 누르는 즉시 권한 파일(salesFcs)에 저장 (FC 보기·편집 '변경 저장'과 따로)
+    $("adminBody").querySelectorAll("[data-sf]").forEach((cb) => cb.addEventListener("change", async () => {
+      const em = cb.dataset.sf.split("|")[0];
+      const group = [...$("adminBody").querySelectorAll("[data-sf]")].filter((x) => x.dataset.sf.split("|")[0] === em);
+      group.forEach((x) => (x.disabled = true));
+      try {
+        const perms = await readPerms(); // 저장 직전 최신 파일
+        perms.salesFcs = perms.salesFcs || {};
+        const list = group.filter((x) => x.checked).map((x) => x.dataset.sf.split("|").slice(1).join("|"));
+        if (list.length) perms.salesFcs[em] = list; else delete perms.salesFcs[em];
+        await writePerms(perms);
+        adminState.perms = { ...adminState.perms, salesFcs: perms.salesFcs };
+        toast(`${nameOfEm(em) || em}: 영업 추가 FC를 저장했습니다.`);
+      } catch (e) { cb.checked = !cb.checked; handleError(e); }
+      group.forEach((x) => (x.disabled = false));
+    }));
     // 민감정보 접근 체크박스: 누르는 즉시 권한 파일(sensitive 목록)에 저장 — FC 보기·편집 '변경 저장'과는 따로 동작
     $("adminBody").querySelectorAll("[data-sens]").forEach((cb) => cb.addEventListener("change", async () => {
       const em = cb.dataset.sens, want = cb.checked;
@@ -2804,6 +2823,7 @@
       delete perms.users[em];
       if (perms.names) delete perms.names[em];
       perms.sensitive = (perms.sensitive || []).filter((x) => x !== em); // 삭제한 계정의 민감정보 허용도 함께 정리
+      if (perms.salesFcs) delete perms.salesFcs[em];
       extraUsers.delete(em);
       await writePerms(perms);
       adminState.perms = perms;
@@ -4718,8 +4738,10 @@
       // FC 선택: 접근 가능한 FC들(고객이 등록된 FC). 기본은 내 FC(권한 파일 이름), 없으면 첫 FC. 선택은 이 기기에 기억
       const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc)].filter(Boolean))].sort((a, b) => { const o = CFG.fcOrder || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, "ko"); }); // 직급 먼저 → 사번순(config.fcOrder)
       let saved = ""; try { saved = localStorage.getItem(salesFcKey()) || ""; } catch (e) { /* 무시 */ }
-      if (!isAdmin()) SALES.fc = fcs.includes(myFc) ? myFc : fcs[0] || ""; // 일반 계정: 선택창 없이 본인 FC
-      else if (!SALES.fc || !fcs.includes(SALES.fc)) SALES.fc = fcs.includes(saved) ? saved : fcs.includes(myFc) ? myFc : fcs[0] || "";
+      // 선택창에 나오는 FC: 관리자 = 모두 / 일반 계정 = 내 FC + 관리자가 허용한 추가 FC (고객 폴더 접근 권한이 있는 FC만)
+      const selFcs = isAdmin() ? fcs : [...new Set([myFc, ...salesExtra])].filter((f) => f && fcs.includes(f));
+      if (!isAdmin() && selFcs.length <= 1) SALES.fc = fcs.includes(myFc) ? myFc : fcs[0] || ""; // 추가 FC가 없으면 선택창 없이 본인 FC
+      else if (!SALES.fc || !selFcs.includes(SALES.fc)) SALES.fc = selFcs.includes(saved) ? saved : selFcs.includes(myFc) ? myFc : selFcs[0] || "";
       const fcSel = SALES.fc;
       const baseRows = (SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : ddaRows(data, ym)).filter((r) => !fcSel || r.srcFc === fcSel);
       // 따행: 활동대상 → 접촉현황 → 따행분류 (SOL 조회 조건과 같은 기준: 대상년월 · 활동대상 기본)
@@ -4737,7 +4759,7 @@
       const marked = rows.filter((r) => r.key && mark.get(r.key)).length;
       SALES.data = data;
       top.note = ymNote;
-      box.innerHTML = top(isAdmin() && fcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${fcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : "") +
+      box.innerHTML = top(selFcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${selFcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : "") +
         `<div id="salesBody">${SALES.tab === "dda" ? "" : `<div class="sales-info"><span>${SALES.tab === "dda" ? (bMode ? `${(SALES.dct || SALES.dcls || dfOn) ? `필터 ${rows.length}명` : `표시 ${rows.length}명`}` : `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}`) : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "transfer" ? `<span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span>` : ""}</div>`}` +
         (SALES.tab === "dda" ? `<div class="dfilter"><span class="dfl"><label><input type="checkbox" data-df="send" ${df.send ? "checked" : ""}> 설문발송</label><label><input type="checkbox" data-df="resp" ${df.resp ? "checked" : ""}> 설문응답</label><label><input type="checkbox" data-df="coupon" ${df.coupon ? "checked" : ""}> 쿠폰</label></span><button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></div>` : "") +
         (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.</p>`) +

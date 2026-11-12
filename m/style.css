@@ -694,3 +694,5 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .cov-table tr:last-child td { border-bottom: 0; }
 .cov-table td:first-child { color: var(--muted); white-space: nowrap; }
 .cov-table td.none { color: var(--muted); }
+.perm-sales { margin: 6px 0 4px; }
+.perm-sales > .hint { margin: 0 0 4px; font-size: 12px; }
