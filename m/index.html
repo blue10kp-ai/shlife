@@ -12,13 +12,12 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3">
   <link rel="stylesheet" href="style.css?v=142">
   <link rel="stylesheet" href="tokens.css?v=117">
-  <link rel="stylesheet" href="design.css?v=214">
+  <link rel="stylesheet" href="design.css?v=215">
 </head>
 <body>
   <header class="topbar">
-    <img class="tb-ico" src="icon.svg?v=3" width="30" height="30" alt="신한FC M">
     <button id="backBtn" class="back-btn" hidden aria-label="뒤로 가기"><span class="chev-l">‹</span><span id="backLabel">고객 정보</span></button>
-    <div class="tb-title"><small class="tb-brand">신한FC M</small><h1 id="title">고객</h1></div>
+    <div class="tb-title"><h1 id="title">고객</h1></div>
     <form id="topSearch" class="top-search" hidden role="search">
       <input id="q" type="search" placeholder="고객 검색" autocomplete="off" enterkeyhint="search" aria-label="고객 검색 (이름·연락처·주소·미팅장소)">
       <button type="button" class="mic-btn top-mic" id="topMic" aria-label="음성으로 검색"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
@@ -26,6 +25,7 @@
     </form>
     <button id="reloadBtn" class="text-btn icon-btn" hidden aria-label="새로고침" title="새로고침"><svg class="reload-ico" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
     <button id="logoutBtn" class="text-btn icon-btn" hidden aria-label="로그아웃" title="로그아웃"><svg class="power-ico" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 6.8a8 8 0 1 0 11.4 0"/></svg></button>
+    <img class="tb-ico" src="icon.svg?v=3" width="30" height="30" alt="신한FC M">
   </header>
 
   <main>
@@ -131,6 +131,6 @@
   <script async src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
   <script src="config.js?v=118"></script>
-  <script src="app.js?v=212"></script>
+  <script src="app.js?v=213"></script>
 </body>
 </html>

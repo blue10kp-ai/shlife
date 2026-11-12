@@ -496,3 +496,5 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .help-icon { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0 8px; border-bottom: 1px solid var(--line); }
 .help-icon img { flex: none; border-radius: 16px; }
 .help-icon p { margin: 4px 0 0; color: var(--t2); font-size: 13px; }
+.cust-bar [hidden] { display: none !important; } /* 수정 모드 버튼(취소·확인)은 수정할 때만 보이게 */
+.tb-title { justify-content: center; }
