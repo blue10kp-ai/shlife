@@ -3596,6 +3596,13 @@
   }
   const taskConnectHtml = (msg) => `<div class="card task-card"><h3 class="sec-title">할 일</h3><p class="hint">${esc(msg || "구글 할 일을 보려면 한 번 연결해 주세요.")}</p><button type="button" class="ev-edit" data-taskconnect>할 일 연결</button></div>`;
   let taskOwnerCal = "";
+  // 할 일 소유주 = 앱에 등록된 사용자 이름(관리자 화면의 이름), 없으면 내 기본 캘린더 이름
+  async function taskOwnerName() {
+    if (taskOwnerCal) return taskOwnerCal;
+    let n = ""; try { n = (await myFcName()) || ""; } catch (e) { n = ""; }
+    if (!n) { try { const pc = (await calendarList()).find((c) => c.primary); n = pc ? pc.name : ""; } catch (e) { n = ""; } }
+    return n;
+  }
   const taskItemHtml = (t) => `<li class="task-item${t.done ? " done" : ""}"><label><input type="checkbox" class="cb" data-task="${esc(t.listId)}|${esc(t.id)}" ${t.done ? "checked" : ""}> <span class="task-title">${esc(t.title)}</span>${taskOwnerCal ? ` <span class="ev-cal">- ${esc(taskOwnerCal)}</span>` : ""}</label>${t.list ? `<span class="hint task-list-name">${esc(t.list)}</span>` : ""}</li>`;
   // 하루 보기 맨 위 '할 일' 카드
   async function loadDayTasks(box, d, req) {
@@ -3605,7 +3612,7 @@
       const list = await fetchTasks(d, addDays(d, 1));
       if (req !== schedReq) return;
       // 소유주: 구글 할 일은 로그인한 구글 계정 것이라, 앱에 등록된 내 이름(없으면 구글 계정)을 제목에 붙임
-      try { const pc = (await calendarList()).find((c) => c.primary); taskOwnerCal = pc ? pc.name : ((await myFcName()) || ""); } catch (e) { taskOwnerCal = taskOwnerCal || ""; }
+      taskOwnerCal = await taskOwnerName();
       if (req !== schedReq) return;
       box.innerHTML = list.length ? `<div class="card task-card"><h3 class="sec-title">할 일 <small class="hint">${list.filter((t) => !t.done).length}/${list.length}</small></h3><ul class="task-list">${list.map(taskItemHtml).join("")}</ul></div>` : "";
     } catch (e) {
@@ -3621,7 +3628,7 @@
     if (!storedTasksToken()) return;
     try {
       const list = await fetchTasks(from, addDays(from, 7));
-      if (!taskOwnerCal) { try { const pc = (await calendarList()).find((c) => c.primary); taskOwnerCal = pc ? pc.name : ""; } catch (e) { /* 이름 없이 표시 */ } }
+      taskOwnerCal = await taskOwnerName();
       if (req !== schedReq) return;
       const cards = [...document.querySelectorAll("#schedBody .week-day")];
       list.forEach((t) => {
