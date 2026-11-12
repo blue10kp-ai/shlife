@@ -371,3 +371,24 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .ssn-in input { flex: 1; min-width: 0; text-align: center; letter-spacing: 1px; }
 .ssn-in .ssn-front { background: var(--raised); color: var(--t2); }
 .ssn-in .ssn-d1 { flex: none; width: 28px; text-align: center; font-weight: 600; color: var(--t2); background: var(--raised); border-radius: var(--r-ctl); padding: 9px 0; }
+.entry-head .rec-fc { margin-left: auto; text-align: right; white-space: nowrap; } /* 계약 카드: 모집 FC는 맨 오른쪽 */
+#tabBody .card .kv dt { text-align: center; } /* 계약 탭 등 표 왼쪽 필드명 가운데 정렬 */
+/* 뒤로 가기 버튼을 버튼 모양으로 (전체·본인 같은 선택 버튼과 같은 모양) */
+.back-btn { gap: 2px; padding: 4px 12px 4px 8px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t2); font-size: 13px; font-weight: 500; }
+.back-btn .chev-l { font-size: 20px; line-height: 1; }
+/* 고객 검색 버튼도 같은 모양 (강조색 테두리) */
+.page-search .search button.primary, #addUserForm button.primary { padding: 6px 14px; font-size: 13px; font-weight: 600; border: 1px solid var(--accent); border-radius: var(--r-ctl); background: var(--surface); color: var(--accent); box-shadow: none; }
+/* 관리자·설정 아래 떠 있는 취소/저장 버튼도 같은 버튼 모양 (저장=강조색 테두리, 취소=연한 테두리) */
+.float-save button { height: 30px; min-width: 0; padding: 0 14px; font-size: 13px; font-weight: 600; border-radius: var(--r-ctl); box-shadow: none; }
+.float-save .primary { background: var(--surface); color: var(--accent); border: 1px solid var(--accent); }
+.float-save .secondary { font-weight: 500; }
+/* 관리자·설정 화면의 버튼을 고객 화면 버튼(수정·검색)과 같은 모양으로: 작은 윤곽 버튼, 주요 버튼은 강조색 테두리 */
+#adminView .primary, #adminView .secondary, #adminView .del-btn, #adminView .link-btn, #adminView .row-save, #adminView .reset-btn {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; height: 30px; min-height: 0; padding: 0 14px;
+  border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t2); font-size: 13px; font-weight: 600; line-height: 1; text-decoration: none; box-shadow: none; white-space: nowrap; }
+#adminView .primary { border-color: var(--accent); color: var(--accent); }
+#adminView .del-btn { color: var(--bad); }
+#adminView .link-btn { color: var(--accent); }
+#adminView .primary:disabled, #adminView .secondary:disabled { opacity: .4; }
+#adminView .file-actions { gap: 8px; }
+#adminView .file-actions > * { min-width: 0; }

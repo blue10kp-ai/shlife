@@ -1421,7 +1421,12 @@
     if (tab.id === "all") return current.files;
     const kws = tab.keywords.map((k) => k.toLowerCase());
     const ex = tab.exclude ? new RegExp(tab.exclude, "i") : null;
-    return current.files.filter((f) => kws.some((k) => f.path.toLowerCase().includes(k)) && !(ex && ex.test(f.name)));
+    const out = current.files.filter((f) => kws.some((k) => f.path.toLowerCase().includes(k)) && !(ex && ex.test(f.name)));
+    if (tab.id !== "analysis") return out;
+    // 분석 탭: 워드(docx) 파일은 숨기고, ① AI/클로드 분석 보고서 ② 스마트보장분석 ③ 손해담보 ④ 그 밖의 순으로 (같은 종류는 파일 이름 앞 날짜가 최근인 것부터)
+    const rank = (f) => { const n = f.name.replace(/\s/g, ""); return /AI.*분석|클로드|claude|보장분석보고서|심화분석/i.test(n) ? 0 : /스마트보장분석/.test(n) ? 1 : /손해담보/.test(n) ? 2 : 3; };
+    return out.filter((f) => kind(f.name) !== "word")
+      .map((f, i) => [f, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || String(b[0].name).localeCompare(String(a[0].name)) || a[1] - b[1]).map((x) => x[0]);
   }
 
   function renderTabs() {
@@ -2287,7 +2292,8 @@
         <div class="entry-head"><span class="tag t-${esc(c.type)}">${esc(c.type)}</span>
           ${status ? `<span class="tag">${esc(status)}</span>` : ""}
           ${ref ? `<span class="tag ref-tag">담당 ${esc(c.fc)} · 참고</span>` : ""}
-          <span class="hint">${esc([ref ? "" : c.fc, c.row["이관일자"] ? "이관 " + c.row["이관일자"] : ""].filter(Boolean).join(" · "))}</span></div>
+          ${c.row["이관일자"] ? `<span class="hint">${esc("이관 " + c.row["이관일자"])}</span>` : ""}
+          ${!ref && c.fc ? `<span class="hint rec-fc">${esc("모집 FC: " + c.fc)}</span>` : ""}</div>
         <div class="contract-title">${esc(productName(c.row["상품명"]) || "(상품명 없음)")}</div>
         <dl class="kv">${shown.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
         ${pdfButton(pdf)}
