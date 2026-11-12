@@ -828,6 +828,14 @@
 
   // 고객 범위 옵션: 전체 / 본인(계약) / 이관 / DB / 따행 / 가망. 본인부터는 다중 선택(고른 것 중 하나라도 해당하면 포함), 전체는 선택 해제.
   const optSel = new Set();
+  // 성향 버튼: 누를 때마다 Good → Bad → Shit → Good. Good은 기본(걸러내지 않음), Bad·Shit은 그 성향의 고객만 보기
+  let gradeFilter = "Good";
+  function syncGradeOpt() {
+    const b = $("gradeOpt"); if (!b) return;
+    b.textContent = "성향 " + gradeFilter;
+    b.classList.toggle("g-bad", gradeFilter === "Bad");
+    b.classList.toggle("g-shit", gradeFilter === "Shit");
+  }
   const OPT_LABEL = { contract: "본인", transfer: "이관", db: "DB", ddahaeng: "따행", plan: "가망" };
   function syncOpts() { document.querySelectorAll("#searchOpts [data-opt]").forEach((b) => b.classList.toggle("on", b.dataset.opt === "all" ? optSel.size === 0 : optSel.has(b.dataset.opt))); }
   const typeOfOpt = (id) => (CFG.lists.find((l) => l.id === id) || {}).label;
@@ -895,7 +903,7 @@
       const groups = groupCustomers(hits);
       // 고객 안의 시트는 우선순위 순 (계약 > 이관 > 따행 > DB > 가망)
       groups.forEach((c) => { c.entries.sort((a, b) => prio(a.type) - prio(b.type)); c.name = c.entries[0].name; });
-      const custs = groups.sort((a, b) => baseName(a.name).localeCompare(baseName(b.name), "ko") || a.name.localeCompare(b.name, "ko"));
+      const custs = groups.filter((c) => gradeFilter === "Good" || gradeOf(c).toLowerCase() === gradeFilter.toLowerCase()).sort((a, b) => baseName(a.name).localeCompare(baseName(b.name), "ko") || a.name.localeCompare(b.name, "ko"));
       // 피보험자 고객: 계약의 주·종피보험자ID로 계약자를 찾아 한 줄로 보여 줌 (보이는 범위(records) 안의 계약자만, 표시 전용)
       const insLines = new Map(), churnMap = new Map();
       if (custs.length) {
@@ -926,7 +934,7 @@
         grp.entries.sort((a, b) => prio(a.type) - prio(b.type)); grp.name = grp.entries[0].name;
         openCustomer(grp);
       };
-      const label = (want ? want.label + " " : "") + (optTypes.length ? optTypes.map((id) => OPT_LABEL[id]).join("·") + " " : "");
+      const label = (want ? want.label + " " : "") + (optTypes.length ? optTypes.map((id) => OPT_LABEL[id]).join("·") + " " : "") + (gradeFilter !== "Good" ? "성향 " + gradeFilter + " " : "");
       status.textContent = custs.length ? label + custs.length + "명 찾음" : (q ? "'" + q + "' " : "") + label + "고객이 없습니다.";
       $("pageSearch").hidden = custs.length > 0 || !!force; // 못 찾으면 화면 안 검색창으로 다시 검색
       if (custs.length === 1 && q) return openCustomer(custs[0]);
@@ -1788,7 +1796,10 @@
             <input type="hidden" data-ex="${esc(k)}" value="${p[0] ? pad2(p[0]) + pad2(p[1]) : v}">
           </div>`;
       } else if (/메모/.test(k)) input = `<textarea data-ex="${esc(k)}" rows="4">${v}</textarea>`;
-      else if (k === EXTRA.carrierCol) input = `<input data-ex="${esc(k)}" value="${v}" list="carrierList" autocomplete="off" placeholder="SKT">`;
+      else if (k === EXTRA.carrierCol) { // 통신사는 목록에서 고르기만 함 (예전에 다른 글자로 저장된 값은 그대로 보이게 목록에 추가)
+        const cur = String(ev[k] || "").trim(), base = ["SKT", "KT", "LG U+", "알뜰폰"], opts = cur && !base.includes(cur) ? [cur, ...base] : base;
+        input = `<select data-ex="${esc(k)}"><option value=""></option>${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+      }
       else input = `<input data-ex="${esc(k)}" value="${v}" autocomplete="off">`;
       return `<label class="fld ${EXTRA.monthDayCols.includes(k) ? "fld-md" : ""}"><span>${esc(k)}</span>${input}</label>`;
     };
@@ -2380,10 +2391,10 @@
     const s = appSettings;
     return `<div class="card" id="settingsCard">
         <h3 class="sec-title">설정</h3>
-        <details class="fold" id="gFold"><summary>구글 캘린더 설정 <span class="hint">${esc(((s.google || {}).calendars || []).map((c) => c.name).join(", ") || "기본(1팀·김현성·최수진)")}</span></summary>
+        <details class="fold" id="gFold"><summary>구글 캘린더 설정</summary>
           <div id="gCalBox"></div></details>
-        <label class="fld"><span>회사 주소 (일정 이동시간 계산의 출발·도착 기준)</span>
-          <input id="setCompany" value="${esc(s.companyAddress || "")}" placeholder="예: 광주광역시 서구 상무중앙로 98" autocomplete="off"></label>
+        <div class="fld"><span>회사 주소 (일정 이동시간 계산의 출발·도착 기준)</span>
+          <div class="key-row"><input id="setCompany" value="${esc(s.companyAddress || "")}" placeholder="예: 광주광역시 서구 상무중앙로 98" autocomplete="off" readonly><button type="button" class="secondary" id="companyEdit">수정</button></div></div>
         <div class="fld"><span>카카오 REST API 키 (이동 거리·시간 계산용)</span>
           <div class="key-row"><input id="setKakao" value="${esc(s.kakaoRestKey || "")}" placeholder="developers.kakao.com › 앱 › 플랫폼 키" autocomplete="off" spellcheck="false" readonly><button type="button" class="secondary" id="kakaoEdit">수정</button></div></div>
         ${rhOptHtml()}
@@ -2404,9 +2415,14 @@
     const dirty = () => { const v = read(); return v.companyAddress !== (appSettings.companyAddress || "") || v.kakaoRestKey !== (appSettings.kakaoRestKey || "") || calKey(v.google) !== calKey(appSettings.google); };
     ["input", "change"].forEach((ev) => $("settingsCard").addEventListener(ev, () => { btn.disabled = !dirty(); }));
     // 카카오 키는 실수로 바꾸지 않게 잠가 두고, '수정'을 눌러야 고칠 수 있음 (저장하면 다시 잠금)
-    const kk = $("setKakao"), kb = $("kakaoEdit");
-    const kakaoLock = (lock) => { kk.readOnly = lock; kb.textContent = lock ? "수정" : "잠금"; if (!lock) { kk.focus(); } };
-    kb.addEventListener("click", () => { if (kk.readOnly) kakaoLock(false); else { kakaoLock(true); } });
+    //   회사 주소도 같은 방식
+    const lockPair = [["setKakao", "kakaoEdit"], ["setCompany", "companyEdit"]].map(([iid, bid]) => {
+      const inp = $(iid), b = $(bid);
+      const lock = (on) => { inp.readOnly = on; b.textContent = on ? "수정" : "잠금"; if (!on) inp.focus(); };
+      b.addEventListener("click", () => lock(!inp.readOnly));
+      return lock;
+    });
+    const kakaoLock = (on) => lockPair.forEach((f) => f(on));
     btn.addEventListener("click", async () => {
       btn.disabled = true; btn.textContent = "저장 중…";
       try {
@@ -4062,7 +4078,7 @@
   // 일정 수정 모드: 이 일정만 '수정' 대신 '취소 · 완료'(맨 위 오른쪽), 다른 일정의 '수정'은 숨김
   function setEventEditing(i, on) {
     const box = $("evForm" + i), acts = $("evActs" + i);
-    if (!on) box.innerHTML = "";
+    if (!on) { box.innerHTML = ""; const tl = $("ev" + i).querySelector(".ev-title-l"); if (tl && tl.dataset.orig != null) { tl.innerHTML = tl.dataset.orig; delete tl.dataset.orig; } } // 제목 입력칸을 원래 제목으로
     acts.hidden = !on;
     document.querySelectorAll("#dayList [data-evedit], #dayList [data-evdel]").forEach((b) => { b.hidden = on; });
     $("ev" + i).classList.toggle("editing", on);
@@ -4075,7 +4091,6 @@
     box.innerHTML = `<div class="ev-form">
         <label class="fld"><span>캘린더</span><select data-f="cal">${schedCals.filter((c) => (GCFG.calendars || []).includes(c.name) || c.id === e.calId).map((c) =>
           `<option value="${esc(c.id)}" ${c.id === e.calId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
-        <label class="fld"><span>제목</span><input data-f="title" value="${esc(e.title)}" autocomplete="off"></label>
         <label class="fld"><span>날짜</span><input data-f="date" type="date" value="${ymdStr(e.start)}"></label>
         ${e.allDay ? `<label class="fld"><span>종료 날짜</span><input data-f="endDate" type="date" value="${ymdStr(endDay)}"></label>`
           : `<div class="fld-2"><label class="fld"><span>시작</span><input data-f="start" type="time" value="${hm(e.start)}"></label>
@@ -4084,8 +4099,12 @@
         <label class="fld"><span>설명</span><textarea data-f="desc" rows="3">${esc(e.desc)}</textarea></label>
       </div>`;
     setEventEditing(i, true);
+    { // 수정 모드에 들어가면 카드 위의 일정 제목이 바로 수정 칸이 됨
+      const tl = $("ev" + i).querySelector(".ev-title-l");
+      if (tl) { tl.dataset.orig = tl.innerHTML; tl.innerHTML = `<input data-f="title" class="ev-title-in" value="${esc(e.title)}" autocomplete="off" aria-label="일정 제목">`; }
+    }
     const acts = $("evActs" + i);
-    const val = (k) => (box.querySelector(`[data-f="${k}"]`) || {}).value;
+    const val = (k) => ((box.querySelector(`[data-f="${k}"]`) || $("ev" + i).querySelector(`[data-f="${k}"]`)) || {}).value;
     acts.querySelector("[data-f-cancel]").onclick = () => setEventEditing(i, false);
     acts.querySelector("[data-f-save]").onclick = async (ev) => {
       const btn = ev.currentTarget;
@@ -4935,7 +4954,7 @@
     const ym = SALES.ym;
     const top = (fcHtml) => `<div class="sales-top">
         <div class="seg"><button type="button" data-stab="transfer" class="${SALES.tab === "transfer" ? "on" : ""}">이달이관</button><button type="button" data-stab="dda" class="${SALES.tab === "dda" ? "on" : ""}">따행</button></div>
-        <div class="sline2${fcHtml ? "" : " center"}"><div class="ymnav"><button type="button" data-ym="-1" aria-label="이전 달">‹</button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달">›</button>${top.note || ""}</div>${fcHtml}</div></div>`;
+        <div class="sline2${fcHtml ? "" : " center"}"><div class="ymnav"><button type="button" data-ym="-1" aria-label="이전 달"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>${top.note || ""}</div>${fcHtml}</div></div>`;
     if (!keep || !box.querySelector("#salesBody .slist, #salesBody .sales-info")) box.innerHTML = top("") + `<div id="salesBody"><p class="hint pad">불러오는 중…</p></div>`; // keep이면 기존 목록을 그대로 두고 새 내용으로 바꿈
     try {
       const data = await loadSalesData();
@@ -5045,6 +5064,12 @@
   document.addEventListener("change", (ev) => { // 고객 FC 선택창(FC가 6명 이상일 때)
     if (!ev.target || ev.target.id !== "fcoSel") return;
     try { localStorage.setItem(listFcKey(), ev.target.value); } catch (e) { /* 저장 못 해도 이번엔 적용 */ }
+    search(curQuery(), true);
+  });
+  document.addEventListener("click", (ev) => { // 성향 버튼: Good → Bad → Shit → Good
+    if (!(ev.target.closest && ev.target.closest("#gradeOpt"))) return;
+    gradeFilter = gradeFilter === "Good" ? "Bad" : gradeFilter === "Bad" ? "Shit" : "Good";
+    syncGradeOpt();
     search(curQuery(), true);
   });
   document.addEventListener("click", (ev) => { // 고객 범위 옵션 (전체 = 해제하고 바로 검색 / 본인·이관·DB·따행·가망 = 다중 선택)
