@@ -632,3 +632,4 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .sline .nmw.grade-good a { color: var(--text); }
 .sline .nmw.grade-bad a { color: #e68a00; }
 .sline .nmw.grade-shit a { color: #e53935; }
+.edit-btns { flex: none; display: inline-flex; gap: 6px; }

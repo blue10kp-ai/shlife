@@ -1257,6 +1257,7 @@
     $("editBtn").textContent = "수정";
     $("editBtn").hidden = false;
     $("editBtn").classList.remove("on");
+    $("editBtns").hidden = true;
     $("photoMenu").hidden = true;
     $("avatar").classList.remove("editable");
     consultShowAll = false; // 상담기록은 처음엔 최근 10건
@@ -1753,8 +1754,9 @@
   // 맨 위 '수정' 버튼: 성향 버튼 · 사진 바꾸기 · 정보 수정 화면
   function setEditMode(on, noRender) {
     editMode = on;
-    $("editBtn").textContent = on ? "닫기" : "수정";
-    $("editBtn").classList.toggle("on", on);
+    $("editBtn").textContent = "수정";
+    $("editBtn").hidden = on || !!(current && isRO(current.fc)); // 수정 중에는 위쪽에 저장·취소
+    $("editBtns").hidden = !on;
     $("photoMenu").hidden = true;
     renderGrade(current.cust);
     $("avatar").classList.toggle("editable", on);
@@ -2835,6 +2837,8 @@
     }
   });
   $("editBtn").addEventListener("click", () => { if (current) setEditMode(!editMode); });
+  $("editCancel").addEventListener("click", () => { if (current) setEditMode(false); });
+  $("editSave").addEventListener("click", () => { if (!current) return; if ($("infoSave")) saveInfo(); else setEditMode(false); });
   $("photoPick").addEventListener("click", () => { $("photoMenu").hidden = true; $("photoInput").click(); });
   $("photoMenuClose").addEventListener("click", () => { $("photoMenu").hidden = true; });
   $("photoDel").addEventListener("click", async () => {
