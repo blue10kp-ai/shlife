@@ -487,3 +487,12 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .sline.l4 .ad { flex: 1 1 60%; color: var(--text); }
 /* 고객 페이지 검색 버튼: 옆 마이크 버튼과 같은 높이(30) */
 #pageSearch .search button.primary { box-sizing: border-box; height: 30px; min-height: 0; padding: 0 14px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+/* 화면 왼쪽 위: 아이콘 + 신한FC M(구분 표시) + 페이지 이름 */
+.tb-ico { flex: none; width: 30px; height: 30px; border-radius: 8px; }
+.tb-title { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 1.15; flex: none; }
+.topbar:not(:has(#topSearch:not([hidden]))) .tb-title { flex: 1; }
+.tb-brand { font-size: 10.5px; font-weight: 600; letter-spacing: .2px; color: var(--accent); }
+.tb-title h1 { flex: none; margin: 0; font-size: 16px; line-height: 1.2; }
+.help-icon { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0 8px; border-bottom: 1px solid var(--line); }
+.help-icon img { flex: none; border-radius: 16px; }
+.help-icon p { margin: 4px 0 0; color: var(--t2); font-size: 13px; }

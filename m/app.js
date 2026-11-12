@@ -887,12 +887,22 @@
       const meets = await loadMeetingPlaces().catch(() => []);
       const meetOf = (r) => meets.filter((m) => norm(m.name) === norm(r.name) && sameFc(m.fc, r.fc)).map((m) => m.mp)
         .concat(r.fields.filter(([k]) => k.trim() === "미팅장소").map(([, v]) => v)).join(" ");
+      // 증권번호 검색: 숫자 5자리 이상이면 그 증권번호가 들어간 계약의 계약자·피보험자도 찾음
+      let polIds = null, polNames = null;
+      if (dq.length >= 5 && dq === q.replace(/[\s-]/g, "")) {
+        const cts = (await loadContracts().catch(() => [])).filter((c) => digits(c.row["증권번호"]).includes(dq));
+        if (cts.length) {
+          polIds = new Set(cts.flatMap((c) => [c.row["계약자ID"], c.row["주피보험자ID"], c.row["종피보험자ID"]]).map((x) => String(x || "").trim()).filter(Boolean));
+          polNames = cts.flatMap((c) => (c.names || []).map((n) => n + "|" + (c.srcFc || c.fc)));
+        }
+      }
       const optTypes = [...optSel]; // 고른 범위 (따행은 따행 시트 고객 + 고객 시트의 따행대상='예')
       const hits = records.filter((r) => {
         if (fcPick !== FC_ALL && r.fc !== fcPick) return false;
         if (want && r.type !== want.label) return false;
         if (optTypes.length && !optTypes.some((id) => id === "ddahaeng" ? (r.type === typeOfOpt(id) || fieldOf(r, "따행대상") === "예") : r.type === typeOfOpt(id))) return false;
         if (!q) return true;
+        if (polIds && (polIds.has(idOf(r)) || (!idOf(r) && polNames.includes(norm(baseName(r.name)) + "|" + r.fc)))) return true;
         if (norm(r.name).includes(nq)) return true;
         if (dq.length >= 3 && dq === q.replace(/[\s-]/g, "") && digits(r.phone).includes(dq)) return true;
         if (nq.length < 2) return false;
@@ -3039,6 +3049,7 @@
   const fsWait = async (b) => { for (let i = 0; i < 160 && b.isConnected && /저장 중/.test(b.textContent); i++) await new Promise((r) => setTimeout(r, 150)); };
   // ---------- 설명서: 관리자·설정 화면의 설명을 한곳에 모음 (아래 '설명서' 버튼) ----------
   function helpHtml() {
+    const iconBox = `<div class="help-icon"><img src="icon.svg?v=3" width="72" height="72" alt="신한FC 앱 아이콘"><div><b>앱 아이콘 안내</b><p>고객의 보장을 지키는 <b>방패</b> 안에, 계약과 실적이 꾸준히 <b>오르는 화살표</b>를 담았습니다. 보험 설계사의 일(고객을 지키고, 함께 성장하는 것)을 한 그림으로 줄였습니다.</p><p>연한 하늘색 바탕과 파란 선은 신뢰감 있고 차분한 업무용 앱의 느낌을 주고, 굵은 윤곽선 방패는 작은 홈 화면 아이콘에서도 또렷하게 보이도록 단순하게 만들었습니다. 모바일 화면 위쪽에는 "신한FC M", PC 화면 왼쪽 위에는 "신한FC"로 함께 표시됩니다.</p></div></div>`;
     const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
     const common = [
       sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭, 이동 거리·예상 시간, 회사 출발·도착을 계산합니다. 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]),
@@ -3046,13 +3057,13 @@
       sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]),
       sec("저장과 취소", ["바뀐 내용이 있을 때만 아래 [저장]·[취소]가 켜집니다. 저장은 바뀐 모든 카드를 한꺼번에 저장하고, 취소는 바뀐 내용을 버리고 처음 상태로 되돌립니다."])
     ];
-    if (!isAdmin()) return common.join("");
+    if (!isAdmin()) return iconBox + common.join("");
     const adm = [
       sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]),
       sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]),
       sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다.", "<b>구글 캘린더 설정</b>: 관리자의 기본 캘린더와 영업·정보 캘린더를 고릅니다."])
     ];
-    return adm.join("") + common.join("");
+    return iconBox + adm.join("") + common.join("");
   }
   function openHelp() {
     let box = $("helpModal");
