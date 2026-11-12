@@ -3307,7 +3307,9 @@
 
   // 동명이인 확인: 일정에 주소를 입력한 고객으로 지정 (이 기기에 저장, '초기화'로 지움)
   const PICK_KEY = "shlife.eventPick";
-  const custKey = (c) => norm(baseName(c.name)) + "|" + String(c.birth || "").replace(/\D/g, "");
+  // 선택 키: 고객ID가 있으면 ID(동명이인·생년월일 없음도 구분), 없으면 이름|생년월일. 옛 키(이름|생년월일)도 읽을 수 있게 둔다
+  const custKeyOld = (c) => norm(baseName(c.name)) + "|" + String(c.birth || "").replace(/\D/g, "");
+  const custKey = (c) => { const id = (c.entries || []).map(idOf).find(Boolean); return id ? "id:" + id : custKeyOld(c); };
   function readPicks() { try { return JSON.parse(localStorage.getItem(PICK_KEY) || "{}"); } catch (e) { return {}; } }
   function savePick(eventKey, ck) {
     const p = readPicks();
@@ -3362,10 +3364,14 @@
     const items = evs.map((e) => {
       const all = isInfoEvent(e) ? matchCustomers(e.title, records, contracts) : [];
       let custs = all;
-      const pk = picks[e.id] || e.pick;
+      const pk = e.pick || picks[e.id]; // 구글 일정에 저장된 값(모든 기기 공유)을 먼저
       const ignored = pk === IGNORE_KEY && all.length > 0;
       if (ignored) custs = [];
-      else if (pk && custs.length > 1) { const one = custs.filter((c) => custKey(c) === pk); if (one.length) custs = one; }
+      else if (pk && custs.length > 1) {
+        let one = custs.filter((c) => custKey(c) === pk);
+        if (!one.length) one = custs.filter((c) => custKeyOld(c) === pk); // 예전에 저장된 키
+        if (one.length) custs = one.slice(0, 1);
+      }
       return { e, custs, all, ignored };
     });
     dayItems = items;
