@@ -26,7 +26,7 @@ main { padding: 16px 16px calc(96px + env(safe-area-inset-bottom)); }
 .recent { box-shadow: none; border-radius: var(--r-card); }
 
 /* ── 2. 하단 메뉴: 선 아이콘 + 글자, 선택은 위쪽 책갈피 선 ── */
-.mainnav { background: var(--surface); border-top: 1px solid var(--line); padding: 0 8px max(0px, calc(env(safe-area-inset-bottom) - 10px)); }
+.mainnav { background: var(--surface); border-top: 1px solid var(--line); padding: 0 8px max(0px, calc(env(safe-area-inset-bottom) - 10px)) calc(100% / 3); } /* 넓은 폰: 메뉴는 오른쪽 약 2/3에 모아 둠 (v120) */
 .mainnav button { min-height: 60px; gap: 4px; font-size: 11px; font-weight: 500; color: var(--t3); border-radius: 0; background: none; position: relative; }
 .mainnav .ni { display: block; line-height: 0; filter: none; opacity: 1; }
 .mainnav .ni svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
