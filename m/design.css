@@ -256,3 +256,15 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .ev-line2 .ev-edit { margin-left: 0; }
 .ev-hid { margin: 2px 0 0; }
 .ev-card.deleted .ev-line2 { opacity: .4; pointer-events: none; }
+/* 시간·종일 글씨는 더 옅게, 시간과 제목 사이 '|' 구분 글자는 삭제(간격만) */
+.ev-time { color: var(--t3); font-weight: 400; }
+.ev-row .ev-time, .week-day .ev-time { margin-right: 8px; }
+/* 일정 제목은 한 줄에만 표시(길면 …로 줄임), 해당 없음은 항상 둘째 줄 오른쪽 끝(수정·삭제 바로 아래) */
+.ev-line2 { flex-wrap: nowrap; }
+.ev-line2 .ev-title-l { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-line2 .ev-edit { flex: none; }
+/* 선택 버튼은 고객 이름과 같은 줄(이름 오른쪽 끝) */
+.ev-namerow { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.ev-namerow .ev-name { flex: 1; min-width: 0; width: auto; padding: 0 0 2px; }
+.ev-namerow .pick-btn { position: static; flex: none; }
+.ev-cust:has(.pick-btn) .ev-namerow .ev-name { padding-right: 0; }

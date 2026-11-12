@@ -3327,7 +3327,7 @@
 
   const calDot = (e) => `<span class="cal-dot" style="background:${esc(e.cal.color || "var(--brand)")}"></span>`;
   // "10:00 ~ 11:00 스케줄명 - 캘린더" 한 줄
-  const evLine = (e) => `<span class="ev-time">${esc(timeText(e))}</span><span class="ev-sep">|</span><span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}</span>`;
+  const evLine = (e) => `<span class="ev-time">${esc(timeText(e))}</span><span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}</span>`;
 
   function renderWeek(events, from) {
     let html = "";
@@ -3519,10 +3519,9 @@
     const types = [...new Set(c.entries.map((x) => x.type))];
     const g = genderOf(c);
     return `<div class="ev-cust">
-        <button type="button" class="ev-name" data-open="${i}-${j}"><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>
+        <div class="ev-namerow"><button type="button" class="ev-name" data-open="${i}-${j}"><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>
           ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button>
-        ${multi ? `<button type="button" class="pick-btn" data-pick="${i}-${j}">선택</button>` : ""}
-        ${pinned ? `<button type="button" class="pick-btn" data-unpick="${i}">다시 선택</button>` : ""}
+        ${multi ? `<button type="button" class="pick-btn" data-pick="${i}-${j}">선택</button>` : ""}${pinned ? `<button type="button" class="pick-btn" data-unpick="${i}">다시 선택</button>` : ""}</div>
         <dl class="ev-info">
           ${c.birth ? `<dt>생년월일</dt><dd>${esc(c.birth)}${g ? ` (${esc(g)})` : ""}</dd>` : ""}
           ${phone ? `<dt>연락처</dt><dd><a class="nowrap" href="tel:${esc(phone.replace(/[^\d+]/g, ""))}">${esc(phone)}</a></dd>` : ""}
