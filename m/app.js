@@ -2728,10 +2728,11 @@
           ${users.map((em) => `<div class="perm-row" data-em="${esc(em)}">
             <div class="perm-head">
               <span class="perm-id"><input type="text" class="perm-name" data-name placeholder="이름(FC명) 입력" value="${esc(nameOfEm(em))}" maxlength="20" aria-label="${esc(em)} 이름"><span class="perm-mail">${esc(em)}</span></span>
-              <span class="perm-btns"><button type="button" class="secondary row-save" data-rowsave="${esc(em)}" hidden>저장</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button></span>
+              <span class="perm-btns"><button type="button" class="secondary" data-rowedit="${esc(em)}">수정</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button><button type="button" class="secondary" data-rowcancel="${esc(em)}" hidden>취소</button><button type="button" class="primary row-save" data-rowsave="${esc(em)}" hidden>저장</button></span>
             </div>
             <div class="perm-sens"><label class="chip"><input type="checkbox" class="cb" data-sens="${esc(em)}" ${(perms.sensitive || []).includes(em) ? "checked" : ""} aria-label="${esc(em)} 민감정보 접근"> 민감정보 접근 허용</label></div>
-            <div class="perm-sales"><p class="hint">영업 추가 FC</p><div class="perm-fcs">${fcs.map((fc) => { const own = !!nameOfEm(em) && fc === nameOfEm(em); return `<span class="chip"><label><input type="checkbox" class="cb" data-sf="${esc(em)}|${esc(fc)}" ${own ? 'data-own="1" checked disabled' : ((perms.salesFcs || {})[em] || []).includes(fc) ? "checked" : ""} aria-label="${esc(em)} 영업 ${esc(fc)}"> ${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</label></span>`; }).join("")}</div></div>
+            <div class="perm-sales"><p class="hint">영업 페이지 접근 허용</p><div class="perm-fcs">${fcs.map((fc) => { const own = !!nameOfEm(em) && fc === nameOfEm(em); return `<span class="chip"><label><input type="checkbox" class="cb" data-sf="${esc(em)}|${esc(fc)}" ${own ? 'data-own="1" checked disabled' : ((perms.salesFcs || {})[em] || []).includes(fc) ? "checked" : ""} aria-label="${esc(em)} 영업 ${esc(fc)}"> ${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</label></span>`; }).join("")}</div></div>
+            <p class="hint perm-lbl">고객 페이지 접근 허용</p>
             <div class="perm-fcs">
               <label class="chip chip-all" ${isAll(em) ? "" : "hidden"} title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
               ${fcs.map((fc) => `<span class="chip"><label><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} aria-label="${esc(em)} ${esc(fc)}"> ${esc(fc)}</label><label class="ro-lbl" title="체크하면 이 FC 고객 정보를 수정할 수 있음 (체크 안 하면 보기만)"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${has(em, fc) && !isAll(em) ? "" : "disabled"} aria-label="${esc(em)} ${esc(fc)} 수정"> 수정</label></span>`).join("")}
@@ -2780,7 +2781,7 @@
     const isDiff = (r) => !same(sel(r), listOf(r.dataset.em)) || needsShare(r) || nameVal(r) !== nameOfEm(r.dataset.em);
     const changed = () => rows.filter(isDiff);
     const refresh = () => {
-      rows.forEach((r) => { r.classList.toggle("changed", isDiff(r)); const rb = r.querySelector("[data-rowsave]"); if (rb) rb.hidden = !isDiff(r); });
+      rows.forEach((r) => { r.classList.toggle("changed", isDiff(r)); });
       const n = changed().length;
       $("savePerms").disabled = !n;
       $("resetPerms").disabled = !n;
@@ -2862,7 +2863,20 @@
     collectPending = collectRows;
     applyPending = applyRows;
     $("savePerms").addEventListener("click", () => savePerms(changed().map((r) => [r.dataset.em, sel(r), nameVal(r)])));
-    rows.forEach((r) => { const rb = r.querySelector("[data-rowsave]"); if (rb) rb.addEventListener("click", () => savePerms([[r.dataset.em, sel(r), nameVal(r)]])); }); // 이 계정만 저장 (다른 계정은 그대로)
+    // 사용자 카드는 평소 잠겨 있음: [수정][삭제] → 수정 모드에서는 [취소][저장] (저장·취소하면 다시 잠기고 버튼도 [수정][삭제]로 돌아옴)
+    const rowLock = (r, lock) => {
+      r.classList.toggle("locked", lock);
+      r.querySelector("[data-name]").readOnly = lock;
+      r.querySelectorAll(".perm-sens, .perm-sales, .perm-fcs").forEach((x) => { if (lock) x.setAttribute("inert", ""); else x.removeAttribute("inert"); });
+      r.querySelector("[data-rowedit]").hidden = !lock; r.querySelector("[data-del]").hidden = !lock;
+      r.querySelector("[data-rowcancel]").hidden = lock; r.querySelector("[data-rowsave]").hidden = lock;
+    };
+    rows.forEach((r) => {
+      rowLock(r, true);
+      r.querySelector("[data-rowedit]").addEventListener("click", () => rowLock(r, false));
+      r.querySelector("[data-rowcancel]").addEventListener("click", () => { applyRows([[r.dataset.em, listOf(r.dataset.em), nameOfEm(r.dataset.em)]]); rowLock(r, true); refresh(); }); // 바꾼 내용을 버리고 처음 값으로
+      r.querySelector("[data-rowsave]").addEventListener("click", () => { if (!isDiff(r)) { rowLock(r, true); return; } savePerms([[r.dataset.em, sel(r), nameVal(r)]]); }); // 이 계정만 저장 (저장하면 화면을 다시 그려 잠김)
+    });
 
     // 사용자 추가 시 저장 전 체크 상태 보존용
     function collectRows() { return rows.map((r) => [r.dataset.em, sel(r), nameVal(r)]); }
@@ -3023,7 +3037,7 @@
     ];
     if (!isAdmin()) return common.join("");
     const adm = [
-      sec("사용 FC 현황 (권한)", ["이름(FC명)을 적고, 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 추가 FC</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 위에서 보기 권한을 준 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]),
+      sec("사용 FC 현황 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]),
       sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]),
       sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다.", "<b>구글 캘린더 설정</b>: 관리자의 기본 캘린더와 영업·정보 캘린더를 고릅니다."])
     ];

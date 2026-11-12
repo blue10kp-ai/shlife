@@ -441,3 +441,7 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .help-body li { margin-bottom: 4px; color: var(--t2); }
 .add-user { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
 .add-user .sub-title { margin: 0 0 8px; font-size: 14px; font-weight: 600; color: var(--t1); }
+/* 사용자 카드 잠금 */
+.perm-row.locked .perm-name { border-bottom-color: transparent; background: transparent; }
+.perm-row.locked [inert] { opacity: .75; }
+.perm-lbl { margin: 10px 0 4px; }
