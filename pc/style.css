@@ -232,7 +232,7 @@ section.sol table tr.sub td{color:#14213D}
 .g-good{color:#000}
 .g-bad{color:#E67E00}
 .g-shit{color:#E53935}
-td.nm b.g-good{color:#1A8A4A}
+td.nm b.g-good{color:#000}
 
 /* 고객 표: 한 칸 한 줄, 표 안에서 위아래·좌우로 스크롤(좌우 스크롤바가 화면 아래쪽에 보임) */
 .wrap.tall{max-height:calc(100vh - 345px);overflow:auto}
