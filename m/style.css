@@ -722,3 +722,4 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .task-item.done .task-title { text-decoration: line-through; color: var(--muted); }
 .task-list-name { flex: none; font-size: 12px; }
 .task-row.done { color: var(--muted); text-decoration: line-through; }
+.task-owner { font-weight: 500; color: var(--muted); font-size: 13px; }

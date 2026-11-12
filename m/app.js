@@ -1630,7 +1630,7 @@
         ${canSens() && accts.length ? row("계좌", accts.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
         ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
         ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
-        ${addrs.length ? row("주소", addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
+        ${addrs.length ? `<dt>주소</dt><dd class="dd-left">${addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")}</dd>` : ""}
         ${carRows.length ? row("차량", carRows.map((r) => `<div>${esc(r.num || "-")}${r.d ? ` · 보험 갱신 ${esc(mdText(r.d))}` : ""}</div>`).join("")) : ""}
         ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
         ${rest.map(([k, vs]) => /가입\s*설계\s*동의\s*만료일/.test(k) ? row("설계 동의 만료", vs.map((v) => `<div>${esc(v)}</div>`).join("")) : k === "신한라이프 유지계약" ? row("유지 계약", vs.map((v) => `<div>${esc(/^\d+$/.test(String(v).trim()) ? String(v).trim() + "건" : v)}</div>`).join("")) : row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
@@ -1772,9 +1772,6 @@
     const fld = (f) => `<label class="fld"><span>${esc(f.label)}</span>
         ${f.select ? `<select data-edit="${esc(f.label)}">${selOpts(f)}</select>` : f.multi ? `<textarea data-edit="${esc(f.label)}" rows="2">${esc(currentValue(c, f.cols))}</textarea>`
           : `<input data-edit="${esc(f.label)}" value="${esc(currentValue(c, f.cols))}" type="${f.type}" autocomplete="off"${f.list ? ` list="${f.list}"` : ""}${f.ph ? ` placeholder="${esc(f.ph)}"` : ""}>`}</label>`;
-    // 후번호·계좌는 민감정보 접근이 허용된 계정에게만 수정 칸을 보여 줌
-    const listFields = canList ? EDIT_FIELDS.filter((f) => !f.paired && (canSens() || f.label !== "계좌")).map((f) => f.pair
-      ? (canSens() ? `<div class="fld-2">${fld(f)}${fld(EDIT_FIELDS.find((x) => x.label === f.pair))}</div>` : fld(f)) : fld(f)).join("") : "";
     const field = (k) => {
       const v = esc(ev[k] || "");
       let input;
@@ -1791,7 +1788,23 @@
       return `<label class="fld ${EXTRA.monthDayCols.includes(k) ? "fld-md" : ""}"><span>${esc(k)}</span>${input}</label>`;
     };
     const fields = x.fields || [];
-    const more = fields.filter((k) => !EXTRA.primary.includes(k) && k !== CAR_NUM && k !== CAR_DATE); // 미팅장소·메모는 정보 화면에서 바로 입력 (차량은 여러 대 입력 칸으로 따로)
+    // 통신사는 연락처 왼쪽 같은 줄에, 주민번호(앞 6자리-뒤 7자리)는 연락처 아래 줄에 (주민번호는 민감정보 접근 허용 계정만)
+    //   앞 6자리는 생년월일에서 가져온 값을 보여 주기만 함 (생년월일은 고객 구분·사진 키로 쓰여 여기서 고치지 않음), 뒤 7자리는 '후번호' 칸에 저장
+    const carrierInRow = canList && fields.includes(EXTRA.carrierCol) && !(x.missing || x.error);
+    const ssnFld = () => {
+      const bd = String(c.birth || "").replace(/\D/g, ""), front = bd.length >= 8 ? bd.slice(2, 8) : bd.slice(0, 6);
+      // 뒤 7자리의 첫 숫자는 성별로 정해짐(남 1·여 2, 2000년 이후 출생은 3·4) → 고정, 나머지 6자리만 입력. 성별을 모르면 7자리 모두 입력
+      const sx = genderOf(c), yr = +birthYear(c.birth) || 0, d1 = sx === "남" ? (yr >= 2000 ? "3" : "1") : sx === "여" ? (yr >= 2000 ? "4" : "2") : "";
+      const cur = String(currentValue(c, ["후번호"])).replace(/\D/g, "");
+      const backHtml = d1
+        ? `<span class="ssn-d1" aria-label="뒤 첫 숫자(성별)">${d1}</span><input class="ssn-rest" value="${esc(cur.length === 7 ? cur.slice(1) : "")}" type="tel" maxlength="6" inputmode="numeric" autocomplete="off" placeholder="뒤 6자리" aria-label="뒤 6자리"><input type="hidden" data-edit="후번호" data-d1="${d1}" value="${esc(cur.length === 7 ? d1 + cur.slice(1) : cur)}">`
+        : `<input data-edit="후번호" value="${esc(cur)}" type="tel" maxlength="7" inputmode="numeric" autocomplete="off" placeholder="뒤 7자리" aria-label="뒤 7자리">`;
+      return `<div class="fld ssn-fld"><span>주민번호</span><div class="ssn-in"><input class="ssn-front" value="${esc(front)}" readonly placeholder="생년월일" inputmode="numeric" aria-label="앞 6자리(생년월일)"><b>-</b>${backHtml}</div></div>`;
+    };
+    const listFields = canList ? EDIT_FIELDS.filter((f) => !f.paired && (canSens() || f.label !== "계좌")).map((f) => f.label === "연락처"
+      ? (carrierInRow ? `<div class="fld-2 carrier-phone">${field(EXTRA.carrierCol)}${fld(f)}</div>` : fld(f)) + (canSens() ? ssnFld() : "")
+      : fld(f)).join("") : "";
+    const more = fields.filter((k) => !EXTRA.primary.includes(k) && k !== CAR_NUM && k !== CAR_DATE && !(carrierInRow && k === EXTRA.carrierCol)); // 미팅장소·메모는 정보 화면에서 바로 입력 (차량은 여러 대 입력 칸으로 따로)
     const hasCars = fields.includes(CAR_NUM) || fields.includes(CAR_DATE);
     return `<div class="card" id="infoForm">
         ${listFields}
@@ -1816,6 +1829,10 @@
       dd.addEventListener("change", upd);
     });
     bindCars();
+    body.querySelectorAll(".ssn-rest").forEach((inp) => {
+      const hid = inp.parentElement.querySelector("[data-d1]");
+      inp.addEventListener("input", () => { inp.value = inp.value.replace(/\D/g, "").slice(0, 6); hid.value = inp.value ? hid.dataset.d1 + inp.value : ""; });
+    });
     $("infoCancel").addEventListener("click", () => setEditMode(false));
     $("infoSave").addEventListener("click", () => saveInfo());
   }
