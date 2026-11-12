@@ -353,3 +353,21 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .float-save button { flex: none; min-height: 0; height: 36px; min-width: 76px; padding: 0 18px; font-size: 14px; font-weight: 600; border-radius: var(--r-ctl); }
 .float-save .secondary { background: var(--surface); color: var(--t2); border: 1px solid var(--line); }
 .float-save button:disabled { opacity: .4; }
+/* 일정 초기화 버튼 = 수정 버튼과 같은 모양 */
+.sched-nav #pickReset { height: 24px; min-height: 0; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--accent); font-size: 12px; font-weight: 700; line-height: 1; }
+/* 일정 카드 위아래 여백 조금 줄임 (수정 중에는 그대로) */
+#scheduleView .ev-card:not(.editing) { padding-top: 10px; padding-bottom: 10px; }
+#scheduleView .ev-card:not(.editing) .ev-line2 { margin-top: 4px; }
+/* 오른손 모드: 고객 페이지 맨 위 FC 선택, 맨 아래 범위 버튼을 오른쪽으로 */
+.rh #fcOpts { text-align: right; }
+.rh #fcOpts #fcoSel { margin-left: auto; }
+.rh #searchOpts { justify-content: flex-end; }
+#infoCard .kv dd.dd-left { text-align: left; } /* 주소만 왼쪽 정렬 */
+#infoCard .kv dt { text-align: center; } /* 필드명(주민번호·주소·유입일 등) 가운데 정렬 */
+.rh .cust-card .grade-btns { justify-content: flex-end; } /* 오른손 모드: 수정 모드의 성향 선택을 오른쪽으로 */
+/* 정보 수정: 통신사 | 연락처 한 줄, 주민번호 앞-뒤 */
+.carrier-phone { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+.ssn-in { display: flex; align-items: center; gap: 6px; }
+.ssn-in input { flex: 1; min-width: 0; text-align: center; letter-spacing: 1px; }
+.ssn-in .ssn-front { background: var(--raised); color: var(--t2); }
+.ssn-in .ssn-d1 { flex: none; width: 28px; text-align: center; font-weight: 600; color: var(--t2); background: var(--raised); border-radius: var(--r-ctl); padding: 9px 0; }
