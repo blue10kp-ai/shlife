@@ -318,11 +318,11 @@
   const rhOn = () => { try { return localStorage.getItem(RH_KEY) === "1"; } catch (e) { return false; } };
   const rhApply = () => document.documentElement.classList.toggle("rh", rhOn());
   rhApply();
-  const rhCardHtml = () => `<div class="card">
-        <h3 class="sec-title">화면</h3>
+  const rhOptHtml = () => `<div class="fld rh-fld">
         <label class="rh-opt"><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}> 오른손 모드</label>
         <p class="hint">하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다.</p>
       </div>`;
+  const rhCardHtml = () => `<div class="card"><h3 class="sec-title">화면</h3>${rhOptHtml()}</div>`;
   document.addEventListener("change", (ev) => {
     if (!ev.target || ev.target.id !== "rhMode") return;
     try { localStorage.setItem(RH_KEY, ev.target.checked ? "1" : "0"); } catch (e) { /* 저장 못 해도 이번엔 적용 */ }
@@ -1483,9 +1483,7 @@
         const card = b.closest(".file");
         toggleSheet(card, files[+card.dataset.i], b.querySelector(".file-hint") || b);
       }));
-    // 엑셀이 하나뿐이면 바로 펼치기
-    const excels = body.querySelectorAll('[data-act="view"]');
-    if (excels.length === 1) excels[0].click();
+    // 엑셀 내용은 기본으로 접어 둠 (줄을 누르면 펼침)
     if (id === "basic") bindExtra();
   }
 
@@ -1590,7 +1588,8 @@
     const phones = take(PHONE_COLS), backs = take(["후번호"]), emails = take(EMAIL_COLS), addrs = take(["주소"]), accts = take(["계좌"]);
     const row = (label, html) => `<dt>${esc(label)}</dt><dd>${html}</dd>`;
     // 통신사 / 차량번호 / 자동차보험갱신일 (+ 미팅장소·메모가 아닌 추가 항목) — 주소 밑 한 줄
-    const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k) && k !== EXTRA.carrierCol);
+    const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k) && k !== EXTRA.carrierCol && k !== CAR_NUM && k !== CAR_DATE);
+    const carRows = carRowsOf(ev);
     const chips = extraKeys.filter((k) => (ev[k] || "").trim()).map((k) =>
       `<span class="chip" title="${esc(k)}">${esc(EXTRA.monthDayCols.includes(k) ? mdText(ev[k]) : ev[k])}</span>`).join("");
     const rest = [...merged];
@@ -1602,6 +1601,7 @@
         ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
         ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
         ${addrs.length ? row("주소", addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
+        ${carRows.length ? row("차량", carRows.map((r) => `<div>${esc(r.num || "-")}${r.d ? ` <span class="hint">· 보험 갱신 ${esc(mdText(r.d))}</span>` : ""}</div>`).join("")) : ""}
         ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
         ${rest.map(([k, vs]) => /가입\s*설계\s*동의\s*만료일/.test(k) ? row("설계 동의 만료", vs.map((v) => `<div>${esc(v)}</div>`).join("")) : k === "신한라이프 유지계약" ? row("유지 계약", vs.map((v) => `<div>${esc(/^\d+$/.test(String(v).trim()) ? String(v).trim() + "건" : v)}</div>`).join("")) : row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
       </dl></div>`;
@@ -1686,6 +1686,53 @@
     return "";
   }
 
+  // ---- 차량 여러 대: 차량번호·자동차보험갱신일 칸에 구분자 '|'로 이어서 저장 (두 칸의 순서가 짝). 한 대만 있는 예전 값도 그대로 읽힘 ----
+  const CAR_SEP = "|", CAR_NUM = "차량번호", CAR_DATE = "자동차보험갱신일";
+  const splitCars = (v) => String(v || "").split(CAR_SEP).map((x) => x.trim());
+  function carRowsOf(ev) {
+    const nums = splitCars(ev[CAR_NUM]), ds = splitCars(ev[CAR_DATE]), out = [];
+    for (let i = 0; i < Math.max(nums.length, ds.length); i++) if (nums[i] || ds[i]) out.push({ num: nums[i] || "", d: ds[i] || "" });
+    return out;
+  }
+  function carRowHtml(r) {
+    const p = parseMonthDay(r.d) || [0, 0];
+    return `<div class="car-row"><input class="car-num" value="${esc(r.num)}" placeholder="차량번호" autocomplete="off">
+      <select class="car-mm" aria-label="갱신 월"><option value="">월</option>${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}" ${p[0] === i + 1 ? "selected" : ""}>${i + 1}월</option>`).join("")}</select>
+      <select class="car-dd" aria-label="갱신 일"><option value="">일</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${p[1] === i + 1 ? "selected" : ""}>${i + 1}일</option>`).join("")}</select>
+      <button type="button" class="car-del" aria-label="이 차량 삭제">삭제</button></div>`;
+  }
+  function carsFormHtml(ev) {
+    const rows = carRowsOf(ev);
+    if (!rows.length) rows.push({ num: "", d: "" });
+    return `<div class="fld cars" id="carsBox"><span>차량번호 · 자동차보험 갱신일</span>
+      <div class="car-list">${rows.map(carRowHtml).join("")}</div>
+      <button type="button" class="car-add">차량 추가</button>
+      <input type="hidden" data-ex="${CAR_NUM}" value="${esc(ev[CAR_NUM] || "")}"><input type="hidden" data-ex="${CAR_DATE}" value="${esc(ev[CAR_DATE] || "")}"></div>`;
+  }
+  function bindCars() {
+    const box = $("carsBox");
+    if (!box) return;
+    const list = box.querySelector(".car-list"), hn = box.querySelector(`[data-ex="${CAR_NUM}"]`), hd = box.querySelector(`[data-ex="${CAR_DATE}"]`);
+    const sync = () => {
+      const rows = [...list.querySelectorAll(".car-row")].map((r) => {
+        const mm = r.querySelector(".car-mm").value, dd = r.querySelector(".car-dd").value;
+        return { num: r.querySelector(".car-num").value.trim().replace(/\|/g, ""), d: mm && dd ? pad2(mm) + pad2(dd) : "" };
+      }).filter((r) => r.num || r.d);
+      hn.value = rows.some((r) => r.num) ? rows.map((r) => r.num).join(CAR_SEP) : "";
+      hd.value = rows.some((r) => r.d) ? rows.map((r) => r.d).join(CAR_SEP) : "";
+    };
+    box.addEventListener("input", sync);
+    box.addEventListener("change", sync);
+    box.addEventListener("click", (ev) => {
+      if (ev.target.closest(".car-add")) { list.insertAdjacentHTML("beforeend", carRowHtml({ num: "", d: "" })); return; }
+      const del = ev.target.closest(".car-del");
+      if (!del) return;
+      const row = del.closest(".car-row");
+      if (list.querySelectorAll(".car-row").length > 1) row.remove();
+      else { row.querySelector(".car-num").value = ""; row.querySelector(".car-mm").value = ""; row.querySelector(".car-dd").value = ""; }
+      sync();
+    });
+  }
   function basicFormHtml() {
     const c = current.cust;
     const x = current.extra || { values: {}, fields: [] };
@@ -1713,10 +1760,11 @@
       return `<label class="fld ${EXTRA.monthDayCols.includes(k) ? "fld-md" : ""}"><span>${esc(k)}</span>${input}</label>`;
     };
     const fields = x.fields || [];
-    const more = fields.filter((k) => !EXTRA.primary.includes(k)); // 미팅장소·메모는 정보 화면에서 바로 입력
+    const more = fields.filter((k) => !EXTRA.primary.includes(k) && k !== CAR_NUM && k !== CAR_DATE); // 미팅장소·메모는 정보 화면에서 바로 입력 (차량은 여러 대 입력 칸으로 따로)
+    const hasCars = fields.includes(CAR_NUM) || fields.includes(CAR_DATE);
     return `<div class="card" id="infoForm">
         ${listFields}
-        ${x.missing || x.error ? `<p class="hint">추가 정보 엑셀을 읽지 못해 통신사·차량번호·갱신일은 수정할 수 없습니다.</p>` : more.map(field).join("")}
+        ${x.missing || x.error ? `<p class="hint">추가 정보 엑셀을 읽지 못해 통신사·차량번호·갱신일은 수정할 수 없습니다.</p>` : more.map(field).join("") + (hasCars ? carsFormHtml(ev) : "")}
         ${followFormHtml()}
         <datalist id="routeList"><option value="DB"><option value="이관"><option value="지인"><option value="소개"></datalist>
         <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
@@ -1736,6 +1784,7 @@
       mm.addEventListener("change", upd);
       dd.addEventListener("change", upd);
     });
+    bindCars();
     $("infoCancel").addEventListener("click", () => setEditMode(false));
     $("infoSave").addEventListener("click", () => saveInfo());
   }
@@ -2122,7 +2171,7 @@
     return best;
   }
   const pdfButton = (f) => f
-    ? `<div class="file-actions pdf-mini"><button class="secondary" data-open="${esc(f.id)}">계약서 열기</button></div>`
+    ? `<div class="file-actions pdf-mini"><button class="secondary" data-open="${esc(f.id)}">증권 열기</button></div>`
     : "";
 
   // 상품명에서 '무배당'이 들어간 괄호 삭제: "신한통합건강보험 원(ONE)(무배당, 해약환급금 미지급형)" → "신한통합건강보험 원(ONE)"
@@ -2150,9 +2199,17 @@
     } else if (sil === "없음" || sil === null || sil === "") {
       silHtml = `<div class="cov-sil"><b>실손</b> <span class="hint">없음</span></div>`;
     }
-    const cov = j["담보"] && typeof j["담보"] === "object" ? Object.entries(j["담보"]).filter(([, v]) => String(v == null ? "" : v).trim()) : [];
+    // 담보 표: 암·뇌·심 진단비, 수술비, 입원비를 고정 순서로 (값이 없으면 '-'), 그 밖의 항목은 아래에 이어 붙임
+    const dam = j["담보"] && typeof j["담보"] === "object" ? j["담보"] : null;
+    const FIX = [["암 진단비", ["암진단비", "암 진단비", "암"]], ["뇌 진단비", ["뇌진단비", "뇌 진단비", "뇌"]], ["심 진단비", ["심진단비", "심 진단비", "심", "심장진단비", "심장 진단비"]], ["수술비", ["수술비"]], ["입원비", ["입원비"]]];
+    let cov = [];
+    if (dam) {
+      const used = new Set();
+      cov = FIX.map(([label, keys]) => { const k = keys.find((x) => dam[x] != null && String(dam[x]).trim()); if (k) used.add(k); return [label, k ? String(dam[k]).trim() : "-"]; });
+      Object.entries(dam).forEach(([k, v]) => { if (!used.has(k) && !FIX.some(([, ks]) => ks.includes(k)) && String(v == null ? "" : v).trim()) cov.push([k, String(v).trim()]); });
+    }
     if (!silHtml && !cov.length) return "";
-    return `<div class="card cov"><h3 class="sec-title">보장 요약</h3>${silHtml}${cov.length ? `<dl class="kv">${cov.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : ""}${j["기준"] ? `<p class="hint">스마트보장분석 ${esc(j["기준"])} 기준</p>` : ""}</div>`;
+    return `<div class="card cov"><h3 class="sec-title">보장 요약</h3>${silHtml}${cov.length ? `<table class="cov-table"><thead><tr><th>항목</th><th>보장금액</th></tr></thead><tbody>${cov.map(([k, v]) => `<tr><td>${esc(k)}</td><td${v === "-" ? ' class="none"' : ""}>${esc(v)}</td></tr>`).join("")}</tbody></table>` : ""}${j["기준"] ? `<p class="hint">스마트보장분석 ${esc(j["기준"])} 기준</p>` : ""}</div>`;
   }
   function contractHtml() {
     const all = current.contracts;
@@ -2275,6 +2332,7 @@
           <input id="setCompany" value="${esc(s.companyAddress || "")}" placeholder="예: 광주광역시 서구 상무중앙로 98" autocomplete="off"></label>
         <label class="fld"><span>카카오 REST API 키 (이동 거리·시간 계산용)</span>
           <input id="setKakao" value="${esc(s.kakaoRestKey || "")}" placeholder="developers.kakao.com › 앱 › 플랫폼 키" autocomplete="off" spellcheck="false"></label>
+        ${rhOptHtml()}
         <div class="file-actions"><button type="button" class="primary" id="setSave" disabled>설정 저장</button></div>
       </div>`;
   }
@@ -2620,7 +2678,7 @@
           <button class="primary" type="submit">추가</button>
         </form>
         <p class="hint">추가하면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 '변경 저장'을 누르세요.</p>
-      </div>` + settingsCardHtml() + smsCardHtml() + rhCardHtml(); // 화면(오른손 모드) 설정은 맨 아래
+      </div>` + settingsCardHtml() + smsCardHtml(); // 오른손 모드는 '설정' 카드 안에 있음
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
@@ -4355,7 +4413,7 @@
   const salesBtn = (r, kind, mark, ctx) => {
     const lab = kind === "call" ? "전화" : "문자", has = !!r.phone, ts = mark && mark[kind];
     const href = has ? (kind === "call" ? `tel:${r.phone}` : smsHref(r.phone, fillSms((ctx && ctx.tpl) || "", r, ctx && ctx.fcName))) : "";
-    return `<a class="sbtn ${kind}${ts ? " done" : ""}${has ? "" : " off"}" ${has ? `href="${esc(href)}" data-contact="${kind}" data-key="${esc(r.key)}"` : ""}>${lab}${ts ? " ✓" : ""}</a>`;
+    return `<a class="sbtn ${kind}${ts ? " done" : ""}${has ? "" : " off"}" ${has ? `href="${esc(href)}" data-contact="${kind}" data-key="${esc(r.key)}"` : ""}>${lab}</a>`;
   };
   // 한 건 = 3줄: ① 계약자 · 피보 · 상품명 · 보험료 ② 계약일 · 생일 · 연락처 [전화][문자] · 직업 ③ 주소 · 모집FC (줄 안에서 항목이 나란히, 길면 줄바꿈)
   // 따행 칩 4개 (필드 값이 있으면 ON): 방문완료=따행방문완료일 · 설문발송=설문발송일 · 설문응답=설문응답일 · 쿠폰발송=쿠폰발송일
@@ -4733,12 +4791,13 @@
           .catch((e) => { handleError(e); renderSales(true); });
         return;
       }
+      // 한 번 더 확인: 잘못 눌러 전화가 걸리거나 문자 창이 열리는 것을 막음
+      if (!confirm(`${row.holder ? row.holder + "님께 " : ""}${ct.dataset.contact === "call" ? "정말로 전화를 거시겠습니까?" : "정말로 문자를 보내시겠습니까?"}`)) { ev.preventDefault(); return; }
       if (row.ref || !row.fileId || !row.key) { toast(row.ref ? "담당이 다른 FC 계약이라 기록하지 않습니다." : "새 구조 파일의 계약만 기록합니다."); return; }
       const q = readQueue();
       q.push({ uid: Date.now() + "-" + Math.random().toString(36).slice(2, 7), kind: ct.dataset.contact, ts: nowStamp(), cid: row.cid, custId: row.custId, fc: row.fc, fileId: row.fileId, src: SALES.tab === "dda" ? "영업 화면(따행)" : "영업 화면(이관)" });
       writeQueue(q);
       ct.classList.add("done");
-      if (!ct.textContent.includes("✓")) ct.textContent += " ✓";
       setTimeout(flushContacts, 4000);
     }
   });

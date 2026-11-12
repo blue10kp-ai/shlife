@@ -308,3 +308,6 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .kv .act-btn svg { width: 14px; height: 14px; }
 .kv .val-row { align-items: center; }
 .kv dd:has(.val-row) { padding-top: 7px; padding-bottom: 7px; }
+/* 맨 위 검색칸 글씨는 가운데 정렬, 로그아웃(전원) 아이콘은 빨간색 */
+.top-search input { text-align: center; }
+#logoutBtn, #logoutBtn .power-ico { color: var(--bad, #c0392b); }

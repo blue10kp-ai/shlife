@@ -679,3 +679,18 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .cov .cov-sil li { margin: 2px 0; }
 .cov .kv { margin-top: 4px; }
 .cov > .hint { margin: 8px 0 0; }
+/* 차량 여러 대 입력 */
+.cars > span { display: block; margin-bottom: 6px; }
+.car-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.car-row .car-num { flex: 1; min-width: 0; }
+.car-row select { flex: none; width: auto; }
+.car-del, .car-add { flex: none; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--brand); font-size: 12px; font-weight: 700; }
+.car-del { color: #e53935; }
+.car-add { margin-top: 2px; }
+.cov-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 4px; }
+.cov-table th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.cov-table th:last-child, .cov-table td:last-child { text-align: right; }
+.cov-table td { padding: 8px 4px; border-bottom: 1px solid var(--line); }
+.cov-table tr:last-child td { border-bottom: 0; }
+.cov-table td:first-child { color: var(--muted); white-space: nowrap; }
+.cov-table td.none { color: var(--muted); }
