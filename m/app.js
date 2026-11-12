@@ -3200,9 +3200,9 @@
   function scheduleShell() {
     return `<div class="sched-top"><div class="sched-modes">${[["day", "Today"], ["week", "Week"], ["month", "Month"]].map(([m, l]) =>
       `<button type="button" data-sm="${m}" class="${schedMode === m ? "on" : ""}">${l}</button>`).join("")}</div><button type="button" class="link-btn" id="pickReset" hidden>초기화</button></div>
-      <div class="sched-nav"><button type="button" id="schedPrev" aria-label="이전">‹</button>
+      <div class="sched-nav"><button type="button" id="schedPrev" aria-label="이전"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
         <button type="button" id="schedLabel" class="sched-label"></button>
-        <button type="button" id="schedNext" aria-label="다음">›</button></div>
+        <button type="button" id="schedNext" aria-label="다음"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button></div>
       <div id="schedBody"></div>`;
   }
 
