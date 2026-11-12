@@ -13,6 +13,11 @@
   function load() {
     ap.err = ''; ap.busy = true;
     return Promise.all([D.readPerms(), S.loadShares(), D.readJson(['_양식', '사용자권한.json'])]).then(function (r) {
+      // FC 폴더만 남긴다: 권한 파일에 FC 폴더로 적힌 이름이거나 접속 명단에 있는 이름. '따행리스트'·'이관리스트' 같은 내보내기 폴더는 공유 대상에서 뺀다
+      var roster0 = (r[2] && r[2].users) || [];
+      Object.keys(r[1].fcIds).forEach(function (n) {
+        if (!(r[0].fcFolders[n] || roster0.some(function (u) { return u.name === n; }))) { delete r[1].fcIds[n]; delete r[1].fc[n]; }
+      });
       ap.data = { perms: r[0], st: r[1], roster: (r[2] && r[2].users) || [], fcs: Object.keys(r[1].fcIds).sort(cmpKo) };
       ap.busy = false; ap.gone = {}; ap.onChange();
     }).catch(function (e) { ap.busy = false; ap.err = '불러오지 못했습니다: ' + (e && e.message || e); ap.onChange(); });

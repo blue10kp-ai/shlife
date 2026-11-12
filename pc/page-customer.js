@@ -53,7 +53,8 @@
   function readCE() { try { return JSON.parse(localStorage.getItem(CE_KEY) || '{}'); } catch (e) { return {}; } }
   (function () { var ce = readCE(); Object.keys(K.contracts).forEach(function (id) { K.contracts[id].forEach(function (x) { var e = ce[x.pol]; if (e) { x.route = e.route; x.intro = e.intro; } }); }); })();
   var insIdx = {};   // 피보험자 고객ID → 그 사람이 피보험자인 계약 (소개 계약은 계약자·피보험자 모두 소개로 표시)
-  function indexIns() { insIdx = {}; Object.keys(K.contracts).forEach(function (id) { K.contracts[id].forEach(function (x) { [x.insured, x.insured2].forEach(function (i) { if (i && i !== id) (insIdx[i] = insIdx[i] || []).push(x); }); }); }); }
+  var insHold = {};  // 피보험자 고객ID → [{ hid(계약자 고객ID), x(계약) }]  (표시 전용)
+  function indexIns() { insIdx = {}; insHold = {}; Object.keys(K.contracts).forEach(function (id) { K.contracts[id].forEach(function (x) { [x.insured, x.insured2].forEach(function (i) { if (i && i !== id) { (insIdx[i] = insIdx[i] || []).push(x); (insHold[i] = insHold[i] || []).push({ hid: id, x: x }); } }); }); }); }
   indexIns();
   function allContractsOf(c) { return (K.contracts[c['고객ID']] || []).concat(insIdx[c['고객ID']] || []); }
   function routeText(c) {
@@ -112,6 +113,30 @@
   function transferOf(c) { return contractsOf(c).filter(function (x) { return String(x.trans || '').slice(0, 7) === ymNow; }); }
   // 표 칸: 연락처 / 생일(위아래 두 줄), 직업 · 지역 · 주소는 각각 따로 한 줄
   var cellContact = function (c) { return esc(c['연락처'] || '-') + '<br><span class="sm">' + esc(c['생년월일'] || '-') + '</span>'; };
+  // 피보험자 고객: 계약의 주·종피보험자로 연결된 계약자를 보여 준다(보이는 범위 안의 계약자만). 계약자가 여럿이면 첫 계약자 + '외 N명'
+  var custByIdMap = null;
+  function custById(id) { if (!custByIdMap) { custByIdMap = {}; (K.teamCustomers || K.customers).concat(K.customers).forEach(function (x) { if (!custByIdMap[x['고객ID']]) custByIdMap[x['고객ID']] = x; }); } return custByIdMap[id]; }
+  function holdersOf(c) {
+    if (c['현재단계'] !== '피보험자') return [];
+    var seen = {}, out = [];
+    (insHold[c['고객ID']] || []).forEach(function (h) { var p = custById(h.hid); if (!p) return; if (!seen[h.hid]) { seen[h.hid] = { p: p, goods: [] }; out.push(seen[h.hid]); } if (h.x.goods) seen[h.hid].goods.push(h.x.goods); });
+    return out;
+  }
+  // 해지 고객 표시(화면에서 계산, 데이터 수정 없음): 계약자 기준 계약이 1건 이상 있고 유효 계약(유지·완납·납입면제·연금지급·신계약승낙)이 0건이면 '해지', 실효 계약만 남았으면 '실효'. 계약이 없으면(가망·진행·피보험자) 표시 없음
+  var VALID_ST = ['유지', '완납', '납입면제', '연금지급', '신계약승낙'];
+  function churnOf(c) {
+    var cs = contractsOf(c); if (!cs.length) return '';
+    if (cs.some(function (x) { return VALID_ST.indexOf(x.st) >= 0; })) return '';
+    return cs.some(function (x) { return x.st === '실효'; }) ? '실효' : '해지';
+  }
+  var churnTag = function (c) { var k = churnOf(c); return k ? ' <span class="churn ' + (k === '실효' ? 'lapse' : 'gone') + '">' + (k === '해지' ? '해지 고객' : '실효') + '</span>' : ''; };
+  var churnNote = function (c) { return churnOf(c) === '해지' && !c['연락처'] && !c['주소'] ? '<p class="churnnote">해지 고객이라 정보 조회 불가</p>' : ''; };
+  var insMark = function (c) { var t = churnTag(c); return t ? '<br>' + t.trim() : ''; };   // 이름은 이름 그대로(피보험자 표시 없음). 해지 고객·실효 표시만 이름 아래 줄에(이름 칸이 좁아 옆에 두면 잘림)
+  var cellPhone = function (c) {
+    var hs = holdersOf(c); if (!hs.length) return esc(c['연락처'] || '-');
+    var h = hs[0];   // 연락처 칸에는 계약자 이름과 연락처만 (계약자가 여럿이면 '외 N명'만 덧붙임)
+    return '<span class="insk">계약자</span> <a class="inslink" role="button" tabindex="0" data-hid="' + esc(h.p['고객ID']) + '">' + esc(h.p['이름']) + '</a> ' + esc(h.p['연락처'] || '') + (hs.length > 1 ? ' <span class="sm">외 ' + (hs.length - 1) + '명</span>' : '');
+  };
   var cellPerson = function (c) { return '<td class="l job" title="' + esc(c['직업'] || '') + '">' + esc(c['직업'] || '-') + '</td><td class="l">' + esc(c['지역'] || '-') + '</td><td class="l">' + esc(c['주소'] || '-') + '</td>'; };
   function transferBody(view) {
     var n = 0, h = '';
@@ -231,9 +256,9 @@
     var contact = '<h3>연락처 · 주소</h3><div class="fg">' + (E
       ? rowE('휴대전화', '<span class="efr">' + carrierSel(c) + inp(c, '연락처', '', 'tel') + '</span>') + rowE('자택', '<span class="efr">' + inp(c, '자택전화', '', 'tel') + pick('자택전화') + '</span>') + rowE('직장', '<span class="efr">' + inp(c, '직장전화', '', 'tel') + pick('직장전화') + '</span>') + rowE('이메일', inp(c, '이메일', '', 'email')) + rowE('미팅장소', inp(c, '미팅장소')) + rowE('주소', inp(c, '주소')) + rowE('계좌', inp(c, '계좌', '예: 신한 110-123-456789')) + rowE('차량번호', inp(c, '차량번호', '예: 123가4321')) + rowE('자동차보험갱신일', mdSel(c)) + '<input type="hidden" data-e="자동차보험갱신일" value="' + esc(c['자동차보험갱신일'] || '') + '">'
       : rowH('휴대전화', phoneView) + row('자택', c['자택전화']) + row('직장', c['직장전화']) + row('이메일', c['이메일']) + row('미팅장소', c['미팅장소']) + row('주소', c['주소']) + row('계좌', c['계좌']) + rowH('차량', [c['차량번호'] ? esc(c['차량번호']) : '', c['자동차보험갱신일'] ? esc(mdText(c['자동차보험갱신일'])) : ''].filter(Boolean).join(' | '))) + '</div>';
-    return '<div class="drawer"><div class="dh"><div><div class="nmrow"><h2 class="' + gcls(c) + '">' + esc(c['이름']) + '</h2>' + (E ? gradeDots(c) : '') + '</div><span class="tag t3">' + esc(c['현재단계'] === '이관관리' ? '이관' : c['현재단계']) + '</span> <span class="mut">' + esc(c['담당FC']) + ' · ' + esc(c['고객ID']) + '</span></div><div class="dhb">' +
+    return '<div class="drawer"><div class="dh"><div><div class="nmrow"><h2 class="' + gcls(c) + '">' + esc(c['이름']) + '</h2>' + (E ? gradeDots(c) : '') + churnTag(c) + '</div><span class="tag t3">' + esc(c['현재단계'] === '이관관리' ? '이관' : c['현재단계']) + '</span> <span class="mut">' + esc(c['담당FC']) + ' · ' + esc(c['고객ID']) + '</span></div><div class="dhb">' +
       (canE && !E ? '<button class="btn" id="editD">수정</button>' : '') + (E ? '<button class="btn pri" id="eSave">확인</button><button class="btn" id="eCancel">취소</button>' : '') + '<button class="btn" id="closeD">닫기</button></div></div>' +
-      covanSection(c) + basic + contact +
+      churnNote(c) + covanSection(c) + basic + contact +
       memoBox + consHtml +
       '<h3>계약 ' + cs.length + '건</h3>' + (cs.length ? '<div class="wrap"><table class="ct"><tr><th class="l">상품명</th><th>상태</th><th>보험료</th><th>계약일</th><th>모집유형</th><th>유입</th></tr>' + ct + '</table></div>' : '<p class="mut">등록된 계약이 없습니다.</p>') +
       '<h3>접촉 이력 (최근 20건)</h3>' + (hist || '<p class="mut">이력이 없습니다.</p>') + '</div>';
@@ -272,7 +297,7 @@
     var opt = function (arr, cur) { return arr.map(function (x) { return '<option value="' + esc(x) + '"' + (cur === x ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join(''); };
     var body = view.map(function (c, vi) {
       var cs = contractsOf(c), act = cs.filter(active).length, h = haengNow(c);
-      return '<tr class="pick-row ' + (state.sel === c['고객ID'] ? 'selrow' : '') + '" data-cid="' + esc(c['고객ID']) + '"><td>' + (state.page * PAGE + vi + 1) + '</td><td class="l nm"><b class="' + gcls(c) + '">' + esc(c['이름']) + '</b></td><td>' + esc(c['담당FC']) + '</td><td>' + esc(c['연락처'] || '-') + '</td><td>' + esc(c['최초유입경로'] || '-') + '</td><td class="l job" title="' + esc(c['직업'] || '') + '">' + esc(c['직업'] || '-') + '</td><td class="l">' + esc(c['지역'] || '-') + '</td><td>' + (cs.length ? act + '/' + cs.length : '-') + '</td></tr>';
+      return '<tr class="pick-row ' + (state.sel === c['고객ID'] ? 'selrow' : '') + '" data-cid="' + esc(c['고객ID']) + '"><td>' + (state.page * PAGE + vi + 1) + '</td><td class="l nm"><b class="' + gcls(c) + '">' + esc(c['이름']) + '</b>' + insMark(c) + '</td><td>' + esc(c['담당FC']) + '</td><td class="' + (c['현재단계'] === '피보험자' ? 'l insc' : '') + '">' + cellPhone(c) + '</td><td>' + esc(c['최초유입경로'] || '-') + '</td><td class="l job" title="' + esc(c['직업'] || '') + '">' + esc(c['직업'] || '-') + '</td><td class="l">' + esc(c['지역'] || '-') + '</td><td>' + (cs.length ? act + '/' + cs.length : '-') + '</td></tr>';
     }).join('');
     if (state.haeng) body = haengBody(view);
     if (state.transfer) body = transferBody(view);
@@ -382,6 +407,10 @@
     document.querySelectorAll('[data-hs]').forEach(function (b) { b.onclick = function () { state.hs = b.getAttribute('data-hs'); state.page = 0; rr(); }; });
     document.querySelectorAll('[data-stage]').forEach(function (b) { b.onclick = function () { state.stage = b.getAttribute('data-stage'); state.progress = false; state.page = 0; rr(); }; });
     document.querySelectorAll('[data-cid]').forEach(function (tr) { tr.onclick = function () { state.sel = tr.getAttribute('data-cid'); state.edit = false; state.cedit = ''; rr(); }; });
+    document.querySelectorAll('[data-hid]').forEach(function (a) {   // 계약자 이름을 누르면 계약자 상세로
+      var go = function (ev) { ev.stopPropagation(); state.sel = a.getAttribute('data-hid'); state.edit = false; state.cedit = ''; rr(); };
+      a.onclick = go; a.onkeydown = function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); go(ev); } };
+    });
     var ed = g('editD'); if (ed) ed.onclick = function () { state.edit = true; rr(); };
     var ec = g('eCancel'); if (ec) ec.onclick = function () { state.edit = false; rr(); };
     var es = g('eSave'); if (es) es.onclick = saveEdit;

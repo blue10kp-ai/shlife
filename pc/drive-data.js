@@ -14,7 +14,7 @@
   var CUST_KEEP = ['고객ID', '이름', '담당FC', '현재단계', '최초유입경로', '유입일', '원모집FC', '고객분류', '고객등급', '생년월일', '실제생일', '성별', '연락처',
     '자택전화', '직장전화', '이메일', '주소', '지역', '직업', '직장명', '미팅장소', '성향', '메모', '관심상품·니즈', '소개자명',
     '가입설계동의 만료일', '마케팅동의 만료일', '개인정보 수집·이용 동의일', '계약안내 수신', '상령일', '최근 보장분석', '최근접촉일', '다음접촉일',
-    '유입DB명', '소개고객ID', '통신사', '차량번호', '자동차보험갱신일'];   // 계좌·후번호는 화면용 목록에 넣지 않는다
+    '유입DB명', '소개고객ID', '통신사', '차량번호', '자동차보험갱신일', '계약현황', '신한라이프 유지계약', '최근문자일시', '최근통화일시'];   // 계좌·후번호는 화면용 목록에 넣지 않는다
   var p2 = function (n) { return n < 10 ? '0' + n : '' + n; };
   var s = function (v) { return v == null ? '' : String(v).trim(); };
 
@@ -55,8 +55,8 @@
   }
   async function testRoot() {
     if (I.cache.testRoot) return I.cache.testRoot;
-    var a = await child(await claudeId(), '_변환시험', true), b = a && await child(a.id, '2026-11-11', true);
-    if (!b) throw new Error("시험 폴더 '_변환시험/2026-11-11' 을 찾지 못했습니다.");
+    var a = await child(await claudeId(), '_변환시험', true), b = a && await child(a.id, '고객-시험', true);
+    if (!b) throw new Error("시험 복사본 폴더 '_변환시험/고객-시험' 을 찾지 못했습니다.");
     return (I.cache.testRoot = b.id);
   }
   async function jsonOf(fcName, fcFolderId) {   // 없으면 null (엑셀로 대신 읽음)
@@ -106,7 +106,7 @@
           if (cf) (await I.qlist("'" + I.qv(cf.id) + "' in parents and mimeType='" + FOLDER + "' and trashed=false")).forEach(function (x) { var m = x.name.match(/ - (C\d{5,})\s*$/); if (m) map[m[1]] = x.id; });
         } catch (e) { /* 파일 목록만 못 보임 */ }
         return { fc: fo.name, file: f.name, wb: wb, doc: doc, map: map };
-      } catch (e) { errs.push(fo.name + ': ' + e.message); return null; }
+      } catch (e) { if (!/리스트\.xlsx가 없습니다/.test(e.message || '')) errs.push(fo.name + ': ' + e.message); return null; }   // 리스트가 없는 폴더(따행리스트·이관리스트 같은 내보내기 폴더)는 건너뜀
     }));
     results.filter(Boolean).forEach(function (res) {
       var wb = res.wb, rowsOf2 = function (name) { return res.doc ? sheetObjs(res.doc, name) : rowsOf(wb.Sheets[name]); };

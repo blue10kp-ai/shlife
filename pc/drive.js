@@ -115,7 +115,7 @@
     if (cache[key]) return cache[key];
     var fo = (await fcFolders()).filter(function (f) { return f.name === fc; })[0];
     if (!fo) throw new Error("고객 폴더에 '" + fc + "' 폴더가 없습니다.");
-    var files = (await qlist("'" + fo.id + "' in parents and trashed=false")).filter(function (f) { return /리스트\.xlsx$/.test(f.name) && f.name.indexOf('(구)') < 0 && f.name.indexOf('~$') !== 0; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    var files = (await qlist("'" + fo.id + "' in parents and trashed=false")).filter(function (f) { return / - 리스트\.xlsx$/.test(f.name) && f.name.indexOf('(구)') < 0 && f.name.indexOf('~$') !== 0; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
     if (!files.length) throw new Error("'" + fc + "' 폴더에 리스트.xlsx가 없습니다.");
     return (cache[key] = files[files.length - 1]);
   }
@@ -147,10 +147,82 @@
   function serialize(fn) { var run = queue.then(fn, fn); queue = run.catch(function () { /* 다음 작업은 계속 */ }); return run; }
 
   // 고객 항목 저장: values = { 열이름: 값 } (빈 값은 칸을 비움)
+
+  // ===== JSON 저장소(컷오버): FC 폴더의 data.json · 고객 폴더의 고객추가정보.json 이 있으면 엑셀 대신 읽고 쓴다 (없으면 엑셀로 폴백, 컷오버 전까지) =====
+  //   주소 끝에 ?json=test 를 붙이면 시험 복사본 폴더(Claude\_변환시험\고객-시험)의 JSON을 쓴다.
+  //   저장: 읽을 때의 headRevisionId를 기억해 두었다가 올리기 직전에 다시 확인하고, 그사이 바뀌었으면 다시 읽어 바뀐 칸만 합쳐 쓴다(최대 3번).
+  var TESTJ = /[?&]json=test/.test(location.search), TESTDIR = '고객-시험';
+  async function qfind(parent, name, folder) {
+    var a = await qlist("'" + qv(parent) + "' in parents and name='" + qv(name) + "' and trashed=false" + (folder ? " and mimeType='" + FOLDER + "'" : ''));
+    return a[0] || null;
+  }
+  async function testRootId() {
+    if (cache.testRoot) return cache.testRoot;
+    var base = await baseId(), f = await gd(API + '/files/' + encodeURIComponent(base) + '?fields=parents&supportsAllDrives=true');
+    var t = f.parents && f.parents[0] && await qfind(f.parents[0], '_변환시험', true), d = t && await qfind(t.id, TESTDIR, true);
+    if (!d) throw new Error("시험 복사본 폴더 '_변환시험/" + TESTDIR + "' 을 찾지 못했습니다.");
+    return (cache.testRoot = d.id);
+  }
+  async function jsonFileOf(fc) {   // 없으면 null → 엑셀로 쓴다
+    var parent;
+    if (TESTJ) { var fo0 = await qfind(await testRootId(), fc, true); if (!fo0) return null; parent = fo0.id; }
+    else { var fo = (await fcFolders()).filter(function (x) { return x.name === fc; })[0]; if (!fo) return null; parent = fo.id; }
+    return qfind(parent, 'data.json', false);
+  }
+  async function extraJsonFile() { return qfind(TESTJ ? await testRootId() : await baseId(), '고객추가정보.json', false); }
+  async function revOf(id) { var m = await gd(API + '/files/' + encodeURIComponent(id) + '?fields=headRevisionId,version&supportsAllDrives=true'); return m.headRevisionId || ('v' + m.version); }
+  async function jsonEdit(file, mutate) {
+    for (var t = 0; t < 3; t++) {
+      var rev = await revOf(file.id);
+      var doc = await gd(API + '/files/' + encodeURIComponent(file.id) + '?alt=media&supportsAllDrives=true');
+      var res = mutate(doc);
+      doc.made = new Date().toISOString().slice(0, 19);
+      if ((await revOf(file.id)) !== rev) continue;   // 그사이 다른 곳에서 바뀜 → 다시 읽어서 바뀐 칸만 합쳐 씀
+      await gd(UP + '/files/' + encodeURIComponent(file.id) + '?uploadType=media&supportsAllDrives=true', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(doc) });
+      return res;
+    }
+    throw new Error('다른 곳에서 계속 수정되고 있어 저장하지 못했습니다. 잠시 후 다시 시도하세요.');
+  }
+  function jsonUpdateRow(doc, sheet, keyCol, key, values) {
+    var sh = doc.sheets && doc.sheets[sheet];
+    if (!sh) throw new Error("JSON에 '" + sheet + "' 시트가 없습니다.");
+    var ki = sh.columns.indexOf(keyCol); if (ki < 0) throw new Error("시트에서 '" + keyCol + "' 열을 찾지 못했습니다.");
+    var row = sh.rows.filter(function (r) { return String(r[ki]) === String(key); })[0];
+    if (!row) throw new Error(sheet + ' 시트에서 ' + key + ' 줄을 찾지 못했습니다.');
+    Object.keys(values).forEach(function (k) {
+      var ci = sh.columns.indexOf(k);
+      if (ci < 0) { ci = sh.columns.length; sh.columns.push(k); }
+      while (row.length <= ci) row.push(null);
+      var v = values[k]; row[ci] = (v === '' || v == null) ? null : String(v);
+    });
+  }
+  function jsonConsult(doc, fc, name, op) {
+    var sh = doc.sheets && doc.sheets['상담기록'];
+    if (!sh) { sh = doc.sheets['상담기록'] = { columns: ['저장날짜시간', '고객명', '담당 FC', '내용', '음성파일'], rows: [] }; }
+    var C = sh.columns, ix = function (n) { return C.indexOf(n); };
+    var dc = ix('저장날짜시간') >= 0 ? ix('저장날짜시간') : ix('저장날짜'), nc = ix('고객명'), fcc = ix('담당 FC'), tc = ix('내용');
+    if (dc < 0 || tc < 0) throw new Error("상담기록 시트에 '저장날짜시간'·'내용' 열이 필요합니다.");
+    var txt = function (v) { return v == null ? '' : String(v).trim(); };
+    var same = function (r, o) { return txt(r[tc]) === o.text && txt(r[nc]) === name && (fcc < 0 || !txt(r[fcc]) || txt(r[fcc]) === fc) && txt(r[dc]).slice(0, 16) === o.at; };
+    var find = function (o) { for (var i = 0; i < sh.rows.length; i++) if (same(sh.rows[i], o)) return i; return -1; };
+    if (op.add) {
+      var r = C.map(function () { return null; });
+      r[dc] = op.add.at + ':00'; r[nc] = name; if (fcc >= 0) r[fcc] = fc; r[tc] = op.add.text; sh.rows.push(r);
+    } else if (op.edit) {
+      var ie = find(op.edit); if (ie < 0) throw new Error('JSON에서 이 상담기록을 찾지 못했습니다. 새로고침 후 다시 시도하세요.');
+      sh.rows[ie][tc] = op.edit.newText;
+    } else if (op.del) {
+      var id = find(op.del); if (id < 0) throw new Error('JSON에서 이 상담기록을 찾지 못했습니다. 새로고침 후 다시 시도하세요.');
+      sh.rows.splice(id, 1);
+    }
+  }
+
   function updateCustomer(fc, id, values) { return updateRow(fc, '고객', '고객ID', id, values); }
   function updateContract(fc, pol, values) { return updateRow(fc, '계약', '증권번호', pol, values); }
   function updateRow(fc, sheet, keyCol, key, values) {
     return serialize(async function () {
+      var jf = await jsonFileOf(fc);   // JSON이 있으면 JSON에 저장(컷오버 후), 없으면 아래 엑셀
+      if (jf) { await jsonEdit(jf, function (doc) { jsonUpdateRow(doc, sheet, keyCol, key, values); }); return jf.name; }
       var f = await listFile(fc), wb = await getWB(f), ws = wb.Sheets[sheet];
       if (!ws) throw new Error("'" + f.name + "'에 '" + sheet + "' 시트가 없습니다.");
       var I = info(ws, keyCol), idc = I.colOf(keyCol), row = -1;
@@ -171,6 +243,8 @@
   // 상담기록: op = { add: {at, text} } | { edit: {at, text, newText} } | { del: {at, text} }   (at = 'YYYY-MM-DD HH:MM')
   function consultOp(fc, name, op) {
     return serialize(async function () {
+      var ej = await extraJsonFile();   // 고객추가정보.json 이 있으면 JSON에 저장
+      if (ej) { await jsonEdit(ej, function (doc) { jsonConsult(doc, fc, name, op); }); return ej.name; }
       var f = await extraFile();
       if (!f) throw new Error("고객 폴더에 '고객추가정보' 엑셀이 없습니다.");
       var wb = await getWB(f), ws = wb.Sheets['상담기록'];
