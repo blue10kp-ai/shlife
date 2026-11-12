@@ -325,3 +325,7 @@ td.nm .churn{margin-left:0}
 .cars-e .car-num{flex:1;min-width:0}
 .cars-e .car-row select{flex:none;width:auto}
 .cars-e .car-del{flex:none;color:#c0392b}
+.logo{display:grid;grid-template-columns:auto 1fr;column-gap:12px;align-items:center;font-size:24px}
+.logo-ico{grid-row:1 / span 2;width:40px;height:40px;border-radius:10px}
+.logo-nm{line-height:1.1}
+.logo small{margin-top:0}.logo small b{color:#fff;font-weight:700}
