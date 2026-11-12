@@ -335,3 +335,10 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 .ev-card.deleted .ev-del { color: var(--accent); }
 .float-save { background: var(--surface); border-top: 1px solid var(--line); }
 .rh .float-save { padding-left: calc(100% / 3); }
+/* 영업(일반 모드): 월 이동은 FC 선택창과 상관없이 줄 전체의 가운데, FC 선택창은 오른쪽 끝에 겹쳐 둠 */
+.sline2:not(.center) { position: relative; justify-content: center; }
+.sline2:not(.center) .ymnav { flex: none; margin: 0 auto; gap: 10px; }
+.sline2:not(.center) select { position: absolute; right: 0; top: 50%; transform: translateY(-50%); padding: 6px 8px; font-size: 14px; }
+.rh .sline2:not(.center) { justify-content: flex-end; }
+.rh .sline2:not(.center) .ymnav { margin: 0; gap: 18px; }
+.rh .sline2:not(.center) select { position: static; transform: none; padding: 8px 10px; font-size: 15px; }

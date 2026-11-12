@@ -3502,6 +3502,7 @@
     }
     $("schedBody").innerHTML = html;
     $("schedBody").querySelectorAll("[data-day]").forEach((b) => b.addEventListener("click", () => setMode("day", new Date(+b.dataset.day))));
+    loadWeekTasks(from, schedReq);
   }
 
   function renderMonth(events, from, to) {
@@ -3542,12 +3543,104 @@
     await requestGToken();
   }
 
+  // ---------- 구글 할 일(Tasks): 마감일이 있는 할 일을 일정 화면에 보여 주고, 체크하면 완료로 바꿈 ----------
+  //   캘린더·드라이브 로그인과 따로, '할 일 연결' 버튼을 눌러 한 번 허용하면 이 폰에 1시간 단위로 기억 (만료되면 다시 연결)
+  const TASKS_KEY = "shlife.gtasks", TASKS_SCOPE = "https://www.googleapis.com/auth/tasks", GTASKS = "https://tasks.googleapis.com/tasks/v1";
+  function storedTasksToken() {
+    try { const t = JSON.parse(localStorage.getItem(TASKS_KEY) || "null"); return t && t.exp > Date.now() + 60000 ? t.token : null; } catch (e) { return null; }
+  }
+  function requestTasksToken() {
+    return new Promise((resolve, reject) => {
+      const g = window.google && window.google.accounts && window.google.accounts.oauth2;
+      if (!g) return reject(new Error("구글 로그인 모듈을 불러오지 못했습니다. 잠시 후 다시 시도하세요."));
+      const client = g.initTokenClient({
+        client_id: GCFG.clientId, scope: TASKS_SCOPE, hint: (GD ? gAccount() : undefined) || undefined,
+        callback: (r) => {
+          if (r.error) return reject(new Error("구글 연결 실패: " + r.error));
+          if (!g.hasGrantedAllScopes(r, TASKS_SCOPE)) return reject(new Error("할 일 권한을 허용해야 보입니다."));
+          try { localStorage.setItem(TASKS_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000 })); } catch (e) { /* 이번엔 사용 */ }
+          resolve(r.access_token);
+        },
+        error_callback: (e) => reject(new Error(e && e.type === "popup_closed" ? "구글 로그인 창이 닫혔습니다." : "구글 로그인 창을 열 수 없습니다. 팝업 차단을 확인하세요."))
+      });
+      client.requestAccessToken({ prompt: "" });
+    });
+  }
+  async function gtasks(path, opt) {
+    const t = storedTasksToken();
+    if (!t) throw new Error("TASKS_AUTH");
+    const res = await fetch(GTASKS + path, { ...(opt || {}), headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" } });
+    if (res.status === 401 || res.status === 403) { try { localStorage.removeItem(TASKS_KEY); } catch (e) {} throw new Error("TASKS_AUTH"); }
+    if (!res.ok) throw new Error("Tasks " + res.status + ": " + (await res.text()).slice(0, 120));
+    return res.status === 204 ? null : res.json();
+  }
+  // from(포함) ~ to(미포함) 마감인 할 일, 모든 목록. due 는 날짜(UTC 0시)라 앞 10글자가 날짜
+  async function fetchTasks(from, to) {
+    const lists = ((await gtasks("/users/@me/lists?maxResults=100")).items) || [];
+    const min = ymdStr(from) + "T00:00:00.000Z", max = ymdStr(to) + "T00:00:00.000Z", all = [];
+    await Promise.all(lists.map(async (l) => {
+      const q = `?showCompleted=true&showHidden=true&maxResults=100&dueMin=${encodeURIComponent(min)}&dueMax=${encodeURIComponent(max)}`;
+      const r = await gtasks("/lists/" + encodeURIComponent(l.id) + "/tasks" + q);
+      (r.items || []).forEach((t) => { if (t.due) all.push({ id: t.id, listId: l.id, list: l.title || "", title: t.title || "(제목 없음)", done: t.status === "completed", due: String(t.due).slice(0, 10) }); });
+    }));
+    return all.filter((t) => t.due >= ymdStr(from) && t.due < ymdStr(to)).sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title, "ko"));
+  }
+  const taskConnectHtml = (msg) => `<div class="card task-card"><h3 class="sec-title">할 일</h3><p class="hint">${esc(msg || "구글 할 일을 보려면 한 번 연결해 주세요.")}</p><button type="button" class="ev-edit" data-taskconnect>할 일 연결</button></div>`;
+  const taskItemHtml = (t) => `<li class="task-item${t.done ? " done" : ""}"><label><input type="checkbox" class="cb" data-task="${esc(t.listId)}|${esc(t.id)}" ${t.done ? "checked" : ""}> <span class="task-title">${esc(t.title)}</span></label>${t.list ? `<span class="hint task-list-name">${esc(t.list)}</span>` : ""}</li>`;
+  // 하루 보기 맨 위 '할 일' 카드
+  async function loadDayTasks(box, d, req) {
+    if (!box) return;
+    if (!storedTasksToken()) { box.innerHTML = taskConnectHtml(); return; }
+    try {
+      const list = await fetchTasks(d, addDays(d, 1));
+      if (req !== schedReq) return;
+      box.innerHTML = list.length ? `<div class="card task-card"><h3 class="sec-title">할 일 <small class="hint">${list.filter((t) => !t.done).length}/${list.length}</small></h3><ul class="task-list">${list.map(taskItemHtml).join("")}</ul></div>` : "";
+    } catch (e) {
+      if (req !== schedReq) return;
+      box.innerHTML = e.message === "TASKS_AUTH" ? taskConnectHtml("할 일 연결이 만료됐거나 권한이 없습니다. 다시 연결해 주세요.") : "";
+      if (e.message !== "TASKS_AUTH") console.warn("tasks", e.message);
+    }
+  }
+  // 주간 보기: 요일 카드마다 그날 마감인 할 일을 한 줄씩 덧붙임 (보기만)
+  async function loadWeekTasks(from, req) {
+    if (!storedTasksToken()) return;
+    try {
+      const list = await fetchTasks(from, addDays(from, 7));
+      if (req !== schedReq) return;
+      const cards = [...document.querySelectorAll("#schedBody .week-day")];
+      list.forEach((t) => {
+        const i = Math.round((new Date(t.due + "T00:00:00") - from) / 86400000);
+        const card = cards[i]; if (!card) return;
+        const none = card.querySelector("p.hint"); if (none && none.textContent.trim() === "일정 없음") none.remove();
+        card.insertAdjacentHTML("beforeend", `<div class="ev-row task-row${t.done ? " done" : ""}">${t.done ? "☑" : "☐"} ${esc(t.title)}</div>`);
+      });
+    } catch (e) { /* 연결이 없거나 만료면 주간 보기엔 아무 것도 덧붙이지 않음 */ }
+  }
+  // 체크 → 완료/미완료 저장, '할 일 연결' 버튼
+  document.addEventListener("change", async (ev) => {
+    const cb = ev.target && ev.target.closest && ev.target.closest("[data-task]");
+    if (!cb) return;
+    const [listId, taskId] = cb.dataset.task.split("|"), want = cb.checked;
+    cb.disabled = true;
+    try {
+      await gtasks("/lists/" + encodeURIComponent(listId) + "/tasks/" + encodeURIComponent(taskId), { method: "PATCH", body: JSON.stringify(want ? { status: "completed" } : { status: "needsAction", completed: null }) });
+      const li = cb.closest("li"); if (li) li.classList.toggle("done", want);
+    } catch (e) { cb.checked = !want; toast(e.message === "TASKS_AUTH" ? "할 일 연결이 만료됐습니다. 다시 연결해 주세요." : e.message); }
+    cb.disabled = false;
+  });
+  document.addEventListener("click", async (ev) => {
+    const b = ev.target && ev.target.closest && ev.target.closest("[data-taskconnect]");
+    if (!b) return;
+    b.disabled = true;
+    try { await requestTasksToken(); renderSchedule(); } catch (e) { toast(e.message); b.disabled = false; }
+  });
   async function renderDay(events, req) {
     const d = schedDate;
     const evs = events.filter((e) => onDay(e, d));
     const body = $("schedBody");
-    if (!evs.length) { body.innerHTML = '<div class="card center"><p class="hint">일정이 없습니다.</p></div>'; schedApplyResume(); return; }
-    body.innerHTML = '<div id="dayList"></div>';
+    if (!evs.length) { body.innerHTML = '<div id="taskBox"></div><div class="card center"><p class="hint">일정이 없습니다.</p></div>'; loadDayTasks($("taskBox"), d, req); schedApplyResume(); return; }
+    body.innerHTML = '<div id="taskBox"></div><div id="dayList"></div>';
+    loadDayTasks($("taskBox"), d, req); // 맨 위에 그날 마감인 할 일 (일정을 기다리지 않고 따로 불러옴)
     const pr = $("pickReset"); if (pr) pr.hidden = false; // 초기화는 Today/Week/Month 줄 오른쪽에 있음 (일정이 있는 날 보기에서만)
     // 초기화: 동명이인 지정을 지우고, 고객 주소·미팅장소로 '입력'해 둔 일정 장소도 지움
     let dayItems = [];
