@@ -349,7 +349,8 @@
     if (view === "searchView") $("pageSearch").hidden = $("results").children.length > 0; // 보이는 고객 목록이 없으면 화면 안 검색창
     if (view !== "salesView" && view !== "customerView" && view !== "loginView") salesClearState(); // 영업 화면을 떠나면 이어보기 상태 삭제
     if (view !== "scheduleView" && view !== "customerView" && view !== "loginView") schedClearState(); // 일정 화면을 떠나도 마찬가지
-    $("mainNav").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.section === SECTION[view]));
+    $("mainNav").querySelectorAll("button[data-section]").forEach((b) => b.classList.toggle("on", b.dataset.section === SECTION[view]));
+    if (view === "loginView" && typeof aiClose === "function") aiClose(true); // 로그인 화면에서는 AI 도우미 없음
     document.documentElement.style.setProperty("--tbh", Math.round(topbarH()) + "px"); // 떠 있는 줄(일정 날짜·고객 수정/닫기)의 위치 기준
     { const nv = $("mainNav"); if (nv && !nv.hidden) document.documentElement.style.setProperty("--navh", Math.round(nv.getBoundingClientRect().height) + "px"); } // 떠 있는 저장 줄은 아래 메뉴 바로 위
     fsRefresh();
@@ -4343,8 +4344,45 @@
   }
 
 
+
+  // ---- AI 도우미 창 (v214: 화면 틀만. 말하기·입력칸·예시. 말을 알아듣고 실행하는 것은 다음 단계) ----
+  function aiOpen() {
+    if (!account()) return; // 로그인 전에는 열지 않음
+    $("aiScrim").hidden = false; $("aiSheet").hidden = false;
+    $("aiSheet").style.transform = "";
+    $("navAi").classList.add("on"); $("navAi").setAttribute("aria-expanded", "true");
+    document.documentElement.classList.add("ai-open");
+  }
+  function aiClose() {
+    if ($("aiSheet").hidden) return;
+    micStop();
+    $("aiScrim").hidden = true; $("aiSheet").hidden = true; $("aiSheet").style.transform = "";
+    $("navAi").classList.remove("on"); $("navAi").setAttribute("aria-expanded", "false");
+    document.documentElement.classList.remove("ai-open");
+    $("aiMsg").hidden = true;
+  }
+  $("navAi").addEventListener("click", () => { if ($("aiSheet").hidden) aiOpen(); else aiClose(); }); // 아이콘 다시 누르면 닫힘
+  $("aiClose").addEventListener("click", () => aiClose());
+  $("aiScrim").addEventListener("click", () => aiClose());
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("aiSheet").hidden) aiClose(); });
+  // 아래로 끌어서 닫기: 위쪽 손잡이 줄을 80px 넘게 끌면 닫힘
+  { let y0 = null, dy = 0;
+    const h = $("aiHead");
+    h.addEventListener("pointerdown", (e) => { if (e.target.closest("#aiClose")) return; y0 = e.clientY; dy = 0; try { h.setPointerCapture(e.pointerId); } catch (x) { /* 무시 */ } $("aiSheet").style.transition = "none"; });
+    h.addEventListener("pointermove", (e) => { if (y0 === null) return; dy = Math.max(0, e.clientY - y0); $("aiSheet").style.transform = "translateY(" + dy + "px)"; });
+    const end = () => { if (y0 === null) return; y0 = null; $("aiSheet").style.transition = ""; if (dy > 80) aiClose(); else $("aiSheet").style.transform = ""; };
+    h.addEventListener("pointerup", end); h.addEventListener("pointercancel", end);
+  }
+  $("aiMic").addEventListener("click", (e) => dictate($("aiInp"), e.currentTarget));
+  $("aiChips").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $("aiInp").value = b.textContent; $("aiInp").focus(); });
+  $("aiForm").addEventListener("submit", (e) => {
+    e.preventDefault(); micStop();
+    const m = $("aiMsg"); m.textContent = "아직 준비 중입니다. (다음 단계에서 고객 검색·일정 입력과 연결합니다.)"; m.hidden = false;
+  });
+
   // 큰 메뉴: 일정 / 고객 / 관리자
-  $("mainNav").querySelectorAll("button").forEach((b) => b.addEventListener("click", async () => {
+  $("mainNav").querySelectorAll("button[data-section]").forEach((b) => b.addEventListener("click", async () => {
+    aiClose(true); // 다른 메뉴로 가면 AI 창은 닫음
     if (!(await confirmLeaveEdit())) return;
     const s = b.dataset.section;
     if (s === "schedule") { schedMode = "day"; schedDate = dayStart(new Date()); openSchedule(); } // 항상 오늘 Today
