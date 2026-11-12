@@ -16,7 +16,7 @@
     };
   }
   // 화면 코드는 버전 번호(VER)로 캐시를 쓴다(예전에는 매번 시간값을 붙여 매번 새로 받았음). 화면 코드를 바꾸면 VER를 올린다.
-  var VER = '2026-11-12s9';
+  var VER = '2026-11-12s10';
   function preloadScripts() {   // 데이터를 받는 동안 화면 코드를 미리 받아 둔다(내용은 아직 실행하지 않음)
     SCRIPTS.forEach(function (src) { var l = document.createElement('link'); l.rel = 'preload'; l.as = 'script'; l.href = src + '?v=' + VER; document.head.appendChild(l); });
   }

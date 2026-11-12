@@ -199,6 +199,45 @@
     var cur = c['통신사'] || '', list = CARRIERS.indexOf(cur) < 0 && cur ? [cur].concat(CARRIERS) : CARRIERS;
     return '<select data-e="통신사" class="csel"><option value="">통신사</option>' + list.map(function (o) { return '<option value="' + esc(o) + '"' + (o === cur ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') + '</select>';
   }
+  // ---- 차량 여러 대: 차량번호·자동차보험갱신일 칸에 구분자 '|'로 이어서 저장 (두 칸의 순서가 짝). 한 대만 있는 예전 값도 그대로 읽힘 ----
+  var CAR_SEP = '|';
+  function splitCars(v) { return String(v || '').split(CAR_SEP).map(function (x) { return x.trim(); }); }
+  function carRows(c) {
+    var nums = splitCars(c['차량번호']), ds = splitCars(c['자동차보험갱신일']), out = [];
+    for (var i = 0; i < Math.max(nums.length, ds.length); i++) if (nums[i] || ds[i]) out.push({ num: nums[i] || '', d: ds[i] || '' });
+    return out;
+  }
+  function carRowH(r) {
+    var p = mdParts(r.d) || [0, 0], i, mo = '', dy = '';
+    for (i = 1; i <= 12; i++) mo += '<option value="' + i + '"' + (p[0] === i ? ' selected' : '') + '>' + i + '월</option>';
+    for (i = 1; i <= 31; i++) dy += '<option value="' + i + '"' + (p[1] === i ? ' selected' : '') + '>' + i + '일</option>';
+    return '<span class="car-row"><input class="car-num" value="' + esc(r.num) + '" placeholder="예: 123가4321" autocomplete="off"><select class="car-mm"><option value="">월</option>' + mo + '</select><select class="car-dd"><option value="">일</option>' + dy + '</select><button type="button" class="btn car-del">삭제</button></span>';
+  }
+  function carsEdit(c) {
+    var rows = carRows(c); if (!rows.length) rows.push({ num: '', d: '' });
+    return '<span class="cars-e"><span class="car-list">' + rows.map(carRowH).join('') + '</span><button type="button" class="btn car-add">차량 추가</button><input type="hidden" data-e="차량번호" value="' + esc(c['차량번호'] || '') + '"><input type="hidden" data-e="자동차보험갱신일" value="' + esc(c['자동차보험갱신일'] || '') + '"></span>';
+  }
+  function carSync(box) {
+    var rows = [].map.call(box.querySelectorAll('.car-row'), function (r) {
+      var mm = r.querySelector('.car-mm').value, dd = r.querySelector('.car-dd').value;
+      return { num: r.querySelector('.car-num').value.trim().replace(/\|/g, ''), d: mm && dd ? (mm.length < 2 ? '0' : '') + mm + (dd.length < 2 ? '0' : '') + dd : '' };
+    }).filter(function (r) { return r.num || r.d; });
+    var hn = box.querySelector('[data-e="차량번호"]'), hd = box.querySelector('[data-e="자동차보험갱신일"]');
+    hn.value = rows.some(function (r) { return r.num; }) ? rows.map(function (r) { return r.num; }).join(CAR_SEP) : '';
+    hd.value = rows.some(function (r) { return r.d; }) ? rows.map(function (r) { return r.d; }).join(CAR_SEP) : '';
+  }
+  ['input', 'change'].forEach(function (t) { document.addEventListener(t, function (ev) { var b = ev.target.closest && ev.target.closest('.cars-e'); if (b) carSync(b); }); });
+  document.addEventListener('click', function (ev) {
+    var t = ev.target; if (!t.closest) return;
+    var box = t.closest('.cars-e'); if (!box) return;
+    var list = box.querySelector('.car-list');
+    if (t.closest('.car-add')) { list.insertAdjacentHTML('beforeend', carRowH({ num: '', d: '' })); return; }
+    var del = t.closest('.car-del'); if (!del) return;
+    var row = del.closest('.car-row');
+    if (list.querySelectorAll('.car-row').length > 1) row.parentNode.removeChild(row);
+    else { row.querySelector('.car-num').value = ''; row.querySelector('.car-mm').value = ''; row.querySelector('.car-dd').value = ''; }
+    carSync(box);
+  });
   function mdSel(c) {
     var p = mdParts(c['자동차보험갱신일']) || [0, 0];
     return '<span class="efr"><select data-emm><option value="">월</option>' + Array.from({ length: 12 }, function (_, i) { return '<option value="' + (i + 1) + '"' + (p[0] === i + 1 ? ' selected' : '') + '>' + (i + 1) + '월</option>'; }).join('') + '</select><select data-edd><option value="">일</option>' + Array.from({ length: 31 }, function (_, i) { return '<option value="' + (i + 1) + '"' + (p[1] === i + 1 ? ' selected' : '') + '>' + (i + 1) + '일</option>'; }).join('') + '</select></span>';
@@ -256,8 +295,8 @@
     var phoneView = c['연락처'] ? (c['통신사'] ? esc(c['통신사']) + ' ' : '') + esc(c['연락처']) : '';
     var pick = function (k) { return '<button type="button" class="pickbtn" data-pick="' + k + '" title="이 값을 미팅장소로 복사">선택</button>'; };
     var contact = '<h3>연락처 · 주소</h3><div class="fg">' + (E
-      ? rowE('휴대전화', '<span class="efr">' + carrierSel(c) + inp(c, '연락처', '', 'tel') + '</span>') + rowE('자택', '<span class="efr">' + inp(c, '자택전화', '', 'tel') + pick('자택전화') + '</span>') + rowE('직장', '<span class="efr">' + inp(c, '직장전화', '', 'tel') + pick('직장전화') + '</span>') + rowE('이메일', inp(c, '이메일', '', 'email')) + rowE('미팅장소', inp(c, '미팅장소')) + rowE('주소', inp(c, '주소')) + rowE('계좌', inp(c, '계좌', '예: 신한 110-123-456789')) + rowE('차량번호', inp(c, '차량번호', '예: 123가4321')) + rowE('자동차보험갱신일', mdSel(c)) + '<input type="hidden" data-e="자동차보험갱신일" value="' + esc(c['자동차보험갱신일'] || '') + '">'
-      : rowH('휴대전화', phoneView) + row('자택', c['자택전화']) + row('직장', c['직장전화']) + row('이메일', c['이메일']) + row('미팅장소', c['미팅장소']) + row('주소', c['주소']) + row('계좌', c['계좌']) + rowH('차량', [c['차량번호'] ? esc(c['차량번호']) : '', c['자동차보험갱신일'] ? esc(mdText(c['자동차보험갱신일'])) : ''].filter(Boolean).join(' | '))) + '</div>';
+      ? rowE('휴대전화', '<span class="efr">' + carrierSel(c) + inp(c, '연락처', '', 'tel') + '</span>') + rowE('자택', '<span class="efr">' + inp(c, '자택전화', '', 'tel') + pick('자택전화') + '</span>') + rowE('직장', '<span class="efr">' + inp(c, '직장전화', '', 'tel') + pick('직장전화') + '</span>') + rowE('이메일', inp(c, '이메일', '', 'email')) + rowE('미팅장소', inp(c, '미팅장소')) + rowE('주소', inp(c, '주소')) + rowE('계좌', inp(c, '계좌', '예: 신한 110-123-456789')) + rowE('차량', carsEdit(c))
+      : rowH('휴대전화', phoneView) + row('자택', c['자택전화']) + row('직장', c['직장전화']) + row('이메일', c['이메일']) + row('미팅장소', c['미팅장소']) + row('주소', c['주소']) + row('계좌', c['계좌']) + rowH('차량', carRows(c).map(function (r) { return [r.num ? esc(r.num) : '', r.d ? esc(mdText(r.d)) : ''].filter(Boolean).join(' | '); }).join('<br>'))) + '</div>';
     return '<div class="drawer"><div class="dh"><div><div class="nmrow"><h2 class="' + gcls(c) + '">' + esc(c['이름']) + '</h2>' + (E ? gradeDots(c) : '') + churnTag(c) + '</div><span class="tag t3">' + esc(c['현재단계'] === '이관관리' ? '이관' : c['현재단계']) + '</span> <span class="mut">' + esc(c['담당FC']) + ' · ' + esc(c['고객ID']) + '</span></div><div class="dhb">' +
       (canE && !E ? '<button class="btn" id="editD">수정</button>' : '') + (E ? '<button class="btn pri" id="eSave">확인</button><button class="btn" id="eCancel">취소</button>' : '<button class="btn" id="closeD">닫기</button>') + '</div></div>' +
       churnNote(c) + covanSection(c) + basic + contact +

@@ -319,3 +319,9 @@ td.cr{white-space:nowrap}td.cr select{padding:2px 4px;font-size:12px;border:1px 
 .churn{font-size:12px;font-weight:500;margin-left:6px;display:inline-flex;align-items:center;gap:6px}.churn::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}.churn.gone{color:#C0392B}.churn.lapse{color:#A8620B}.churnnote{font-size:13px;color:var(--mut);padding:10px 0;border-bottom:1px solid var(--line);margin-bottom:6px}
 td.nm .churn{margin-left:0}
 .skel{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:16px 0}.skb{height:92px;border-radius:14px;background:linear-gradient(90deg,#E6E9F0,#F1F3F8,#E6E9F0)}
+/* 차량 여러 대 입력 */
+.fg .fr.fe b .cars-e{display:block;width:100%}
+.cars-e .car-row{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.cars-e .car-num{flex:1;min-width:0}
+.cars-e .car-row select{flex:none;width:auto}
+.cars-e .car-del{flex:none;color:#c0392b}
