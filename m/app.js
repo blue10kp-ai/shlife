@@ -657,6 +657,16 @@
   // ---- 새 구조: 고객ID·담당FC ----
   const fieldOf = (e, k) => { const f = (e.fields || []).find(([x]) => x.trim() === k); return f ? String(f[1]).trim() : ""; };
   const idOf = (e) => fieldOf(e, "고객ID");
+  // 해지 고객 표시(화면에서 계산, 데이터 수정 없음): 계약자 기준 계약이 1건 이상 있고 유효 계약(유지·완납·납입면제·연금지급·신계약승낙)이 0건이면 '해지', 실효 계약만 남았으면 '실효'. 계약이 없으면(가망·진행·피보험자) 표시 없음
+  const VALID_ST = ["유지", "완납", "납입면제", "연금지급", "신계약승낙"];
+  function churnOf(ids, cts) {
+    const mine = cts.filter((ct) => ids.has(String(ct.row["계약자ID"] || "").trim()));
+    if (!mine.length) return null;
+    const st = mine.map((ct) => String(ct.row["계약상태"] || ct.row["상태"] || "").trim());
+    if (st.some((s) => VALID_ST.includes(s))) return null;
+    return st.includes("실효") ? "실효" : "해지";
+  }
+  const churnTagHtml = (k) => k ? `<span class="tag t-${k}">${k === "해지" ? "해지 고객" : "실효"}</span>` : "";
   // 이 고객의 담당 FC: '담당FC' 칸이 자기 파일의 FC와 같은 행의 FC (없으면 첫 행의 FC)
   function primaryFc(entries) {
     const p = entries.find((e) => { const f = fieldOf(e, "담당FC") || fieldOf(e, "담당 FC"); return f && e.fc === f; });
@@ -790,6 +800,36 @@
       // 고객 안의 시트는 우선순위 순 (계약 > 이관 > 따행 > DB > 가망)
       groups.forEach((c) => { c.entries.sort((a, b) => prio(a.type) - prio(b.type)); c.name = c.entries[0].name; });
       const custs = groups.sort((a, b) => baseName(a.name).localeCompare(baseName(b.name), "ko") || a.name.localeCompare(b.name, "ko"));
+      // 피보험자 고객: 계약의 주·종피보험자ID로 계약자를 찾아 한 줄로 보여 줌 (보이는 범위(records) 안의 계약자만, 표시 전용)
+      const insLines = new Map(), churnMap = new Map();
+      if (custs.length) {
+        const cts = await loadContracts().catch(() => []);
+        custs.forEach((c) => { const k = churnOf(new Set(c.entries.map(idOf).filter(Boolean)), cts); if (k) churnMap.set(c, k); });
+        const byId = new Map(); records.forEach((r) => { const id = idOf(r); if (id && !byId.has(id)) byId.set(id, r); });
+        custs.forEach((c) => {
+          if (!c.entries.some((e) => e.type === "피보험자")) return;
+          const mine = new Set(c.entries.map(idOf).filter(Boolean));
+          const holders = new Map();
+          cts.forEach((ct) => {
+            if (![ct.row["주피보험자ID"], ct.row["종피보험자ID"]].some((x) => mine.has(String(x || "").trim()))) return;
+            const hid = String(ct.row["계약자ID"] || "").trim();
+            if (!hid || mine.has(hid) || !byId.has(hid)) return;
+            if (!holders.has(hid)) holders.set(hid, { id: hid, rec: byId.get(hid), goods: [] });
+            holders.get(hid).goods.push(String(ct.row["상품명"] || "").trim());
+          });
+          if (holders.size) insLines.set(c, [...holders.values()]);
+        });
+      }
+      const insLineHtml = (c) => {
+        const hs = insLines.get(c); if (!hs) return "";
+        const h = hs[0]; // 계약자 이름과 연락처만 (계약자가 여럿이면 '외 N명'만 덧붙임)
+        return `<div class="ins-line"><span class="ins-k">계약자</span> <a role="button" tabindex="0" class="ins-link" data-ins="${esc(h.id)}">${esc(h.rec.name)}</a>${h.rec.phone ? ` <span class="num">${esc(h.rec.phone)}</span>` : ""}${hs.length > 1 ? `<span class="ins-more"> 외 ${hs.length - 1}명</span>` : ""}</div>`;
+      };
+      const openHolder = (id) => { // 계약자 상세로 이동
+        const grp = groupCustomers(records.filter((r) => idOf(r) === id))[0]; if (!grp) return;
+        grp.entries.sort((a, b) => prio(a.type) - prio(b.type)); grp.name = grp.entries[0].name;
+        openCustomer(grp);
+      };
       const label = (want ? want.label + " " : "") + (optTypes.length ? optTypes.map((id) => OPT_LABEL[id]).join("·") + " " : "");
       status.textContent = custs.length ? label + custs.length + "명 찾음" : (q ? "'" + q + "' " : "") + label + "고객이 없습니다.";
       $("pageSearch").hidden = custs.length > 0 || !!force; // 못 찾으면 화면 안 검색창으로 다시 검색
@@ -799,10 +839,15 @@
         const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
         return `<li><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
           <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length ? `<span class="r-sub">${esc(fcs.join(", "))}</span>` : ""}</span>
-          ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button></li>`;
+          ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button>${insLineHtml(c)}</li>`;
       }).join("");
       list.querySelectorAll("button").forEach((b) =>
         b.addEventListener("click", () => openCustomer(custs[+b.dataset.i])));
+      list.querySelectorAll("[data-ins]").forEach((a) => {
+        const go = (ev) => { ev.stopPropagation(); openHolder(a.dataset.ins); };
+        a.addEventListener("click", go);
+        a.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); go(ev); } });
+      });
     } catch (e) {
       status.textContent = "";
       handleError(e);
@@ -1235,6 +1280,12 @@
         return !cp || !phones.size || phones.has(cp); // 이관 계약은 계약자 연락처로 동명이인 구분
       });
       current.extra = extra;
+      { // 해지 고객 표시(머리 카드): 계약을 불러온 뒤 판단
+        const k = churnOf(custIds, contracts), tg = $("custChurn"), note = $("custNote");
+        tg.className = k ? `tag t-${k}` : "tag"; tg.textContent = k === "해지" ? "해지 고객" : k === "실효" ? "실효" : ""; tg.hidden = !k;
+        const noInfo = !cust.entries.some((e) => fieldOf(e, "연락처") || entryAddr(e));
+        note.textContent = k === "해지" && noInfo ? "해지 고객이라 정보 조회 불가" : ""; note.hidden = !note.textContent;
+      }
       try { // 따행 시트(B): 이 고객의 대상년월별 기록, 최신 월부터
         const fw = await loadFollow(), ids = new Set(cust.entries.map(idOf).filter(Boolean));
         current.follows = fw.rows.filter((r) => ids.has(r["고객ID"])).sort((a, b) => ymOfFollow(b["대상년월"]).localeCompare(ymOfFollow(a["대상년월"])));
