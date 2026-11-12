@@ -8,7 +8,7 @@
 
   // ---------- 로그인 (MSAL) ----------
   const redirectUri = location.origin + location.pathname.replace(/index\.html$/, "");
-  const msal = new window.msal.PublicClientApplication({
+  const msal = !window.msal ? null : new window.msal.PublicClientApplication({
     auth: {
       clientId: CFG.clientId,
       authority: "https://login.microsoftonline.com/consumers",
@@ -192,6 +192,26 @@
     });
     return { schema: 1, ...meta, made: new Date().toISOString().slice(0, 19), sheets };
   }
+  // ===== 위치(ID) 기억(2026-11-12): 한 번 찾은 폴더·파일 ID를 이 기기에 저장해 두고 다음부터는 찾기 없이 쓴다. 틀리면(404) 기억을 지우고 다시 찾는다 =====
+  const idcKey = () => "shlife.idc.v1." + (typeof me === "function" ? me() : "");
+  let idcUsed = false;
+  const idcAll = () => { try { return JSON.parse(localStorage.getItem(idcKey()) || "{}") || {}; } catch (e) { return {}; } };
+  const idcGet = (k) => idcAll()[k];
+  const idcSet = (k, v) => { try { const o = idcAll(); if (v == null) delete o[k]; else o[k] = v; localStorage.setItem(idcKey(), JSON.stringify(o)); } catch (e) { /* 저장 못 해도 동작은 같음 */ } };
+  const idcClear = () => { try { localStorage.removeItem(idcKey()); } catch (e) { /* 무시 */ } idcUsed = false; };
+  async function stFindPathCached(path) {
+    const c = GD ? idcGet("path:" + path) : null;
+    if (c) { idcUsed = true; return c; }
+    const r = await stFindPath(path);
+    if (r && GD) idcSet("path:" + path, r);
+    return r;
+  }
+  // JSON 읽기: 같은 파일을 여러 곳에서 읽어도 한 번만 받고(쓰기 때까지), 읽기에는 버전 확인과 엑셀 변환 왕복을 하지 않는다
+  const jsonDocP = new Map();
+  function readJsonDoc(id) {
+    if (!jsonDocP.has(id)) jsonDocP.set(id, stGet0(id).then((buf) => JSON.parse(new TextDecoder().decode(buf).replace(/^\uFEFF/, ""))).catch((e) => { jsonDocP.delete(id); throw e; }));
+    return jsonDocP.get(id);
+  }
   async function stList(id) {
     const items = await stList0(id);
     if (!GD) return items;
@@ -219,6 +239,7 @@
     if (info.ver != null && String(m.version) !== String(info.ver)) throw new Error("다른 곳에서 먼저 수정되었습니다. 새로고침한 뒤 다시 시도해 주세요.");
     const doc = bookToDoc(XLSX.read(data, { type: "array", cellNF: true }), info.meta || {});
     const out = await stPut0(id, new Blob([JSON.stringify(doc)], { type: "application/json" }), "application/json");
+    jsonDocP.delete(id);
     const m2 = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=version&supportsAllDrives=true");
     info.ver = m2.version;
     return out;
@@ -269,8 +290,11 @@
         throw e;
       }
     }
+    const fk = "file:" + dir.id + "/" + name, cid = idcGet(fk);
+    if (cid) { try { return JSON.parse(new TextDecoder().decode(await stGet(cid)).replace(/^﻿/, "")); } catch (e) { idcSet(fk, null); } } // 기억한 위치가 틀리면 찾기로
     const f = await gdFindIn(dir.id, name);
     if (!f) return null;
+    idcSet(fk, f.id);
     return JSON.parse(new TextDecoder().decode(await stGet(f.id)).replace(/^﻿/, ""));
   }
   async function stWriteJsonIn(dir, name, obj) {
@@ -320,7 +344,7 @@
   let base = null; // { driveId, id, owner }
   async function resolveBase() {
     if (base) return base;
-    const mine = await stFindPath(CFG.baseFolder);
+    const mine = await stFindPathCached(CFG.baseFolder);
     if (mine) return (base = { driveId: mine.driveId, id: mine.id, owner: true });
     if (GD) {
       if (!GDCFG.baseId) throw new Error("NO_SHARE");
@@ -344,7 +368,7 @@
     await resolveBase();
     // Google Drive: 공유받은 사용자는 관리자의 설정 폴더(ID)를 씀 (자기 드라이브에 같은 이름 폴더가 있어도)
     if (GD && !base.owner) return (appDir = { id: GDCFG.appDirId || "" });
-    const mine = await stFindPath(CFG.appFolder);
+    const mine = await stFindPathCached(CFG.appFolder);
     if (mine) return (appDir = mine);
     if (GD) return (appDir = { id: GDCFG.appDirId || "" });
     return (appDir = { driveId: CFG.owner.driveId, id: CFG.owner.appDirId });
@@ -405,10 +429,18 @@
   //   고객/김현성/_계약/<고객폴더>, 고객/김현성/계약고객리스트.xlsx   ← FC별 폴더 (현재 구조)
   //   고객/_계약/<고객폴더>, 고객/계약고객리스트.xlsx               ← FC 폴더 없이 (예전 구조)
   // "_"로 시작하는 폴더 = 분류(계약/이관/진행), 그 안의 폴더 = 고객 폴더
-  let scanCache = null; // Promise<{ folders, files, fcs }>
-  function scanBase() {
-    if (scanCache) return scanCache;
-    scanCache = (async () => {
+  let scanCache = null, scanFilesCache = null; // Promise<{ folders, files, fcs }>
+  // scanFiles: 처음 화면에 필요한 '리스트 파일' 위치만(빠름). scanBase: 고객 폴더 목록(사진·파일용)까지(고객을 열 때만)
+  function scanFiles() { return scanFilesCache || (scanFilesCache = scanRun(false).catch((e) => { scanFilesCache = null; throw e; })); }
+  function scanBase() { return scanCache || (scanCache = scanRun(true).catch((e) => { scanCache = null; throw e; })); }
+  async function scanRun(wantFolders) {
+    try { return await scanOnce(wantFolders); } catch (e) {
+      if (idcUsed && /40[34]/.test(String(e.message))) { idcClear(); base = null; appDir = null; return scanOnce(wantFolders); } // 기억한 위치가 틀리면 지우고 다시 찾기
+      throw e;
+    }
+  }
+  function scanOnce(wantFolders) {
+    return (async () => {
       await resolveBase();
       const allowed = await myAllowedFcs();
       const ok = (name) => allowed === "*" || allowed.includes(name);
@@ -420,7 +452,7 @@
         if (rootOk) items.filter((i) => i.file && i.name !== PERM_FILE).forEach((f) => files.push({ ...f, fc }));
         await Promise.all(items.filter((i) => i.folder).map(async (d) => {
           if (d.name.startsWith("_")) {
-            if (!rootOk) return;
+            if (!wantFolders || !rootOk) return; // 고객 폴더 목록은 필요할 때만
             // 고객 폴더가 들어 있는 분류 폴더만 읽음 (_고객 = 새 규칙, _계약·_이관·_진행·_DB = 옛 구조). _결과·_전환중복 같은 정리용 폴더는 고객으로 보지 않음
             if (CFG.customerFolderGroups && !CFG.customerFolderGroups.includes(d.name.slice(1))) return;
             (await stList(d.id))
@@ -429,7 +461,7 @@
           } else if (!fc && ok(d.name) && !done.has(d.name)) {
             await scan(d.id, d.name); // 허용된 FC 폴더만
           } else if (fc) {
-            folders.push({ ...d, group: "", fc }); // 새 구조: FC 폴더 바로 아래가 고객 폴더 (이름 (YYMMDD) - 고객ID)
+            if (wantFolders) folders.push({ ...d, group: "", fc }); // 새 구조: FC 폴더 바로 아래가 고객 폴더 (이름 (YYMMDD) - 고객ID)
           }
         }));
       }
@@ -437,12 +469,11 @@
         if (allowed !== "*" && allowed.length) {
           // FC 폴더 단위로 공유받은 사용자: 폴더 ID로 바로 열기 (고객 루트 폴더 권한이 없어도 됨). Drive 권한이 없는 FC는 건너뜀
           let opened = 0;
-          const rest = [];
-          for (const f of allowed) {
-            if (!fcFolderIds[f]) { rest.push(f); continue; }
+          const rest = allowed.filter((f) => !fcFolderIds[f]);
+          await Promise.all(allowed.filter((f) => fcFolderIds[f]).map(async (f) => { // FC 폴더 목록은 동시에
             try { await scan(fcFolderIds[f], f); done.add(f); opened++; }
             catch (e) { if (!/40[34]/.test(String(e.message))) throw e; console.warn("FC 폴더 접근 없음, 건너뜀:", f); }
-          }
+          }));
           if (rest.length) { // 폴더 ID를 모르는 FC는 예전 방식(고객 루트 목록)으로
             try { await scan(base.id, ""); opened++; } catch (e) { if (!/40[34]/.test(String(e.message))) throw e; }
           }
@@ -457,8 +488,6 @@
       files.forEach((f) => f.fc && !fcs.includes(f.fc) && fcs.push(f.fc));
       return { folders, files, fcs: fcs.sort((a, b) => a.localeCompare(b, "ko")), all: allowed === "*" };
     })();
-    scanCache.catch(() => { scanCache = null; });
-    return scanCache;
   }
   const loadCustomerFolders = async () => (await scanBase()).folders;
 
@@ -466,7 +495,9 @@
   const bookCache = {};
   async function readBook(id) {
     if (!bookCache[id]) {
-      bookCache[id] = stGet(id).then((buf) => XLSX.read(buf, { type: "array" }));
+      bookCache[id] = jsonInfo.has(id)
+        ? readJsonDoc(id).then((doc) => { const inf = jsonInfo.get(id); if (inf && !inf.meta) inf.meta = { fc: doc.fc, source: doc.source }; return jsonToBook(doc); }) // JSON을 앱 구조(시트)로 바로 읽기
+        : stGet(id).then((buf) => XLSX.read(buf, { type: "array" }));
     }
     return bookCache[id];
   }
@@ -529,7 +560,8 @@
 
   async function loadLists() {
     if (listCache) return listCache;
-    const { files, folders } = await scanBase();
+    const { files } = await scanFiles();
+    const folders = CFG.lists.some((l) => l.folderGroup) ? (await scanBase()).folders : []; // 폴더 기반 범위가 있을 때만 고객 폴더 목록을 읽음
     const sources = CFG.lists.filter((l) => l.fileRegex || l.fileKeyword).flatMap((l) =>
       pickSourceFiles(files, l).map((f) => ({ ...l, file: f })));
     const out = [], newDone = new Set();
@@ -860,7 +892,7 @@
   function loadContracts() {
     if (contractCache) return contractCache;
     contractCache = (async () => {
-      const { files } = await scanBase();
+      const { files } = await scanFiles();
       const sources = (CFG.contractLists || []).flatMap((l) =>
         pickSourceFiles(files, l).map((f) => ({ ...l, file: f })));
       const out = [], newCtDone = new Set();
@@ -3777,7 +3809,7 @@
   function loadHistory() {
     if (histCache) return histCache;
     histCache = (async () => {
-      const { files } = await scanBase();
+      const { files } = await scanFiles();
       const spec = CFG.lists.find((l) => l.fileRegex || l.fileKeyword);
       const out = [];
       await Promise.all(pickSourceFiles(files, spec).map(async (f) => {
@@ -3804,7 +3836,7 @@
   function loadFollow() {
     if (followCache) return followCache;
     followCache = (async () => {
-      const { files } = await scanBase();
+      const { files } = await scanFiles();
       const spec = CFG.lists.find((l) => l.fileRegex || l.fileKeyword);
       const out = { files: new Set(), rows: [] };
       await Promise.all(pickSourceFiles(files, spec).map(async (f) => {
@@ -4445,6 +4477,9 @@
       if (gAccount() && storedGToken()) startApp(); else showGLogin();
       return;
     }
+    if (!msal) { // OneDrive 옛 모드는 지원 중단(구글 드라이브만 씀) — 시작 속도를 위해 msal 라이브러리를 더 이상 받지 않는다
+      show("loginView"); $("loginBtn").disabled = true; toast("이 버전은 Google Drive만 지원합니다."); return;
+    }
     await msal.initialize();
     try { await msal.handleRedirectPromise(); } catch (e) { handleError(e); }
     if (msal.getAllAccounts().length) startApp();
@@ -4461,10 +4496,11 @@
       loadSettings().then(() => openSales());
     } else {
       schedMode = "day"; schedDate = dayStart(new Date());
-      loadSettings().then(() => openSchedule()); // 첫 화면: 일정 Today (설정을 읽은 뒤)
+      resetSearch(); // 첫 화면: 고객 (일정은 하단 메뉴에서 열 때 불러옴 — 캘린더 호출이 첫 화면을 늦추지 않게)
+      $("searchStatus").textContent = "고객 목록을 불러오는 중…";
     }
     loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
     if (!isAdmin()) loadMyPrefs(); // 일반 사용자 설정 (캘린더·데이터 절약)
-    loadLists().then(showScope).catch(handleError); // 미리 불러오기
+    loadLists().then(() => { showScope(); if ($("searchStatus").textContent === "고객 목록을 불러오는 중…") $("searchStatus").textContent = ""; }).catch(handleError); // 미리 불러오기
   }
 })();

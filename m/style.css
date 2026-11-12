@@ -326,8 +326,9 @@ th { background: var(--brand-weak); }
 .photo-menu .danger { background: rgba(229,57,53,.85); }
 /* 검색 결과 이름: 배경 없이 글자색만 */
 .list .cname { padding: 0; border: 0; background: none; color: var(--text); }
-.list .cname.grade-bad { color: #e68a00; background: none; }
-.list .cname.grade-shit { color: #e53935; background: none; }
+.list .cname.grade-good { color: #1a8a4a; font-weight: 600; }
+.list .cname.grade-bad { color: #e68a00; background: none; font-weight: 600; }
+.list .cname.grade-shit { color: #e53935; background: none; font-weight: 600; }
 .ev-name .cname { padding: 0; border: 0; background: none; color: var(--text); }
 .ev-name .cname.grade-bad { color: #e68a00; }
 .ev-name .cname.grade-shit { color: #e53935; }
