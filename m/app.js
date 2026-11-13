@@ -425,7 +425,7 @@
     appSettings = next;
   }
   // 영업 화면이 매번 권한 파일을 다시 읽지 않도록 'FC 이름(names)'만 세션 캐시. 권한 파일을 읽거나 쓸 때마다 갱신 (관리자 화면은 열 때 최신을 읽음). 접근 FC 판단(myAllowedFcs)은 캐시를 쓰지 않음
-  let permNamesCache = null;
+  let permNamesCache = null, permPrefixCache = null; // permPrefixCache: { FC이름: 일정 제목 앞 글자 }
   let salesExtraAt = 0;
   // 영업 화면을 열 때(1분에 한 번) 권한 파일을 다시 읽어, 관리자가 방금 바꾼 '추가 FC'도 앱을 다시 열지 않고 반영
   async function refreshSalesExtra() { if (Date.now() - salesExtraAt < 60000) return; salesExtraAt = Date.now(); try { await readPerms(); } catch (e) { /* 이전 값 유지 */ } }
@@ -434,14 +434,16 @@
     await resolveAppDir();
     await stWriteJsonIn(appDir, PERM_FILE, perms);
     permNamesCache = { ...(perms.names || {}) };
+    permPrefixCache = { ...(perms.prefixes || {}) };
   }
   const me = () => String((account() || {}).username || "").toLowerCase();
 
   async function readPerms() {
     await resolveAppDir();
     const p = await stReadJsonIn(appDir, PERM_FILE);
-    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [], salesFcs: (p && p.salesFcs && typeof p.salesFcs === "object") ? p.salesFcs : {} }; // salesFcs: { 이메일: [영업 화면에서 추가로 볼 수 있는 FC 이름] } / sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
+    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, prefixes: (p && p.prefixes && typeof p.prefixes === "object") ? p.prefixes : {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [], salesFcs: (p && p.salesFcs && typeof p.salesFcs === "object") ? p.salesFcs : {} }; // salesFcs: { 이메일: [영업 화면에서 추가로 볼 수 있는 FC 이름] } / sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
     permNamesCache = { ...out.names };
+    permPrefixCache = { ...out.prefixes };
     salesExtra = Array.isArray(out.salesFcs[me()]) ? out.salesFcs[me()].slice() : [];
     salesExtraAt = Date.now();
     return out;
@@ -2667,6 +2669,7 @@
       </div>
       <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>` + smsCardHtml() + rhCardHtml();
     bindSmsCard();
+    bindPrefixCard();
     let cals;
     try { [cals] = await Promise.all([calendarList(), loadMyPrefs(), loadSettings()]); } catch (e) {
       $("myCalBox").innerHTML = "";
@@ -2769,7 +2772,7 @@
           <button class="secondary" id="resetPerms" disabled>되돌리기</button>
           <button class="primary" id="savePerms" disabled>변경 저장</button>
         </div>
-      </div>` + settingsCardHtml() + smsCardHtml(); // 오른손 모드는 '설정' 카드 안에 있음
+      </div>` + prefixCardHtml(perms, fcs) + settingsCardHtml() + smsCardHtml(); // 오른손 모드는 '설정' 카드 안에 있음
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
@@ -3054,7 +3057,7 @@
     const iconBox = `<div class="help-icon"><img src="icon.svg?v=3" width="72" height="72" alt="신한FC m 앱 아이콘"><div><b>앱 아이콘 안내</b><p>고객의 보장을 지키는 <b>방패</b> 안에, 계약과 실적이 꾸준히 <b>오르는 화살표</b>를 담았습니다. 보험 설계사의 일(고객을 지키고, 함께 성장하는 것)을 한 그림으로 줄였습니다.</p><p>연한 하늘색 바탕과 파란 선은 신뢰감 있고 차분한 업무용 앱의 느낌을 주고, 굵은 윤곽선 방패는 작은 홈 화면 아이콘에서도 또렷하게 보이도록 단순하게 만들었습니다. 신한FC m(모바일)에서는 아래 메뉴 맨 왼쪽의 이 아이콘을 누르면 AI 도우미가 열리고, PC 화면 왼쪽 위에는 "신한FC"로 표시됩니다.</p></div></div>`;
     const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
     const common = [
-      sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>현재 상태</b>: 지금은 화면만 준비된 단계입니다. [보내기]를 눌러도 \"아직 준비 중\"이라는 안내만 나옵니다. 말을 알아듣고 고객 검색·일정 입력을 실행하는 기능은 다음 단계에서 연결하며, 그때 이 설명서도 함께 고칩니다."]),
+      sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 제목 앞 글자</b>: 관리자가 FC마다 정해 두면(관리자 화면 ‘AI 일정 앞 글자’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담", "<b>이름 보호</b>: 지금은 외부 AI를 쓰지 않고 이 폰 안에서만 해석하므로 고객 이름이 밖으로 나가지 않습니다. 쓰면서 알아듣는 말을 계속 늘려 갑니다."]),
       sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]),
       sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭, 이동 거리·예상 시간, 회사 출발·도착을 계산합니다. 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]),
       sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 기본 문구가 미리 들어 있고, 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]),
@@ -3269,6 +3272,19 @@
     });
     if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
     if (res.status === 403) throw new Error("이 캘린더의 일정을 수정할 권한이 없습니다.");
+    if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
+    return res.json();
+  }
+
+  // 일정 새로 만들기 (AI 도우미용)
+  async function gcalInsert(calId, body) {
+    const t = storedGToken() || gTokenMem;
+    if (!t) throw new Error("GOOGLE_AUTH");
+    const res = await fetch(GCAL + "/calendars/" + encodeURIComponent(calId) + "/events", {
+      method: "POST", headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" }, body: JSON.stringify(body)
+    });
+    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 403) throw new Error("이 캘린더에 일정을 만들 권한이 없습니다.");
     if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
     return res.json();
   }
@@ -4389,7 +4405,7 @@
     const sh = $("aiSheet");
     sh.style.transition = "transform 200ms var(--ease, ease-out)"; sh.style.transform = "translateY(100%)";
     $("navAi").classList.remove("on"); $("navAi").setAttribute("aria-expanded", "false");
-    $("aiMsg").hidden = true;
+    $("aiMsg").hidden = true; $("aiConfirm").hidden = true; aiPending = null;
     aiClosing = setTimeout(aiFinish, 220);
     if (aiHist) { // 쌓아 둔 기록 정리: 뒤로가기로 닫은 게 아니면 한 칸 되돌려 이중 이동을 막음
       aiHist = false;
@@ -4430,10 +4446,144 @@
   }
   $("aiMic").addEventListener("click", (e) => dictate($("aiInp"), e.currentTarget));
   $("aiChips").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $("aiInp").value = b.textContent; $("aiInp").focus(); });
-  $("aiForm").addEventListener("submit", (e) => {
-    e.preventDefault(); micStop();
-    const m = $("aiMsg"); m.textContent = "아직 준비 중입니다. (다음 단계에서 고객 검색·일정 입력과 연결합니다.)"; m.hidden = false;
-  });
+
+  // ---- AI 도우미: 말을 규칙으로 해석 → 확인 카드 → 실행 (v224: 고객 검색 · 일정 추가 · 일정 보기. 외부 AI 없음, 이름이 폰 밖으로 나가지 않음) ----
+  const AI_NUM = { 열두: 12, 열한: 11, 열: 10, 아홉: 9, 여덟: 8, 일곱: 7, 여섯: 6, 다섯: 5, 네: 4, 세: 3, 두: 2, 한: 1 };
+  const AI_DOW = "일월화수목금토";
+  const aiDateLabel = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일(${AI_DOW[d.getDay()]})`;
+  function aiParseDate(t, now) {
+    const today = dayStart(now);
+    let date = null, rel = "", rest = t, m;
+    if ((m = rest.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/))) {
+      date = new Date(today.getFullYear(), +m[1] - 1, +m[2]);
+      if (date < today) date = new Date(today.getFullYear() + 1, +m[1] - 1, +m[2]);
+      rest = rest.replace(m[0], " ");
+    } else if ((m = rest.match(/(다음\s*주|담주|이번\s*주|금주)?\s*([월화수목금토일])요일/))) {
+      const want = AI_DOW.indexOf(m[2]), cur = today.getDay();
+      let diff = (want - cur + 7) % 7; // 말 안 하면 오늘부터 가장 가까운 그 요일
+      if (/다음|담주/.test(m[1] || "")) { const mon = addDays(today, -((cur + 6) % 7)); diff = Math.round((addDays(mon, 7 + ((want + 6) % 7)) - today) / 86400000); } // 다음 주(월요일 시작) 그 요일
+      date = addDays(today, diff);
+      rest = rest.replace(m[0], " ");
+    } else if (/글피/.test(rest)) { date = addDays(today, 3); rest = rest.replace("글피", " "); }
+    else if (/모레/.test(rest)) { date = addDays(today, 2); rest = rest.replace("모레", " "); }
+    else if (/내일/.test(rest)) { date = addDays(today, 1); rest = rest.replace("내일", " "); }
+    else if (/오늘/.test(rest)) { date = today; rest = rest.replace("오늘", " "); }
+    else if ((m = rest.match(/(?:^|\s)(\d{1,2})\s*일(?!정)/))) {
+      date = new Date(today.getFullYear(), today.getMonth(), +m[1]);
+      if (date < today) date = new Date(today.getFullYear(), today.getMonth() + 1, +m[1]);
+      rest = rest.replace(m[0], " ");
+    }
+    return { date, rest };
+  }
+  function aiParseTime(t) {
+    let rest = t.replace(/(열두|열한|열|아홉|여덟|일곱|여섯|다섯|네|세|두|한)\s*시/g, (x, n) => AI_NUM[n] + "시");
+    const per = (rest.match(/오전|아침|새벽|오후|저녁|밤|점심/) || [""])[0];
+    const m = rest.match(/(\d{1,2})\s*시\s*(?:(\d{1,2})\s*분|(반))?/);
+    if (!m) return { time: null, rest };
+    let h = +m[1]; const min = m[3] ? 30 : (m[2] ? +m[2] : 0);
+    if (/오후|저녁|밤/.test(per)) { if (h < 12) h += 12; }
+    else if (/오전|아침|새벽/.test(per)) { if (h === 12) h = 0; }
+    else if (/점심/.test(per)) { if (h < 11) h += 12; }
+    else if (h >= 1 && h <= 6) h += 12; // 말 안 하면 업무 시간으로 보고 1~6시는 오후 (확인 카드에 보임)
+    if (h > 23 || min > 59) return { time: null, rest };
+    rest = rest.replace(m[0], " ").replace(/오전|아침|새벽|오후|저녁|밤|점심/g, " ");
+    return { time: { h, min }, rest };
+  }
+  function aiInterpret(raw) {
+    const t = raw.replace(/\s+/g, " ").replace(/[.!?。]+$/g, "").trim();
+    if (!t) return null;
+    let m;
+    // 일정 보기: "오늘 일정 보여줘"
+    if (/일정/.test(t) && /(보여|알려|확인|열어)/.test(t) && !/(등록|추가|잡아|넣어)/.test(t)) {
+      const { date } = aiParseDate(t, new Date());
+      return { kind: "showDay", date: date || dayStart(new Date()) };
+    }
+    // 고객 검색: "홍길동 검색" / "홍길동 찾아줘" / "홍길동 고객 조회"
+    if ((m = t.match(/^(.+?)\s*(?:고객\s*)?(?:검색|조회|찾아\s*줘|찾아|보여\s*줘)(?:\s*해?\s*줘)?$/)) && !/일정/.test(t)) {
+      const name = m[1].replace(/\s*고객$/, "").trim();
+      if (name) return { kind: "search", name };
+    }
+    // 일정 추가: 날짜·시간·제목을 뽑음
+    if (/(등록|추가|잡아|넣어|일정)/.test(t)) {
+      const now = new Date();
+      const d = aiParseDate(t, now);
+      const tm = aiParseTime(d.rest);
+      let title = tm.rest
+        .replace(/일정\s*(?:을|를)?\s*(?:등록|추가|잡아|넣어)?\s*(?:해?\s*줘|해줘|해)?/g, " ")
+        .replace(/(?:등록|추가|잡아|넣어)\s*(?:해?\s*줘|해줘|해)?/g, " ")
+        .replace(/(?:^|\s)(?:에|에서|를|을|으로|로)(?=\s|$)/g, " ")
+        .replace(/\s+/g, " ").trim();
+      if (!title) return { kind: "needTitle" };
+      return { kind: "addEvent", title, date: d.date || dayStart(now), hasDate: !!d.date, time: tm.time };
+    }
+    return null;
+  }
+  async function aiPrefix() {
+    try { if (!permPrefixCache) await readPerms(); const fc = await myFcName(); return String((permPrefixCache || {})[fc] || ""); } catch (e) { return ""; }
+  }
+  async function aiTeamCalendar() {
+    const name = (GCFG && GCFG.teamCalendar) || "1팀";
+    const list = await calendarList();
+    const c = list.find((x) => x.name === name);
+    if (!c) throw new Error("'" + name + "' 캘린더를 찾지 못했습니다. 일정 화면의 캘린더 설정을 확인해 주세요.");
+    return c;
+  }
+  let aiPending = null;
+  function aiShowMsg(html) { const m = $("aiMsg"); m.innerHTML = html; m.hidden = false; $("aiConfirm").hidden = true; aiPending = null; }
+  async function aiSubmit() {
+    const txt = $("aiInp").value;
+    const it = aiInterpret(txt);
+    if (!it) return aiShowMsg("못 알아들었습니다. 이렇게 말해 보세요.<br>• “홍길동 검색”<br>• “내일 오후 3시 홍길동 상담 일정 추가”<br>• “오늘 일정 보여줘”");
+    if (it.kind === "needTitle") return aiShowMsg("무슨 일정인지 알려 주세요. 예: “내일 오후 3시 홍길동 상담 일정 추가”");
+    $("aiMsg").hidden = true;
+    let head, line1, line2 = "";
+    if (it.kind === "search") { head = "고객 검색"; line1 = esc(it.name); }
+    else if (it.kind === "showDay") { head = "일정 보기"; line1 = aiDateLabel(it.date); }
+    else {
+      const pre = await aiPrefix();
+      it.summary = pre + it.title;
+      const when = it.time ? `${it.time.h < 12 ? "오전" : "오후"} ${it.time.h % 12 || 12}:${pad2(it.time.min)}` : "종일";
+      head = "일정 추가"; line1 = `${aiDateLabel(it.date)} ${when}`;
+      line2 = `${esc(it.summary)} · ${esc((GCFG && GCFG.teamCalendar) || "1팀")} 캘린더` + (it.hasDate ? "" : " · 날짜를 말하지 않아 오늘로 했습니다");
+    }
+    aiPending = it;
+    $("aiConfirm").innerHTML = `<div class="ai-ch">이렇게 이해했습니다</div><div class="ai-cm"><b>${head}</b> · ${line1}${line2 ? `<small>${line2}</small>` : ""}</div><div class="ai-cb"><button type="button" class="ai-no" id="aiNo">아니요</button><button type="button" class="ai-go" id="aiGo">실행</button></div>`;
+    $("aiConfirm").hidden = false;
+    $("aiNo").addEventListener("click", () => { aiPending = null; $("aiConfirm").hidden = true; });
+    $("aiGo").addEventListener("click", aiRun);
+  }
+  async function aiRun() {
+    const it = aiPending; if (!it) return;
+    const go = $("aiGo"); if (go) { go.disabled = true; go.textContent = "실행 중…"; }
+    try {
+      if (it.kind === "search") {
+        aiClose(); await new Promise((r) => setTimeout(r, 320)); // AI 창이 내려가고 뒤로가기 기록이 정리된 뒤에 이동
+        $("aiInp").value = ""; runTopSearch(it.name);
+      } else if (it.kind === "showDay") {
+        aiClose(); await new Promise((r) => setTimeout(r, 320));
+        $("aiInp").value = ""; schedMode = "day"; schedDate = dayStart(it.date); openSchedule();
+      } else {
+        const cal = await aiTeamCalendar();
+        const tz = (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone || "Asia/Seoul";
+        const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+        let body;
+        if (it.time) {
+          const sH = it.time.h, sM = it.time.min, end = new Date(it.date.getFullYear(), it.date.getMonth(), it.date.getDate(), sH + 1, sM);
+          body = { summary: it.summary, start: { dateTime: `${ymd(it.date)}T${pad2(sH)}:${pad2(sM)}:00`, timeZone: tz }, end: { dateTime: `${ymd(end)}T${pad2(end.getHours())}:${pad2(end.getMinutes())}:00`, timeZone: tz } };
+        } else {
+          body = { summary: it.summary, start: { date: ymd(it.date) }, end: { date: ymd(addDays(it.date, 1)) } };
+        }
+        await gcalInsert(cal.id, body);
+        toast("일정을 등록했습니다: " + it.summary);
+        aiClose(); await new Promise((r) => setTimeout(r, 320));
+        $("aiInp").value = ""; schedMode = "day"; schedDate = dayStart(it.date); openSchedule();
+      }
+    } catch (e) {
+      const msg = e && e.message === "GOOGLE_AUTH" ? "구글 연결이 풀렸습니다. 일정 화면에서 다시 연결해 주세요." : (e && e.message) || "실행하지 못했습니다.";
+      aiShowMsg(esc(msg));
+    }
+  }
+  $("aiForm").addEventListener("submit", (e) => { e.preventDefault(); micStop(); aiSubmit(); });
 
   // 큰 메뉴: 일정 / 고객 / 관리자
   $("mainNav").querySelectorAll("button[data-section]").forEach((b) => b.addEventListener("click", async () => {
@@ -4469,6 +4619,35 @@
     .replace(/\{고객명\}/g, r.holder || "").replace(/\{FC명\}/g, r.fc || fcName || "").replace(/\{상품명\}/g, r.product || "").replace(/\{이관일\}/g, idateText(r.idate));
   // 아이폰은 sms:번호&body=, 안드로이드·그 외는 sms:번호?body= (표준). 문구가 없으면 번호만.
   const smsHref = (phone, body) => (body ? `sms:${phone}${isIOS() ? "&" : "?"}body=${encodeURIComponent(body)}` : `sms:${phone}`);
+
+  // ---------- 관리자: FC별 일정 앞 글자 (AI 도우미로 일정을 등록하면 제목 앞에 붙음) ----------
+  function prefixCardHtml(perms, fcs) {
+    const pf = perms.prefixes || {};
+    return `<div class="card" id="prefixCard"><h3 class="sec-title">AI 일정 앞 글자</h3>
+      <p class="hint">AI 도우미로 일정을 등록하면 제목 맨 앞에 붙는 글자입니다. 예: <b>최)</b> → "최)홍길동 상담". 비워 두면 아무것도 붙지 않습니다.</p>
+      <div class="pf-list">${fcs.map((fc) => `<label class="pf-row"><span>${esc(fc)}</span><input type="text" data-pf="${esc(fc)}" maxlength="10" value="${esc(pf[fc] || "")}" placeholder="예: 최)" autocomplete="off" aria-label="${esc(fc)} 일정 앞 글자"></label>`).join("")}</div>
+      <div class="file-actions"><button type="button" class="primary" id="pfSave" disabled>저장</button></div></div>`;
+  }
+  function bindPrefixCard() {
+    const box = $("prefixCard"); if (!box) return;
+    const inputs = [...box.querySelectorAll("[data-pf]")];
+    const read = () => JSON.stringify(inputs.map((i) => i.value));
+    let base = read();
+    inputs.forEach((i) => i.addEventListener("input", () => { $("pfSave").disabled = read() === base; }));
+    $("pfSave").addEventListener("click", async () => {
+      const b = $("pfSave"); b.disabled = true; b.textContent = "저장 중…";
+      try {
+        const perms = await readPerms();
+        const next = {};
+        inputs.forEach((i) => { const v = i.value.trim(); if (v) next[i.dataset.pf] = v; });
+        perms.prefixes = next;
+        await writePerms(perms);
+        adminState.perms = { ...adminState.perms, prefixes: next };
+        base = read(); toast("일정 앞 글자를 저장했습니다.");
+      } catch (e) { b.disabled = false; handleError(e); }
+      b.textContent = "저장";
+    });
+  }
   function smsCardHtml() {
     const ta = (id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="8" maxlength="600"></textarea>
         <span class="smsrow"><button type="button" class="link-btn" data-sms-reset="${id}">기본값으로 되돌리기</button><small class="cnt" data-for="${id}"></small></span></label>`;

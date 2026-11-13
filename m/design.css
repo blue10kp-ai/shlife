@@ -545,3 +545,18 @@ html.ai-open { overflow: hidden; overscroll-behavior-y: contain; }
 #gradeOpt .gl.on.gl-Good { color: var(--ok); }
 #gradeOpt .gl.on.gl-Bad { color: #f39c12; }
 #gradeOpt .gl.on.gl-Shit { color: var(--bad); }
+
+/* AI 도우미 확인 카드 · 관리자 일정 앞 글자 (v227) */
+.ai-confirm { text-align: left; background: var(--surface); border: 1px solid var(--accent); border-radius: var(--r-card); padding: 12px 14px; }
+.ai-ch { font-size: 12px; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.ai-cm { font-size: 15px; line-height: 1.4; }
+.ai-cm small { display: block; margin-top: 3px; font-size: 13px; color: var(--t2); }
+.ai-cb { display: flex; gap: 8px; margin-top: 10px; }
+.ai-cb button { flex: 1; min-height: 0; height: 40px; border: 0; border-radius: var(--r-ctl); font-size: 14px; font-weight: 700; }
+.ai-no { background: var(--raised); color: var(--t2); }
+.ai-go { background: var(--accent); color: var(--accent-ink); }
+.ai-go:disabled { opacity: .6; }
+.pf-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.pf-row { display: flex; align-items: center; gap: 10px; }
+.pf-row span { flex: 1; font-size: 14px; }
+.pf-row input { width: 110px; height: 36px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t1); padding: 0 10px; font-size: 15px; }

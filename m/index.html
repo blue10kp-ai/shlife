@@ -12,7 +12,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3">
   <link rel="stylesheet" href="style.css?v=142">
   <link rel="stylesheet" href="tokens.css?v=117">
-  <link rel="stylesheet" href="design.css?v=226">
+  <link rel="stylesheet" href="design.css?v=227">
 </head>
 <body>
   <header class="topbar">
@@ -120,7 +120,8 @@
       <button type="button" id="aiMic" class="ai-mic" aria-label="말로 입력"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       <p class="ai-st">눌러서 말씀하세요</p>
       <form id="aiForm" class="ai-form"><input id="aiInp" type="text" placeholder="말하거나 입력하세요" autocomplete="off" enterkeyhint="send" aria-label="AI 도우미에게 말하기"><button type="submit">보내기</button></form>
-      <div class="ai-chips" id="aiChips"><button type="button">홍길동 검색</button><button type="button">내일 오후 3시 홍길동 상담</button></div>
+      <div class="ai-chips" id="aiChips"><button type="button">홍길동 검색</button><button type="button">내일 오후 3시 홍길동 상담 일정 추가</button></div>
+      <div id="aiConfirm" class="ai-confirm" hidden></div>
       <p id="aiMsg" class="ai-msg" hidden></p>
     </div>
   </section>
@@ -147,6 +148,6 @@
   <script async src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
   <script src="config.js?v=118"></script>
-  <script src="app.js?v=223"></script>
+  <script src="app.js?v=224"></script>
 </body>
 </html>
