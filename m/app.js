@@ -832,10 +832,11 @@
   let gradeFilter = "Good";
   function syncGradeOpt() {
     const b = $("gradeOpt"); if (!b) return;
-    b.textContent = "고객 성향"; b.setAttribute("aria-label", "성향 " + gradeFilter);
-    b.classList.toggle("g-bad", gradeFilter === "Bad");
-    b.classList.toggle("g-shit", gradeFilter === "Shit");
+    // v225: 글자 G·B·S 세 개, 지금 고른 성향 글자만 색(G 초록·B 주황·S 빨강), 나머지는 회색
+    b.innerHTML = [["Good", "G"], ["Bad", "B"], ["Shit", "S"]].map(([id, ch]) => `<span class="gl gl-${id}${gradeFilter === id ? " on" : ""}">${ch}</span>`).join("");
+    b.setAttribute("aria-label", "성향 " + gradeFilter);
   }
+  syncGradeOpt();
   const OPT_LABEL = { contract: "본인", transfer: "이관", db: "DB", ddahaeng: "따행", plan: "가망" };
   function syncOpts() { document.querySelectorAll("#searchOpts [data-opt]").forEach((b) => b.classList.toggle("on", b.dataset.opt === "all" ? optSel.size === 0 : optSel.has(b.dataset.opt))); }
   const typeOfOpt = (id) => (CFG.lists.find((l) => l.id === id) || {}).label;

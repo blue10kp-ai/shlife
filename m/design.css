@@ -426,8 +426,6 @@ html[data-view="scheduleView"] .topbar { border-bottom: 0; }
 #pageSearch .mic-btn { height: 30px; }
 #pageSearch .page-mic { width: 30px; height: 30px; padding: 0; } #pageSearch .page-mic.rec { width: auto; padding: 0 10px; }
 /* 성향 버튼: Good=기본 모양, Bad=주황, Shit=빨강 */
-#gradeOpt.g-bad { color: #f39c12; border-color: #f39c12; font-weight: 600; }
-#gradeOpt.g-shit { color: #e53935; border-color: #e53935; font-weight: 600; }
 /* 영업: 고정되는 날짜·탭 줄이 처음부터 고정 위치에 있게 (본문 위쪽 여백 16만큼 먼저 올려 두면 스크롤할 때 움찔 올라가지 않음) */
 #salesView { margin-top: -16px; }
 /* 설명서 창 */
@@ -539,3 +537,10 @@ html.ai-open { overflow: hidden; overscroll-behavior-y: contain; }
 
 /* AI 버튼 아이콘(v224): 옆 메뉴와 같은 선 아이콘 — 평소 회색, 눌리면 파랑. 옆 그림보다 조금 크게 */
 .mainnav .nav-ai .ni svg { width: 28px; height: 28px; stroke-width: 1.5; }
+
+/* 고객 성향 버튼(검색 옵션 줄, v225): G B S 글자, 고른 성향만 색 */
+#gradeOpt { letter-spacing: 3px; padding-left: 12px; padding-right: 9px; }
+#gradeOpt .gl { color: var(--t3); font-weight: 700; }
+#gradeOpt .gl.on.gl-Good { color: var(--ok); }
+#gradeOpt .gl.on.gl-Bad { color: #f39c12; }
+#gradeOpt .gl.on.gl-Shit { color: var(--bad); }
