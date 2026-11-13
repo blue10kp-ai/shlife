@@ -2669,7 +2669,6 @@
       </div>
       <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>` + smsCardHtml() + rhCardHtml();
     bindSmsCard();
-    bindPrefixCard();
     let cals;
     try { [cals] = await Promise.all([calendarList(), loadMyPrefs(), loadSettings()]); } catch (e) {
       $("myCalBox").innerHTML = "";
@@ -2836,6 +2835,7 @@
     $("resetPerms").addEventListener("click", () => renderAdmin());
     bindSettings();
     bindSmsCard();
+    bindPrefixCard(); // 관리자 화면의 'AI 일정 앞 글자' 카드 저장 버튼
     $("adminBody").querySelectorAll("[data-admin-name]").forEach((inp) => {
       const em = inp.dataset.adminName, btn = $("adminBody").querySelector(`[data-admin-save="${CSS.escape(em)}"]`), base = inp.value.trim();
       inp.addEventListener("input", () => { btn.disabled = inp.value.trim() === base; });
@@ -3057,7 +3057,7 @@
     const iconBox = `<div class="help-icon"><img src="icon.svg?v=3" width="72" height="72" alt="신한FC m 앱 아이콘"><div><b>앱 아이콘 안내</b><p>고객의 보장을 지키는 <b>방패</b> 안에, 계약과 실적이 꾸준히 <b>오르는 화살표</b>를 담았습니다. 보험 설계사의 일(고객을 지키고, 함께 성장하는 것)을 한 그림으로 줄였습니다.</p><p>연한 하늘색 바탕과 파란 선은 신뢰감 있고 차분한 업무용 앱의 느낌을 주고, 굵은 윤곽선 방패는 작은 홈 화면 아이콘에서도 또렷하게 보이도록 단순하게 만들었습니다. 신한FC m(모바일)에서는 아래 메뉴 맨 왼쪽의 이 아이콘을 누르면 AI 도우미가 열리고, PC 화면 왼쪽 위에는 "신한FC"로 표시됩니다.</p></div></div>`;
     const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
     const common = [
-      sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 제목 앞 글자</b>: 관리자가 FC마다 정해 두면(관리자 화면 ‘AI 일정 앞 글자’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담", "<b>이름 보호</b>: 지금은 외부 AI를 쓰지 않고 이 폰 안에서만 해석하므로 고객 이름이 밖으로 나가지 않습니다. 쓰면서 알아듣는 말을 계속 늘려 갑니다."]),
+      sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 제목 앞 글자</b>: 관리자가 FC마다 정해 두면(관리자 화면 ‘AI 일정 앞 글자’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담", "<b>이름 보호</b>: 지금은 외부 AI를 쓰지 않고 이 폰 안에서만 해석하므로 고객 이름이 밖으로 나가지 않습니다. 쓰면서 알아듣는 말을 계속 늘려 갑니다."]),
       sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]),
       sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭, 이동 거리·예상 시간, 회사 출발·도착을 계산합니다. 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]),
       sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 기본 문구가 미리 들어 있고, 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]),
@@ -4506,7 +4506,11 @@
     // 일정 추가: 날짜·시간·제목을 뽑음
     if (/(등록|추가|잡아|넣어|일정)/.test(t)) {
       const now = new Date();
-      const d = aiParseDate(t, now);
+      // "내 일정(에다가)", "내 캘린더에": 1팀이 아니라 로그인한 사람 본인 캘린더(내 FC 이름과 같은 이름)에 등록
+      let mine = false, t0 = t;
+      const mm = t0.match(/(?:^|\s)내\s*(?:일정|캘린더)\s*(?:에다가|에다|에서|에)?(?=\s|$)/);
+      if (mm) { mine = true; t0 = t0.replace(mm[0], " ").replace(/\s+/g, " ").trim(); }
+      const d = aiParseDate(t0, now);
       const tm = aiParseTime(d.rest);
       let title = tm.rest
         .replace(/일정\s*(?:을|를)?\s*(?:등록|추가|잡아|넣어)?\s*(?:해?\s*줘|해줘|해)?/g, " ")
@@ -4514,15 +4518,15 @@
         .replace(/(?:^|\s)(?:에|에서|를|을|으로|로)(?=\s|$)/g, " ")
         .replace(/\s+/g, " ").trim();
       if (!title) return { kind: "needTitle" };
-      return { kind: "addEvent", title, date: d.date || dayStart(now), hasDate: !!d.date, time: tm.time };
+      return { kind: "addEvent", title, date: d.date || dayStart(now), hasDate: !!d.date, time: tm.time, mine };
     }
     return null;
   }
   async function aiPrefix() {
     try { if (!permPrefixCache) await readPerms(); const fc = await myFcName(); return String((permPrefixCache || {})[fc] || ""); } catch (e) { return ""; }
   }
-  async function aiTeamCalendar() {
-    const name = (GCFG && GCFG.teamCalendar) || "1팀";
+  async function aiTeamCalendar(nameOpt) {
+    const name = nameOpt || (GCFG && GCFG.teamCalendar) || "1팀";
     const list = await calendarList();
     const c = list.find((x) => x.name === name);
     if (!c) throw new Error("'" + name + "' 캘린더를 찾지 못했습니다. 일정 화면의 캘린더 설정을 확인해 주세요.");
@@ -4540,11 +4544,13 @@
     if (it.kind === "search") { head = "고객 검색"; line1 = esc(it.name); }
     else if (it.kind === "showDay") { head = "일정 보기"; line1 = aiDateLabel(it.date); }
     else {
-      const pre = await aiPrefix();
+      const pre = it.mine ? "" : await aiPrefix(); // 내 일정에는 앞 글자를 붙이지 않음(팀 캘린더에서 누구 것인지 구분하려는 글자라서)
       it.summary = pre + it.title;
+      if (it.mine) { it.calName = await myFcName(); if (!it.calName) return aiShowMsg("내 FC 이름이 아직 정해지지 않아 ‘내 일정’을 찾을 수 없습니다. 관리자에게 이름 등록을 요청해 주세요."); }
+      else it.calName = (GCFG && GCFG.teamCalendar) || "1팀";
       const when = it.time ? `${it.time.h < 12 ? "오전" : "오후"} ${it.time.h % 12 || 12}:${pad2(it.time.min)}` : "종일";
       head = "일정 추가"; line1 = `${aiDateLabel(it.date)} ${when}`;
-      line2 = `${esc(it.summary)} · ${esc((GCFG && GCFG.teamCalendar) || "1팀")} 캘린더` + (it.hasDate ? "" : " · 날짜를 말하지 않아 오늘로 했습니다");
+      line2 = `${esc(it.summary)} · ${esc(it.calName)} 캘린더` + (it.hasDate ? "" : " · 날짜를 말하지 않아 오늘로 했습니다");
     }
     aiPending = it;
     $("aiConfirm").innerHTML = `<div class="ai-ch">이렇게 이해했습니다</div><div class="ai-cm"><b>${head}</b> · ${line1}${line2 ? `<small>${line2}</small>` : ""}</div><div class="ai-cb"><button type="button" class="ai-no" id="aiNo">아니요</button><button type="button" class="ai-go" id="aiGo">실행</button></div>`;
@@ -4563,7 +4569,7 @@
         aiClose(); await new Promise((r) => setTimeout(r, 320));
         $("aiInp").value = ""; schedMode = "day"; schedDate = dayStart(it.date); openSchedule();
       } else {
-        const cal = await aiTeamCalendar();
+        const cal = await aiTeamCalendar(it.calName);
         const tz = (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone || "Asia/Seoul";
         const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
         let body;
