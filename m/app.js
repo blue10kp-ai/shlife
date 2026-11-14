@@ -3089,12 +3089,63 @@
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_set);
     return iconBox + parts.join("");
   }
-  function openHelp() {
-    let box = $("helpModal");
-    if (!box) { box = document.createElement("div"); box.id = "helpModal"; box.className = "help-modal"; document.body.appendChild(box); box.addEventListener("click", (e) => { if (e.target === box || e.target.closest("[data-helpclose]")) box.hidden = true; }); }
-    box.innerHTML = `<div class="help-sheet" role="dialog" aria-label="설명서"><div class="help-head"><b>설명서</b><button type="button" class="secondary" data-helpclose>닫기</button></div><div class="help-body">${helpHtml()}</div></div>`;
-    box.hidden = false;
+  // 설명서 = AI 도우미처럼 아래 시트: 아래에서 올라오고, 끌어내리기·뒤로가기·닫기·바깥·Esc 모두 아래로 내려감(AI 시트와 같은 방식)
+  var helpIsOpen = false, helpClosing = null, helpHist = false, helpExpectPop = false, helpMouse = false, helpDrag = null;
+  function helpFinish() {
+    if (!helpClosing) return;
+    clearTimeout(helpClosing); helpClosing = null;
+    const box = $("helpModal"); if (box) { box.hidden = true; box.classList.remove("closing"); }
+    document.documentElement.classList.remove("help-open");
   }
+  function openHelp() {
+    helpFinish();
+    if (helpIsOpen) return;
+    let box = $("helpModal");
+    if (!box) { box = document.createElement("div"); box.id = "helpModal"; box.className = "help-modal"; document.body.appendChild(box); box.addEventListener("click", (e) => { if (e.target === box || e.target.closest("[data-helpclose]")) helpClose(); }); }
+    box.innerHTML = `<div class="help-sheet" role="dialog" aria-label="설명서"><div class="help-top"><div class="ai-grab" aria-hidden="true"></div><div class="help-head"><b>설명서</b><button type="button" class="secondary" data-helpclose>닫기</button></div></div><div class="help-body">${helpHtml()}</div></div>`;
+    box.classList.remove("closing"); box.hidden = false; helpIsOpen = true;
+    document.documentElement.classList.add("help-open");
+    history.pushState({ v: "help" }, ""); helpHist = true; // 폰의 뒤로가기로 닫을 수 있게 기록 한 칸 쌓기
+    helpBindDrag(box.querySelector(".help-sheet"));
+  }
+  function helpClose(fromPop) {
+    if (!helpIsOpen) return;
+    helpIsOpen = false;
+    const box = $("helpModal"), sh = box.querySelector(".help-sheet");
+    sh.style.transition = "transform 200ms var(--ease, ease-out)"; sh.style.transform = "translateY(100%)"; box.classList.add("closing");
+    helpClosing = setTimeout(helpFinish, 220);
+    if (helpHist) { helpHist = false; if (fromPop !== "pop") { helpExpectPop = true; history.back(); } }
+  }
+  window.addEventListener("popstate", () => { // AI 시트와 같은 방식: 우리가 되돌린 기록·뒤로가기는 설명서만 닫고 화면은 그대로
+    if (helpExpectPop) { helpExpectPop = false; aiSkipOther = true; return; }
+    if (helpIsOpen) { helpClose("pop"); aiSkipOther = true; }
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && helpIsOpen) helpClose(); });
+  // 아래로 끌어 닫기: 내용이 맨 위일 때만 끌림(스크롤 중이면 스크롤이 먼저). 80px 넘게 끌면 닫힘
+  function helpBindDrag(sh) {
+    const bd = sh.querySelector(".help-body");
+    let y0 = null, dy = 0, drag = false;
+    const begin = (y) => { y0 = y; dy = 0; drag = false; };
+    const move = (y, ev) => {
+      if (y0 === null) return;
+      const d = y - y0;
+      if (!drag) {
+        if (d > 8 && bd.scrollTop <= 0) { drag = true; sh.style.transition = "none"; }
+        else if (d < -8 || bd.scrollTop > 0) { y0 = null; return; }
+        else return;
+      }
+      dy = Math.max(0, d); sh.style.transform = "translateY(" + dy + "px)";
+      if (ev && ev.cancelable) ev.preventDefault();
+    };
+    const end = () => { if (y0 === null) return; const was = drag; y0 = null; drag = false; sh.style.transition = ""; if (!was) return; if (dy > 80) helpClose(); else sh.style.transform = ""; };
+    sh.addEventListener("touchstart", (e) => begin(e.touches[0].clientY), { passive: true });
+    sh.addEventListener("touchmove", (e) => move(e.touches[0].clientY, e), { passive: false });
+    sh.addEventListener("touchend", end); sh.addEventListener("touchcancel", end);
+    sh.addEventListener("pointerdown", (e) => { if (e.pointerType === "mouse") { helpMouse = true; begin(e.clientY); } });
+    helpDrag = { move, end };
+  }
+  window.addEventListener("pointermove", (e) => { if (helpMouse && helpDrag) helpDrag.move(e.clientY, null); });
+  window.addEventListener("pointerup", () => { if (helpMouse && helpDrag) { helpMouse = false; helpDrag.end(); } });
   $("fsHelp").addEventListener("click", openHelp);
   $("fsSave").addEventListener("click", async () => {
     const sb = $("fsSave"); sb.dataset.busy = "1"; sb.disabled = true; $("fsCancel").disabled = true; sb.textContent = "저장 중…";
