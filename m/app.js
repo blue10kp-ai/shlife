@@ -3048,8 +3048,15 @@
   $("loginOtherBtn").addEventListener("click", () => (GD ? googleLogin(true) : msal.loginRedirect({ scopes: SCOPES, prompt: "select_account" })));
   // ---- 관리자·설정 화면의 저장·취소 하나로: 화면 안의 모든 저장 버튼을 한꺼번에 눌러 주고, 아래 메뉴 바로 위에 떠 있음 ----
   //   저장 순서: 설정 → 문자 문구 → 내 캘린더 → (마지막) FC 권한. FC 권한 저장은 화면을 다시 그리므로 맨 마지막
-  const FS_BTNS = ["setSave", "smsSave", "myCalSave", "savePerms"];
-  const fsDirty = () => FS_BTNS.some((id) => { const b = $(id); return b && !b.disabled; });
+  //   설정 화면의 어떤 카드든 저장할 내용이 있으면(그 카드의 저장 버튼이 켜져 있으면) 아래 [저장]이 켜지고, 누르면 켜진 카드를 모두 저장
+  const FS_FIRST = ["setSave", "smsSave", "startSave", "smsTeamSave", "myCalSave"];
+  const fsBtns = () => {
+    const list = FS_FIRST.map((id) => $(id)).filter(Boolean);
+    $("adminBody").querySelectorAll("[data-pfx-save], [data-sa-save]").forEach((b) => list.push(b));
+    const pp = $("savePerms"); if (pp) list.push(pp);
+    return list;
+  };
+  const fsDirty = () => fsBtns().some((b) => !b.disabled);
   function fsRefresh() {
     const bar = $("floatSave");
     if (!bar) return;
@@ -3058,7 +3065,6 @@
     if (!on) return;
     const dirty = fsDirty(), busy = $("fsSave").dataset.busy === "1";
     $("fsSave").disabled = !dirty || busy;
-    $("fsCancel").disabled = !dirty || busy;
   }
   new MutationObserver(fsRefresh).observe($("adminBody"), { subtree: true, childList: true, attributes: true, attributeFilter: ["disabled"] });
   // 영업 화면 위쪽 줄(이달이관·따행 선택, 월 이동, FC 선택)의 높이를 재 두어, 그 아래 '설문 발송' 줄이 바로 밑에 붙어 고정되게 함
@@ -3077,7 +3083,7 @@
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_sms = sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
-    const s_save = sec("저장과 취소", ["바뀐 내용이 있을 때만 아래 [저장]·[취소]가 켜집니다. 저장은 바뀐 모든 카드를 한꺼번에 저장하고, 취소는 바뀐 내용을 버리고 처음 상태로 되돌립니다."]);
+    const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
@@ -3144,12 +3150,11 @@
   window.addEventListener("pointerup", () => { if (helpMouse && helpDrag) { helpMouse = false; helpDrag.end(); } });
   $("fsHelp").addEventListener("click", openHelp);
   $("fsSave").addEventListener("click", async () => {
-    const sb = $("fsSave"); sb.dataset.busy = "1"; sb.disabled = true; $("fsCancel").disabled = true; sb.textContent = "저장 중…";
+    const sb = $("fsSave"); sb.dataset.busy = "1"; sb.disabled = true; sb.textContent = "저장 중…";
     try {
-      for (const id of FS_BTNS) { const b = $(id); if (b && !b.disabled) { b.click(); await new Promise((r) => setTimeout(r, 60)); await fsWait(b); } }
+      for (const b of fsBtns()) { if (b.isConnected && !b.disabled) { b.click(); await new Promise((r) => setTimeout(r, 60)); await fsWait(b); } }
     } finally { sb.dataset.busy = ""; sb.textContent = "저장"; fsRefresh(); }
   });
-  $("fsCancel").addEventListener("click", () => { if (isAdmin()) renderAdmin(); else openMySettings(); toast("바뀐 내용을 취소했습니다."); });
   // 새로고침 버튼(로그아웃 왼쪽): 이 화면을 다시 불러옴. 영업·일정 화면은 보던 자리로 돌아옴
   $("reloadBtn").addEventListener("click", async () => {
     if (typeof confirmLeaveEdit === "function" && !(await confirmLeaveEdit())) return; // 수정 중이면 저장·취소 확인
