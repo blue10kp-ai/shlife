@@ -926,7 +926,7 @@
     b.setAttribute("aria-label", "성향 " + gradeFilter);
   }
   syncGradeOpt();
-  const OPT_LABEL = { contract: "본인", transfer: "이관", db: "DB", ddahaeng: "따행", plan: "가망" };
+  const OPT_LABEL = { contract: "본인", transfer: "이관", progress: "진행", db: "DB", ddahaeng: "따행", plan: "가망" };
   function syncOpts() { document.querySelectorAll("#searchOpts [data-opt]").forEach((b) => b.classList.toggle("on", b.dataset.opt === "all" ? optSel.size === 0 : optSel.has(b.dataset.opt))); }
   const typeOfOpt = (id) => (CFG.lists.find((l) => l.id === id) || {}).label;
   // 고객 리스트의 FC 선택: 전체 / 각 FC. 기본은 내 FC(권한 파일의 내 이름), 고른 값은 이 폰에 기억. FC가 하나뿐이면 선택칸을 숨김
@@ -952,10 +952,12 @@
   // 검색 결과에서 같은 이름을 구분하도록 이름 옆에 작게: 생년 · 남/여 · 지역
   function birthYear(b) { const raw = String(b || "").trim(), m4 = raw.match(/^((?:19|20)\d{2})(?:\D|$)/); if (m4) return m4[1]; const x = raw.replace(/\D/g, ""); if (/^(19|20)\d{2}($|\d{4})/.test(x) && (x.length === 4 || x.length === 8)) return x.slice(0, 4); if (x.length >= 6) { const yy = +x.slice(0, 2), cy = new Date().getFullYear() % 100; return (yy > cy ? 1900 + yy : 2000 + yy) + ""; } return ""; }
   const resultInfo = (c) => [birthYear(c.birth), genderOf(c), regionOf(c)].filter(Boolean).join(" · ");
+  let goTabPending = ""; // 말만해요 tab=analysis 등: 고객 정보를 열 때 이 탭으로
   let goKeepList = null; // 말만해요에서 넘어온 검색어: 한 명만 나와도 목록을 보여 줌
   async function search(q, force) {
     q = q.trim();
     const keepList = goKeepList !== null && goKeepList === q; goKeepList = null;
+    const tabReq = goTabPending; goTabPending = "";
     const status = $("searchStatus");
     const list = $("results");
     list.innerHTML = "";
@@ -1061,7 +1063,7 @@
       status.textContent = (custs.length ? label + custs.length + "명 찾음" : (q ? "'" + q + "' " : "") + label + (evs.length ? "고객 없음" : "고객이 없습니다.")) + (evs.length ? " · 일정 " + evs.length + "건" : "");
       $("pageSearch").hidden = custs.length > 0 || evs.length > 0 || !!force; // 못 찾으면 화면 안 검색창으로 다시 검색
       if (wide && q && !force) { openSearchPopup(q, custs, evs); return; } // 위쪽 전체검색: 결과는 팝업으로
-      if (custs.length === 1 && q && !keepList) return openCustomer(custs[0]);
+      if (custs.length === 1 && q && (!keepList || tabReq)) { await openCustomer(custs[0]); if (tabReq) selectTab(tabReq); return; }
       list.innerHTML = custs.map((c, i) => {
         const types = [...new Set(c.entries.map((e) => e.type))];
         const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
@@ -1070,7 +1072,7 @@
           ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button>${insLineHtml(c)}</li>`;
       }).join("");
       list.querySelectorAll("button").forEach((b) =>
-        b.addEventListener("click", () => openCustomer(custs[+b.dataset.i])));
+        b.addEventListener("click", async () => { await openCustomer(custs[+b.dataset.i]); if (tabReq) selectTab(tabReq); }));
       if (evs.length) { // 일정에서 찾은 것: 날짜·제목 줄, 누르면 그날 일정 화면
         const WDK = ["일", "월", "화", "수", "목", "금", "토"];
         list.insertAdjacentHTML("afterend", `<div id="evHits" class="ev-hits"><h3 class="sec-title">일정 ${evs.length}건 <span class="hint">(1년 전 ~ 1개월 뒤)</span></h3><ul class="list">${evs.map((e, i) => `<li><button type="button" data-evgo="${i}"><span class="r-name"><span class="cname">${esc(e.title)}</span><span class="r-sub">${e.start.getFullYear()}.${pad2(e.start.getMonth() + 1)}.${pad2(e.start.getDate())}(${WDK[e.start.getDay()]}) ${e.allDay ? "종일" : hm(e.start)} · ${esc(e.cal)}${e.location ? " · " + esc(e.location) : ""}</span></span><span class="chev">›</span></button></li>`).join("")}</ul></div>`);
@@ -2389,34 +2391,50 @@
   const ownContracts = () => current.contracts.filter((c) => !isRefContract(c));
   const refContracts = () => current.contracts.filter(isRefContract);
   const hideRefOn = () => { try { return localStorage.getItem("shlife.hideRefContracts") === "1"; } catch (e) { return false; } };
-  // 분석 탭 맨 위 '보장 요약': 고객 시트의 '보장요약' 칸(JSON 글자)을 읽어 보여 줌. 스마트보장분석에서 미리 뽑아 저장해 둔 값이라 따로 불러오지 않음.
-  //   형식: {"기준":"2026-10-05","실손":{"세대":"3세대","상품":"…","가입일":"2018-05","혜택":["…"]},"담보":{"진단비":"…","수술비":"…","입원비":"…"}}
+  // 분석 탭 맨 위 '보장 요약': 고객 시트의 '보장요약' 칸(JSON 글자)을 읽기만 함 (고객 등록·업데이트 때 미리 만들어 둔 값, 여기서 계산하지 않음)
+  //   새 형식: {"출처":"전체"|"신한","기준":"2026-10-05","사망":"1억원","3대진단":{"암":"3,000만원","뇌":"2,000만원","심":"2,000만원"},"수술":"30~100만원","입원":"일 3만원","간병":"일 10만원","실손":{…}}
+  //   값 "-" = 가입 없음, 키가 없음 = 원문에서 읽지 못함. 옛 형식({"기준","실손","담보":{암진단비…}})도 읽음(출처 없으면 스마트보장분석=전체로 봄)
   function coverageSummaryHtml() {
     const raw = (current.cust.entries.map((e) => fieldOf(e, "보장요약")).find(Boolean)) || "";
     if (!raw) return "";
     let j = null;
     try { j = JSON.parse(raw); } catch (e) { return ""; }
     if (!j || typeof j !== "object") return "";
+    const dam = j["담보"] && typeof j["담보"] === "object" ? j["담보"] : {};
+    const pick = (o, keys) => { for (const k of keys) if (o && o[k] != null && String(o[k]).trim() !== "") return String(o[k]).trim(); };
+    const three = j["3대진단"] && typeof j["3대진단"] === "object" ? j["3대진단"] : {};
+    const vals = {
+      사망: pick(j, ["사망"]),
+      암: pick(three, ["암"]) ?? pick(dam, ["암진단비", "암 진단비", "암"]),
+      뇌: pick(three, ["뇌"]) ?? pick(dam, ["뇌진단비", "뇌 진단비", "뇌"]),
+      심: pick(three, ["심"]) ?? pick(dam, ["심진단비", "심 진단비", "심", "심장진단비", "심장 진단비"]),
+      수술: pick(j, ["수술"]) ?? pick(dam, ["수술비", "수술"]),
+      입원: pick(j, ["입원"]) ?? pick(dam, ["입원비", "입원"]),
+      간병: pick(j, ["간병"])
+    };
     const sil = j["실손"];
     let silHtml = "";
     if (sil && typeof sil === "object" && (sil["세대"] || sil["상품"])) {
       const meta = [sil["상품"], sil["가입일"] ? sil["가입일"] + " 가입" : ""].filter(Boolean).join(" · ");
       const ben = Array.isArray(sil["혜택"]) ? sil["혜택"].filter(Boolean) : [];
-      silHtml = `<div class="cov-sil"><b>실손${sil["세대"] ? " " + esc(sil["세대"]) : ""}</b>${meta ? ` <span class="hint">${esc(meta)}</span>` : ""}${ben.length ? `<ul>${ben.map((b) => `<li>${esc(b)}</li>`).join("")}</ul>` : ""}</div>`;
-    } else if (sil === "없음" || sil === null || sil === "") {
+      silHtml = `<div class="cov-sil"><b>실손${sil["세대"] ? " " + esc(sil["세대"]) : ""}</b>${meta ? ` <span class="hint">${esc(meta)}</span>` : ""}${ben.length ? `<ul>${ben.map((b2) => `<li>${esc(b2)}</li>`).join("")}</ul>` : ""}</div>`;
+    } else if (sil === "없음") {
       silHtml = `<div class="cov-sil"><b>실손</b> <span class="hint">없음</span></div>`;
     }
-    // 담보 표: 암·뇌·심 진단비, 수술비, 입원비를 고정 순서로 (값이 없으면 '-'), 그 밖의 항목은 아래에 이어 붙임
-    const dam = j["담보"] && typeof j["담보"] === "object" ? j["담보"] : null;
-    const FIX = [["암 진단비", ["암진단비", "암 진단비", "암"]], ["뇌 진단비", ["뇌진단비", "뇌 진단비", "뇌"]], ["심 진단비", ["심진단비", "심 진단비", "심", "심장진단비", "심장 진단비"]], ["수술비", ["수술비"]], ["입원비", ["입원비"]]];
-    let cov = [];
-    if (dam) {
-      const used = new Set();
-      cov = FIX.map(([label, keys]) => { const k = keys.find((x) => dam[x] != null && String(dam[x]).trim()); if (k) used.add(k); return [label, k ? String(dam[k]).trim() : "-"]; });
-      Object.entries(dam).forEach(([k, v]) => { if (!used.has(k) && !FIX.some(([, ks]) => ks.includes(k)) && String(v == null ? "" : v).trim()) cov.push([k, String(v).trim()]); });
+    if (Object.values(vals).every((v) => v === undefined) && !silHtml) return "";
+    const src = j["출처"] === "신한" ? "신한" : "전체";
+    const note = src === "신한" ? "신한라이프에 가입된 보장 요약입니다." : "전체 보험사에 가입된 보장 요약입니다.";
+    const fmt = (v) => v === undefined ? `<span class="cov-na">확인 안 됨</span>` : v === "-" ? `<span class="cov-none">미가입</span>` : esc(v);
+    const row = (label, html) => `<div class="cov-row"><span class="cov-k">${label}</span><span class="cov-v">${html}</span></div>`;
+    const tri = ["암", "뇌", "심"].map((k) => `<span class="cov-tri"><i>${k}</i>${fmt(vals[k])}</span>`).join("");
+    // 설명란: 정보를 모은 날(기준, 없으면 작성일)과 '그 뒤로 달라졌을 수 있으니 다시 분석'을 안내. 6개월이 넘었으면 눈에 띄게
+    const when = String(j["기준"] || j["작성일"] || "").trim();
+    let foot = "";
+    if (when) {
+      const dt = new Date(when.replace(/\./g, "-")), old = !isNaN(+dt) && (Date.now() - +dt) / 86400000 > 183;
+      foot = `<p class="cov-foot${old ? " old" : ""}">${old ? "⚠ " : ""}${esc(when)} ${src === "신한" ? "신한라이프 상세보장내용" : "스마트보장분석"}으로 모은 정보입니다. 그 뒤로 보장이 달라졌을 수 있으니, 정확한 내용은 다시 분석해 확인하세요.</p>`;
     }
-    if (!silHtml && !cov.length) return "";
-    return `<div class="card cov"><h3 class="sec-title">보장 요약</h3>${silHtml}${cov.length ? `<table class="cov-table"><thead><tr><th>항목</th><th>보장금액</th></tr></thead><tbody>${cov.map(([k, v]) => `<tr><td>${esc(k)}</td><td${v === "-" ? ' class="none"' : ""}>${esc(v)}</td></tr>`).join("")}</tbody></table>` : ""}${j["기준"] ? `<p class="hint">스마트보장분석 ${esc(j["기준"])} 기준</p>` : ""}</div>`;
+    return `<div class="card cov"><h3 class="sec-title">보장 요약</h3><p class="cov-note">${note}</p>${j["코멘트"] ? `<p class="cov-comment">${esc(j["코멘트"])}</p>` : ""}<div class="cov-rows">${row("사망", fmt(vals.사망))}<div class="cov-row cov-3"><span class="cov-k">3대진단</span><span class="cov-tris">${tri}</span></div>${row("수술", fmt(vals.수술))}${row("입원", fmt(vals.입원))}${row("간병", fmt(vals.간병))}</div>${silHtml}${foot}</div>`;
   }
   function contractHtml() {
     const all = current.contracts;
@@ -3225,12 +3243,13 @@
     const s_map = sec("고객 주소 지도", ["고객 정보의 주소 오른쪽 <b>위치 아이콘</b>을 누르면 카카오맵에서 그 주소를 찾은 지도가 새 창으로 열립니다. 누를 때만 주소가 카카오맵에 전달됩니다."]);
     const s_inst = sec("앱 설치", ["안드로이드 크롬: 설정 화면의 [앱 설치](없으면 브라우저 메뉴의 ‘앱 설치’), 아이폰 사파리: 공유 → ‘홈 화면에 추가’. 설치하면 앱처럼 전체 화면으로 열립니다. 이미 설치했으면 설정에 설치 카드가 보이지 않습니다."]);
     const s_srch = sec("전체검색 · 고객검색", ["<b>위쪽 전체검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호뿐 아니라 고객 메모, 상담기록, 오늘 기준 1년 전~1개월 뒤 일정(제목·장소)에서도 찾습니다. 결과는 아래에서 올라오는 창에 고객(어디서 찾았는지 표시)과 일정으로 나뉘어 나오고, 누르면 고객 정보(상담기록에서 찾았으면 상담 탭) 또는 그날 일정으로 이동합니다.", "<b>고객 화면의 고객검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호로 고객만 찾는 기존 검색입니다. 한 명만 나오면 바로 고객 정보가 열립니다.", "검색칸이 비어 있을 때의 글자(전체검색·고객검색)는 오른쪽에 보입니다."]);
+    const s_cov = sec("보장 요약 (고객 정보 > 분석 탭)", ["분석 탭 맨 위에 사망 · 3대진단(암·뇌·심) · 수술 · 입원 · 간병을 간단히 보여 줍니다. 스마트보장분석이 있으면 ‘전체 보험사에 가입된 보장 요약입니다.’, 신한라이프 상세보장내용만 있으면 ‘신한라이프에 가입된 보장 요약입니다.’라고 위에 적고, 맨 아래에 어느 문서의 몇 월 며칠 기준인지 나옵니다.", "‘미가입’은 가입한 보장이 없다는 뜻이고, ‘확인 안 됨’은 원본 문서에서 그 항목을 읽지 못했다는 뜻입니다. 이 값은 고객 등록·업데이트 때 미리 만들어 고객 시트의 ‘보장요약’ 칸에 저장해 둔 것을 읽기만 하므로 분석 탭을 열 때 계산하지 않습니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("검색"), s_srch, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_sub, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("검색"), s_srch, grp("고객 정보"), s_cov, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_sub, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_set);
     return iconBox + parts.join("");
   }
@@ -6033,23 +6052,23 @@
   try {
     const h = new URLSearchParams(location.hash.replace(/^#/, "")), go = h.get("go");
     if (go) {
-      GO0 = { go, q: h.get("q") || "", id: h.get("id") || "", kind: h.get("kind") || "" };
+      GO0 = { go, q: h.get("q") || "", id: h.get("id") || "", kind: h.get("kind") || "", tab: h.get("tab") || "" };
       history.replaceState(history.state, "", location.pathname + location.search); // 새로고침해도 다시 처리하지 않게 주소에서 지움
     }
   } catch (e) { GO0 = null; }
-  async function goCustomer(id) {
+  async function goCustomer(id, tab) {
     try {
       const gs = groupCustomers(await loadLists());
       const c = gs.find((x) => custKey(x) === id) || gs.find((x) => custKeyOld(x) === id);
       if (!c) { toast("고객을 찾지 못했습니다."); return; }
       c.entries.sort((a, b) => prio(a.type) - prio(b.type)); c.name = c.entries[0].name;
-      openCustomer(c);
+      await openCustomer(c); if (tab) selectTab(tab);
     } catch (e) { handleError(e); }
   }
   // 이미 앱 안에 있을 때는 새로 열지 않고 바로 처리. 아직 로그인 전이면 로그인 뒤에 처리
   window.blue10kpGo = function (o) {
     if (!o || (o.go !== "customers" && o.go !== "customer" && o.go !== "schedule" && o.go !== "sales")) return;
-    if (!appStarted) { GO0 = { go: o.go, q: String(o.q || ""), id: String(o.id || ""), kind: String(o.kind || "") }; return; }
+    if (!appStarted) { GO0 = { go: o.go, q: String(o.q || ""), id: String(o.id || ""), kind: String(o.kind || ""), tab: String(o.tab || "") }; return; }
     if (typeof helpClose === "function" && helpIsOpen) helpClose();
     if (!$("aiSheet").hidden && typeof aiClose === "function") aiClose();
     if (o.go === "sales") { // q = 탭(transfer=이달이관, dda=따행), id = 달(YYYY-MM, 없으면 이번 달)
@@ -6068,7 +6087,7 @@
       loadSettings().then(() => openSchedule());
       return;
     }
-    if (o.go === "customer") { const id = String(o.id || ""); if (id) { if (!$("customerView").hidden) show("searchView"); goCustomer(id); } return; }
+    if (o.go === "customer") { const id = String(o.id || ""); if (id) { if (!$("customerView").hidden) show("searchView"); goCustomer(id, String(o.tab || "")); } return; }
     const q = String(o.q || "").trim();
     const kd = String(o.kind || "").trim(); // 고객 범위 옵션(contract·transfer·db·ddahaeng·plan): 그 옵션만 켜고 보여 줌. q가 비어도 그 분류 전체 목록
     if (OPT_LABEL[kd]) { optSel.clear(); optSel.add(kd); syncOpts(); }
@@ -6077,16 +6096,16 @@
       else show("searchView");
       return;
     }
-    goKeepList = q;
+    goKeepList = q; goTabPending = String(o.tab || "");
     runTopSearch(q, !(o.memo === "1" || o.memo === 1 || o.memo === true)); // 말만해요의 memo=1이면 전체검색(메모·상담기록·일정 포함), 아니면 고객검색
   };
   // 말만해요 안에 모듈(iframe)로 떠 있을 때: 부모 말만해요에 지금 위치를 알림 (고객 이름이 든 값은 같은 주소(origin)에만 보냄)
   function notifyWhere(w) {
     if (!EMBED) return;
-    try { parent.postMessage({ type: "blue10kp-where", app: "shlife", go: w.go, q: w.q || "", id: w.id || "", kind: w.kind || "", canBack: !!w.canBack }, location.origin); } catch (e) { /* 무시 */ }
+    try { parent.postMessage({ type: "blue10kp-where", app: "shlife", go: w.go, q: w.q || "", id: w.id || "", kind: w.kind || "", tab: w.tab || "", canBack: !!w.canBack }, location.origin); } catch (e) { /* 무시 */ }
   }
   const whereNow = () => {
-    if (!$("customerView").hidden && current && current.cust) return { go: "customer", id: custKey(current.cust), canBack: true }; // 고객 정보에서는 앱 안 뒤로(목록)가 있음. 검색 목록이 첫 화면이면 canBack=false
+    if (!$("customerView").hidden && current && current.cust) return { go: "customer", id: custKey(current.cust), tab: ((document.querySelector("#tabs button.on") || {}).dataset || {}).tab || "", canBack: true }; // 고객 정보에서는 앱 안 뒤로(목록)가 있음. 검색 목록이 첫 화면이면 canBack=false
     if (!$("searchView").hidden) return { go: "customers", q: curQuery(), kind: optSel.size === 1 ? [...optSel][0] : "" };
     if (!$("salesView").hidden) return { go: "sales", q: SALES.tab === "dda" ? "dda" : SALES.tab === "valueup" ? "valueup" : "transfer", id: SALES.ym ? SALES.ym.slice(0, 4) + "-" + SALES.ym.slice(4) : "", kind: SALES.fc || "" }; // 탭·달 (앱으로 열기용)
     if (!$("scheduleView").hidden) return { go: "schedule", q: `${schedDate.getFullYear()}-${pad2(schedDate.getMonth() + 1)}-${pad2(schedDate.getDate())}` }; // 보고 있는 날짜(앱으로 열기용)
@@ -6171,6 +6190,29 @@
     }
   }
 
+  // 말만해요 해석용 색인: 이 사용자가 볼 수 있는 고객의 이름·고객ID·담당FC·분류·생년(연도만)만 담아 사용자 Drive Claude/app/신한FC/설정/말만해요_색인.json에 저장
+  //   (주민번호·계좌·전화·주소·이메일·메모는 넣지 않음). 목록을 읽을 때 만들고, 내용이 같으면 다시 쓰지 않음.
+  async function syncMalIndex(records) {
+    if (!GD || !records || !records.length) return;
+    const seen = new Map();
+    groupCustomers(records).forEach((c) => {
+      const e = c.entries.slice().sort((a, b) => prio(a.type) - prio(b.type))[0];
+      const id = idOf(e) || "";
+      const key = id || (baseName(e.name) + "|" + String(c.birth || ""));
+      if (seen.has(key)) return;
+      seen.set(key, { 이름: baseName(e.name), 고객ID: id, 담당FC: [...new Set(c.entries.map((x) => x.fc).filter(Boolean))].join(","), 분류: e.type || "", 생년: birthYear(c.birth) || "" });
+    });
+    const items = [...seen.values()].sort((a, b) => a.이름.localeCompare(b.이름, "ko") || String(a.고객ID).localeCompare(String(b.고객ID)));
+    const body = JSON.stringify(items);
+    let h = 0; for (let i = 0; i < body.length; i++) h = (h * 31 + body.charCodeAt(i)) | 0;
+    const hk = "shlife.malIdx." + me() + "." + items.length + "." + h;
+    try { if (localStorage.getItem("shlife.malIdxHash." + me()) === hk) return; } catch (e) { /* 무시 */ }
+    const d = await resolveMyDir(true); // 내 Drive의 Claude/app/신한FC/설정
+    if (!d || !d.id) return;
+    await stWriteJsonIn(d, "말만해요_색인.json", { v: 1, 갱신: new Date().toISOString(), 계정: me(), 고객: items });
+    try { localStorage.setItem("shlife.malIdxHash." + me(), hk); } catch (e) { /* 무시 */ }
+  }
+
   function startApp() {
     appStarted = true;
     const goReq = GO0; GO0 = null;
@@ -6208,6 +6250,6 @@
     setTimeout(askContactNote, 1500); // 전화·문자 중에 앱이 닫혔다가 다시 열린 경우
     loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
     if (!isAdmin()) loadMyPrefs(); // 일반 사용자 설정 (캘린더·데이터 절약)
-    loadLists().then((recs) => { renderFcOpts(recs).catch(() => {}); showScope(); if ($("searchStatus").textContent === "고객 목록을 불러오는 중…") $("searchStatus").textContent = ""; }).catch(handleError); // 미리 불러오기
+    loadLists().then((recs) => { syncMalIndex(recs).catch(() => {}); renderFcOpts(recs).catch(() => {}); showScope(); if ($("searchStatus").textContent === "고객 목록을 불러오는 중…") $("searchStatus").textContent = ""; }).catch(handleError); // 미리 불러오기
   }
 })();

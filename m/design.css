@@ -720,3 +720,21 @@ html { scrollbar-gutter: stable; }
 .top-search input { padding: 0 46px 0 12px; }
 .sales-sub { margin: -16px 0 0; }
 #salesSub:not([hidden]) + #salesView { margin-top: 0; }
+
+/* 보장 요약(분석 탭 맨 위): 한 줄 안내 + 5줄(사망·3대진단·수술·입원·간병) + 기준 날짜. 조용한 바탕, 값은 오른쪽 */
+.cov .cov-note { margin: 2px 0 10px; font-size: 13px; color: var(--t2); }
+.cov-rows { border-top: 1px solid var(--line); }
+.cov-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+.cov-k { flex: none; color: var(--t2); font-size: 13px; }
+.cov-v { text-align: right; color: var(--t1); font-variant-numeric: tabular-nums; }
+.cov-row.cov-3 { display: block; }
+.cov-tris { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+.cov-tri { display: flex; flex-direction: column; gap: 2px; font-variant-numeric: tabular-nums; }
+.cov-tri i { font-style: normal; font-size: 12px; color: var(--t3); }
+.cov-none, .cov-na { color: var(--t3); font-size: 13px; }
+.cov .cov-sil { margin: 12px 0 0; font-size: 13px; color: var(--t2); }
+.cov .cov-foot { margin: 10px 0 0; font-size: 11px; color: var(--t3); text-align: right; }
+
+.cov .cov-comment { margin: -2px 0 12px; font-size: 14px; line-height: 1.5; color: var(--t1); }
+.cov .cov-foot { text-align: left; line-height: 1.5; }
+.cov .cov-foot.old { color: var(--warn); font-weight: 600; }
