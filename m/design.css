@@ -182,8 +182,8 @@ details.fold { border-radius: var(--r-ctl); }
 /* ── 15. 해지 고객·실효 표시: 의미 색의 작은 점 + 글자, 머리 카드 안내 한 줄 ── */
 .tag.t-해지, .cust-card .tag.t-해지 { color: var(--bad); }
 .tag.t-해지::before { background: var(--bad); }
-.tag.t-실효, .cust-card .tag.t-실효 { color: var(--warn); }
-.tag.t-실효::before { background: var(--warn); }
+.tag.t-실효, .cust-card .tag.t-실효 { color: var(--bad); }
+.tag.t-실효::before { background: var(--bad); }
 #custChurn[hidden] { display: none; }
 .cust-card .name-row { align-items: center; }
 .cust-note { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--t2); }
