@@ -742,3 +742,15 @@ html { scrollbar-gutter: stable; }
 .tag.stg::before { background: currentColor; }
 .tag.stg-통화 { color: #1f5fae; } .tag.stg-AP { color: #6a3fb5; } .tag.stg-PC { color: #00706a; } .tag.stg-계약 { color: #1d7a46; }
 @media (prefers-color-scheme: dark) { .tag.stg-통화 { color: #8db8f2; } .tag.stg-AP { color: #c3a8f0; } .tag.stg-PC { color: #6fd6cf; } .tag.stg-계약 { color: #6fd39a; } }
+/* 진행 고객 삭제(진행에서 빼기): 목록 줄 아래 작은 버튼, 고객 정보 머리 카드 아래 버튼 */
+.prog-act { display: flex; justify-content: flex-end; padding: 0 14px 10px; }
+.prog-del { height: 26px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t3); font-size: 12px; font-weight: 500; }
+.stage-act { display: flex; justify-content: flex-end; margin-top: 8px; }
+.stage-act[hidden] { display: none; }
+.stage-act button { height: 28px; min-height: 0; padding: 0 12px; font-size: 12px; font-weight: 500; color: var(--t2); border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); }
+.tag.t-진행제외::before { background: var(--t3); }
+.prog-bar { display: flex; gap: 6px; margin: 8px 0; }
+.prog-bar button { flex: 1; height: 32px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t2); font-size: 13px; font-weight: 500; }
+.prog-bar button.on { background: var(--raised); color: var(--t1); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+.prog-act { align-items: center; gap: 8px; }
+.prog-when { font-size: 12px; color: var(--t3); margin-right: auto; }
