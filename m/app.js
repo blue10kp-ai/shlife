@@ -321,6 +321,17 @@
   const rhOptHtml = () => `<div class="fld rh-fld">
         <label class="rh-opt"><span>오른손 모드</span><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}></label>
       </div>`;
+  // ---- 앱 설치(홈 화면에 추가): 설치할 수 있을 때 설정 화면에 [앱 설치] 버튼, 이미 설치됐으면 카드 숨김 ----
+  let installEvt = null;
+  const isStandalone = () => { try { return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; } catch (e) { return false; } };
+  const installCardHtml = () => isStandalone() ? "" : `<div class="card" id="installCard"><h3 class="sec-title">앱 설치</h3><p class="hint">홈 화면에 앱처럼 추가합니다. 안드로이드 크롬은 아래 [앱 설치] 또는 브라우저 메뉴의 ‘앱 설치’, 아이폰 사파리는 공유 → ‘홈 화면에 추가’를 누르세요.</p><button type="button" class="secondary" id="installBtn"${installEvt ? "" : " hidden"}>앱 설치</button></div>`;
+  window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; const b = document.getElementById("installBtn"); if (b) b.hidden = false; });
+  window.addEventListener("appinstalled", () => { installEvt = null; const c = document.getElementById("installCard"); if (c) c.remove(); });
+  document.addEventListener("click", async (ev) => {
+    if (!ev.target.closest || !ev.target.closest("#installBtn") || !installEvt) return;
+    const e = installEvt; installEvt = null; ev.target.closest("#installBtn").hidden = true;
+    try { e.prompt(); await e.userChoice; } catch (er) { /* 무시 */ }
+  });
   const rhCardHtml = () => `<div class="card"><h3 class="sec-title">화면</h3>${rhOptHtml()}</div>`;
   document.addEventListener("change", (ev) => {
     if (!ev.target || ev.target.id !== "rhMode") return;
@@ -2691,7 +2702,7 @@
     body.innerHTML = `<div class="card" id="myCalCard"><details class="fold">
         <summary class="sec-title">구글 캘린더</summary>
         <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
-        <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml();
+        <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml() + installCardHtml();
     bindStartCard();
     bindSmsCard();
     let cals;
@@ -2761,7 +2772,7 @@
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
     const personal = `<div class="card" id="adminCalCard"><details class="fold" id="gFold"><summary class="sec-title">구글 캘린더</summary>
         <div id="gCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
-        <div class="file-actions"><button type="button" class="primary" id="gCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml();
+        <div class="file-actions"><button type="button" class="primary" id="gCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml() + installCardHtml();
     $("adminBody").innerHTML = personal + `<h2 class="admin-sec">관리자</h2>
       <div class="card">
         <h3 class="sec-title">FC 사용 설정</h3>
@@ -3114,12 +3125,13 @@
     const s_login = sec("로그인 (공통 로그인)", ["한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
     const s_go = sec("말만해요 연결", ["말만해요에서 “김현성 고객 검색해줘”처럼 말하면 말만해요 화면 안에 이 앱의 고객 검색 목록이 나타납니다. 한 명만 나와도 목록이 먼저 보이고, 고객을 누르면 그 안에서 고객 정보가 열립니다. 이때는 앱 전체가 아니라 그 페이지만 보입니다(위쪽 바·아래 메뉴 없음). 목록→고객 정보, 정보·계약·분석·상담 탭 이동은 그대로이고, 뒤로가기는 말만해요의 왼쪽 위 버튼이 한 단계씩 되돌립니다.", "말만해요의 [앱으로 열기]를 누르면 보던 바로 그 화면(검색 목록 또는 그 고객 정보)으로 신한FC m이 전체 화면으로 열립니다. 말만해요 안에서는 로그아웃 버튼이 없고(로그아웃은 말만해요에서), 로그인이 풀렸으면 ‘말만해요에서 다시 로그인’ 안내가 나옵니다.", "“오늘 일정 보여줘”처럼 일정을 물으면 일정 화면(하루 보기)만 말만해요 안에 나타납니다. 날짜 이동·추가 버튼은 그대로 쓰고, [앱으로 열기]를 누르면 보던 날짜로 열립니다.", "검색한 이름은 주소의 # 뒤에만 실려 서버로 전송되지 않습니다."]);
     const s_map = sec("고객 주소 지도", ["고객 정보의 주소 오른쪽 <b>위치 아이콘</b>을 누르면 카카오맵에서 그 주소를 찾은 지도가 새 창으로 열립니다. 누를 때만 주소가 카카오맵에 전달됩니다."]);
+    const s_inst = sec("앱 설치", ["안드로이드 크롬: 설정 화면의 [앱 설치](없으면 브라우저 메뉴의 ‘앱 설치’), 아이폰 사파리: 공유 → ‘홈 화면에 추가’. 설치하면 앱처럼 전체 화면으로 열립니다. 이미 설치했으면 설정에 설치 카드가 보이지 않습니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_set);
     return iconBox + parts.join("");
   }
@@ -5948,6 +5960,8 @@
     if (ev.data.type === "blue10kp-go") window.blue10kpGo(ev.data);
   });
 
+  // 서비스워커: 앱 설치(홈 화면에 추가) 조건. 실패해도 앱은 그대로 동작
+  try { if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) navigator.serviceWorker.register("sw.js").catch(() => {}); } catch (e) { /* 무시 */ }
   (async function init() {
     if (CFG.clientId === "YOUR-CLIENT-ID") {
       show("loginView");
