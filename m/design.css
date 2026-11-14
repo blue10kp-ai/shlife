@@ -685,3 +685,11 @@ html.embed .topbar, html.embed .mainnav, html.embed .float-save, html.embed .ai-
 html.embed { --navh: 0px; --tbh: 56px; }
 html.embed main { padding-top: 56px; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
 html.embed[data-view="loginView"] main { padding: 56px 0 0; }
+/* 모듈 화면: 고객 정보의 수정·닫기 줄은 말만해요 버튼(오른쪽 아래)과 겹치지 않게 왼쪽 아래로 */
+html.embed .cust-bar { bottom: calc(16px + env(safe-area-inset-bottom)); justify-content: flex-start; }
+/* 모듈 화면: 오른쪽 아래 88×88px는 말만해요 버튼 자리 — 취소·저장 같은 버튼, 토스트가 겹치지 않게 */
+html.embed main { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+html.embed .file-actions { padding-right: 56px; }
+html.embed .toast { left: 16px; right: 88px; bottom: calc(24px + env(safe-area-inset-bottom)) !important; }
+html.embed .toast2 { left: 16px; transform: none; max-width: calc(100% - 104px); bottom: calc(24px + env(safe-area-inset-bottom)); }
+html.embed .cust-bar { max-width: calc(100% - 88px); }

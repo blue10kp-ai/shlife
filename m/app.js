@@ -5780,6 +5780,25 @@
     return { go:!$("salesView").hidden ? "sales" : !$("adminView").hidden ? "settings" : "" };
   };
   notifyWhereNow = () => { if (EMBED) { clearTimeout(notifyWhereNow._t); notifyWhereNow._t = setTimeout(() => { const w = whereNow(); if (w.go) notifyWhere(w); }, 150); } };
+  // 오른쪽 아래에 떠 있는 버튼(수정·닫기 줄, 취소·확인, 토스트, 아래 시트 등)이 말만해요 버튼 자리(오른쪽 88px)를 가리면,
+  // 그 가장 위쪽 끝이 화면 바닥에서 몇 px인지 부모에 알려 말만해요가 버튼을 그만큼 올리게 함 (없으면 0)
+  if (EMBED) {
+    let lastLift = -1;
+    setInterval(() => {
+      let lift = 0;
+      const IW = innerWidth, IH = innerHeight;
+      document.querySelectorAll(".cust-bar button, .toast:not([hidden]), .toast2, .help-sheet").forEach((el) => {
+        const cs = getComputedStyle(el);
+        if (cs.display === "none" || cs.visibility === "hidden" || el.closest("[hidden]")) return;
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0 || r.bottom < IH - 240 || r.right < IW - 96 || r.top >= IH) return; // 오른쪽 아래 구역과 겹칠 때만
+        lift = Math.max(lift, Math.round(IH - r.top));
+      });
+      if (lift === lastLift) return;
+      lastLift = lift;
+      try { parent.postMessage({ type: "blue10kp-fab", lift }, location.origin); } catch (e) { /* 무시 */ }
+    }, 250);
+  }
   // 부모 말만해요가 보내는 새 요청 받기 (보낸 곳 origin 확인)
   window.addEventListener("message", (ev) => {
     if (ev.origin !== location.origin || !ev.data) return;
