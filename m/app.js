@@ -5878,7 +5878,7 @@
   try {
     const h = new URLSearchParams(location.hash.replace(/^#/, "")), go = h.get("go");
     if (go) {
-      GO0 = { go, q: h.get("q") || "", id: h.get("id") || "" };
+      GO0 = { go, q: h.get("q") || "", id: h.get("id") || "", kind: h.get("kind") || "" };
       history.replaceState(history.state, "", location.pathname + location.search); // 새로고침해도 다시 처리하지 않게 주소에서 지움
     }
   } catch (e) { GO0 = null; }
@@ -5894,7 +5894,7 @@
   // 이미 앱 안에 있을 때는 새로 열지 않고 바로 처리. 아직 로그인 전이면 로그인 뒤에 처리
   window.blue10kpGo = function (o) {
     if (!o || (o.go !== "customers" && o.go !== "customer" && o.go !== "schedule" && o.go !== "sales")) return;
-    if (!appStarted) { GO0 = { go: o.go, q: String(o.q || ""), id: String(o.id || "") }; return; }
+    if (!appStarted) { GO0 = { go: o.go, q: String(o.q || ""), id: String(o.id || ""), kind: String(o.kind || "") }; return; }
     if (typeof helpClose === "function" && helpIsOpen) helpClose();
     if (!$("aiSheet").hidden && typeof aiClose === "function") aiClose();
     if (o.go === "sales") { // q = 탭(transfer=이달이관, dda=따행), id = 달(YYYY-MM, 없으면 이번 달)
@@ -5914,7 +5914,13 @@
     }
     if (o.go === "customer") { const id = String(o.id || ""); if (id) { if (!$("customerView").hidden) show("searchView"); goCustomer(id); } return; }
     const q = String(o.q || "").trim();
-    if (!q) { show("searchView"); return; }
+    const kd = String(o.kind || "").trim(); // 고객 범위 옵션(contract·transfer·db·ddahaeng·plan): 그 옵션만 켜고 보여 줌. q가 비어도 그 분류 전체 목록
+    if (OPT_LABEL[kd]) { optSel.clear(); optSel.add(kd); syncOpts(); }
+    if (!q) {
+      if (OPT_LABEL[kd]) { show("searchView"); $("q").value = ""; $("q2").value = ""; search("", true); }
+      else show("searchView");
+      return;
+    }
     goKeepList = q;
     runTopSearch(q);
   };
@@ -5925,7 +5931,7 @@
   }
   const whereNow = () => {
     if (!$("customerView").hidden && current && current.cust) return { go: "customer", id: custKey(current.cust), canBack: true }; // 고객 정보에서는 앱 안 뒤로(목록)가 있음. 검색 목록이 첫 화면이면 canBack=false
-    if (!$("searchView").hidden) return { go: "customers", q: curQuery() };
+    if (!$("searchView").hidden) return { go: "customers", q: curQuery(), kind: optSel.size === 1 ? [...optSel][0] : "" };
     if (!$("salesView").hidden) return { go: "sales", q: SALES.tab === "dda" ? "dda" : "transfer", id: SALES.ym ? SALES.ym.slice(0, 4) + "-" + SALES.ym.slice(4) : "", kind: SALES.fc || "" }; // 탭·달 (앱으로 열기용)
     if (!$("scheduleView").hidden) return { go: "schedule", q: `${schedDate.getFullYear()}-${pad2(schedDate.getMonth() + 1)}-${pad2(schedDate.getDate())}` }; // 보고 있는 날짜(앱으로 열기용)
     return { go:!$("salesView").hidden ? "sales" : !$("adminView").hidden ? "settings" : "" };
