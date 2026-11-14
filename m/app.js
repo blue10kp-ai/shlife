@@ -3107,8 +3107,8 @@
     const s_start = sec("시작 화면", ["<b>처음 보일 화면</b>: 설정(관리자는 관리자) 화면의 '시작 화면' 카드에서 앱을 열었을 때 처음 보일 화면을 고릅니다. 일정 · 고객(기본) · 영업 중 하나를 고르고 아래 [저장]을 누르면 다음에 앱을 열 때부터 적용됩니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '시작하면 AI 도우미를 바로 열기'를 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
     const s_ai = sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 지금은 외부 AI를 쓰지 않고 이 폰 안에서만 해석하므로 고객 이름이 밖으로 나가지 않습니다. 쓰면서 알아듣는 말을 계속 늘려 갑니다."]);
     const s_task = sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
-    const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭, 이동 거리·예상 시간, 회사 출발·도착을 계산합니다. 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
-    const s_addev = sec("일정 추가 (일정 화면)", ["일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "<b>복귀</b> 버튼(추가의 왼쪽)은 동명이인 지정을 지우고 일정 장소를 되돌릴 때 씁니다(일정이 있는 날에만 보임)."]);
+    const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드에서 <b>확정</b>을 누른 영업일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
+    const s_addev = sec("일정 추가 (일정 화면)", ["일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>확정</b>(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 표시). <b>복귀</b> 버튼(추가의 왼쪽)은 그날 영업일정을 모두 비영업일정으로 바꾸고, 동명이인 지정·고객 정보로 넣은 일정 장소도 되돌립니다(영업일정이나 처리한 일정이 있는 날에만 보임). 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_sms = sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
     const s_login = sec("로그인 (공통 로그인)", ["한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
@@ -3531,6 +3531,8 @@
         desc: String(e.description || ""),
         location: String(e.location || "").trim(),
         pick: String(((e.extendedProperties || {}).private || {}).shlifeCust || ""), // 동명이인 선택(모든 기기 공유)
+        sales: String(((e.extendedProperties || {}).private || {}).shlifeSales || ""), // 영업일정 표시: "1"=영업(확정), "0"=비영업(복귀), 없음=기본(아래 salesOf 규칙)
+        created: e.created ? new Date(e.created) : null,
         allDay: !!e.start.date,
         start: e.start.dateTime ? new Date(e.start.dateTime) : ymdToDate(e.start.date),
         end: e.end.dateTime ? new Date(e.end.dateTime) : ymdToDate(e.end.date)
@@ -3786,7 +3788,31 @@
   // 고객 정보·이동 시간은 팀 캘린더(1팀) 일정만. 개인 일정(김현성·최수진)은 일정 내용만
   // 영업일정 캘린더 일정만 고객 매칭·거리·시간 (설정에서 지정, 없으면 1팀과 같은 이름)
   let schedSalesIds = new Set(), schedInfoIds = new Set();
-  const isTeamEvent = (e) => !e.allDay && schedSalesIds.has(e.cal.id);                              // 거리·예상 시간
+  // ---- 영업일정 / 비영업일정: 거리·예상 시간은 '영업일정'만. 일정 카드의 [확정]을 누르면 영업일정, [복귀]는 그날 영업일정을 모두 비영업일정으로.
+  //   표시는 구글 일정의 비공개 속성 shlifeSales("1"/"0")에 저장(모든 기기 공유, 캘린더는 그대로). 쓸 권한이 없으면 이 기기에만 기억.
+  //   표시가 없는 일정: 2026-11-14까지 만들어진 1팀 캘린더 일정은 영업일정(예전 방식 유지), 그 밖의 모든 일정은 비영업일정
+  const SALES_LOCAL_KEY = "shlife.salesMark", SALES_CUTOFF = new Date("2026-11-15T00:00:00+09:00");
+  const readSalesLocal = () => { try { return JSON.parse(localStorage.getItem(SALES_LOCAL_KEY) || "{}") || {}; } catch (e) { return {}; } };
+  function salesOf(e) {
+    if (e.allDay) return false;
+    const m = e.sales || readSalesLocal()[e.id] || "";
+    if (m === "1") return true;
+    if (m === "0") return false;
+    const team = (GCFG && GCFG.teamCalendar) || "1팀";
+    return schedSalesIds.has(e.cal.id) && e.cal.name === team && !!e.created && e.created < SALES_CUTOFF;
+  }
+  async function setSalesMark(e, v) { // v = "1" | "0"
+    const loc = readSalesLocal(); loc[e.id] = v;
+    try { localStorage.setItem(SALES_LOCAL_KEY, JSON.stringify(loc)); } catch (er) { /* 무시 */ }
+    try {
+      await ensureGWrite();
+      await gcalPatch(e.calId, e.eventId, { extendedProperties: { private: { shlifeSales: v } } });
+      e.sales = v;
+      const l2 = readSalesLocal(); delete l2[e.id]; try { localStorage.setItem(SALES_LOCAL_KEY, JSON.stringify(l2)); } catch (er) { /* 무시 */ }
+      return true;
+    } catch (er) { console.warn("sales mark saved on this device only", er.message); return false; } // 수정 권한이 없는 캘린더 등: 이 기기에만
+  }
+  const isTeamEvent = (e) => salesOf(e); // 거리·예상 시간 (영업일정만)
   const isInfoEvent = (e) => !e.allDay && (schedInfoIds.has(e.cal.id) || schedSalesIds.has(e.cal.id)); // 고객 정보
 
   // 동명이인 확인: 일정에 주소를 입력한 고객으로 지정 (이 기기에 저장, '초기화'로 지움)
@@ -3937,16 +3963,18 @@
     if (!evs.length) { body.innerHTML = '<div id="taskBox"></div><div class="card center"><p class="hint">일정이 없습니다.</p></div>'; loadDayTasks($("taskBox"), d, req); schedApplyResume(); return; }
     body.innerHTML = '<div id="taskBox"></div><div id="dayList"></div>';
     loadDayTasks($("taskBox"), d, req); // 맨 위에 그날 마감인 할 일 (일정을 기다리지 않고 따로 불러옴)
-    const pr = $("pickReset"); if (pr) pr.hidden = false; // 초기화는 Today/Week/Month 줄 오른쪽에 있음 (일정이 있는 날 보기에서만)
+    const pr = $("pickReset"); // 복귀 버튼: 고객 지정·무시·일정 장소 입력처럼 처리한 일정이 있을 때만 보임 (아래에서 판단, 처음엔 추가 버튼만)
     // 초기화: 동명이인 지정을 지우고, 고객 주소·미팅장소로 '입력'해 둔 일정 장소도 지움
     let dayItems = [];
     pr.onclick = async () => {
       const filled = dayItems.filter((it) => it.e.location && it.all.some((c) =>
         [currentValue(c, ["주소"]), meetingOf(c)].map((v) => String(v || "").trim()).filter(Boolean).includes(it.e.location.trim())));
       const pinned = dayItems.filter((it) => it.e.pick);
-      const msg = "동명이인 확인 내용을 지우고, 찾은 고객을 모두 다시 보여줄까요?" +
+      const salesNow = dayItems.filter((it) => salesOf(it.e));
+      const msg = (salesNow.length ? `영업일정 ${salesNow.length}건을 모두 비영업일정으로 바꾸고, ` : "") + "동명이인 확인 내용을 지우고, 찾은 고객을 모두 다시 보여줄까요?" +
         (filled.length ? `\n고객 정보로 입력한 일정 장소 ${filled.length}건도 지웁니다.` : "");
       if (!confirm(msg)) return;
+      for (const it of salesNow) await setSalesMark(it.e, "0"); // 영업일정 → 비영업일정
       try { localStorage.removeItem(PICK_KEY); } catch (e) {}
       if (pinned.length) {
         try {
@@ -3984,6 +4012,10 @@
       return { e, custs, all, ignored, pinned };
     });
     dayItems = items;
+    { // 처리한 일이 하나라도 있으면 복귀 버튼 표시
+      const done = items.some((it) => salesOf(it.e) || it.pinned || it.ignored || (it.e.location && it.all.some((c) => [currentValue(c, ["주소"]), meetingOf(c)].map((v) => String(v || "").trim()).filter(Boolean).includes(it.e.location.trim()))));
+      if (pr) pr.hidden = !done;
+    }
     items.forEach((it) => { it.cust = it.custs[0] || null; });
     const list = $("dayList");
     list.innerHTML = items.map((it, i) => `<div class="travel" id="tr${i}" hidden></div>${dayCardHtml(it, i)}`).join("") +
@@ -4150,7 +4182,7 @@
   function dayCardHtml(it, i) {
     const e = it.e;
     return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head"><span class="ev-time">${esc(timeText(e))}</span></div>
-        <button type="button" class="ev-edit" data-evedit="${i}">수정</button><button type="button" class="ev-edit ev-del" data-evdel="${i}">삭제</button>
+        ${e.allDay ? "" : salesOf(e) ? '<span class="ev-sales-tag" title="영업일정">영업</span>' : `<button type="button" class="ev-edit ev-confirm" data-evconfirm="${i}">확정</button>`}<button type="button" class="ev-edit" data-evedit="${i}">수정</button><button type="button" class="ev-edit ev-del" data-evdel="${i}">삭제</button>
         <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
       <div class="ev-line2"><span class="ev-title-l"><span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}</span></span>${it.all.length ? (it.ignored
         ? `<button type="button" class="ev-edit" data-unignore="${i}">되돌리기</button>`
@@ -4192,6 +4224,8 @@
       const m = ev.target.closest && ev.target.closest("[data-memoin]");
       if (m && ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); const b = card.querySelector(`[data-memo="${m.dataset.memoin}"]`); if (b && !b.disabled) b.click(); }
     });
+    const cf = card.querySelector("[data-evconfirm]");
+    if (cf) cf.addEventListener("click", async () => { cf.disabled = true; cf.textContent = "저장 중"; await setSalesMark(it.e, "1"); renderSchedule(); }); // 영업일정으로 확정
     card.querySelector("[data-evedit]").addEventListener("click", () => toggleEventForm(it, i));
     card.querySelector("[data-evdel]").addEventListener("click", (ev) => deleteEvent(it, ev.currentTarget));
   }
