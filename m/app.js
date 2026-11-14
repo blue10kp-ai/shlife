@@ -3026,10 +3026,6 @@
   function showGLogin() {
     const em = gAccount();
     $("loginBtn").textContent = em ? "Google 다시 연결 (" + em + ")" : "Google 계정으로 로그인";
-    const lead = document.querySelector("#loginView .lead");
-    if (lead) lead.innerHTML = "<b>신한FC m</b><br>Google Drive의 고객 정보를 찾아 보여줍니다.";
-    const hint = document.querySelector("#loginView .hint");
-    if (hint) hint.textContent = "고객 정보는 Google Drive에서 바로 읽어 오며, 이 앱이나 GitHub에는 저장되지 않습니다.";
     $("loginOtherBtn").hidden = false;
     show("loginView");
   }

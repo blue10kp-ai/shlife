@@ -401,7 +401,6 @@ ol.steps li { margin: 3px 0; line-height: 1.5; }
 
 /* 캘린더 고르기 */
 .sub-label { margin: 10px 0 2px; font-weight: 600; font-size: 14px; color: var(--muted); }
-#loginOtherBtn { margin-top: 10px; }
 
 /* 캘린더 고르기: 왼쪽 보여질 캘린더 / 오른쪽 영업일정 */
 .cal-pick { border: 1px solid var(--line, #e3e7ee); border-radius: 10px; overflow: hidden; margin-top: 6px; }
