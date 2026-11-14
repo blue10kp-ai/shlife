@@ -697,3 +697,4 @@ html.embed .toast2 { left: 16px; transform: none; max-width: calc(100% - 104px);
 /* 영업일정 표시·확정 버튼 */
 .ev-sales-tag { font-size: 11px; font-weight: 600; color: var(--accent); border: 1px solid var(--accent); border-radius: 6px; padding: 2px 7px; line-height: 1.4; }
 .ev-confirm { color: var(--accent); }
+.ev-sales { color: var(--accent); }
