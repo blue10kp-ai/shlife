@@ -705,3 +705,6 @@ html.embed .toast2 { left: 16px; transform: none; max-width: calc(100% - 104px);
 .sp-body h4 { display: flex; align-items: baseline; gap: 6px; }
 .sp-body .list { margin: 0; padding: 0; list-style: none; }
 #searchPopup { z-index: 45; }
+/* 영업 서브메뉴(이달체크 · 자료) */
+.sales-sub { margin: 0 0 8px; }
+.sales-sub[hidden] { display: none; }
