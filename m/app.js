@@ -3099,7 +3099,7 @@
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_sms = sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
     const s_login = sec("로그인 (공통 로그인)", ["한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
-    const s_go = sec("말만해요 연결", ["말만해요에서 “김현성 고객 검색해줘”처럼 말하면 말만해요 화면 안에 이 앱의 고객 검색 목록이 나타납니다. 한 명만 나와도 목록이 먼저 보이고, 고객을 누르면 그 안에서 고객 정보가 열립니다. 앞뒤 이동·검색·하단 메뉴는 평소처럼 쓸 수 있습니다.", "말만해요 위쪽 [앱으로 열기]를 누르면 보던 바로 그 화면(검색 목록 또는 그 고객 정보)으로 신한FC m이 열립니다. 말만해요 안에서는 로그아웃 버튼이 없고(로그아웃은 말만해요에서), 로그인이 풀렸으면 ‘말만해요에서 다시 로그인’ 안내가 나옵니다.", "검색한 이름은 주소의 # 뒤에만 실려 서버로 전송되지 않습니다."]);
+    const s_go = sec("말만해요 연결", ["말만해요에서 “김현성 고객 검색해줘”처럼 말하면 말만해요 화면 안에 이 앱의 고객 검색 목록이 나타납니다. 한 명만 나와도 목록이 먼저 보이고, 고객을 누르면 그 안에서 고객 정보가 열립니다. 이때는 앱 전체가 아니라 그 페이지만 보입니다(위쪽 바·아래 메뉴 없음). 목록→고객 정보, 정보·계약·분석·상담 탭 이동은 그대로이고, 뒤로가기는 말만해요의 왼쪽 위 버튼이 한 단계씩 되돌립니다.", "말만해요의 [앱으로 열기]를 누르면 보던 바로 그 화면(검색 목록 또는 그 고객 정보)으로 신한FC m이 전체 화면으로 열립니다. 말만해요 안에서는 로그아웃 버튼이 없고(로그아웃은 말만해요에서), 로그인이 풀렸으면 ‘말만해요에서 다시 로그인’ 안내가 나옵니다.", "“오늘 일정 보여줘”처럼 일정을 물으면 일정 화면(하루 보기)만 말만해요 안에 나타납니다. 날짜 이동·추가 버튼은 그대로 쓰고, [앱으로 열기]를 누르면 보던 날짜로 열립니다.", "검색한 이름은 주소의 # 뒤에만 실려 서버로 전송되지 않습니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
@@ -3698,6 +3698,7 @@
 
   async function renderSchedule() {
     const req = ++schedReq;
+    notifyWhereNow(); // 날짜를 넘기면 말만해요에 보고 있는 날짜를 알림
     { const pr0 = $("pickReset"); if (pr0) pr0.hidden = true; }
     schedHold = Infinity; // 그리는 동안은 스크롤 위치를 저장하지 않음 (다 그린 뒤 schedApplyResume이 풀어 줌)
     const body = $("schedBody");
@@ -5750,10 +5751,17 @@
   }
   // 이미 앱 안에 있을 때는 새로 열지 않고 바로 처리. 아직 로그인 전이면 로그인 뒤에 처리
   window.blue10kpGo = function (o) {
-    if (!o || (o.go !== "customers" && o.go !== "customer")) return;
+    if (!o || (o.go !== "customers" && o.go !== "customer" && o.go !== "schedule")) return;
     if (!appStarted) { GO0 = { go: o.go, q: String(o.q || ""), id: String(o.id || "") }; return; }
     if (typeof helpClose === "function" && helpIsOpen) helpClose();
     if (!$("aiSheet").hidden && typeof aiClose === "function") aiClose();
+    if (o.go === "schedule") { // q = YYYY-MM-DD (없거나 틀리면 오늘): 일정 화면의 하루 보기
+      const m = String(o.q || "").match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+      schedMode = "day"; schedDate = d && !isNaN(+d) ? dayStart(d) : dayStart(new Date());
+      loadSettings().then(() => openSchedule());
+      return;
+    }
     if (o.go === "customer") { const id = String(o.id || ""); if (id) { if (!$("customerView").hidden) show("searchView"); goCustomer(id); } return; }
     const q = String(o.q || "").trim();
     if (!q) { show("searchView"); return; }
@@ -5763,18 +5771,23 @@
   // 말만해요 안에 모듈(iframe)로 떠 있을 때: 부모 말만해요에 지금 위치를 알림 (고객 이름이 든 값은 같은 주소(origin)에만 보냄)
   function notifyWhere(w) {
     if (!EMBED) return;
-    try { parent.postMessage({ type: "blue10kp-where", app: "shlife", go: w.go, q: w.q || "", id: w.id || "" }, location.origin); } catch (e) { /* 무시 */ }
+    try { parent.postMessage({ type: "blue10kp-where", app: "shlife", go: w.go, q: w.q || "", id: w.id || "", canBack: !!w.canBack }, location.origin); } catch (e) { /* 무시 */ }
   }
   const whereNow = () => {
-    if (!$("customerView").hidden && current && current.cust) return { go: "customer", id: custKey(current.cust) };
+    if (!$("customerView").hidden && current && current.cust) return { go: "customer", id: custKey(current.cust), canBack: true }; // 고객 정보에서는 앱 안 뒤로(목록)가 있음. 검색 목록이 첫 화면이면 canBack=false
     if (!$("searchView").hidden) return { go: "customers", q: curQuery() };
-    return { go: !$("scheduleView").hidden ? "schedule" : !$("salesView").hidden ? "sales" : !$("adminView").hidden ? "settings" : "" };
+    if (!$("scheduleView").hidden) return { go: "schedule", q: `${schedDate.getFullYear()}-${pad2(schedDate.getMonth() + 1)}-${pad2(schedDate.getDate())}` }; // 보고 있는 날짜(앱으로 열기용)
+    return { go:!$("salesView").hidden ? "sales" : !$("adminView").hidden ? "settings" : "" };
   };
   notifyWhereNow = () => { if (EMBED) { clearTimeout(notifyWhereNow._t); notifyWhereNow._t = setTimeout(() => { const w = whereNow(); if (w.go) notifyWhere(w); }, 150); } };
   // 부모 말만해요가 보내는 새 요청 받기 (보낸 곳 origin 확인)
   window.addEventListener("message", (ev) => {
-    if (ev.origin !== location.origin || !ev.data || ev.data.type !== "blue10kp-go") return;
-    window.blue10kpGo(ev.data);
+    if (ev.origin !== location.origin || !ev.data) return;
+    if (ev.data.type === "blue10kp-back") { // 말만해요의 왼쪽 위 뒤로가기: 고객 정보에서는 목록으로 한 단계 뒤로
+      if (!$("customerView").hidden) confirmLeaveEdit().then((ok) => { if (ok) history.back(); });
+      return;
+    }
+    if (ev.data.type === "blue10kp-go") window.blue10kpGo(ev.data);
   });
 
   (async function init() {
@@ -5857,7 +5870,7 @@
       }
     }
     if (!isAdmin()) syncStartShared();
-    if (readStartPref().ai) setTimeout(aiOpen, 400); // 설정 > 시작 화면 > AI 도우미 바로 열기
+    if (readStartPref().ai && !EMBED) setTimeout(aiOpen, 400); // 설정 > 시작 화면 > AI 도우미 바로 열기
     setTimeout(askContactNote, 1500); // 전화·문자 중에 앱이 닫혔다가 다시 열린 경우
     loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
     if (!isAdmin()) loadMyPrefs(); // 일반 사용자 설정 (캘린더·데이터 절약)
