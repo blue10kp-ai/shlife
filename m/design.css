@@ -712,3 +712,11 @@ html.embed .toast2 { left: 16px; transform: none; max-width: calc(100% - 104px);
 html { scrollbar-gutter: stable; }
 /* 따행 필터 줄(설문 발송·응답 | 쿠폰 | 전화·문자): 오른쪽 정렬 */
 .dfilter { justify-content: flex-end; }
+/* 영업 서브메뉴(이달체크·자료)는 스크롤해도 위쪽에 고정, 아래 이달이관·따행 줄은 그 바로 밑에 고정 */
+.sales-sub { position: sticky; top: var(--tbh, 56px); z-index: 5; background: var(--bg); margin: 0; padding: 6px 0; }
+#salesView .sales-top { top: calc(var(--tbh, 56px) + var(--subh, 0px)); }
+#salesView .dfilter { top: calc(var(--tbh, 56px) + var(--subh, 0px) + var(--salestop, 100px)); }
+/* 맨 위 검색칸: 안내 글자와 마이크 아이콘 사이를 벌림 (아이콘 자리를 비워 둠) */
+.top-search input { padding: 0 46px 0 12px; }
+.sales-sub { margin: -16px 0 0; }
+#salesSub:not([hidden]) + #salesView { margin-top: 0; }

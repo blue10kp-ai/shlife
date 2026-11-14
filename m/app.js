@@ -359,7 +359,7 @@
     $("topSearch").hidden = view === "loginView"; // 상단 검색창은 로그인 후 항상
     $("title").textContent = TITLES[view] || APP_NAME;
     $("mainNav").hidden = view === "loginView";
-    try { const ss = $("salesSub"); if (ss) { ss.hidden = view !== "salesView"; ss.querySelectorAll("[data-ssub]").forEach((b) => b.classList.toggle("on", b.dataset.ssub === (SALES.sub || "check"))); } } catch (e) { /* 영업 서브메뉴(이달체크·자료) 표시 */ }
+    try { const ss = $("salesSub"); if (ss) { ss.hidden = view !== "salesView"; document.documentElement.style.setProperty("--subh", ss.hidden ? "0px" : Math.round(ss.getBoundingClientRect().height) + "px"); ss.querySelectorAll("[data-ssub]").forEach((b) => b.classList.toggle("on", b.dataset.ssub === (SALES.sub || "check"))); } } catch (e) { /* 영업 서브메뉴(이달체크·자료) 표시 */ }
     // 관리자: '관리자' 메뉴 / 일반 사용자: '설정' 메뉴 (내 캘린더 고르기)
     $("navAdmin").hidden = !account();
     $("navAdminLabel").textContent = "설정";
@@ -1002,7 +1002,7 @@
       const hits = records.filter((r) => {
         if (fcPick !== FC_ALL && r.fc !== fcPick) return false;
         if (want && r.type !== want.label) return false;
-        if (optTypes.length && !optTypes.some((id) => id === "ddahaeng" ? (r.type === typeOfOpt(id) || fieldOf(r, "따행대상") === "예") : r.type === typeOfOpt(id))) return false;
+        if (optTypes.length && !optTypes.some((id) => id === "ddahaeng" ? (r.type === typeOfOpt(id) || fieldOf(r, "따행대상") === "예") : id === "db" ? (r.type === typeOfOpt(id) || fieldOf(r, "최초유입경로") === "DB") : r.type === typeOfOpt(id))) return false; // DB = 현재단계가 DB인 고객 + 유입경로가 DB인 고객(이미 계약·진행으로 넘어간 고객 포함)
         if (!q) return true;
         let ok = false;
         if (polIds && (polIds.has(idOf(r)) || (!idOf(r) && polNames.includes(norm(baseName(r.name)) + "|" + r.fc)))) ok = true;
