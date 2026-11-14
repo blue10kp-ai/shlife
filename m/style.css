@@ -728,3 +728,4 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .dfl .dfk { font-size: 13px; font-weight: 600; color: var(--t2, #6b7280); }
 .dfl .dsep { display: inline-block; width: 1px; height: 14px; background: var(--line, #d5dbe3); margin: 0 2px; }
 .dc.static { cursor: default; }
+.srow .si.pd .st { margin-left: 5px; vertical-align: 1px; } /* 상품 상태(완납·실효 등)는 상품명 끝 */
