@@ -332,13 +332,18 @@
   const APP_NAME = "신한FC m";
   const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "설정" };
   const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin" };
+  // 말만해요 안에 모듈(iframe)로 떠 있는 모드 (?embed=1)
+  const EMBED = (() => { try { return new URLSearchParams(location.search).get("embed") === "1" && window.parent !== window; } catch (e) { return false; } })();
+  let notifyWhereNow = () => {};
+  if (EMBED) document.documentElement.classList.add("embed");
   function show(view, keepScroll) {
+    notifyWhereNow();
     views.forEach((v) => ($(v).hidden = v !== view));
     document.documentElement.dataset.view = view; // 화면별 모양 조정용 (예: 일정 화면은 위 막대 밑 선 없음)
     // 고객 정보 화면: "‹ 고객 정보" 전체가 뒤로 가기 버튼
     $("backBtn").hidden = view !== "customerView";
     $("title").hidden = view === "customerView";
-    $("logoutBtn").hidden = view === "loginView";
+    $("logoutBtn").hidden = view === "loginView" || EMBED; // 모듈로 떠 있을 땐 로그아웃은 말만해요에서
     $("reloadBtn").hidden = view === "loginView";
     $("topSearch").hidden = view === "loginView"; // 상단 검색창은 로그인 후 항상
     $("title").textContent = TITLES[view] || APP_NAME;
@@ -866,8 +871,10 @@
   // 검색 결과에서 같은 이름을 구분하도록 이름 옆에 작게: 생년 · 남/여 · 지역
   function birthYear(b) { const raw = String(b || "").trim(), m4 = raw.match(/^((?:19|20)\d{2})(?:\D|$)/); if (m4) return m4[1]; const x = raw.replace(/\D/g, ""); if (/^(19|20)\d{2}($|\d{4})/.test(x) && (x.length === 4 || x.length === 8)) return x.slice(0, 4); if (x.length >= 6) { const yy = +x.slice(0, 2), cy = new Date().getFullYear() % 100; return (yy > cy ? 1900 + yy : 2000 + yy) + ""; } return ""; }
   const resultInfo = (c) => [birthYear(c.birth), genderOf(c), regionOf(c)].filter(Boolean).join(" · ");
+  let goKeepList = null; // 말만해요에서 넘어온 검색어: 한 명만 나와도 목록을 보여 줌
   async function search(q, force) {
     q = q.trim();
+    const keepList = goKeepList !== null && goKeepList === q; goKeepList = null;
     const status = $("searchStatus");
     const list = $("results");
     list.innerHTML = "";
@@ -875,6 +882,7 @@
     $("pageSearch").hidden = !!q || !!force;
     if (!q && !force) { status.textContent = ""; return; }
     $("q2").value = q;
+    notifyWhereNow();
     status.textContent = "찾는 중…";
     try {
       const records = await loadLists();
@@ -951,7 +959,7 @@
       const label = (want ? want.label + " " : "") + (optTypes.length ? optTypes.map((id) => OPT_LABEL[id]).join("·") + " " : "") + (gradeFilter !== "Good" ? "성향 " + gradeFilter + " " : "");
       status.textContent = custs.length ? label + custs.length + "명 찾음" : (q ? "'" + q + "' " : "") + label + "고객이 없습니다.";
       $("pageSearch").hidden = custs.length > 0 || !!force; // 못 찾으면 화면 안 검색창으로 다시 검색
-      if (custs.length === 1 && q) return openCustomer(custs[0]);
+      if (custs.length === 1 && q && !keepList) return openCustomer(custs[0]);
       list.innerHTML = custs.map((c, i) => {
         const types = [...new Set(c.entries.map((e) => e.type))];
         const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
@@ -1355,6 +1363,7 @@
     $("tabs").innerHTML = "";
     history.pushState({ v: "customer" }, "");
     current = { cust, folders: [], files: [], phones: null, contracts: [], fc: "", extra: { values: {} }, profilePhoto: null, photoUrl: null };
+    notifyWhereNow();
     showCachedPhoto(current); // 기기에 저장된 사진이 있으면 바로
     try {
       const names = new Set(cust.entries.map((e) => norm(e.name)).concat(norm(cust.name)));
@@ -3029,6 +3038,10 @@
     const needScope = !!(sh && sh.exp > Date.now() + 60000 && !gHasScopes(sh.scopes)); // 다른 앱에서 로그인했지만 이 앱 권한이 모자란 경우
     $("loginBtn").textContent = needScope ? "구글 연결 (권한 추가)" : em ? "Google 다시 연결 (" + em + ")" : "Google 계정으로 로그인";
     $("loginOtherBtn").hidden = false;
+    if (EMBED) { // 모듈로 떠 있을 땐 여기서 로그인하지 않고 말만해요에서 다시 로그인 (공통 출입증으로 이어짐)
+      $("lmsg").textContent = "말만해요에서 다시 로그인해 주세요.";
+      $("loginBtn").hidden = true; $("loginOtherBtn").hidden = true;
+    }
     show("loginView");
   }
   // other = true: 구글 계정 선택 창을 띄워 다른 계정으로 로그인
@@ -3086,12 +3099,13 @@
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_sms = sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
     const s_login = sec("로그인 (공통 로그인)", ["한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
+    const s_go = sec("말만해요 연결", ["말만해요에서 “김현성 고객 검색해줘”처럼 말하면 말만해요 화면 안에 이 앱의 고객 검색 목록이 나타납니다. 한 명만 나와도 목록이 먼저 보이고, 고객을 누르면 그 안에서 고객 정보가 열립니다. 앞뒤 이동·검색·하단 메뉴는 평소처럼 쓸 수 있습니다.", "말만해요 위쪽 [앱으로 열기]를 누르면 보던 바로 그 화면(검색 목록 또는 그 고객 정보)으로 신한FC m이 열립니다. 말만해요 안에서는 로그아웃 버튼이 없고(로그아웃은 말만해요에서), 로그인이 풀렸으면 ‘말만해요에서 다시 로그인’ 안내가 나옵니다.", "검색한 이름은 주소의 # 뒤에만 실려 서버로 전송되지 않습니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_set);
     return iconBox + parts.join("");
   }
@@ -5714,6 +5728,55 @@
     if (ev.target.id === "salesFc") { SALES.fc = ev.target.value; try { localStorage.setItem(salesFcKey(), SALES.fc); } catch (e) { /* 무시 */ } renderSales(); }
   });
 
+  // ---------- 말만해요 연동 ----------
+  //  주소 #go=customers&q=검색어 (고객 검색 목록) / #go=customer&id=고객키 (고객 정보). 검색어·고객 키는 # 뒤에 둬서 서버로 안 나감.
+  //  ?embed=1 이면 말만해요 안에 모듈로 떠 있는 모드. 로그인 뒤에 이어서 처리하고, 처리하면 주소에서 # 뒤를 지움
+  let GO0 = null, appStarted = false;
+  try {
+    const h = new URLSearchParams(location.hash.replace(/^#/, "")), go = h.get("go");
+    if (go) {
+      GO0 = { go, q: h.get("q") || "", id: h.get("id") || "" };
+      history.replaceState(history.state, "", location.pathname + location.search); // 새로고침해도 다시 처리하지 않게 주소에서 지움
+    }
+  } catch (e) { GO0 = null; }
+  async function goCustomer(id) {
+    try {
+      const gs = groupCustomers(await loadLists());
+      const c = gs.find((x) => custKey(x) === id) || gs.find((x) => custKeyOld(x) === id);
+      if (!c) { toast("고객을 찾지 못했습니다."); return; }
+      c.entries.sort((a, b) => prio(a.type) - prio(b.type)); c.name = c.entries[0].name;
+      openCustomer(c);
+    } catch (e) { handleError(e); }
+  }
+  // 이미 앱 안에 있을 때는 새로 열지 않고 바로 처리. 아직 로그인 전이면 로그인 뒤에 처리
+  window.blue10kpGo = function (o) {
+    if (!o || (o.go !== "customers" && o.go !== "customer")) return;
+    if (!appStarted) { GO0 = { go: o.go, q: String(o.q || ""), id: String(o.id || "") }; return; }
+    if (typeof helpClose === "function" && helpIsOpen) helpClose();
+    if (!$("aiSheet").hidden && typeof aiClose === "function") aiClose();
+    if (o.go === "customer") { const id = String(o.id || ""); if (id) { if (!$("customerView").hidden) show("searchView"); goCustomer(id); } return; }
+    const q = String(o.q || "").trim();
+    if (!q) { show("searchView"); return; }
+    goKeepList = q;
+    runTopSearch(q);
+  };
+  // 말만해요 안에 모듈(iframe)로 떠 있을 때: 부모 말만해요에 지금 위치를 알림 (고객 이름이 든 값은 같은 주소(origin)에만 보냄)
+  function notifyWhere(w) {
+    if (!EMBED) return;
+    try { parent.postMessage({ type: "blue10kp-where", app: "shlife", go: w.go, q: w.q || "", id: w.id || "" }, location.origin); } catch (e) { /* 무시 */ }
+  }
+  const whereNow = () => {
+    if (!$("customerView").hidden && current && current.cust) return { go: "customer", id: custKey(current.cust) };
+    if (!$("searchView").hidden) return { go: "customers", q: curQuery() };
+    return { go: !$("scheduleView").hidden ? "schedule" : !$("salesView").hidden ? "sales" : !$("adminView").hidden ? "settings" : "" };
+  };
+  notifyWhereNow = () => { if (EMBED) { clearTimeout(notifyWhereNow._t); notifyWhereNow._t = setTimeout(() => { const w = whereNow(); if (w.go) notifyWhere(w); }, 150); } };
+  // 부모 말만해요가 보내는 새 요청 받기 (보낸 곳 origin 확인)
+  window.addEventListener("message", (ev) => {
+    if (ev.origin !== location.origin || !ev.data || ev.data.type !== "blue10kp-go") return;
+    window.blue10kpGo(ev.data);
+  });
+
   (async function init() {
     if (CFG.clientId === "YOUR-CLIENT-ID") {
       show("loginView");
@@ -5742,12 +5805,15 @@
   })();
 
   // 화면이 다시 보일 때 공통 출입증을 다시 읽음: 다른 앱에서 새로 로그인했으면 이어서 쓰고, 계정이 바뀌었으면 새로 시작
-  if (GD) document.addEventListener("visibilitychange", async () => {
-    if (document.visibilityState !== "visible") return;
+  if (GD) window.addEventListener("storage", (e) => { if (e.key === GAUTH_KEY && !$("loginView").hidden) checkSharedLogin(); }); // 말만해요 안에서 보일 때: 부모가 로그인하면 바로 이어서
+  if (GD) document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkSharedLogin(); });
+  async function checkSharedLogin() {
     const sh = readGAuth();
     if (!sh || !sh.email || !storedGToken()) return;
     const em = String(sh.email).toLowerCase();
     if (!$("loginView").hidden) { // 로그인 화면이던 중 다른 앱에서 로그인함
+      if (checkSharedLogin.busy) return;
+      checkSharedLogin.busy = true;
       if (gAccount() && gAccount() !== em) await photoCacheClear();
       try { localStorage.setItem(GACC_KEY, em); } catch (e) { /* 이번만 */ }
       startApp();
@@ -5756,10 +5822,16 @@
       try { localStorage.setItem(GACC_KEY, em); } catch (e) { /* 이번만 */ }
       location.reload();
     }
-  });
+  }
 
   function startApp() {
-    if (!GD && sessionStorage.getItem("openAdmin") && isAdmin()) {
+    appStarted = true;
+    const goReq = GO0; GO0 = null;
+    if (goReq) { // 말만해요에서 넘어옴: 첫 화면은 고객, 이어서 검색
+      schedMode = "day"; schedDate = dayStart(new Date());
+      resetSearch();
+      setTimeout(() => window.blue10kpGo(goReq), 0);
+    } else if (!GD && sessionStorage.getItem("openAdmin") && isAdmin()) {
       sessionStorage.removeItem("openAdmin");
       openAdmin();
     } else if (SALES_BOOT) { // 새로 로드됐을 때 영업 화면을 보던 중이었으면 그 탭·월·FC·필터·위치로
