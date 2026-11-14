@@ -5731,6 +5731,10 @@
       const selFcs = isAdmin() ? fcs : [...new Set([myFc, ...salesExtra])].filter((f) => f && fcs.includes(f));
       if (!isAdmin() && selFcs.length <= 1) SALES.fc = fcs.includes(myFc) ? myFc : fcs[0] || ""; // 추가 FC가 없으면 선택창 없이 본인 FC
       else if (!SALES.fc || !selFcs.includes(SALES.fc)) SALES.fc = selFcs.includes(saved) ? saved : selFcs.includes(myFc) ? myFc : selFcs[0] || "";
+      if (SALES.goFc !== undefined) { // 말만해요에서 연 경우: 저장해 둔 선택 대신 지정한 FC(없으면 로그인한 본인 FC). 저장해 둔 선택은 덮어쓰지 않음
+        const want = SALES.goFc || myFc; SALES.goFc = undefined;
+        if (selFcs.includes(want)) SALES.fc = want; else if (selFcs.includes(myFc)) SALES.fc = myFc;
+      }
       const fcSel = SALES.fc;
       const baseRows = (SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : ddaRows(data, ym)).filter((r) => !fcSel || r.srcFc === fcSel);
       // 따행: 활동대상 → 접촉현황 → 따행분류 (SOL 조회 조건과 같은 기준: 대상년월 · 활동대상 기본)
@@ -5884,6 +5888,7 @@
     if (o.go === "sales") { // q = 탭(transfer=이달이관, dda=따행), id = 달(YYYY-MM, 없으면 이번 달)
       const mm = String(o.id || "").match(/^(\d{4})-?(\d{2})$/);
       SALES.tab = o.q === "dda" ? "dda" : "transfer";
+      SALES.goFc = String(o.kind || "").trim(); // FC 이름(없으면 본인 FC)
       SALES.ym = mm && +mm[2] >= 1 && +mm[2] <= 12 ? mm[1] + mm[2] : ymNow();
       loadSettings().then(() => openSales());
       return;
@@ -5904,12 +5909,12 @@
   // 말만해요 안에 모듈(iframe)로 떠 있을 때: 부모 말만해요에 지금 위치를 알림 (고객 이름이 든 값은 같은 주소(origin)에만 보냄)
   function notifyWhere(w) {
     if (!EMBED) return;
-    try { parent.postMessage({ type: "blue10kp-where", app: "shlife", go: w.go, q: w.q || "", id: w.id || "", canBack: !!w.canBack }, location.origin); } catch (e) { /* 무시 */ }
+    try { parent.postMessage({ type: "blue10kp-where", app: "shlife", go: w.go, q: w.q || "", id: w.id || "", kind: w.kind || "", canBack: !!w.canBack }, location.origin); } catch (e) { /* 무시 */ }
   }
   const whereNow = () => {
     if (!$("customerView").hidden && current && current.cust) return { go: "customer", id: custKey(current.cust), canBack: true }; // 고객 정보에서는 앱 안 뒤로(목록)가 있음. 검색 목록이 첫 화면이면 canBack=false
     if (!$("searchView").hidden) return { go: "customers", q: curQuery() };
-    if (!$("salesView").hidden) return { go: "sales", q: SALES.tab === "dda" ? "dda" : "transfer", id: SALES.ym ? SALES.ym.slice(0, 4) + "-" + SALES.ym.slice(4) : "" }; // 탭·달 (앱으로 열기용)
+    if (!$("salesView").hidden) return { go: "sales", q: SALES.tab === "dda" ? "dda" : "transfer", id: SALES.ym ? SALES.ym.slice(0, 4) + "-" + SALES.ym.slice(4) : "", kind: SALES.fc || "" }; // 탭·달 (앱으로 열기용)
     if (!$("scheduleView").hidden) return { go: "schedule", q: `${schedDate.getFullYear()}-${pad2(schedDate.getMonth() + 1)}-${pad2(schedDate.getDate())}` }; // 보고 있는 날짜(앱으로 열기용)
     return { go:!$("salesView").hidden ? "sales" : !$("adminView").hidden ? "settings" : "" };
   };
