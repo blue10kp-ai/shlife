@@ -844,6 +844,75 @@
     return meetCache;
   }
   const digits = (v) => String(v || "").replace(/\D/g, "");
+  // 전체검색(위쪽 검색) 확장: 고객 메모(고객추가정보 '메모')·상담기록 글에서도 찾음 (2분 동안 기억)
+  let extraTextCache = null, extraTextAt = 0;
+  function loadExtraText() {
+    if (extraTextCache && Date.now() - extraTextAt < 120000) return extraTextCache;
+    extraTextAt = Date.now();
+    extraTextCache = (async () => {
+      const x = await readExtra();
+      if (!x) return { memos: [], consults: [] };
+      const ni = x.head.indexOf(EXTRA.nameCol), fi = x.head.indexOf(EXTRA.fcCol), mi = x.head.indexOf("메모");
+      const memos = ni < 0 || mi < 0 ? [] : x.rows.slice(1).map((r) => ({ name: String(r[ni] ?? "").trim(), fc: fi < 0 ? "" : String(r[fi] ?? "").trim(), text: String(r[mi] ?? "").trim() })).filter((m) => m.name && m.text);
+      const consults = [];
+      const ws = x.wb.Sheets[EXTRA.consult.sheet];
+      if (ws && ws["!ref"]) {
+        const { rg, ni: cn, fi: cf, ti } = consultSheetInfo(ws);
+        if (cn >= 0 && ti >= 0) for (let r = rg.s.r + 1; r <= rg.e.r; r++) {
+          const a = ws[XLSX.utils.encode_cell({ r, c: cn })], t = ws[XLSX.utils.encode_cell({ r, c: ti })], f = cf < 0 ? null : ws[XLSX.utils.encode_cell({ r, c: cf })];
+          if (a && t && String(t.v).trim()) consults.push({ name: String(a.v).trim(), fc: f ? String(f.v).trim() : "", text: String(t.v).trim() });
+        }
+      }
+      return { memos, consults };
+    })();
+    extraTextCache.catch(() => { extraTextCache = null; });
+    return extraTextCache;
+  }
+  const snippetOf = (text, nq) => { const t = String(text).replace(/\s+/g, " "), i = norm(t).indexOf(nq); if (i < 0) return t.slice(0, 24); const a = Math.max(0, i - 8); return (a ? "…" : "") + t.slice(a, a + 26) + (t.length > a + 26 ? "…" : ""); };
+  // 전체검색 확장: 오늘 기준 1년 전 ~ 1개월 뒤 일정(제목·설명·장소). 구글 캘린더 검색(q) 사용, 연결이 없거나 실패하면 조용히 건너뜀
+  async function searchCalendarEvents(q) {
+    try {
+      const cals = await scheduleCalendars();
+      const from = dayStart(new Date()); from.setFullYear(from.getFullYear() - 1);
+      const to = dayStart(new Date()); to.setMonth(to.getMonth() + 1);
+      const qs = `?singleEvents=true&orderBy=startTime&maxResults=100&q=${encodeURIComponent(q)}&timeMin=${encodeURIComponent(from.toISOString())}&timeMax=${encodeURIComponent(to.toISOString())}`;
+      const lists = await Promise.all(cals.map(async (c) => {
+        try {
+          return ((await gcal("/calendars/" + encodeURIComponent(c.id) + "/events" + qs)).items || []).filter((e) => e.status !== "cancelled").map((e) => ({
+            cal: calAlias(c.id, c.name || ""), title: String(e.summary || "(제목 없음)").trim(), location: String(e.location || "").trim(),
+            allDay: !!e.start.date, start: e.start.dateTime ? new Date(e.start.dateTime) : ymdToDate(e.start.date)
+          }));
+        } catch (e) { return []; }
+      }));
+      return lists.flat().sort((a, b) => b.start - a.start).slice(0, 40); // 최근 일정이 위로
+    } catch (e) { return []; }
+  }
+  let searchWide = true; // true = 위쪽 전체검색(고객·메모·상담기록·일정), false = 고객 화면 안 고객검색(고객만)
+  // 전체검색 결과 팝업(아래에서 올라오는 창): 고객·메모·상담기록·일정 결과를 보여 주고, 누르면 해당 페이지(고객 정보·상담 탭·그날 일정)로 이동
+  function closeSearchPopup() { const b = $("searchPopup"); if (b) b.hidden = true; document.documentElement.classList.remove("help-open"); }
+  function openSearchPopup(q, custs, evs) {
+    let box = $("searchPopup");
+    if (!box) { box = document.createElement("div"); box.id = "searchPopup"; box.className = "help-modal"; document.body.appendChild(box); box.addEventListener("click", (e) => { if (e.target === box || e.target.closest("[data-spclose]")) closeSearchPopup(); }); }
+    const WDK = ["일", "월", "화", "수", "목", "금", "토"];
+    const custHtml = custs.map((c, i) => {
+      const types = [...new Set(c.entries.map((e) => e.type))];
+      const why = c.why && c.why.size ? [...c.why].map(([k, v]) => esc(k) + (v && k !== "연락처" ? " · " + esc(v) : "")).join(" / ") : "";
+      return `<li><button type="button" data-spc="${i}"><span class="avatar sm">${esc(c.name[0])}</span><span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${why ? `<span class="r-why">${why}</span>` : ""}</span>${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button></li>`;
+    }).join("");
+    const evHtml = evs.map((e, i) => `<li><button type="button" data-spe="${i}"><span class="r-name"><span class="cname">${esc(e.title)}</span><span class="r-sub">${e.start.getFullYear()}.${pad2(e.start.getMonth() + 1)}.${pad2(e.start.getDate())}(${WDK[e.start.getDay()]}) ${e.allDay ? "종일" : hm(e.start)} · ${esc(e.cal)}${e.location ? " · " + esc(e.location) : ""}</span></span><span class="chev">›</span></button></li>`).join("");
+    box.innerHTML = `<div class="help-sheet" role="dialog" aria-label="전체검색 결과"><div class="help-top"><div class="ai-grab" aria-hidden="true"></div><div class="help-head"><b>전체검색 · ${esc(q)}</b><button type="button" class="secondary" data-spclose>닫기</button></div></div><div class="help-body sp-body">` +
+      (custs.length ? `<h4>고객 ${custs.length}명</h4><ul class="list">${custHtml}</ul>` : "") +
+      (evs.length ? `<h4>일정 ${evs.length}건 <span class="hint">(1년 전 ~ 1개월 뒤)</span></h4><ul class="list">${evHtml}</ul>` : "") +
+      (!custs.length && !evs.length ? `<p class="hint pad">'${esc(q)}'에서 찾은 것이 없습니다.</p>` : "") + `</div></div>`;
+    box.querySelectorAll("[data-spc]").forEach((b) => b.addEventListener("click", async () => {
+      const c = custs[+b.dataset.spc]; closeSearchPopup();
+      await openCustomer(c);
+      if (c.why && c.why.has("상담기록") && !c.why.has("메모")) selectTab("consult"); // 상담기록에서 걸렸으면 상담 탭으로
+    }));
+    box.querySelectorAll("[data-spe]").forEach((b) => b.addEventListener("click", () => { const e = evs[+b.dataset.spe]; closeSearchPopup(); schedMode = "day"; schedDate = dayStart(e.start); openSchedule(); }));
+    box.hidden = false; document.documentElement.classList.add("help-open");
+  }
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSearchPopup(); });
 
   // 고객 범위 옵션: 전체 / 본인(계약) / 이관 / DB / 따행 / 가망. 본인부터는 다중 선택(고른 것 중 하나라도 해당하면 포함), 전체는 선택 해제.
   const optSel = new Set();
@@ -889,6 +958,8 @@
     const status = $("searchStatus");
     const list = $("results");
     list.innerHTML = "";
+    { const eh = $("evHits"); if (eh) eh.remove(); }
+    const wide = searchWide;
     syncOpts();
     $("pageSearch").hidden = !!q || !!force;
     if (!q && !force) { status.textContent = ""; return; }
@@ -908,7 +979,13 @@
       }
       // 고객 이름 · 연락처 · 주소 · 미팅장소로 검색
       const nq = norm(q), dq = digits(q);
+      const evP = wide && nq.length >= 2 ? searchCalendarEvents(q) : Promise.resolve([]); // 일정 검색은 나머지와 동시에
       const meets = await loadMeetingPlaces().catch(() => []);
+      const ex = wide && nq.length >= 2 ? await loadExtraText().catch(() => ({ memos: [], consults: [] })) : { memos: [], consults: [] };
+      const exMap = (arr) => { const m = new Map(); arr.forEach((a) => { if (!norm(a.text).includes(nq)) return; const k = norm(a.name); if (!m.has(k)) m.set(k, []); m.get(k).push(a); }); return m; };
+      const memoHit = exMap(ex.memos), consHit = exMap(ex.consults);
+      const why = new Map(); // 기록 → { 이유: 글 조각 } (이름이 아닌 곳에서 걸린 것을 목록에 보여 주기 위함)
+      const addWhy = (r, k, snip) => { if (!why.has(r)) why.set(r, new Map()); if (!why.get(r).has(k)) why.get(r).set(k, snip || ""); };
       const meetOf = (r) => meets.filter((m) => norm(m.name) === norm(r.name) && sameFc(m.fc, r.fc)).map((m) => m.mp)
         .concat(r.fields.filter(([k]) => k.trim() === "미팅장소").map(([, v]) => v)).join(" ");
       // 증권번호 검색: 숫자 5자리 이상이면 그 증권번호가 들어간 계약의 계약자·피보험자도 찾음
@@ -926,16 +1003,27 @@
         if (want && r.type !== want.label) return false;
         if (optTypes.length && !optTypes.some((id) => id === "ddahaeng" ? (r.type === typeOfOpt(id) || fieldOf(r, "따행대상") === "예") : r.type === typeOfOpt(id))) return false;
         if (!q) return true;
-        if (polIds && (polIds.has(idOf(r)) || (!idOf(r) && polNames.includes(norm(baseName(r.name)) + "|" + r.fc)))) return true;
-        if (norm(r.name).includes(nq)) return true;
-        if (dq.length >= 3 && dq === q.replace(/[\s-]/g, "") && digits(r.phone).includes(dq)) return true;
-        if (nq.length < 2) return false;
-        return norm(entryAddr(r)).includes(nq) || norm(meetOf(r)).includes(nq);
+        let ok = false;
+        if (polIds && (polIds.has(idOf(r)) || (!idOf(r) && polNames.includes(norm(baseName(r.name)) + "|" + r.fc)))) ok = true;
+        if (norm(r.name).includes(nq)) ok = true;
+        if (dq.length >= 3 && dq === q.replace(/[\s-]/g, "") && digits(r.phone).includes(dq)) { ok = true; if (wide) addWhy(r, "연락처", r.phone); }
+        if (nq.length < 2) return ok;
+        if (norm(entryAddr(r)).includes(nq)) { ok = true; if (wide) addWhy(r, "주소", snippetOf(entryAddr(r), nq)); }
+        if (norm(meetOf(r)).includes(nq)) { ok = true; if (wide) addWhy(r, "미팅장소", snippetOf(meetOf(r), nq)); }
+        if (!wide) return ok;
+        // 전체검색: 메모(고객추가정보·고객 시트의 '메모' 열)와 상담기록 — 같은 이름 + 같은 FC
+        const keys = [norm(r.name), norm(baseName(r.name))];
+        const pick = (map) => keys.flatMap((k) => map.get(k) || []).filter((a) => sameFc(a.fc, r.fc))[0];
+        const mh = pick(memoHit); if (mh) { ok = true; addWhy(r, "메모", snippetOf(mh.text, nq)); }
+        const own = fieldOf(r, "메모"); if (own && norm(own).includes(nq)) { ok = true; addWhy(r, "메모", snippetOf(own, nq)); }
+        const ch = pick(consHit); if (ch) { ok = true; addWhy(r, "상담기록", snippetOf(ch.text, nq)); }
+        return ok;
       });
       // 같은 사람 묶기: 고객ID가 같으면 한 고객, ID가 없는 옛 행은 같은 이름 + 같은 생년월일
       const groups = groupCustomers(hits);
       // 고객 안의 시트는 우선순위 순 (계약 > 이관 > 따행 > DB > 가망)
       groups.forEach((c) => { c.entries.sort((a, b) => prio(a.type) - prio(b.type)); c.name = c.entries[0].name; });
+      groups.forEach((c) => { c.why = new Map(); c.entries.forEach((e) => (why.get(e) || new Map()).forEach((v, k) => { if (!c.why.has(k)) c.why.set(k, v); })); });
       const custs = groups.filter((c) => gradeFilter === "Good" || gradeOf(c).toLowerCase() === gradeFilter.toLowerCase()).sort((a, b) => baseName(a.name).localeCompare(baseName(b.name), "ko") || a.name.localeCompare(b.name, "ko"));
       // 피보험자 고객: 계약의 주·종피보험자ID로 계약자를 찾아 한 줄로 보여 줌 (보이는 범위(records) 안의 계약자만, 표시 전용)
       const insLines = new Map(), churnMap = new Map();
@@ -968,18 +1056,25 @@
         openCustomer(grp);
       };
       const label = (want ? want.label + " " : "") + (optTypes.length ? optTypes.map((id) => OPT_LABEL[id]).join("·") + " " : "") + (gradeFilter !== "Good" ? "성향 " + gradeFilter + " " : "");
-      status.textContent = custs.length ? label + custs.length + "명 찾음" : (q ? "'" + q + "' " : "") + label + "고객이 없습니다.";
-      $("pageSearch").hidden = custs.length > 0 || !!force; // 못 찾으면 화면 안 검색창으로 다시 검색
+      const evs = q ? await evP : [];
+      status.textContent = (custs.length ? label + custs.length + "명 찾음" : (q ? "'" + q + "' " : "") + label + (evs.length ? "고객 없음" : "고객이 없습니다.")) + (evs.length ? " · 일정 " + evs.length + "건" : "");
+      $("pageSearch").hidden = custs.length > 0 || evs.length > 0 || !!force; // 못 찾으면 화면 안 검색창으로 다시 검색
+      if (wide && q && !force) { openSearchPopup(q, custs, evs); return; } // 위쪽 전체검색: 결과는 팝업으로
       if (custs.length === 1 && q && !keepList) return openCustomer(custs[0]);
       list.innerHTML = custs.map((c, i) => {
         const types = [...new Set(c.entries.map((e) => e.type))];
         const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
         return `<li><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
-          <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length ? `<span class="r-sub">${esc(fcs.join(", "))}</span>` : ""}</span>
+          <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length ? `<span class="r-sub">${esc(fcs.join(", "))}</span>` : ""}${c.why && c.why.size ? `<span class="r-why">${[...c.why].map(([k, v]) => esc(k) + (v && k !== "연락처" ? " · " + esc(v) : "")).join(" / ")}</span>` : ""}</span>
           ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button>${insLineHtml(c)}</li>`;
       }).join("");
       list.querySelectorAll("button").forEach((b) =>
         b.addEventListener("click", () => openCustomer(custs[+b.dataset.i])));
+      if (evs.length) { // 일정에서 찾은 것: 날짜·제목 줄, 누르면 그날 일정 화면
+        const WDK = ["일", "월", "화", "수", "목", "금", "토"];
+        list.insertAdjacentHTML("afterend", `<div id="evHits" class="ev-hits"><h3 class="sec-title">일정 ${evs.length}건 <span class="hint">(1년 전 ~ 1개월 뒤)</span></h3><ul class="list">${evs.map((e, i) => `<li><button type="button" data-evgo="${i}"><span class="r-name"><span class="cname">${esc(e.title)}</span><span class="r-sub">${e.start.getFullYear()}.${pad2(e.start.getMonth() + 1)}.${pad2(e.start.getDate())}(${WDK[e.start.getDay()]}) ${e.allDay ? "종일" : hm(e.start)} · ${esc(e.cal)}${e.location ? " · " + esc(e.location) : ""}</span></span><span class="chev">›</span></button></li>`).join("")}</ul></div>`);
+        $("evHits").querySelectorAll("[data-evgo]").forEach((b) => b.addEventListener("click", () => { const e = evs[+b.dataset.evgo]; schedMode = "day"; schedDate = dayStart(e.start); openSchedule(); }));
+      }
       list.querySelectorAll("[data-ins]").forEach((a) => {
         const go = (ev) => { ev.stopPropagation(); openHolder(a.dataset.ins); };
         a.addEventListener("click", go);
@@ -3126,12 +3221,13 @@
     const s_go = sec("말만해요 연결", ["말만해요에서 “김현성 고객 검색해줘”처럼 말하면 말만해요 화면 안에 이 앱의 고객 검색 목록이 나타납니다. 한 명만 나와도 목록이 먼저 보이고, 고객을 누르면 그 안에서 고객 정보가 열립니다. 이때는 앱 전체가 아니라 그 페이지만 보입니다(위쪽 바·아래 메뉴 없음). 목록→고객 정보, 정보·계약·분석·상담 탭 이동은 그대로이고, 뒤로가기는 말만해요의 왼쪽 위 버튼이 한 단계씩 되돌립니다.", "말만해요의 [앱으로 열기]를 누르면 보던 바로 그 화면(검색 목록 또는 그 고객 정보)으로 신한FC m이 전체 화면으로 열립니다. 말만해요 안에서는 로그아웃 버튼이 없고(로그아웃은 말만해요에서), 로그인이 풀렸으면 ‘말만해요에서 다시 로그인’ 안내가 나옵니다.", "“오늘 일정 보여줘”처럼 일정을 물으면 일정 화면(하루 보기)만 말만해요 안에 나타납니다. 날짜 이동·추가 버튼은 그대로 쓰고, [앱으로 열기]를 누르면 보던 날짜로 열립니다.", "검색한 이름은 주소의 # 뒤에만 실려 서버로 전송되지 않습니다."]);
     const s_map = sec("고객 주소 지도", ["고객 정보의 주소 오른쪽 <b>위치 아이콘</b>을 누르면 카카오맵에서 그 주소를 찾은 지도가 새 창으로 열립니다. 누를 때만 주소가 카카오맵에 전달됩니다."]);
     const s_inst = sec("앱 설치", ["안드로이드 크롬: 설정 화면의 [앱 설치](없으면 브라우저 메뉴의 ‘앱 설치’), 아이폰 사파리: 공유 → ‘홈 화면에 추가’. 설치하면 앱처럼 전체 화면으로 열립니다. 이미 설치했으면 설정에 설치 카드가 보이지 않습니다."]);
+    const s_srch = sec("전체검색 · 고객검색", ["<b>위쪽 전체검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호뿐 아니라 고객 메모, 상담기록, 오늘 기준 1년 전~1개월 뒤 일정(제목·장소)에서도 찾습니다. 결과는 아래에서 올라오는 창에 고객(어디서 찾았는지 표시)과 일정으로 나뉘어 나오고, 누르면 고객 정보(상담기록에서 찾았으면 상담 탭) 또는 그날 일정으로 이동합니다.", "<b>고객 화면의 고객검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호로 고객만 찾는 기존 검색입니다. 한 명만 나오면 바로 고객 정보가 열립니다.", "검색칸이 비어 있을 때의 글자(전체검색·고객검색)는 오른쪽에 보입니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("검색"), s_srch, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_set);
     return iconBox + parts.join("");
   }
@@ -3214,8 +3310,9 @@
     location.reload();
   });
   // 상단 검색창: 어느 화면에서든 검색 → 고객 검색 결과 화면으로
-  function runTopSearch(q) {
-    if (editMode && !$("customerView").hidden) { confirmLeaveEdit().then((ok) => { if (ok) runTopSearch(q); }); return; }
+  function runTopSearch(q, narrow) { // narrow=true: 고객 화면 안 검색창(고객검색), 아니면 위쪽 전체검색
+    searchWide = !narrow;
+    if (editMode && !$("customerView").hidden) { confirmLeaveEdit().then((ok) => { if (ok) runTopSearch(q, narrow); }); return; }
     $("q").value = q;
     $("q").blur();
     $("recentList").hidden = true;
@@ -3311,7 +3408,7 @@
     const q = $("q2").value.trim();
     if (!q) return;
     $("q2").blur();
-    runTopSearch(q);
+    runTopSearch(q, true); // 고객 화면 안 검색 = 고객검색(고객만)
   });
   // ---------- 구글 캘린더 (일정) ----------
   const GCFG = CFG.google || {};
@@ -4859,7 +4956,7 @@
     if (it.kind === "needTitle") return aiShowMsg("무슨 일정인지 알려 주세요. 예: “내일 오후 3시 홍길동 상담 일정 추가”");
     $("aiMsg").hidden = true;
     let head, line1, line2 = "";
-    if (it.kind === "search") { head = "고객 검색"; line1 = esc(it.name); if (it.viaAi) line2 = "AI가 해석"; }
+    if (it.kind === "search") { head = "검색"; line1 = esc(it.name); if (it.viaAi) line2 = "AI가 해석"; }
     else if (it.kind === "showDay") { head = "일정 보기"; line1 = aiDateLabel(it.date); }
     else {
       const pre = it.mine ? "" : await aiPrefix(); // 내 일정에는 앞 글자를 붙이지 않음(팀 캘린더에서 누구 것인지 구분하려는 글자라서)
@@ -4882,7 +4979,7 @@
     try {
       if (it.kind === "search") {
         aiClose(); await new Promise((r) => setTimeout(r, 320)); // AI 창이 내려가고 뒤로가기 기록이 정리된 뒤에 이동
-        $("aiInp").value = ""; runTopSearch(it.name);
+        $("aiInp").value = ""; runTopSearch(it.name, true);
       } else if (it.kind === "showDay") {
         aiClose(); await new Promise((r) => setTimeout(r, 320));
         $("aiInp").value = ""; schedMode = "day"; schedDate = dayStart(it.date); openSchedule();
@@ -5922,7 +6019,7 @@
       return;
     }
     goKeepList = q;
-    runTopSearch(q);
+    runTopSearch(q, !(o.memo === "1" || o.memo === 1 || o.memo === true)); // 말만해요의 memo=1이면 전체검색(메모·상담기록·일정 포함), 아니면 고객검색
   };
   // 말만해요 안에 모듈(iframe)로 떠 있을 때: 부모 말만해요에 지금 위치를 알림 (고객 이름이 든 값은 같은 주소(origin)에만 보냄)
   function notifyWhere(w) {

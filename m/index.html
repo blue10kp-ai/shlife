@@ -13,14 +13,14 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3">
   <link rel="stylesheet" href="style.css?v=146">
   <link rel="stylesheet" href="tokens.css?v=117">
-  <link rel="stylesheet" href="design.css?v=258">
+  <link rel="stylesheet" href="design.css?v=259">
 </head>
 <body>
   <header class="topbar">
     <button id="backBtn" class="back-btn" hidden aria-label="뒤로 가기"><span class="chev-l">‹</span><span id="backLabel">고객 정보</span></button>
     <div class="tb-title"><h1 id="title">고객</h1></div>
     <form id="topSearch" class="top-search" hidden role="search">
-      <input id="q" type="search" placeholder="고객 검색" autocomplete="off" enterkeyhint="search" aria-label="고객 검색 (이름·연락처·주소·미팅장소)">
+      <input id="q" type="search" placeholder="전체검색" autocomplete="off" enterkeyhint="search" aria-label="전체검색 (고객 이름·연락처·주소·메모·상담기록·일정)">
       <button type="button" class="mic-btn top-mic" id="topMic" aria-label="음성으로 검색"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
       <ul id="recentList" class="recent" hidden></ul>
     </form>
@@ -49,9 +49,9 @@
       <div id="fcOpts" class="sopts fc-opts" role="group" aria-label="고객 FC" hidden></div>
       <!-- 검색 결과가 없을 때(처음 들어왔을 때 포함) 화면 안 검색창 -->
       <form id="pageSearch" class="card page-search" role="search">
-        <p class="hint">고객 이름·연락처·주소·미팅장소·증권번호로 검색하세요.</p>
+        <p class="hint">고객 이름·연락처·주소·미팅장소·증권번호로 고객을 검색하세요.</p>
         <div class="search">
-          <input id="q2" type="search" placeholder="고객 검색" autocomplete="off" enterkeyhint="search" aria-label="고객 검색">
+          <input id="q2" type="search" placeholder="고객검색" autocomplete="off" enterkeyhint="search" aria-label="고객검색">
           <button type="button" class="mic-btn page-mic" id="pageMic" aria-label="음성으로 검색"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
           <button class="primary" type="submit">검색</button>
         </div>
@@ -148,6 +148,6 @@
   <script async src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
   <script src="config.js?v=118"></script>
-  <script src="app.js?v=281"></script>
+  <script src="app.js?v=282"></script>
 </body>
 </html>
