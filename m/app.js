@@ -1578,6 +1578,12 @@
 
   // 연락처(휴대폰): 📞 Call · 💬 SMS / 이메일: ✉️ @ — 오른쪽 끝 정렬 버튼
   const MOBILE_RE = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/;
+  // 주소 옆 위치 아이콘: 누르면 카카오맵에서 그 주소를 검색한 지도가 새 창으로 열림 (누를 때만 주소가 카카오로 전달됨)
+  function addrWithMap(v) {
+    const a = String(v || "").trim();
+    if (!a) return "";
+    return `<div class="val-row"><span class="val">${esc(a)}</span><span class="acts"><a class="act-btn" href="https://map.kakao.com/link/search/${encodeURIComponent(a)}" target="_blank" rel="noopener noreferrer" aria-label="지도에서 보기" title="지도에서 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg><span>지도</span></a></span></div>`;
+  }
   function valueWithActions(k, v) {
     let btns = "";
     const m = PHONE_COLS.includes(k.trim()) && String(v).match(MOBILE_RE);
@@ -1652,9 +1658,10 @@
     }));
     const take = (cols) => { const out = []; cols.forEach((k) => { (merged.get(k) || []).forEach((v) => out.push([k, v])); merged.delete(k); }); return out; };
     const phones = take(PHONE_COLS), backs = take(["후번호"]), emails = take(EMAIL_COLS), addrs = take(["주소"]), accts = take(["계좌"]);
+    if (addrs.length) merged.delete("지역"); // 주소가 있으면 지역 항목은 보여 주지 않음
     const row = (label, html) => `<dt>${esc(label)}</dt><dd>${html}</dd>`;
     // 통신사 / 차량번호 / 자동차보험갱신일 (+ 미팅장소·메모가 아닌 추가 항목) — 주소 밑 한 줄
-    const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k) && k !== EXTRA.carrierCol && k !== CAR_NUM && k !== CAR_DATE);
+    const extraKeys = (x.fields || []).filter((k) => !EXTRA.primary.includes(k) && k !== EXTRA.carrierCol && k !== CAR_NUM && k !== CAR_DATE && !(addrs.length && k === "지역"));
     const carRows = carRowsOf({ [CAR_NUM]: ev[CAR_NUM] || currentValue(c, [CAR_NUM]), [CAR_DATE]: ev[CAR_DATE] || currentValue(c, [CAR_DATE]) });
     const chips = extraKeys.filter((k) => (ev[k] || "").trim()).map((k) =>
       `<span class="chip" title="${esc(k)}">${esc(EXTRA.monthDayCols.includes(k) ? mdText(ev[k]) : ev[k])}</span>`).join("");
@@ -1666,7 +1673,7 @@
         ${canSens() && accts.length ? row("계좌", accts.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
         ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
         ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
-        ${addrs.length ? `<dt>주소</dt><dd class="dd-left">${addrs.map(([, v]) => `<div>${esc(v)}</div>`).join("")}</dd>` : ""}
+        ${addrs.length ? `<dt>주소</dt><dd class="dd-left">${addrs.map(([, v]) => addrWithMap(v)).join("")}</dd>` : ""}
         ${carRows.length ? row("차량", carRows.map((r) => `<div>${esc(r.num || "-")}${r.d ? ` · 보험 갱신 ${esc(mdText(r.d))}` : ""}</div>`).join("")) : ""}
         ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
         ${rest.map(([k, vs]) => /가입\s*설계\s*동의\s*만료일/.test(k) ? row("설계 동의 만료", vs.map((v) => `<div>${esc(v)}</div>`).join("")) : k === "신한라이프 유지계약" ? row("유지 계약", vs.map((v) => `<div>${esc(/^\d+$/.test(String(v).trim()) ? String(v).trim() + "건" : v)}</div>`).join("")) : row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
@@ -1843,7 +1850,8 @@
     const listFields = canList ? EDIT_FIELDS.filter((f) => !f.paired && (canSens() || f.label !== "계좌")).map((f) => f.label === "연락처"
       ? (carrierInRow ? `<div class="fld-2 carrier-phone">${field(EXTRA.carrierCol)}${fld(f)}</div>` : fld(f)) + (canSens() ? ssnFld() : "")
       : fld(f)).join("") : "";
-    const more = fields.filter((k) => !EXTRA.primary.includes(k) && k !== CAR_NUM && k !== CAR_DATE && !(carrierInRow && k === EXTRA.carrierCol)); // 미팅장소·메모는 정보 화면에서 바로 입력 (차량은 여러 대 입력 칸으로 따로)
+    const hasAddr = !!currentValue(c, ["주소"]); // 주소가 있으면 지역 항목은 수정 화면에서도 숨김
+    const more = fields.filter((k) => !EXTRA.primary.includes(k) && k !== CAR_NUM && k !== CAR_DATE && !(carrierInRow && k === EXTRA.carrierCol) && !(hasAddr && k === "지역")); // 미팅장소·메모는 정보 화면에서 바로 입력 (차량은 여러 대 입력 칸으로 따로)
     const hasCars = fields.includes(CAR_NUM) || fields.includes(CAR_DATE);
     return `<div class="card" id="infoForm">
         ${listFields}
@@ -3100,12 +3108,13 @@
     const s_sms = sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
     const s_login = sec("로그인 (공통 로그인)", ["한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
     const s_go = sec("말만해요 연결", ["말만해요에서 “김현성 고객 검색해줘”처럼 말하면 말만해요 화면 안에 이 앱의 고객 검색 목록이 나타납니다. 한 명만 나와도 목록이 먼저 보이고, 고객을 누르면 그 안에서 고객 정보가 열립니다. 이때는 앱 전체가 아니라 그 페이지만 보입니다(위쪽 바·아래 메뉴 없음). 목록→고객 정보, 정보·계약·분석·상담 탭 이동은 그대로이고, 뒤로가기는 말만해요의 왼쪽 위 버튼이 한 단계씩 되돌립니다.", "말만해요의 [앱으로 열기]를 누르면 보던 바로 그 화면(검색 목록 또는 그 고객 정보)으로 신한FC m이 전체 화면으로 열립니다. 말만해요 안에서는 로그아웃 버튼이 없고(로그아웃은 말만해요에서), 로그인이 풀렸으면 ‘말만해요에서 다시 로그인’ 안내가 나옵니다.", "“오늘 일정 보여줘”처럼 일정을 물으면 일정 화면(하루 보기)만 말만해요 안에 나타납니다. 날짜 이동·추가 버튼은 그대로 쓰고, [앱으로 열기]를 누르면 보던 날짜로 열립니다.", "검색한 이름은 주소의 # 뒤에만 실려 서버로 전송되지 않습니다."]);
+    const s_map = sec("고객 주소 지도", ["고객 정보의 주소 오른쪽 <b>위치 아이콘</b>을 누르면 카카오맵에서 그 주소를 찾은 지도가 새 창으로 열립니다. 누를 때만 주소가 카카오맵에 전달됩니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_set);
     return iconBox + parts.join("");
   }
