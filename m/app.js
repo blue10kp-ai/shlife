@@ -2667,7 +2667,8 @@
         <h3 class="sec-title">구글 캘린더</h3>
         <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
       </div>
-      <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>` + smsCardHtml() + rhCardHtml();
+      <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div>` + startCardHtml() + smsCardHtml() + rhCardHtml();
+    bindStartCard();
     bindSmsCard();
     let cals;
     try { [cals] = await Promise.all([calendarList(), loadMyPrefs(), loadSettings()]); } catch (e) {
@@ -2771,7 +2772,7 @@
           <button class="secondary" id="resetPerms" disabled>되돌리기</button>
           <button class="primary" id="savePerms" disabled>변경 저장</button>
         </div>
-      </div>` + prefixCardHtml(perms, fcs) + settingsCardHtml() + smsCardHtml(); // 오른손 모드는 '설정' 카드 안에 있음
+      </div>` + prefixCardHtml(perms, fcs) + settingsCardHtml() + startCardHtml() + smsCardHtml(); // 오른손 모드는 '설정' 카드 안에 있음
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
@@ -2834,6 +2835,7 @@
     refresh();
     $("resetPerms").addEventListener("click", () => renderAdmin());
     bindSettings();
+    bindStartCard();
     bindSmsCard();
     bindPrefixCard(); // 관리자 화면의 'AI 일정 앞 글자' 카드 저장 버튼
     $("adminBody").querySelectorAll("[data-admin-name]").forEach((inp) => {
@@ -3057,6 +3059,7 @@
     const iconBox = `<div class="help-icon"><img src="icon.svg?v=3" width="72" height="72" alt="신한FC m 앱 아이콘"><div><b>앱 아이콘 안내</b><p>고객의 보장을 지키는 <b>방패</b> 안에, 계약과 실적이 꾸준히 <b>오르는 화살표</b>를 담았습니다. 보험 설계사의 일(고객을 지키고, 함께 성장하는 것)을 한 그림으로 줄였습니다.</p><p>연한 하늘색 바탕과 파란 선은 신뢰감 있고 차분한 업무용 앱의 느낌을 주고, 굵은 윤곽선 방패는 작은 홈 화면 아이콘에서도 또렷하게 보이도록 단순하게 만들었습니다. 신한FC m(모바일)에서는 아래 메뉴 맨 왼쪽의 이 아이콘을 누르면 AI 도우미가 열리고, PC 화면 왼쪽 위에는 "신한FC"로 표시됩니다.</p></div></div>`;
     const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
     const common = [
+      sec("시작 화면", ["<b>처음 보일 화면</b>: 설정(관리자는 관리자) 화면의 '시작 화면' 카드에서 앱을 열었을 때 처음 보일 화면을 고릅니다. 고객(기본) · 일정 · 영업 중 하나를 누르면 바로 저장되고, 다음에 앱을 열 때부터 적용됩니다.", "<b>AI 도우미 바로 열기</b>: '시작하면 AI 도우미를 바로 열기'를 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "이 설정은 이 폰(이 기기)과 이 계정에만 적용됩니다. 다른 폰에서는 따로 정해야 합니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]),
       sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 제목 앞 글자</b>: 관리자가 FC마다 정해 두면(관리자 화면 ‘AI 일정 앞 글자’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담", "<b>이름 보호</b>: 지금은 외부 AI를 쓰지 않고 이 폰 안에서만 해석하므로 고객 이름이 밖으로 나가지 않습니다. 쓰면서 알아듣는 말을 계속 늘려 갑니다."]),
       sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]),
       sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭, 이동 거리·예상 시간, 회사 출발·도착을 계산합니다. 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]),
@@ -4654,8 +4657,34 @@
       b.textContent = "저장";
     });
   }
+  // ---------- 시작 설정: 앱을 열 때 처음 보일 화면 + AI 도우미 바로 열기 (이 기기·이 계정에만 적용) ----------
+  const START_PAGES = [["customer", "고객"], ["schedule", "일정"], ["sales", "영업"]];
+  function startPrefKey() { return "shlife.start." + (gAccount() || "me"); }
+  function readStartPref() {
+    let v = {};
+    try { v = JSON.parse(localStorage.getItem(startPrefKey()) || "{}") || {}; } catch (e) { v = {}; }
+    return { page: START_PAGES.some((p) => p[0] === v.page) ? v.page : "customer", ai: !!v.ai };
+  }
+  function writeStartPref(v) { try { localStorage.setItem(startPrefKey(), JSON.stringify(v)); return true; } catch (e) { return false; } }
+  function startCardHtml() {
+    const cur = readStartPref();
+    return `<div class="card" id="startCard"><h3 class="sec-title">시작 화면</h3>
+      <p class="hint">앱을 열면 처음 보일 화면을 고릅니다. 이 폰(이 기기)에만 적용됩니다.</p>
+      <div class="st-opts" role="radiogroup" aria-label="시작 화면">${START_PAGES.map(([k, l]) =>
+        `<label class="st-opt"><input type="radio" name="startPage" value="${k}" ${cur.page === k ? "checked" : ""}><span>${l}</span></label>`).join("")}</div>
+      <label class="st-ai"><input type="checkbox" id="startAi" ${cur.ai ? "checked" : ""}><span>시작하면 AI 도우미를 바로 열기</span></label></div>`;
+  }
+  function bindStartCard() {
+    const box = $("startCard"); if (!box) return;
+    const save = () => {
+      const r = box.querySelector('input[name="startPage"]:checked');
+      const ok = writeStartPref({ page: r ? r.value : "customer", ai: $("startAi").checked });
+      toast(ok ? "시작 화면을 저장했습니다. 다음에 앱을 열 때 적용됩니다." : "이 기기에 저장하지 못했습니다.");
+    };
+    box.addEventListener("change", save);
+  }
   function smsCardHtml() {
-    const ta = (id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="8" maxlength="600"></textarea>
+    const ta =(id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="8" maxlength="600"></textarea>
         <span class="smsrow"><button type="button" class="link-btn" data-sms-reset="${id}">기본값으로 되돌리기</button><small class="cnt" data-for="${id}"></small></span></label>`;
     return `<div class="card" id="smsCard"><details class="fold"><summary class="sec-title">문자 문구</summary>
       ${ta("smsMyTransfer", "이관 문자 문구")}
@@ -5458,9 +5487,15 @@
       loadSettings().then(() => openSchedule());
     } else {
       schedMode = "day"; schedDate = dayStart(new Date());
-      resetSearch(); // 첫 화면: 고객 (일정은 하단 메뉴에서 열 때 불러옴 — 캘린더 호출이 첫 화면을 늦추지 않게)
-      $("searchStatus").textContent = "고객 목록을 불러오는 중…";
+      const sp = readStartPref().page; // 설정 > 시작 화면
+      if (sp === "schedule") loadSettings().then(() => openSchedule());
+      else if (sp === "sales") loadSettings().then(() => openSales());
+      else {
+        resetSearch(); // 첫 화면: 고객 (일정은 하단 메뉴에서 열 때 불러옴 — 캘린더 호출이 첫 화면을 늦추지 않게)
+        $("searchStatus").textContent = "고객 목록을 불러오는 중…";
+      }
     }
+    if (readStartPref().ai) setTimeout(aiOpen, 400); // 설정 > 시작 화면 > AI 도우미 바로 열기
     setTimeout(askContactNote, 1500); // 전화·문자 중에 앱이 닫혔다가 다시 열린 경우
     loadSettings(); // 관리자 설정 (회사 주소, 데이터 절약 모드 등)
     if (!isAdmin()) loadMyPrefs(); // 일반 사용자 설정 (캘린더·데이터 절약)
