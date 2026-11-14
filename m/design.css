@@ -710,3 +710,5 @@ html.embed .toast2 { left: 16px; transform: none; max-width: calc(100% - 104px);
 .sales-sub[hidden] { display: none; }
 /* 세로 스크롤바 자리를 늘 비워 둠: 목록이 짧아졌다 길어질 때 스크롤바가 생겼다 사라지며 화면이 좌우로 움직이지 않게 */
 html { scrollbar-gutter: stable; }
+/* 따행 필터 줄(설문 발송·응답 | 쿠폰 | 전화·문자): 오른쪽 정렬 */
+.dfilter { justify-content: flex-end; }
