@@ -738,3 +738,7 @@ html { scrollbar-gutter: stable; }
 .cov .cov-comment { margin: -2px 0 12px; font-size: 14px; line-height: 1.5; color: var(--t1); }
 .cov .cov-foot { text-align: left; line-height: 1.5; }
 .cov .cov-foot.old { color: var(--warn); font-weight: 600; }
+/* 영업단계 태그(통화·AP·PC·계약): 칩과 같은 색 */
+.tag.stg::before { background: currentColor; }
+.tag.stg-통화 { color: #1f5fae; } .tag.stg-AP { color: #6a3fb5; } .tag.stg-PC { color: #00706a; } .tag.stg-계약 { color: #1d7a46; }
+@media (prefers-color-scheme: dark) { .tag.stg-통화 { color: #8db8f2; } .tag.stg-AP { color: #c3a8f0; } .tag.stg-PC { color: #6fd6cf; } .tag.stg-계약 { color: #6fd39a; } }

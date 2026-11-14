@@ -1064,12 +1064,20 @@
       $("pageSearch").hidden = custs.length > 0 || evs.length > 0 || !!force; // 못 찾으면 화면 안 검색창으로 다시 검색
       if (wide && q && !force) { openSearchPopup(q, custs, evs); return; } // 위쪽 전체검색: 결과는 팝업으로
       if (custs.length === 1 && q && (!keepList || tabReq)) { await openCustomer(custs[0]); if (tabReq) selectTab(tabReq); return; }
+      const progView = optTypes.includes("progress"); // 진행 보기: 계약한 고객이면 '계약' 태그, 영업단계(통화·AP·PC)도 함께 보여 줌
       list.innerHTML = custs.map((c, i) => {
-        const types = [...new Set(c.entries.map((e) => e.type))];
+        let types = [...new Set(c.entries.map((e) => e.type))], stage = "";
+        if (progView) {
+          const ids = new Set(c.entries.map(idOf).filter(Boolean));
+          const all = ids.size ? records.filter((r) => ids.has(idOf(r))) : c.entries;
+          types = [...new Set(all.map((e) => e.type))];
+          if (!types.includes("계약") && all.some((e) => fieldOf(e, "계약현황") === "유효")) types.push("계약");
+          stage = all.map((e) => fieldOf(e, "영업단계")).find(Boolean) || "";
+        }
         const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
         return `<li><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
           <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length ? `<span class="r-sub">${esc(fcs.join(", "))}</span>` : ""}${c.why && c.why.size ? `<span class="r-why">${[...c.why].map(([k, v]) => esc(k) + (v && k !== "연락처" ? " · " + esc(v) : "")).join(" / ")}</span>` : ""}</span>
-          ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}<span class="chev">›</span></button>${insLineHtml(c)}</li>`;
+          ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(t)}</span>`).join("")}${stage ? `<span class="tag stg stg-${esc(stage)}">${esc(stage)}</span>` : ""}<span class="chev">›</span></button>${insLineHtml(c)}</li>`;
       }).join("");
       list.querySelectorAll("button").forEach((b) =>
         b.addEventListener("click", async () => { await openCustomer(custs[+b.dataset.i]); if (tabReq) selectTab(tabReq); }));
