@@ -16,7 +16,7 @@
     };
   }
   // 화면 코드는 버전 번호(VER)로 캐시를 쓴다(예전에는 매번 시간값을 붙여 매번 새로 받았음). 화면 코드를 바꾸면 VER를 올린다.
-  var VER = '2026-11-13s11';
+  var VER = '2026-11-14s12';
   function preloadScripts() {   // 데이터를 받는 동안 화면 코드를 미리 받아 둔다(내용은 아직 실행하지 않음)
     SCRIPTS.forEach(function (src) { var l = document.createElement('link'); l.rel = 'preload'; l.as = 'script'; l.href = src + '?v=' + VER; document.head.appendChild(l); });
   }
@@ -35,7 +35,7 @@
     var all = [['dashboard', '대시보드'], ['team', '팀원'], ['customer', '고객'], ['contract', '계약'], ['performance', '업적'], ['fee', '수수료'], ['activity', '활동'], ['report', '보고서'], ['settings', '관리자']];
     var ids = role === 'ESL' ? all.map(function (x) { return x[0]; }) : (role === 'FC' ? ['dashboard', 'customer', 'contract', 'performance', 'fee'] : ['dashboard', 'team', 'customer', 'contract', 'performance', 'fee']);
     var own = { customer: '내 고객', contract: '내 계약', performance: '내 업적', fee: '내 수수료' };
-    var cur = ((location.hash || '#/dashboard').replace('#/', '') || 'dashboard').split('?')[0], curName = '';
+    var st0 = 'dashboard'; try { st0 = localStorage.getItem('shfc.start') || 'dashboard'; } catch (e) {} var cur = ((location.hash || '#/' + st0).replace('#/', '') || 'dashboard').split('?')[0], curName = '';
     nav.innerHTML = all.filter(function (x) { return ids.indexOf(x[0]) >= 0; }).map(function (x) {
       var nm = role === 'FC' && own[x[0]] ? own[x[0]] : x[1]; if (x[0] === cur) curName = nm;
       return '<a class="' + (x[0] === cur ? 'on' : '') + '"><i></i>' + nm + '</a>';

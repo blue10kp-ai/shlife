@@ -216,7 +216,8 @@
     });
   }
   function route() {
-    var id = ((location.hash || '#/dashboard').replace('#/', '') || 'dashboard').split('?')[0];   // 첫 화면은 대시보드
+    var startId = 'dashboard'; try { startId = localStorage.getItem('shfc.start') || 'dashboard'; } catch (e) {}   // 설정 > 시작 화면 (주소에 화면 표시가 없을 때만)
+    var id = ((location.hash || '#/' + startId).replace('#/', '') || 'dashboard').split('?')[0];   // 첫 화면은 대시보드(기본)
     if (id === 'team' && AC.canTeam && AC.mode === 'self') { AC.setMode('team'); return; }   // 팀원 메뉴는 팀 보기로 열린다
     var m = MENUS.filter(function (x) { return x.id === id; })[0] || MENUS[0];
     nav(m.id);

@@ -25,7 +25,7 @@
     return { items: DEFAULT.map(function (x) { return Object.assign({}, x); }), done: {} };
   })();
   var state = { sub: '', filter: 'all', draft: null };
-  var SUBS = [['perm', '권한·공유 현황'], ['common', '공통 설정(M과 공유)'], ['sms', '문자 문구(M과 공유)'], ['updates', '업데이트 일정']];
+  var SUBS = [['perm', '권한·공유 현황'], ['common', '공통 설정(M과 공유)'], ['sms', '문자 문구(M과 공유)'], ['start', '시작 화면'], ['updates', '업데이트 일정']];
   var pageTitle = function () { return window.SETTINGS_ADMIN && window.SETTINGS_ADMIN() ? '관리자' : '설정'; };
   var pageHead = function (sub) { return '<h1>' + pageTitle() + '</h1><p class="sub">' + sub + '</p><div class="tabs">' + SUBS.map(function (x) { return '<button class="' + (state.sub === x[0] ? 'on' : '') + '" data-sub="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
   var cs = { data: null, err: '', busy: false, msg: '', cals: null, calMsg: '', calBusy: false, calTried: false };   // 공통 설정(Drive)
@@ -131,6 +131,32 @@
         .catch(function (e) { sm.msg = '저장하지 못했습니다: ' + (e && e.message || e); rr(); });
     };
   }
+  // ---- 시작 화면: 데탑을 열었을 때(주소에 화면 표시가 없을 때) 처음 보일 화면. 메뉴 순서대로. 이 브라우저(shfc.start)와 내 개인 설정 파일(pcStart)에 저장
+  var START_KEY = 'shfc.start', START_ALL = [['dashboard', '대시보드'], ['team', '팀원'], ['customer', '고객'], ['contract', '계약'], ['performance', '업적'], ['fee', '수수료']];
+  var stMsg = '';
+  var startAllowed = function () { var m = (window.ACCESS && ACCESS.menus) || []; return START_ALL.filter(function (x) { return m.indexOf(x[0]) >= 0; }); };
+  var startCur = function () { var v = ''; try { v = localStorage.getItem(START_KEY) || ''; } catch (e) {} return startAllowed().some(function (x) { return x[0] === v; }) ? v : 'dashboard'; };
+  function startHtml() {
+    var h = pageHead('데탑을 열었을 때 처음 보일 화면을 고릅니다. 하단 메뉴 순서대로 보입니다. (AI 도우미는 신한FC m에만 있습니다)');
+    if (!(window.SETTINGS_ADMIN && window.SETTINGS_ADMIN())) return h + '<section><p class="mut">이 화면은 소유자(관리자) 본인 설정만 다룹니다.</p></section>';
+    var cur = startCur();
+    return h + '<section><h2>시작 화면</h2><div class="fg">' + startAllowed().map(function (x) {
+      return '<label style="display:block;margin:6px 0"><input type="radio" name="pcStart" value="' + x[0] + '"' + (cur === x[0] ? ' checked' : '') + '> ' + x[1] + '</label>'; }).join('') + '</div>' +
+      '<div class="ue-act"><button type="button" class="btn pri" id="stSave" disabled>저장</button> <span class="mut" id="stMsg">' + esc(stMsg) + '</span></div></section>';
+  }
+  function bindStart(rr) {
+    var b = document.getElementById('stSave'); if (!b) return;
+    var base0 = startCur();
+    var read = function () { var r = document.querySelector('input[name="pcStart"]:checked'); return r ? r.value : base0; };
+    document.querySelectorAll('input[name="pcStart"]').forEach(function (r) { r.onchange = function () { b.disabled = read() === base0; }; });
+    b.onclick = function () {
+      var v = read(); b.disabled = true; document.getElementById('stMsg').textContent = '저장 중…';
+      try { localStorage.setItem(START_KEY, v); } catch (e) {}
+      var w = (window.DRIVE && DRIVE.on()) ? DRIVE.writeMyPrefs({ pcStart: v }) : Promise.resolve();
+      w.then(function () { stMsg = '저장했습니다. 다음에 데탑을 열 때 적용됩니다.'; rr(); })
+        .catch(function (e) { stMsg = '이 브라우저에는 저장했지만 개인 설정 파일에는 저장하지 못했습니다: ' + (e && e.message || e); rr(); });
+    };
+  }
   function commonHtml() {
     var on = window.DRIVE && DRIVE.on(), d = cs.data;
     var h = '<h1>' + pageTitle() + '</h1><p class="sub">신한FC m의 관리자 › 설정과 같은 파일(shlife-설정.json)을 읽고 씁니다. 여기서 저장하면 M에도 바로 반영됩니다.</p>';
@@ -196,6 +222,7 @@
     var menu = '<div class="tabs">' + SUBS.map(function (x) { return '<button class="' + (state.sub === x[0] ? 'on' : '') + '" data-sub="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
     if (state.sub === 'perm') return permHtml();
     if (state.sub === 'sms') return smsHtml();
+    if (state.sub === 'start') return startHtml();
     if (state.sub === 'common') return commonHtml();
     if (state.sub !== 'updates') return '<h1>' + pageTitle() + '</h1><p class="sub">세부 메뉴를 선택하세요</p>' + menu;
     var t = today(), ts = ymd(t), h = '<h1>' + pageTitle() + '</h1><p class="sub">업데이트 일정 · 체크하면 오늘 날짜로 완료가 기록됩니다 (이 브라우저에 저장)</p>' + menu;
@@ -233,6 +260,7 @@
     document.querySelectorAll('[data-sub]').forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-sub'); state.sub = state.sub === k ? '' : k; state.draft = null; rr(); }; });
     var g0 = function (id) { return document.getElementById(id); };
     if (state.sub === 'sms') bindSms(rr);
+    if (state.sub === 'start') bindStart(rr);
     if (state.sub === 'perm' && window.ADMINPERM) window.ADMINPERM.bind(rr);
     else if (state.sub === 'perm' && window.DRIVE && DRIVE.on() && !pm.data && !pm.busy && !pm.err) loadPerm();
     if (g0('pmReload')) g0('pmReload').onclick = function () { pm.data = null; pm.err = ''; loadPerm(); };
