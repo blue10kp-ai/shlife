@@ -570,3 +570,9 @@ html.ai-open { overflow: hidden; overscroll-behavior-y: contain; }
 .st-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .st-ai { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 15px; color: var(--t1); }
 .st-ai input { width: 20px; height: 20px; margin: 0; }
+.sa-list { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.sa-row { display: flex; align-items: center; gap: 8px; }
+.sa-n { flex: 1; min-width: 0; font-size: 14px; display: flex; flex-direction: column; overflow: hidden; }
+.sa-n small { color: var(--t3, var(--t2)); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+.sa-row select { height: 36px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t1); padding: 0 8px; font-size: 14px; }
+.sa-ai { display: flex; align-items: center; gap: 4px; font-size: 13px; }
