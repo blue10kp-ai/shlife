@@ -3105,7 +3105,7 @@
     const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
     const grp = (t) => `<h3 class="help-grp">${t}</h3>`; // 하단 메뉴 순서대로 묶음: AI · 일정 · (고객) · 영업 · 설정/관리자
     const s_start = sec("시작 화면", ["<b>처음 보일 화면</b>: 설정(관리자는 관리자) 화면의 '시작 화면' 카드에서 앱을 열었을 때 처음 보일 화면을 고릅니다. 일정 · 고객(기본) · 영업 중 하나를 고르고 아래 [저장]을 누르면 다음에 앱을 열 때부터 적용됩니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '시작하면 AI 도우미를 바로 열기'를 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
-    const s_ai = sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 지금은 외부 AI를 쓰지 않고 이 폰 안에서만 해석하므로 고객 이름이 밖으로 나가지 않습니다. 쓰면서 알아듣는 말을 계속 늘려 갑니다."]);
+    const s_ai = sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 위 말처럼 규칙으로 알아듣는 말은 이 폰 안에서만 처리하고 밖으로 보내지 않습니다. 규칙으로 못 알아들은 말만 Gemini(외부 AI)에 '무슨 뜻인지'를 묻는데, 그때 고객 이름은 [고객1] 같은 자리표시로, 주민번호·전화·계좌·이메일·주소 같은 숫자·주소는 [숫자]·[주소]로 가려서 보내고 답을 받은 뒤 앱 안에서 되돌립니다. 말만해요 설정에 Gemini 키가 없거나 연결이 안 되면 규칙만 쓰며, 확인 카드에 ‘AI가 해석’이라고 표시되고 [실행]을 눌러야 처리됩니다."]);
     const s_task = sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드에서 <b>확정</b>을 누른 영업일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
     const s_addev = sec("일정 추가 (일정 화면)", ["일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>확정</b>(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다). <b>복귀</b> 버튼(추가의 왼쪽)은 그날 영업일정을 모두 비영업일정으로 바꾸고, 동명이인 지정·고객 정보로 넣은 일정 장소도 되돌립니다(영업일정이나 처리한 일정이 있는 날에만 보임). 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
@@ -4488,7 +4488,7 @@
     if (company && pts[0]) {
       const r = await route(company, pts[0].p);
       const leave = r ? new Date(timed[0].e.start - r.min * 60000) : null;
-      show(timed[0].i, `<span class="tl">${leave ? `<b>🏢 회사 출발 ${hm(leave)}</b>` : "🏢 회사에서"}</span><span class="tr">${legTxt(r)}</span>`); // 왼쪽: 회사 출발 / 오른쪽: 🚗 거리·시간
+      show(timed[0].i, `<span class="tl">${leave ? `🏢 회사 출발 ${hm(leave)}` : "🏢 회사에서"}</span><span class="tr">${legTxt(r)}</span>`); // 왼쪽: 회사 출발 / 오른쪽: 🚗 거리·시간
     }
     for (let k = 1; k < timed.length; k++) {
       if (req !== schedReq) return;
@@ -4503,7 +4503,7 @@
     if (company && lp) {
       const r = await route(lp.p, company);
       const back = r ? new Date(+last.e.end + r.min * 60000) : null;
-      show(last.i + 1, `<span class="tl">${back ? `<b>🏢 회사 도착 ${hm(back)}</b>` : ""}</span><span class="tr">${legTxt(r)}</span>`);
+      show(last.i + 1, `<span class="tl">${back ? `🏢 회사 도착 ${hm(back)}` : ""}</span><span class="tr">${legTxt(r)}</span>`);
     }
   }
 
@@ -4762,16 +4762,92 @@
     if (!c) throw new Error("'" + name + "' 캘린더를 찾지 못했습니다. 일정 화면의 캘린더 설정을 확인해 주세요.");
     return c;
   }
+  // ---------- Gemini(외부 AI) 연결: 규칙으로 못 알아들은 말만, 고객 이름·민감 숫자를 가린 글로 '의도'만 물음 ----------
+  //   키는 말만해요 설정 파일(Drive의 말만해요_설정.json: geminiKey·model)을 읽어 메모리에만 둠. 키가 없거나 실패하면 규칙만(지금처럼).
+  const AI_PH = (n) => "[고객" + n + "]";
+  // 보낼 글에서 고객 이름(고객 목록과 맞는 이름, ○○ 고객·김OO 꼴)과 민감 숫자·주소를 자리표시로 바꿈. names = 고객 이름 목록
+  function aiMaskText(text, names) {
+    const map = new Map(); // "[고객1]" → 실제 이름
+    let n = 0, t = String(text || "");
+    const ph = (real) => { for (const [k, v] of map) if (v === real) return k; const k = AI_PH(++n); map.set(k, real); return k; };
+    [...new Set(names || [])].filter((x) => x && x.length >= 2).sort((a, b) => b.length - a.length).forEach((nm) => { if (t.includes(nm)) t = t.split(nm).join(ph(nm)); }); // 긴 이름부터
+    t = t.replace(/([가-힣]{2,4})(\s*)(고객|님|씨)/g, (m, nm, sp, suf) => (/^(저|제|내|이|그|새|옛|각|한|우리|기존|신규|가망|해당|모든|전체|어떤|그냥|해당|이번|다음|지난)$/.test(nm) ? m : ph(nm) + sp + suf)); // 목록에 없어도 "OO 고객·님·씨" 꼴은 이름으로 봄
+    t = t.replace(/[가-힣][OoXx○●*＊ㅇ]{1,2}(?![A-Za-z가-힣])/g, (m) => ph(m)); // 김OO 같은 가림 이름
+    t = t.replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[이메일]"); // 이메일
+    t = t.replace(/\d[\d\s-]{6,}\d/g, "[숫자]"); // 주민번호·전화·계좌·카드 등 긴 숫자
+    t = t.replace(/(?:[가-힣]{2,6}(?:특별시|광역시|특별자치시|특별자치도|도)\s+)?(?:[가-힣]{1,5}(?:시|군|구)\s+)+[가-힣0-9]{1,6}(?:읍|면|동|로|길|가)(?:\s*\d+(?:-\d+)?(?:번지|번길)?)?/g, "[주소]"); // 주소 (시·군·구 + 동·로·길)
+    return { text: t, map };
+  }
+  const aiUnmask = (str, map) => { let r = String(str == null ? "" : str); for (const [k, v] of map) r = r.split(k).join(v); return r; };
+  let aiGemCache = null; // { t, v } 설정을 읽은 시각·결과 (키는 메모리에만)
+  async function aiGeminiConfig() {
+    if (aiGemCache && Date.now() - aiGemCache.t < (aiGemCache.v ? 3600000 : 60000)) return aiGemCache.v;
+    let v = null;
+    try {
+      const fs = await gdQuery("name = '말만해요_설정.json' and trashed = false");
+      for (const f of fs) {
+        const j = await gdFetch(GDAPI + "/files/" + encodeURIComponent(f.id) + "?alt=media&supportsAllDrives=true");
+        if (j && typeof j.geminiKey === "string" && j.geminiKey.trim()) { v = { key: j.geminiKey.trim(), model: String(j.model || "gemini-2.5-flash").trim() || "gemini-2.5-flash" }; break; }
+      }
+    } catch (e) { v = null; }
+    aiGemCache = { t: Date.now(), v };
+    return v;
+  }
+  const AI_GEM_PROMPT = (today, dow) => "너는 보험 설계사 앱의 말 해석기다. 사용자가 한 말을 아래 JSON 하나로만 답하라(설명 금지).\n" +
+    '{"kind":"search|addEvent|showDay|none","name":"고객 이름(검색일 때)","title":"일정 제목(일정 추가일 때)","date":"YYYY-MM-DD 또는 빈 문자열","time":"HH:MM(24시간) 또는 빈 문자열","mine":false}\n' +
+    "kind: 고객을 찾아 달라는 말=search, 일정을 만들거나 약속을 잡는 말=addEvent, 일정을 보여 달라는 말=showDay, 그 밖에는 none.\n" +
+    "[고객1] 같은 자리표시는 고객 이름이다. 바꾸지 말고 그대로 name·title에 넣어라. 말에 없는 것은 지어내지 말고 빈 문자열로 둬라.\n" +
+    "'내 일정에/내 캘린더에'라고 하면 mine=true. 오늘은 " + today + "(" + dow + "요일)이다. 상대 날짜(내일·다음 주 화요일 등)는 날짜로 바꿔라. 시간을 말하지 않으면 time은 빈 문자열.";
+  // 규칙으로 못 알아들은 말을 Gemini에 물음 → 확인 카드용 항목 (실패·키 없음이면 null / {noKey:true})
+  async function aiAskGemini(raw) {
+    const cfg = await aiGeminiConfig();
+    if (!cfg) return { noKey: true };
+    let names = [];
+    try { names = [...new Set((await loadLists()).map((r) => baseName(r.name)).filter(Boolean))]; } catch (e) { names = []; }
+    const m = aiMaskText(raw.replace(/\s+/g, " ").trim(), names);
+    const now = new Date(), today = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+    console.info("[AI→Gemini 보내는 글]", m.text); // 확인용: 이름·민감 숫자가 가려졌는지
+    let j;
+    try {
+      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(cfg.model) + ":generateContent", {
+        method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.key },
+        body: JSON.stringify({ systemInstruction: { parts: [{ text: AI_GEM_PROMPT(today, AI_DOW[now.getDay()]) }] }, contents: [{ role: "user", parts: [{ text: m.text }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } })
+      });
+      if (!res.ok) return null;
+      const d = await res.json();
+      const txt = (((d.candidates || [])[0] || {}).content || {}).parts;
+      j = JSON.parse(String((txt && txt[0] && txt[0].text) || "").replace(/^```json\s*|\s*```$/g, ""));
+    } catch (e) { return null; }
+    if (!j || typeof j !== "object") return null;
+    const dm = String(j.date || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const date = dm ? new Date(+dm[1], +dm[2] - 1, +dm[3]) : null;
+    if (j.kind === "search") { const name = aiUnmask(j.name, m.map).trim(); return name ? { kind: "search", name, viaAi: true } : null; }
+    if (j.kind === "showDay") return { kind: "showDay", date: date && !isNaN(+date) ? date : dayStart(now), viaAi: true };
+    if (j.kind === "addEvent") {
+      const title = aiUnmask(j.title, m.map).replace(/\s+/g, " ").trim();
+      if (!title) return { kind: "needTitle" };
+      const tm = String(j.time || "").match(/^(\d{1,2}):(\d{2})$/);
+      const time = tm && +tm[1] < 24 && +tm[2] < 60 ? { h: +tm[1], min: +tm[2] } : null;
+      return { kind: "addEvent", title, date: date && !isNaN(+date) ? date : dayStart(now), hasDate: !!(date && !isNaN(+date)), time, mine: !!j.mine, viaAi: true };
+    }
+    return null;
+  }
   let aiPending = null;
   function aiShowMsg(html) { const m = $("aiMsg"); m.innerHTML = html; m.hidden = false; $("aiConfirm").hidden = true; aiPending = null; }
   async function aiSubmit() {
     const txt = $("aiInp").value;
-    const it = aiInterpret(txt);
-    if (!it) return aiShowMsg("못 알아들었습니다. 이렇게 말해 보세요.<br>• “홍길동 검색”<br>• “내일 오후 3시 홍길동 상담 일정 추가”<br>• “오늘 일정 보여줘”");
+    let it = aiInterpret(txt);
+    let noKey = false;
+    if (!it && txt.trim()) { // 규칙으로 못 알아들은 말만 Gemini에 물음 (이름·민감 숫자는 가려서)
+      aiShowMsg("생각하는 중…");
+      const g = await aiAskGemini(txt);
+      if (g && g.noKey) noKey = true; else it = g;
+    }
+    if (!it) return aiShowMsg("못 알아들었습니다. 이렇게 말해 보세요.<br>• “홍길동 검색”<br>• “내일 오후 3시 홍길동 상담 일정 추가”<br>• “오늘 일정 보여줘”" + (noKey ? "<br><small>말만해요 설정에서 Gemini 키를 넣으면 더 많은 말을 알아들어요.</small>" : ""));
     if (it.kind === "needTitle") return aiShowMsg("무슨 일정인지 알려 주세요. 예: “내일 오후 3시 홍길동 상담 일정 추가”");
     $("aiMsg").hidden = true;
     let head, line1, line2 = "";
-    if (it.kind === "search") { head = "고객 검색"; line1 = esc(it.name); }
+    if (it.kind === "search") { head = "고객 검색"; line1 = esc(it.name); if (it.viaAi) line2 = "AI가 해석"; }
     else if (it.kind === "showDay") { head = "일정 보기"; line1 = aiDateLabel(it.date); }
     else {
       const pre = it.mine ? "" : await aiPrefix(); // 내 일정에는 앞 글자를 붙이지 않음(팀 캘린더에서 누구 것인지 구분하려는 글자라서)
@@ -4780,7 +4856,7 @@
       else it.calName = (GCFG && GCFG.teamCalendar) || "1팀";
       const when = it.time ? `${it.time.h < 12 ? "오전" : "오후"} ${it.time.h % 12 || 12}:${pad2(it.time.min)}` : "종일";
       head = "일정 추가"; line1 = `${aiDateLabel(it.date)} ${when}`;
-      line2 = `${esc(it.summary)} · ${esc(it.calName)} 캘린더` + (it.hasDate ? "" : " · 날짜를 말하지 않아 오늘로 했습니다");
+      line2 = `${esc(it.summary)} · ${esc(it.calName)} 캘린더` + (it.hasDate ? "" : " · 날짜를 말하지 않아 오늘로 했습니다") + (it.viaAi ? " · AI가 해석" : "");
     }
     aiPending = it;
     $("aiConfirm").innerHTML = `<div class="ai-ch">이렇게 이해했습니다</div><div class="ai-cm"><b>${head}</b> · ${line1}${line2 ? `<small>${line2}</small>` : ""}</div><div class="ai-cb"><button type="button" class="ai-no" id="aiNo">아니요</button><button type="button" class="ai-go" id="aiGo">실행</button></div>`;
@@ -5801,10 +5877,17 @@
   }
   // 이미 앱 안에 있을 때는 새로 열지 않고 바로 처리. 아직 로그인 전이면 로그인 뒤에 처리
   window.blue10kpGo = function (o) {
-    if (!o || (o.go !== "customers" && o.go !== "customer" && o.go !== "schedule")) return;
+    if (!o || (o.go !== "customers" && o.go !== "customer" && o.go !== "schedule" && o.go !== "sales")) return;
     if (!appStarted) { GO0 = { go: o.go, q: String(o.q || ""), id: String(o.id || "") }; return; }
     if (typeof helpClose === "function" && helpIsOpen) helpClose();
     if (!$("aiSheet").hidden && typeof aiClose === "function") aiClose();
+    if (o.go === "sales") { // q = 탭(transfer=이달이관, dda=따행), id = 달(YYYY-MM, 없으면 이번 달)
+      const mm = String(o.id || "").match(/^(\d{4})-?(\d{2})$/);
+      SALES.tab = o.q === "dda" ? "dda" : "transfer";
+      SALES.ym = mm && +mm[2] >= 1 && +mm[2] <= 12 ? mm[1] + mm[2] : ymNow();
+      loadSettings().then(() => openSales());
+      return;
+    }
     if (o.go === "schedule") { // q = YYYY-MM-DD (없거나 틀리면 오늘): 일정 화면의 하루 보기
       const m = String(o.q || "").match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
       const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
@@ -5826,6 +5909,7 @@
   const whereNow = () => {
     if (!$("customerView").hidden && current && current.cust) return { go: "customer", id: custKey(current.cust), canBack: true }; // 고객 정보에서는 앱 안 뒤로(목록)가 있음. 검색 목록이 첫 화면이면 canBack=false
     if (!$("searchView").hidden) return { go: "customers", q: curQuery() };
+    if (!$("salesView").hidden) return { go: "sales", q: SALES.tab === "dda" ? "dda" : "transfer", id: SALES.ym ? SALES.ym.slice(0, 4) + "-" + SALES.ym.slice(4) : "" }; // 탭·달 (앱으로 열기용)
     if (!$("scheduleView").hidden) return { go: "schedule", q: `${schedDate.getFullYear()}-${pad2(schedDate.getMonth() + 1)}-${pad2(schedDate.getDate())}` }; // 보고 있는 날짜(앱으로 열기용)
     return { go:!$("salesView").hidden ? "sales" : !$("adminView").hidden ? "settings" : "" };
   };
