@@ -725,3 +725,6 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .task-owner { font-weight: 500; color: var(--muted); font-size: 13px; }
 .nfilter { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
 .nfilter .hint { font-size: 12px; }
+.dfl .dfg { display: inline-flex; align-items: center; gap: 10px; }
+.dfl .dfk { font-size: 13px; font-weight: 600; color: var(--t2, #6b7280); }
+.dfl .dsep { display: inline-block; width: 1px; height: 14px; background: var(--line, #d5dbe3); margin: 0 2px; }

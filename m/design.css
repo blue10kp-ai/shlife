@@ -595,3 +595,40 @@ html.ai-open { overflow: hidden; overscroll-behavior-y: contain; }
 .perm-fold svg { transition: transform .18s ease; }
 .perm-row.open .perm-fold svg { transform: rotate(90deg); }
 .perm-head .perm-id { flex: 1; min-width: 0; }
+
+/* 일정 위쪽: [추가] [처음으로] (오른쪽 끝) */
+.sched-nav .sched-rt { position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; }
+.sched-nav .sched-rt button { position: static; transform: none; height: 28px; min-height: 0; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--accent); font-size: 13px; font-weight: 700; line-height: 1; text-decoration: none; }
+.sched-nav .sched-rt button[hidden] { display: none; }
+.ev-add { margin-bottom: 10px; }
+.ev-add .ev-allday { display: flex; align-items: center; gap: 8px; flex-direction: row; }
+.ev-add .file-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px; }
+
+/* ===== 설정 화면 다듬기 (v248): 4px 간격, 카드 제목 16 · 본문 15 · 보조 14, 접는 카드도 제목처럼 ===== */
+#adminView .card { padding: 20px; margin-bottom: 12px; }
+#adminView .card .sec-title, #adminView .card > details.fold > summary.sec-title { margin: 0 0 8px; font-size: 16px; font-weight: 600; line-height: 24px; color: var(--t1); }
+#adminView .card > details.fold, #adminView .card > details.fold > summary { border: 0; background: none; padding: 0; box-shadow: none; border-radius: 0; min-height: 0; margin: 0; }
+#adminView .card > details.fold > summary { margin-bottom: 0; }
+#adminView .card > details.fold[open] > summary { margin-bottom: 12px; }
+#adminView .hint { font-size: 14px; line-height: 22px; margin: 0 0 12px; }
+#adminView .fld > span, #adminView .fld > label > span { font-size: 14px; color: var(--t2); }
+#adminView textarea { font-size: 15px; line-height: 24px; padding: 12px; }
+#adminView .st-opts { gap: 8px; margin: 12px 0 8px; }
+#adminView .st-opt span { height: 44px; font-size: 15px; }
+#adminView .st-ai, #adminView .sa-ai { font-size: 15px; min-height: 40px; }
+#adminView .file-actions .primary, #adminView .file-actions .secondary { min-height: 44px; font-size: 15px; }
+#adminView .admin-sec { margin: 32px 0 12px; padding-top: 16px; font-size: 17px; font-weight: 600; }
+#adminView .perm-pfx, #adminView .perm-start { margin: 12px 0 4px; }
+#adminView .perm-start { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+#adminView .pfx-l { font-size: 15px; }
+#adminView .pfx-l span { min-width: 64px; }
+#adminView .pfx-l input, #adminView .pfx-l select, #adminView .sa-row select { height: 40px; font-size: 15px; }
+#adminView .perm-start select { border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t1); padding: 0 10px; }
+#adminView .perm-start .secondary, #adminView .perm-pfx .secondary { height: 36px; min-height: 0; padding: 0 14px; font-size: 14px; }
+#adminView .perm-id .perm-mail, #adminView .perm-mail { font-size: 13px; }
+#adminView .perm-start .secondary { margin-left: auto; }
+.sched-nav .sched-rt button { white-space: nowrap; flex: none; }
+.ev-add .ev-form { border-top: 0; margin-top: 0; padding-top: 0; }
+.ev-add .ev-allday { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 15px; color: var(--t1); }
+.ev-add .ev-allday .cb { width: 20px; height: 20px; margin: 0; }
+.ev-add [data-a-times][hidden] { display: none; }
