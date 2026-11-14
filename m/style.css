@@ -561,7 +561,7 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .sline2.center { justify-content: center; }
 
 .srow.d-open { box-shadow: inset 3px 0 0 #e09b2d; }
-.srow.d-done { box-shadow: inset 3px 0 0 #3fae6b; }
+.srow.d-done { box-shadow: none; } /* 방문완료 줄의 왼쪽 초록 선 삭제 */
 .dchip { margin-left: auto; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .dchip.open { background: #fff1d6; color: #a86b00; }
 .dchip.done { background: #e3f4ea; color: #1d7a46; }
@@ -727,3 +727,4 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .dfl .dfg { display: inline-flex; align-items: center; gap: 10px; }
 .dfl .dfk { font-size: 13px; font-weight: 600; color: var(--t2, #6b7280); }
 .dfl .dsep { display: inline-block; width: 1px; height: 14px; background: var(--line, #d5dbe3); margin: 0 2px; }
+.dc.static { cursor: default; }
