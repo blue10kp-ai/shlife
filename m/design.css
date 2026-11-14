@@ -679,3 +679,9 @@ html[data-view="loginView"] main { padding: 0; max-width: none; }
 .login .lm { min-height: 22px; margin: 0 0 12px; font-size: 13px; color: var(--t3); }
 .login .lm.err { color: var(--bad); }
 .login .hint { margin-top: 20px; font-size: 12px; color: var(--t3); }
+
+/* 말만해요 안 모듈(?embed=1): 앱 전체가 아니라 그 페이지만 — 위쪽 바·아래 메뉴·AI·떠 있는 저장 줄 숨김, 위 여백은 말만해요 플로팅 버튼 자리 */
+html.embed .topbar, html.embed .mainnav, html.embed .float-save, html.embed .ai-sheet, html.embed .ai-scrim { display: none !important; }
+html.embed { --navh: 0px; --tbh: 56px; }
+html.embed main { padding-top: 56px; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+html.embed[data-view="loginView"] main { padding: 56px 0 0; }
