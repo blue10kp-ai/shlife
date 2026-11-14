@@ -729,3 +729,7 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .dfl .dsep { display: inline-block; width: 1px; height: 14px; background: var(--line, #d5dbe3); margin: 0 2px; }
 .dc.static { cursor: default; }
 .srow .si.pd .st { margin-left: 5px; vertical-align: 1px; } /* 상품 상태(완납·실효 등)는 상품명 끝 */
+/* 상품 상태: 완납 초록, 실효 빨강 */
+.srow .st.st-ok { background: #e3f4ea; color: #1d7a46; }
+.srow .st.st-bad { background: #fdecea; color: #c0392b; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .srow .st.st-ok { background: #1f3a2b; color: #6fd39a; } .srow .st.st-bad { background: #3b1f1c; color: #ef7a6c; } }

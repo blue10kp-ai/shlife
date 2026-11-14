@@ -5565,7 +5565,7 @@
     return `<div class="slist">` + rows.map((r, idx) => {
       const mk = mark.get(r.key) || {};
       const isD = !!r.dda, lock = isD && isRO(r.fc);
-      const st = r.status && r.status !== "유지" ? `<span class="st">${esc(r.status === "납입면제" ? "납면" : r.status)}</span>` : "";
+      const st = r.status && r.status !== "유지" ? `<span class="st${r.status === "완납" ? " st-ok" : r.status === "실효" ? " st-bad" : ""}">${esc(r.status === "납입면제" ? "납면" : r.status)}</span>` : ""; // 완납=초록, 실효=빨강
       const times = [mk.call ? `전화 시도 ✓ ${tsShow(mk.call)}` : "", mk.sms ? `문자 시도 ✓ ${tsShow(mk.sms)}` : ""].filter(Boolean).join(" · ");
       const stageChips = !isD && r.stage !== undefined ? STAGE_CHIPS.map(([lab, cls]) => `<button type="button" class="dc ${cls} ${r.stage === lab ? "on" : "off"}" data-stg="${lab}" data-key="${esc(r.key)}" aria-pressed="${r.stage === lab ? "true" : "false"}">${lab}</button>`).join("") : "";
       const chips = stageChips ? stageChips : isD ? DCHIPS.map(([f, lab, cls]) => `<button type="button" class="dc ${cls} ${r.dda[f] ? "on" : "off"}${lock ? " lock" : ""}" data-chip="${f}" data-key="${esc(r.key)}" aria-pressed="${r.dda[f] ? "true" : "false"}">${lab}</button>`).join("") : "";
