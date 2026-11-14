@@ -576,3 +576,22 @@ html.ai-open { overflow: hidden; overscroll-behavior-y: contain; }
 .sa-n small { color: var(--t3, var(--t2)); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
 .sa-row select { height: 36px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t1); padding: 0 8px; font-size: 14px; }
 .sa-ai { display: flex; align-items: center; gap: 4px; font-size: 13px; }
+.help-body h3.help-grp { margin: 22px 0 2px; padding-bottom: 4px; border-bottom: 1px solid var(--line); font-size: 15px; font-weight: 700; color: var(--accent); }
+.perm-pfx { margin: 8px 0 2px; }
+.perm-pfx .pfx-l { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--t1); }
+.perm-pfx .pfx-l span { flex: none; }
+.perm-pfx .pfx-l input { width: 110px; }
+.perm-pfx-adm { margin: 4px 0 10px; }
+.perm-cal { margin: 6px 0 8px; }
+.perm-cal .file-actions { margin-top: 8px; }
+.admin-sec { margin: 26px 0 10px; padding-top: 14px; border-top: 2px solid var(--line); font-size: 18px; font-weight: 700; color: var(--t1); }
+
+/* 관리자: 사용자 카드 접기·펼치기 */
+.perm-row .perm-body { display: none; }
+.perm-row.open .perm-body { display: block; }
+.perm-row:not(.open) .perm-head { margin-bottom: 0; }
+.perm-head { cursor: pointer; }
+.perm-fold { flex: none; width: 28px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; color: var(--t2); padding: 0; margin-right: 2px; }
+.perm-fold svg { transition: transform .18s ease; }
+.perm-row.open .perm-fold svg { transform: rotate(90deg); }
+.perm-head .perm-id { flex: 1; min-width: 0; }

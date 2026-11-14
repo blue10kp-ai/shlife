@@ -330,7 +330,7 @@
   });
   const views = ["loginView", "scheduleView", "searchView", "customerView", "salesView", "adminView"];
   const APP_NAME = "신한FC m";
-  const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "관리자" };
+  const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "설정" };
   const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin" };
   function show(view, keepScroll) {
     views.forEach((v) => ($(v).hidden = v !== view));
@@ -341,11 +341,11 @@
     $("logoutBtn").hidden = view === "loginView";
     $("reloadBtn").hidden = view === "loginView";
     $("topSearch").hidden = view === "loginView"; // 상단 검색창은 로그인 후 항상
-    $("title").textContent = view === "adminView" && !isAdmin() ? "설정" : TITLES[view] || APP_NAME;
+    $("title").textContent = TITLES[view] || APP_NAME;
     $("mainNav").hidden = view === "loginView";
     // 관리자: '관리자' 메뉴 / 일반 사용자: '설정' 메뉴 (내 캘린더 고르기)
     $("navAdmin").hidden = !account();
-    $("navAdminLabel").textContent = isAdmin() ? "관리자" : "설정";
+    $("navAdminLabel").textContent = "설정";
     if (view === "searchView") $("pageSearch").hidden = $("results").children.length > 0; // 보이는 고객 목록이 없으면 화면 안 검색창
     if (view !== "salesView" && view !== "customerView" && view !== "loginView") salesClearState(); // 영업 화면을 떠나면 이어보기 상태 삭제
     if (view !== "scheduleView" && view !== "customerView" && view !== "loginView") schedClearState(); // 일정 화면을 떠나도 마찬가지
@@ -2404,14 +2404,11 @@
   function settingsCardHtml() {
     const s = appSettings;
     return `<div class="card" id="settingsCard">
-        <h3 class="sec-title">설정</h3>
-        <details class="fold" id="gFold"><summary>구글 캘린더 설정</summary>
-          <div id="gCalBox"></div></details>
+        <h3 class="sec-title">회사 주소·카카오 키</h3>
         <div class="fld"><span>회사 주소 (일정 이동시간 계산의 출발·도착 기준)</span>
           <div class="key-row"><input id="setCompany" value="${esc(s.companyAddress || "")}" placeholder="예: 광주광역시 서구 상무중앙로 98" autocomplete="off" readonly><button type="button" class="secondary" id="companyEdit">수정</button></div></div>
         <div class="fld"><span>카카오 REST API 키 (이동 거리·시간 계산용)</span>
           <div class="key-row"><input id="setKakao" value="${esc(s.kakaoRestKey || "")}" placeholder="developers.kakao.com › 앱 › 플랫폼 키" autocomplete="off" spellcheck="false" readonly><button type="button" class="secondary" id="kakaoEdit">수정</button></div></div>
-        ${rhOptHtml()}
         <div class="file-actions"><button type="button" class="primary" id="setSave" disabled>설정 저장</button></div>
       </div>`;
   }
@@ -2427,7 +2424,9 @@
     };
     const calKey = (g) => JSON.stringify([((g || {}).calendars || []).map((c) => c.id).sort(), salesArr((g || {}).sales).map((c) => c.id).sort(), salesArr((g || {}).info).map((c) => c.id).sort()]);
     const dirty = () => { const v = read(); return v.companyAddress !== (appSettings.companyAddress || "") || v.kakaoRestKey !== (appSettings.kakaoRestKey || "") || calKey(v.google) !== calKey(appSettings.google); };
-    ["input", "change"].forEach((ev) => $("settingsCard").addEventListener(ev, () => { btn.disabled = !dirty(); }));
+    const gbtn = $("gCalSave"); // 관리자 본인 카드(이메일 아래)의 구글 캘린더 [저장]: 같은 설정 파일에 저장
+    const sync = () => { const d = dirty(); btn.disabled = !d; if (gbtn) gbtn.disabled = !d; };
+    ["input", "change"].forEach((ev) => { $("settingsCard").addEventListener(ev, sync); if ($("adminCalCard")) $("adminCalCard").addEventListener(ev, sync); });
     // 카카오 키는 실수로 바꾸지 않게 잠가 두고, '수정'을 눌러야 고칠 수 있음 (저장하면 다시 잠금)
     //   회사 주소도 같은 방식
     const lockPair = [["setKakao", "kakaoEdit"], ["setCompany", "companyEdit"]].map(([iid, bid]) => {
@@ -2437,17 +2436,19 @@
       return lock;
     });
     const kakaoLock = (on) => lockPair.forEach((f) => f(on));
-    btn.addEventListener("click", async () => {
-      btn.disabled = true; btn.textContent = "저장 중…";
+    const doSave = async () => {
+      btn.disabled = true; btn.textContent = "저장 중…"; if (gbtn) { gbtn.disabled = true; gbtn.textContent = "저장 중…"; }
       try {
         await saveSettings(read());
         toast("설정을 저장했습니다.");
         kakaoLock(true);
       } catch (e) { handleError(e); }
-      btn.textContent = "설정 저장";
-      btn.disabled = !dirty();
-    });
-    $("gFold").addEventListener("toggle", () => { if ($("gFold").open && !$("gCalBox").dataset.loaded) { $("gCalBox").dataset.loaded = "1"; loadCalendarChoices(); } });
+      btn.textContent = "설정 저장"; if (gbtn) gbtn.textContent = "저장";
+      sync();
+    };
+    btn.addEventListener("click", doSave);
+    if (gbtn) gbtn.addEventListener("click", doSave);
+    if ($("gCalBox") && !$("gCalBox").dataset.loaded) { $("gCalBox").dataset.loaded = "1"; loadCalendarChoices(); } // 관리자도 일반 사용자처럼 캘린더 설정을 바로 보여 줌
   }
 
   // ---------- 관리자 페이지: 아이디별 FC 폴더 권한 (앱 자체 권한 파일) ----------
@@ -2463,6 +2464,7 @@
 
   let adminState = null; // { fcs: [names], perms: { users }, shares: [{email,name}] }
   const extraUsers = new Set();
+  const permOpen = new Set(); // 관리자 화면에서 펼쳐 둔 사용자 카드 (평소엔 접힘, 다시 그려도 유지)
 
   async function loadAdminState() {
     await resolveBase();
@@ -2733,9 +2735,13 @@
     const fcRank = (fc) => { const o = CFG.fcOrder || [], i = o.indexOf(fc); return i < 0 ? 999 : i; };
     const fcsFor = (em) => [...fcs].sort((a, b) => (a === ownFc(em) ? -1 : b === ownFc(em) ? 1 : 0) || fcRank(a) - fcRank(b) || a.localeCompare(b, "ko"));
     const ACC = GD ? "구글 계정" : "아이디";
+    const pfxHtml = (em) => { const nm = nameOfEm(em); return `<label class="pfx-l"><span>일정 구분</span><input type="text" class="perm-name" data-pfx="${esc(em)}" maxlength="10" value="${esc(nm ? (perms.prefixes || {})[nm] || "" : "")}" placeholder="예: 최)" autocomplete="off" ${nm ? "" : "disabled"} aria-label="${esc(em)} 일정 구분"><button type="button" class="secondary" data-pfx-save="${esc(em)}" disabled>저장</button></label>${nm ? "" : '<p class="hint">이름(FC명)을 먼저 입력·저장하면 정할 수 있습니다.</p>'}`; };
 
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
-    $("adminBody").innerHTML = `
+    const personal = `<div class="card" id="adminCalCard"><h3 class="sec-title">구글 캘린더</h3>
+        <div id="gCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
+        <div class="file-actions"><button type="button" class="primary" id="gCalSave" disabled>저장</button></div></div>` + startCardHtml() + smsCardHtml() + rhCardHtml();
+    $("adminBody").innerHTML = personal + `<h2 class="admin-sec">관리자</h2>
       <div class="card">
         <h3 class="sec-title">FC 사용 설정</h3>
         ${(() => {
@@ -2745,12 +2751,13 @@
         })()}
         <div class="perm-list">
           ${(CFG.admins || []).map((a) => `<div class="perm-admin"><span class="perm-em">${esc(a)}</span> <span class="tag">관리자</span> <span class="hint">전체 FC</span>
-            <span class="adm-name"><input type="text" class="perm-name" data-admin-name="${esc(a.toLowerCase())}" placeholder="내 FC 이름(예: 김현성)" maxlength="20" value="${esc(nameOfEm(a.toLowerCase()))}" aria-label="관리자 FC 이름"><button type="button" class="secondary" data-admin-save="${esc(a.toLowerCase())}" disabled>저장</button></span></div>`).join("")}
-          ${users.map((em) => `<div class="perm-row" data-em="${esc(em)}">
-            <div class="perm-head">
+            <span class="adm-name"><input type="text" class="perm-name" data-admin-name="${esc(a.toLowerCase())}" placeholder="내 FC 이름(예: 김현성)" maxlength="20" value="${esc(nameOfEm(a.toLowerCase()))}" aria-label="관리자 FC 이름"><button type="button" class="secondary" data-admin-save="${esc(a.toLowerCase())}" disabled>저장</button></span></div><div class="perm-pfx perm-pfx-adm">${pfxHtml(a.toLowerCase())}</div>`).join("")}
+          ${users.map((em) => `<div class="perm-row${permOpen.has(em) ? " open" : ""}" data-em="${esc(em)}">
+            <div class="perm-head"><button type="button" class="perm-fold" data-pfold aria-expanded="${permOpen.has(em)}" aria-label="${esc(nameOfEm(em) || em)} 펼치기·접기"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
               <span class="perm-id"><input type="text" class="perm-name" data-name placeholder="이름(FC명) 입력" value="${esc(nameOfEm(em))}" maxlength="20" aria-label="${esc(em)} 이름"><span class="perm-mail">${esc(em)}</span></span>
               <span class="perm-btns"><button type="button" class="secondary" data-rowedit="${esc(em)}">수정</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button><button type="button" class="secondary" data-rowcancel="${esc(em)}" hidden>취소</button><button type="button" class="primary row-save" data-rowsave="${esc(em)}" hidden>저장</button></span>
             </div>
+            <div class="perm-body"><div class="perm-pfx">${pfxHtml(em)}</div>
             <div class="perm-sens"><label class="chip"><input type="checkbox" class="cb" data-sens="${esc(em)}" ${(perms.sensitive || []).includes(em) ? "checked" : ""} aria-label="${esc(em)} 민감정보 접근"> 민감정보 접근 허용</label></div>
             <div class="perm-sales"><p class="hint perm-lbl">• 영업 페이지 접근 허용</p><div class="perm-fcs">${fcsFor(em).map((fc) => { const own = !!nameOfEm(em) && fc === nameOfEm(em); return `<span class="chip"><label><input type="checkbox" class="cb" data-sf="${esc(em)}|${esc(fc)}" ${own ? 'data-own="1" checked disabled' : ((perms.salesFcs || {})[em] || []).includes(fc) ? "checked" : ""} aria-label="${esc(em)} 영업 ${esc(fc)}"> ${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</label></span>`; }).join("")}</div></div>
             <p class="hint perm-lbl">• 고객 페이지 접근 허용</p>
@@ -2758,7 +2765,7 @@
               <label class="chip chip-all" hidden title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
               <div class="fc-line fc-head"><span class="fc-nm">FC</span><span class="fc-c">보기</span><span class="fc-c">수정</span></div>
               ${fcsFor(em).map((fc) => { const own = fc === ownFc(em); return `<div class="fc-line${own ? " own" : ""}"><span class="fc-nm">${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</span><label class="fc-c"><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} ${own ? 'data-own="1" disabled' : ""} aria-label="${esc(em)} ${esc(fc)} 보기"></label><label class="fc-c"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${own || isAll(em) ? 'data-own="1" disabled' : ""} aria-label="${esc(em)} ${esc(fc)} 수정"></label></div>`; }).join("")}
-            </div>
+            </div></div>
           </div>`).join("")}
         </div>
         ${users.length ? "" : '<p class="hint">아직 권한을 준 사용자가 없습니다. 아래에서 이메일을 추가하세요.</p>'}
@@ -2773,7 +2780,7 @@
           <button class="secondary" id="resetPerms" disabled>되돌리기</button>
           <button class="primary" id="savePerms" disabled>변경 저장</button>
         </div>
-      </div>` + prefixCardHtml(perms, fcs) + settingsCardHtml() + startCardHtml() + startAdminCardHtml(perms) + smsCardHtml(); // 오른손 모드는 '설정' 카드 안에 있음
+      </div>` + startAdminCardHtml(perms) + smsTeamCardHtml() + settingsCardHtml(); // 오른손 모드는 '설정' 카드 안에 있음
 
     $("addUserForm").addEventListener("submit", (ev) => {
       ev.preventDefault();
@@ -2782,7 +2789,7 @@
       if ((CFG.admins || []).map((a) => a.toLowerCase()).includes(em)) return toast("관리자는 이미 모든 폴더를 볼 수 있습니다.");
       const pending = collectRows(); // 표에서 아직 저장 안 한 체크 상태 유지
       const nm = $("newName").value.trim();
-      extraUsers.add(em);
+      extraUsers.add(em); permOpen.add(em);
       renderAdmin();
       applyRows(pending);
       if (nm) { const nr = $("adminBody").querySelector(`.perm-row[data-em="${CSS.escape(em)}"] [data-name]`); if (nr) { nr.value = nm; nr.dispatchEvent(new Event("input", { bubbles: true })); } }
@@ -2838,8 +2845,9 @@
     bindSettings();
     bindStartCard();
     bindStartAdminCard();
+    bindSmsTeamCard();
     bindSmsCard();
-    bindPrefixCard(); // 관리자 화면의 'AI 일정 앞 글자' 카드 저장 버튼
+    bindPfxRows(); // 각 사용자 카드의 '일정 구분'(AI로 등록하는 일정 제목 앞 글자) 저장
     $("adminBody").querySelectorAll("[data-admin-name]").forEach((inp) => {
       const em = inp.dataset.adminName, btn = $("adminBody").querySelector(`[data-admin-save="${CSS.escape(em)}"]`), base = inp.value.trim();
       inp.addEventListener("input", () => { btn.disabled = inp.value.trim() === base; });
@@ -2901,9 +2909,14 @@
       r.querySelector("[data-rowedit]").hidden = !lock; r.querySelector("[data-del]").hidden = !lock;
       r.querySelector("[data-rowcancel]").hidden = lock; r.querySelector("[data-rowsave]").hidden = lock;
     };
+    const setOpen = (r, on) => { r.classList.toggle("open", on); const f = r.querySelector("[data-pfold]"); if (f) f.setAttribute("aria-expanded", String(on)); if (on) permOpen.add(r.dataset.em); else permOpen.delete(r.dataset.em); };
     rows.forEach((r) => {
       rowLock(r, true);
-      r.querySelector("[data-rowedit]").addEventListener("click", () => rowLock(r, false));
+      r.querySelector(".perm-head").addEventListener("click", (ev) => { // 머리 줄(이름 입력칸·버튼 제외)을 누르면 펼침/접힘
+        if (ev.target.closest("input, [data-rowedit], [data-del], [data-rowcancel], [data-rowsave]")) return;
+        setOpen(r, !r.classList.contains("open"));
+      });
+      r.querySelector("[data-rowedit]").addEventListener("click", () => { setOpen(r, true); rowLock(r, false); });
       r.querySelector("[data-rowcancel]").addEventListener("click", () => { applyRows([[r.dataset.em, effList(r.dataset.em), nameOfEm(r.dataset.em)]]); rowLock(r, true); refresh(); }); // 바꾼 내용을 버리고 처음 값으로
       r.querySelector("[data-rowsave]").addEventListener("click", () => { if (!isDiff(r)) { rowLock(r, true); return; } savePerms([[r.dataset.em, sel(r), nameVal(r)]]); }); // 이 계정만 저장 (저장하면 화면을 다시 그려 잠김)
     });
@@ -3060,22 +3073,21 @@
   function helpHtml() {
     const iconBox = `<div class="help-icon"><img src="icon.svg?v=3" width="72" height="72" alt="신한FC m 앱 아이콘"><div><b>앱 아이콘 안내</b><p>고객의 보장을 지키는 <b>방패</b> 안에, 계약과 실적이 꾸준히 <b>오르는 화살표</b>를 담았습니다. 보험 설계사의 일(고객을 지키고, 함께 성장하는 것)을 한 그림으로 줄였습니다.</p><p>연한 하늘색 바탕과 파란 선은 신뢰감 있고 차분한 업무용 앱의 느낌을 주고, 굵은 윤곽선 방패는 작은 홈 화면 아이콘에서도 또렷하게 보이도록 단순하게 만들었습니다. 신한FC m(모바일)에서는 아래 메뉴 맨 왼쪽의 이 아이콘을 누르면 AI 도우미가 열리고, PC 화면 왼쪽 위에는 "신한FC"로 표시됩니다.</p></div></div>`;
     const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
-    const common = [
-      sec("시작 화면", ["<b>처음 보일 화면</b>: 설정(관리자는 관리자) 화면의 '시작 화면' 카드에서 앱을 열었을 때 처음 보일 화면을 고릅니다. 일정 · 고객(기본) · 영업 중 하나를 고르고 아래 [저장]을 누르면 다음에 앱을 열 때부터 적용됩니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 관리자 화면의 '사용자 시작 화면' 카드에서 사용자별로 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '시작하면 AI 도우미를 바로 열기'를 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]),
-      sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 제목 앞 글자</b>: 관리자가 FC마다 정해 두면(관리자 화면 ‘AI 일정 앞 글자’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담", "<b>이름 보호</b>: 지금은 외부 AI를 쓰지 않고 이 폰 안에서만 해석하므로 고객 이름이 밖으로 나가지 않습니다. 쓰면서 알아듣는 말을 계속 늘려 갑니다."]),
-      sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]),
-      sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭, 이동 거리·예상 시간, 회사 출발·도착을 계산합니다. 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]),
-      sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 기본 문구가 미리 들어 있고, 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]),
-      sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]),
-      sec("저장과 취소", ["바뀐 내용이 있을 때만 아래 [저장]·[취소]가 켜집니다. 저장은 바뀐 모든 카드를 한꺼번에 저장하고, 취소는 바뀐 내용을 버리고 처음 상태로 되돌립니다."])
-    ];
-    if (!isAdmin()) return iconBox + common.join("");
-    const adm = [
-      sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]),
-      sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]),
-      sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다.", "<b>구글 캘린더 설정</b>: 관리자의 기본 캘린더와 영업·정보 캘린더를 고릅니다."])
-    ];
-    return iconBox + adm.join("") + common.join("");
+    const grp = (t) => `<h3 class="help-grp">${t}</h3>`; // 하단 메뉴 순서대로 묶음: AI · 일정 · (고객) · 영업 · 설정/관리자
+    const s_start = sec("시작 화면", ["<b>처음 보일 화면</b>: 설정(관리자는 관리자) 화면의 '시작 화면' 카드에서 앱을 열었을 때 처음 보일 화면을 고릅니다. 일정 · 고객(기본) · 영업 중 하나를 고르고 아래 [저장]을 누르면 다음에 앱을 열 때부터 적용됩니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 관리자 화면의 '사용자 시작 화면' 카드에서 사용자별로 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '시작하면 AI 도우미를 바로 열기'를 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
+    const s_ai = sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(관리자 화면 각 사용자 카드의 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담", "<b>이름 보호</b>: 지금은 외부 AI를 쓰지 않고 이 폰 안에서만 해석하므로 고객 이름이 밖으로 나가지 않습니다. 쓰면서 알아듣는 말을 계속 늘려 갑니다."]);
+    const s_task = sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
+    const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭, 이동 거리·예상 시간, 회사 출발·도착을 계산합니다. 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
+    const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화 안 함</b>·<b>문자 안 함</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행의 설문발송·설문응답·쿠폰 칸은 반대로 해당 날짜가 있는 고객만 보여 주며, 둘을 함께 쓸 수 있습니다."]);
+    const s_sms = sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
+    const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
+    const s_save = sec("저장과 취소", ["바뀐 내용이 있을 때만 아래 [저장]·[취소]가 켜집니다. 저장은 바뀐 모든 카드를 한꺼번에 저장하고, 취소는 바뀐 내용을 버리고 처음 상태로 되돌립니다."]);
+    const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
+    const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
+    const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("일정"), s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save];
+    if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_set);
+    return iconBox + parts.join("");
   }
   function openHelp() {
     let box = $("helpModal");
@@ -4622,7 +4634,9 @@
   //   내 문구: 내설정 파일(shlife-내설정.json)의 sms.{transfer,dda}(저장 안 했으면 config.js smsDefaults)
   const SMS_VARS = "{고객명} {FC명} {상품명} {이관일}";
   const isIOS = () => /iPhone|iPad|iPod/i.test(navigator.userAgent || "") || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  const smsDefault = (kind) => String((CFG.smsDefaults || {})[kind] || "");
+  const smsCfgDefault = (kind) => String((CFG.smsDefaults || {})[kind] || "");
+  // 기본 문구 = 관리자가 설정 파일에 정해 둔 팀 문구(비어 있지 않으면), 없으면 config.js 기본. 개인이 저장한 문구가 있으면 그것이 우선
+  const smsDefault = (kind) => { const t = ((appSettings && appSettings.sms) || {})[kind]; return typeof t === "string" && t.trim() ? t : smsCfgDefault(kind); };
   // 개인이 저장한 값(지워서 빈 문구로 저장한 것 포함)이 있으면 그것, 아직 손대지 않았으면 config 기본 문구
   const smsTemplate = (kind) => { const m = (myPrefs && myPrefs.sms) || {}; return typeof m[kind] === "string" ? m[kind] : smsDefault(kind); };
   const idateText = (v) => { const k = dateKey(v); return k ? `${+k.slice(4, 6)}월 ${+k.slice(6, 8)}일` : ""; };
@@ -4632,31 +4646,29 @@
   const smsHref = (phone, body) => (body ? `sms:${phone}${isIOS() ? "&" : "?"}body=${encodeURIComponent(body)}` : `sms:${phone}`);
 
   // ---------- 관리자: FC별 일정 앞 글자 (AI 도우미로 일정을 등록하면 제목 앞에 붙음) ----------
-  function prefixCardHtml(perms, fcs) {
-    const pf = perms.prefixes || {};
-    return `<div class="card" id="prefixCard"><h3 class="sec-title">AI 일정 앞 글자</h3>
-      <p class="hint">AI 도우미로 일정을 등록하면 제목 맨 앞에 붙는 글자입니다. 예: <b>최)</b> → "최)홍길동 상담". 비워 두면 아무것도 붙지 않습니다.</p>
-      <div class="pf-list">${fcs.map((fc) => `<label class="pf-row"><span>${esc(fc)}</span><input type="text" data-pf="${esc(fc)}" maxlength="10" value="${esc(pf[fc] || "")}" placeholder="예: 최)" autocomplete="off" aria-label="${esc(fc)} 일정 앞 글자"></label>`).join("")}</div>
-      <div class="file-actions"><button type="button" class="primary" id="pfSave" disabled>저장</button></div></div>`;
-  }
-  function bindPrefixCard() {
-    const box = $("prefixCard"); if (!box) return;
-    const inputs = [...box.querySelectorAll("[data-pf]")];
-    const read = () => JSON.stringify(inputs.map((i) => i.value));
-    let base = read();
-    inputs.forEach((i) => i.addEventListener("input", () => { $("pfSave").disabled = read() === base; }));
-    $("pfSave").addEventListener("click", async () => {
-      const b = $("pfSave"); b.disabled = true; b.textContent = "저장 중…";
-      try {
-        const perms = await readPerms();
-        const next = {};
-        inputs.forEach((i) => { const v = i.value.trim(); if (v) next[i.dataset.pf] = v; });
-        perms.prefixes = next;
-        await writePerms(perms);
-        adminState.perms = { ...adminState.perms, prefixes: next };
-        base = read(); toast("일정 앞 글자를 저장했습니다.");
-      } catch (e) { b.disabled = false; handleError(e); }
-      b.textContent = "저장";
+  // ---------- 관리자: 사용자별 일정 구분 (AI 도우미로 일정을 등록하면 제목 앞에 붙음). 권한 파일 prefixes{FC명: 글자} ----------
+  function bindPfxRows() {
+    const body = $("adminBody");
+    body.querySelectorAll("[data-pfx]").forEach((inp) => {
+      const em = inp.dataset.pfx, btn = body.querySelector(`[data-pfx-save="${CSS.escape(em)}"]`);
+      let base = inp.value;
+      inp.addEventListener("input", () => { btn.disabled = inp.value.trim() === base.trim(); });
+      btn.addEventListener("click", async () => {
+        btn.disabled = true; btn.textContent = "저장 중…";
+        try {
+          const perms = await readPerms();
+          const nm = (perms.names || {})[em];
+          if (!nm) throw new Error("이름(FC명)이 없습니다.");
+          const next = { ...(perms.prefixes || {}) };
+          const v = inp.value.trim();
+          if (v) next[nm] = v; else delete next[nm];
+          perms.prefixes = next;
+          await writePerms(perms);
+          adminState.perms = { ...adminState.perms, prefixes: next };
+          base = inp.value; toast(`${nm}: 일정 구분을 저장했습니다.`);
+        } catch (e) { btn.disabled = false; handleError(e); }
+        btn.textContent = "저장";
+      });
     });
   }
   // ---------- 시작 설정: 앱을 열 때 처음 보일 화면 + AI 도우미 바로 열기 (이 기기·이 계정에만 적용) ----------
@@ -4773,12 +4785,39 @@
       b.textContent = "저장";
     });
   }
+  // 관리자: 팀 기본 문자 문구 (설정 파일 sms) — 사용자가 자기 문구를 저장하지 않았으면 이 문구가 기본
+  function smsTeamCardHtml() {
+    const ta = (id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="6" maxlength="600"></textarea></label>`;
+    return `<div class="card" id="smsTeamCard"><details class="fold"><summary class="sec-title">문자 문구 (팀 기본)</summary>
+      <p class="hint">사용자가 자기 문구를 따로 저장하지 않았으면 이 문구가 기본으로 나갑니다. 사용 가능 항목: ${SMS_VARS}</p>
+      ${ta("smsTeamTransfer", "이관 문자 문구")}${ta("smsTeamDda", "따행 문자 문구")}
+      <div class="file-actions"><button type="button" class="primary" id="smsTeamSave" disabled>팀 문구 저장</button></div></details></div>`;
+  }
+  function bindSmsTeamCard() {
+    const KINDS = { smsTeamTransfer: "transfer", smsTeamDda: "dda" }, ids = Object.keys(KINDS);
+    if (!$("smsTeamCard")) return;
+    ids.forEach((id) => { $(id).value = smsDefault(KINDS[id]); });
+    const read = () => JSON.stringify(ids.map((id) => $(id).value.trim()));
+    let base = read();
+    ids.forEach((id) => $(id).addEventListener("input", () => { $("smsTeamSave").disabled = read() === base; }));
+    $("smsTeamSave").addEventListener("click", async () => {
+      const b = $("smsTeamSave"); b.disabled = true; b.textContent = "저장 중…";
+      try {
+        const sms = { ...((appSettings && appSettings.sms) || {}) };
+        ids.forEach((id) => { const v = $(id).value.trim(); if (v && v !== smsCfgDefault(KINDS[id])) sms[KINDS[id]] = v; else delete sms[KINDS[id]]; });
+        await saveSettings({ ...appSettings, sms });
+        base = read(); toast("팀 기본 문구를 저장했습니다.");
+      } catch (e) { handleError(e); }
+      b.textContent = "팀 문구 저장"; b.disabled = read() === base;
+    });
+  }
   function smsCardHtml() {
     const ta =(id, label) => `<label class="fld"><span>${label}</span><textarea id="${id}" rows="8" maxlength="600"></textarea>
         <span class="smsrow"><button type="button" class="link-btn" data-sms-reset="${id}">기본값으로 되돌리기</button><small class="cnt" data-for="${id}"></small></span></label>`;
-    return `<div class="card" id="smsCard"><details class="fold"><summary class="sec-title">문자 문구</summary>
+    return `<div class="card" id="smsCard"><details class="fold" open><summary class="sec-title">문자 문구</summary>
       ${ta("smsMyTransfer", "이관 문자 문구")}
       ${ta("smsMyDda", "따행 문자 문구")}
+      <p class="hint">내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 기본 문구를 씁니다.</p>
       <p class="hint" id="smsPreview"></p>
       <div class="file-actions"><button type="button" class="primary" id="smsSave" disabled>문구 저장</button></div></details></div>`;
   }
@@ -4789,7 +4828,7 @@
     const cnt = () => ids.forEach((id) => { const c = document.querySelector(`.cnt[data-for="${id}"]`); if (c) c.textContent = `${el(id).value.length}자` + (el(id).value.length > 45 ? " · 45자 초과(장문 문자)" : ""); });
     const read = () => JSON.stringify(ids.map((id) => el(id).value.trim()));
     const preview = (id) => { $("smsPreview").textContent = el(id).value.trim() ? "미리보기: " + fillSms(el(id).value, sample, "최수진") : ""; };
-    try { await loadMyPrefs(); } catch (e) { /* 기본값 */ }
+    try { await Promise.all([loadMyPrefs(), loadSettings()]); } catch (e) { /* 기본값 */ }
     if (!$("smsCard")) return;
     ids.forEach((id) => { el(id).value = smsTemplate(KINDS[id]); });
     let base = read(); cnt();
@@ -4814,7 +4853,7 @@
 
   // ---------- 영업 (이달이관 · 이달 따행) + 전화·문자 '시도' 기록 ----------
   //   이관: 계약 단위(계약 시트 최근통화일시·최근문자일시 + 이력 시트에 계약ID와 함께 한 줄) / 따행: 고객 단위(고객 시트 최근통화일시·최근문자일시 + 이력에 계약ID 비움)
-  const SALES = { tab: "transfer", ym: "", showRef: false, data: null, df: { send: false, resp: false, coupon: false }, open: new Set(), dct: "", dcls: "", dact: true };
+  const SALES = { tab: "transfer", ym: "", showRef: false, data: null, df: { send: false, resp: false, coupon: false }, nf: { call: false, sms: false }, open: new Set(), dct: "", dcls: "", dact: true };
   const ymNow = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1); };
   const ymShift = (ym, n) => { let y = +ym.slice(0, 4), m = +ym.slice(4) + n; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return y + pad2(m); };
   const ymLabel = (ym) => ym.slice(0, 4) + "년 " + (+ym.slice(4)) + "월";
@@ -5430,8 +5469,12 @@
       const ymNote = "";
       // 따행 필터: 설문발송·설문응답·쿠폰(체크한 것 모두 채워진 고객만, AND)
       const df = SALES.df, dfOn = SALES.tab === "dda" && (df.send || df.resp || df.coupon);
-      const rows = dfOn ? allRows.filter((r) => (!df.send || r.dda.send) && (!df.resp || r.dda.resp) && (!df.coupon || r.dda.coupon)) : allRows;
+      const rows0 = dfOn ? allRows.filter((r) => (!df.send || r.dda.send) && (!df.resp || r.dda.resp) && (!df.coupon || r.dda.coupon)) : allRows;
       const mark = contactMarks(data, ym);
+      // 전화·문자 필터: 체크한 것을 아직 안 한(시도 ✓ 없는) 고객만 (둘 다 체크하면 둘 다 안 한 고객)
+      const nf = SALES.nf, nfOn = nf.call || nf.sms;
+      const rows = nfOn ? rows0.filter((r) => { const mk = (r.key && mark.get(r.key)) || {}; return (!nf.call || !mk.call) && (!nf.sms || !mk.sms); }) : rows0;
+      const nfHtml = `<div class="nfilter"><span class="dfl"><label><input type="checkbox" data-nf="call" ${nf.call ? "checked" : ""}> 전화 안 함</label><label><input type="checkbox" data-nf="sms" ${nf.sms ? "checked" : ""}> 문자 안 함</label></span></div>`;
       const ctx = { tpl: smsTemplate(SALES.tab === "dda" ? "dda" : "transfer"), fcName: fcSel || myFc };
       const holders = new Set(rows.map((r) => r.custId || r.holder)).size;
       const refN = SALES.tab === "transfer" ? data.contracts.filter((c) => c.type === "이관" && monthOf(c.row["이관일자"] || c.row["이관일"]) === ym && c.fc && c.srcFc && c.fc !== c.srcFc && (!fcSel || c.srcFc === fcSel)).length : 0;
@@ -5439,9 +5482,9 @@
       SALES.data = data;
       top.note = ymNote;
       box.innerHTML = top(selFcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${selFcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : "") +
-        `<div id="salesBody">${SALES.tab === "dda" ? "" : `<div class="sales-info"><span>${SALES.tab === "dda" ? (bMode ? `${(SALES.dct || SALES.dcls || dfOn) ? `필터 ${rows.length}명` : `표시 ${rows.length}명`}` : `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}`) : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "transfer" ? `<span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span>` : ""}</div>`}` +
+        `<div id="salesBody">${SALES.tab === "dda" ? nfHtml : `<div class="sales-info"><span>${SALES.tab === "dda" ? (bMode ? `${(SALES.dct || SALES.dcls || dfOn) ? `필터 ${rows.length}명` : `표시 ${rows.length}명`}` : `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}`) : `${rows.length}건 · ${holders}명`}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "transfer" ? `<span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}<button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></span>` : ""}</div>${nfHtml}`}` +
         (SALES.tab === "dda" ? `<div class="dfilter"><span class="dfl"><label><input type="checkbox" data-df="send" ${df.send ? "checked" : ""}> 설문발송</label><label><input type="checkbox" data-df="resp" ${df.resp ? "checked" : ""}> 설문응답</label><label><input type="checkbox" data-df="coupon" ${df.coupon ? "checked" : ""}> 쿠폰</label></span><button type="button" class="secondary reset-btn" id="salesReset"${marked || readQueue().length ? "" : " disabled"}>초기화</button></div>` : "") +
-        (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.</p>`) +
+        (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : "따행"} 고객이 없습니다.${nfOn ? " (전화·문자 필터를 확인해 주세요)" : ""}</p>`) +
         `<p class="hint pad">전화·문자는 버튼을 누른 '시도'만 기록됩니다(실제 통화·발송 여부는 알 수 없음).${readQueue().length ? ` 아직 저장 안 된 기록 ${readQueue().length}건은 앱이 다시 열리면 반영합니다.` : ""}</p></div>`;
       box._rows = rows; box._mark = mark;
       if (anchor) salesRestore(anchor); else if (!keep) window.scrollTo(0, 0);
@@ -5535,6 +5578,7 @@
     if (!ev.target) return;
     if (ev.target.id === "salesRef") { SALES.showRef = ev.target.checked; renderSales(); }
     if (ev.target.id === "dclsSel") { SALES.dcls = ev.target.value; renderSales(); }
+    if (ev.target.dataset && ev.target.dataset.nf) { SALES.nf[ev.target.dataset.nf] = ev.target.checked; renderSales(); return; }
     if (ev.target.dataset && ev.target.dataset.df) { SALES.df[ev.target.dataset.df] = ev.target.checked; renderSales(); }
     if (ev.target.id === "salesFc") { SALES.fc = ev.target.value; try { localStorage.setItem(salesFcKey(), SALES.fc); } catch (e) { /* 무시 */ } renderSales(); }
   });
@@ -5573,6 +5617,7 @@
       schedMode = ["day", "week", "month"].includes(s.mode) ? s.mode : "day";
       schedDate = s.d ? dayStart(new Date(s.d)) : dayStart(new Date());
       if (isNaN(+schedDate)) schedDate = dayStart(new Date());
+      if (schedMode === "day" && !sameDay(schedDate, new Date())) { schedDate = dayStart(new Date()); s.y = 0; } // Today는 새로 열면 항상 오늘 (다른 날을 보던 중이었어도)
       schedResumeY = s.y > 0 ? s.y : null;
       loadSettings().then(() => openSchedule());
     } else {
