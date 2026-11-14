@@ -663,4 +663,4 @@ html.ai-open { overflow: hidden; overscroll-behavior-y: contain; }
 /* v255: 복귀···· 도 따행·이달이관 탭처럼 묶음 버튼(회색 바탕 + 흰 버튼) */
 .sched-nav .sched-seg { display: inline-flex; gap: 2px; padding: 2px; background: var(--raised); border-radius: var(--r-ctl); }
 .sched-nav .sched-rt button, .sched-nav .sched-rt #pickReset, .sched-nav .sched-rt #schedAdd { height: 32px; min-height: 32px; padding: 0 14px; border: 0; border-radius: 6px; background: var(--surface); color: var(--t1); box-shadow: 0 0 0 1px var(--line); font-size: 13px; font-weight: 500; }
-.sched-nav .sched-rt #schedAdd { min-width: 44px; font-size: 18px; letter-spacing: 1px; }
+.sched-nav .sched-rt #schedAdd { min-width: 44px; font-size: 13px; letter-spacing: 0; }
