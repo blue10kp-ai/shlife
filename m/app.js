@@ -111,7 +111,7 @@
     if (!t) throw new Error("GOOGLE_AUTH");
     const o = opt || {};
     const res = await fetch(url, { ...o, headers: { Authorization: "Bearer " + t, ...(o.headers || {}) }, cache: "no-store" });
-    if (res.status === 401) { clearGToken(); throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 401) { clearGToken(t); throw new Error("GOOGLE_AUTH"); }
     if (!res.ok) throw new Error("Drive " + res.status + ": " + (await res.text()).slice(0, 200));
     if (res.status === 204) return null;
     return asBuffer ? res.arrayBuffer() : res.json();
@@ -3024,8 +3024,10 @@
   // ---------- 시작 ----------
   // Google Drive 모드: 구글 로그인 창(팝업) 하나로 Drive·캘린더 권한을 함께 받음 (토큰 1시간, 지나면 버튼 한 번)
   function showGLogin() {
-    const em = gAccount();
-    $("loginBtn").textContent = em ? "Google 다시 연결 (" + em + ")" : "Google 계정으로 로그인";
+    const em = gAccount() || (readGAuth() || {}).email || "";
+    const sh = readGAuth();
+    const needScope = !!(sh && sh.exp > Date.now() + 60000 && !gHasScopes(sh.scopes)); // 다른 앱에서 로그인했지만 이 앱 권한이 모자란 경우
+    $("loginBtn").textContent = needScope ? "구글 연결 (권한 추가)" : em ? "Google 다시 연결 (" + em + ")" : "Google 계정으로 로그인";
     $("loginOtherBtn").hidden = false;
     show("loginView");
   }
@@ -3038,6 +3040,7 @@
       if (!em) throw new Error("구글 계정 이메일을 읽지 못했습니다.");
       const changed = gAccount() && gAccount() !== em;
       try { localStorage.setItem(GACC_KEY, em); } catch (e) { /* 이번만 */ }
+      const sh = readGAuth(); if (sh) writeGAuth({ ...sh, email: em }); // 공통 출입증에 확인한 계정 기록
       if (changed) { await photoCacheClear(); return location.reload(); } // 계정이 바뀌면 앱을 새로 시작 (이전 계정의 자료·설정 비우기)
       startApp();
     } catch (e) {
@@ -3082,12 +3085,13 @@
     const s_addev = sec("일정 추가 (일정 화면)", ["일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "<b>복귀</b> 버튼(추가의 왼쪽)은 동명이인 지정을 지우고 일정 장소를 되돌릴 때 씁니다(일정이 있는 날에만 보임)."]);
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_sms = sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
+    const s_login = sec("로그인 (공통 로그인)", ["한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_set);
     return iconBox + parts.join("");
   }
@@ -3161,13 +3165,12 @@
     location.reload();
   });
   $("logoutBtn").addEventListener("click", async () => {
+    if (GD && !confirm("모든 앱에서 로그아웃됩니다. 로그아웃할까요?")) return;
     await photoCacheClear(); // 기기에 저장한 고객 사진 지우기
     if (!GD) return msal.logoutRedirect();
-    const t = storedGToken() || gTokenMem;
-    clearGToken();
+    clearGToken(); // 공통 출입증 삭제 = 모든 앱 로그아웃 (revoke는 안 함: 다른 앱의 동의가 사라지지 않게)
     try { localStorage.removeItem(GACC_KEY); } catch (e) { /* 무시 */ }
     salesClearState();
-    try { if (t && window.google && google.accounts.oauth2) google.accounts.oauth2.revoke(t, () => {}); } catch (e) { /* 무시 */ }
     location.reload();
   });
   // 상단 검색창: 어느 화면에서든 검색 → 고객 검색 결과 화면으로
@@ -3279,14 +3282,48 @@
   const GSCOPE = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events" +
     " https://www.googleapis.com/auth/tasks" + // v221: 구글 할 일 권한도 로그인 때 한 번에 받음
     (GD ? " https://www.googleapis.com/auth/drive openid email" : "");
-  function storedGToken() {
+  // ---- 공통 로그인: 모든 앱이 localStorage `blue10kp.gauth` {v,token,exp,scopes,email}를 같이 씀 (app\_공통\공통로그인.md) ----
+  const GAUTH_KEY = "blue10kp.gauth";
+  const GS = "https://www.googleapis.com/auth/";
+  // 이 앱이 꼭 필요한 권한(할 일 tasks는 없어도 앱이 돌아가서 필수가 아님). 상위 권한이 있으면 포함으로 봄
+  const GNEED = [["calendar", "calendar.readonly"], ["calendar", "calendar.events"], ["drive"], ["userinfo.email", "email"]];
+  function gHasScopes(list) {
+    const s = new Set((list || []).map((x) => String(x).replace(GS, "")));
+    const has = (k) => s.has(k) ||
+      (k === "calendar.readonly" && s.has("calendar")) || (k === "calendar.events" && s.has("calendar")) ||
+      (k === "tasks" && s.has("tasks")) || (k === "drive" && s.has("drive"));
+    return GNEED.every((alts) => alts.some(has));
+  }
+  function readGAuth() {
     try {
-      const t = JSON.parse(localStorage.getItem(GTOKEN_KEY) || "null");
-      return t && t.exp > Date.now() + 60000 && t.v === GTOKEN_V ? t.token : null;
+      const a = JSON.parse(localStorage.getItem(GAUTH_KEY) || "null");
+      return a && typeof a.token === "string" && a.token && a.exp > 0 ? a : null;
     } catch (e) { return null; }
   }
-  function clearGToken() {
-    try { localStorage.removeItem(GTOKEN_KEY); } catch (e) { /* 무시 */ }
+  function writeGAuth(a) { try { localStorage.setItem(GAUTH_KEY, JSON.stringify({ v: 1, token: a.token, exp: a.exp, scopes: a.scopes || [], email: a.email || "" })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ } }
+  // 예전 신한FC 전용 출입증(shlife.gtoken)을 한 번 공통 키로 옮기고 지움
+  function migrateLegacyGToken() {
+    try {
+      const raw = localStorage.getItem(GTOKEN_KEY);
+      if (raw == null) return;
+      localStorage.removeItem(GTOKEN_KEY);
+      if (readGAuth()) return; // 이미 공통 키가 있으면 그것을 씀
+      const t = JSON.parse(raw);
+      if (!t || !t.token || !(t.exp > Date.now() + 60000) || t.v !== GTOKEN_V || !gAccount()) return;
+      const sc = [GS + "calendar.readonly", GS + "calendar.events", GS + "drive", "openid", "email"];
+      if (t.tk) sc.push(GS + "tasks");
+      writeGAuth({ token: t.token, exp: t.exp, scopes: sc, email: gAccount() });
+    } catch (e) { /* 무시 */ }
+  }
+  // 지금 쓸 수 있는 공통 출입증 (만료 1분 전까지, 필요한 권한이 다 있어야 함)
+  function storedGToken() {
+    const a = readGAuth();
+    return a && a.exp > Date.now() + 60000 && gHasScopes(a.scopes) ? a.token : null;
+  }
+  // used = 방금 401을 받은 토큰. 공통 키의 토큰이 그것과 같을 때만 지움(다른 앱이 새로 받았으면 그대로 둠)
+  function clearGToken(used) {
+    const a = readGAuth();
+    if (a && (!used || a.token === used)) { try { localStorage.removeItem(GAUTH_KEY); } catch (e) { /* 무시 */ } }
     gTokenMem = null;
   }
   // 구글 로그인 창(팝업) → 캘린더 읽기 권한 토큰 (1시간 유효, 버튼을 눌렀을 때만 호출)
@@ -3297,11 +3334,14 @@
       const client = g.initTokenClient({
         client_id: GCFG.clientId,
         scope: GSCOPE,
-        hint: noHint ? undefined : (GD ? gAccount() : appSettings.google && appSettings.google.account) || undefined,
+        include_granted_scopes: true,
+        hint: noHint ? undefined : ((readGAuth() || {}).email || (GD ? gAccount() : appSettings.google && appSettings.google.account)) || undefined,
         callback: (r) => {
           if (r.error) return reject(new Error("구글 연결 실패: " + r.error));
           if (GD && !google.accounts.oauth2.hasGrantedAllScopes(r, "https://www.googleapis.com/auth/drive")) return reject(new Error("Google Drive 권한을 허용해야 합니다. 다시 로그인하면서 모든 항목에 체크해 주세요."));
-          try { localStorage.setItem(GTOKEN_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, v: GTOKEN_V, tk: google.accounts.oauth2.hasGrantedAllScopes(r, "https://www.googleapis.com/auth/tasks") })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ }
+          // 공통 출입증에 기록(받은 권한 그대로). 이메일은 userinfo로 확인한 뒤 googleLogin이 채움
+          const prev = readGAuth();
+          writeGAuth({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, scopes: String(r.scope || "").split(/\s+/).filter(Boolean), email: !noHint && prev ? prev.email : "" });
           gTokenMem = r.access_token;
           resolve(r.access_token);
         },
@@ -3315,7 +3355,7 @@
     const t = storedGToken() || gTokenMem;
     if (!t) throw new Error("GOOGLE_AUTH");
     const res = await fetch(GCAL + path, { headers: { Authorization: "Bearer " + t } });
-    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 401) { clearGToken(t); throw new Error("GOOGLE_AUTH"); }
     if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
     return res.json();
   }
@@ -3327,7 +3367,7 @@
     const res = await fetch(GCAL + "/calendars/" + encodeURIComponent(calId) + "/events/" + encodeURIComponent(eventId) + "/move?destination=" + encodeURIComponent(destId), {
       method: "POST", headers: { Authorization: "Bearer " + t }
     });
-    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 401) { clearGToken(t); throw new Error("GOOGLE_AUTH"); }
     if (res.status === 403) throw new Error("이 일정은 다른 캘린더로 옮길 권한이 없습니다.");
     if (!res.ok) throw new Error("캘린더 변경 실패 (" + res.status + "): " + (await res.text()).slice(0, 120));
     return res.json();
@@ -3339,7 +3379,7 @@
     const res = await fetch(GCAL + "/calendars/" + encodeURIComponent(calId) + "/events/" + encodeURIComponent(eventId), {
       method: "PATCH", headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" }, body: JSON.stringify(body)
     });
-    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 401) { clearGToken(t); throw new Error("GOOGLE_AUTH"); }
     if (res.status === 403) throw new Error("이 캘린더의 일정을 수정할 권한이 없습니다.");
     if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
     return res.json();
@@ -3352,7 +3392,7 @@
     const res = await fetch(GCAL + "/calendars/" + encodeURIComponent(calId) + "/events", {
       method: "POST", headers: { Authorization: "Bearer " + t, "Content-Type": "application/json" }, body: JSON.stringify(body)
     });
-    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 401) { clearGToken(t); throw new Error("GOOGLE_AUTH"); }
     if (res.status === 403) throw new Error("이 캘린더에 일정을 만들 권한이 없습니다.");
     if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
     return res.json();
@@ -3362,7 +3402,7 @@
     const t = storedGToken() || gTokenMem;
     if (!t) throw new Error("GOOGLE_AUTH");
     const res = await fetch(GCAL + "/calendars/" + encodeURIComponent(calId) + "/events/" + encodeURIComponent(eventId), { method: "DELETE", headers: { Authorization: "Bearer " + t } });
-    if (res.status === 401) { try { localStorage.removeItem(GTOKEN_KEY); } catch (e) {} gTokenMem = null; throw new Error("GOOGLE_AUTH"); }
+    if (res.status === 401) { clearGToken(t); throw new Error("GOOGLE_AUTH"); }
     if (res.status === 403) throw new Error("이 캘린더의 일정을 삭제할 권한이 없습니다.");
     if (res.status === 404 || res.status === 410) return; // 이미 없음
     if (!res.ok) throw new Error("Calendar " + res.status + ": " + (await res.text()).slice(0, 160));
@@ -3743,7 +3783,7 @@
   const TASKS_KEY = "shlife.gtasks", TASKS_SCOPE = "https://www.googleapis.com/auth/tasks", GTASKS = "https://tasks.googleapis.com/tasks/v1";
   function storedTasksToken() {
     try { const t = JSON.parse(localStorage.getItem(TASKS_KEY) || "null"); if (t && t.exp > Date.now() + 60000) return t.token; } catch (e) { /* 아래로 */ }
-    try { const m = JSON.parse(localStorage.getItem(GTOKEN_KEY) || "null"); if (m && m.tk && m.v === GTOKEN_V && m.exp > Date.now() + 60000) return m.token; } catch (e) { /* 없음 */ } // 로그인 때 할 일 권한도 받은 경우 그 토큰을 같이 씀
+    const m = readGAuth(); if (m && m.exp > Date.now() + 60000 && gHasScopes(m.scopes) && m.scopes.some((x) => /(^|\/)tasks$/.test(x))) return m.token; // 로그인 때 할 일 권한도 받은 경우 그 토큰을 같이 씀
     return null;
   }
   function requestTasksToken(prompt) {
@@ -5683,7 +5723,13 @@
     }
     if (GD) {
       // 구글 토큰이 살아 있으면 바로 시작, 아니면 로그인(다시 연결) 버튼 (팝업은 버튼을 눌러야 열림)
-      if (gAccount() && storedGToken()) startApp(); else showGLogin();
+      migrateLegacyGToken();
+      const sh = readGAuth();
+      if (sh && sh.email && storedGToken()) { // 다른 앱에서 한 로그인도 인정: 계정이 다르면 이전 계정 자료를 비우고 새 계정으로 시작
+        if (gAccount() && gAccount() !== String(sh.email).toLowerCase()) await photoCacheClear();
+        try { localStorage.setItem(GACC_KEY, String(sh.email).toLowerCase()); } catch (e) { /* 이번만 */ }
+        startApp();
+      } else showGLogin();
       return;
     }
     if (!msal) { // OneDrive 옛 모드는 지원 중단(구글 드라이브만 씀) — 시작 속도를 위해 msal 라이브러리를 더 이상 받지 않는다
@@ -5694,6 +5740,23 @@
     if (msal.getAllAccounts().length) startApp();
     else show("loginView");
   })();
+
+  // 화면이 다시 보일 때 공통 출입증을 다시 읽음: 다른 앱에서 새로 로그인했으면 이어서 쓰고, 계정이 바뀌었으면 새로 시작
+  if (GD) document.addEventListener("visibilitychange", async () => {
+    if (document.visibilityState !== "visible") return;
+    const sh = readGAuth();
+    if (!sh || !sh.email || !storedGToken()) return;
+    const em = String(sh.email).toLowerCase();
+    if (!$("loginView").hidden) { // 로그인 화면이던 중 다른 앱에서 로그인함
+      if (gAccount() && gAccount() !== em) await photoCacheClear();
+      try { localStorage.setItem(GACC_KEY, em); } catch (e) { /* 이번만 */ }
+      startApp();
+    } else if (gAccount() && gAccount() !== em && !editMode) { // 다른 앱에서 계정을 바꿨음
+      await photoCacheClear();
+      try { localStorage.setItem(GACC_KEY, em); } catch (e) { /* 이번만 */ }
+      location.reload();
+    }
+  });
 
   function startApp() {
     if (!GD && sessionStorage.getItem("openAdmin") && isAdmin()) {
