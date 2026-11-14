@@ -605,7 +605,7 @@ html.ai-open { overflow: hidden; overscroll-behavior-y: contain; }
 .perm-row.open .perm-fold svg { transform: rotate(90deg); }
 .perm-head .perm-id { flex: 1; min-width: 0; }
 
-/* 일정 위쪽: [추가] [처음으로] (오른쪽 끝) */
+/* 일정 위쪽: [복귀] [···] (오른쪽 끝) */
 .sched-nav .sched-rt { position: absolute; right: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 6px; }
 .sched-nav .sched-rt button { position: static; transform: none; height: 28px; min-height: 0; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--accent); font-size: 13px; font-weight: 700; line-height: 1; text-decoration: none; }
 .sched-nav .sched-rt button[hidden] { display: none; }
@@ -639,13 +639,28 @@ html.ai-open { overflow: hidden; overscroll-behavior-y: contain; }
 .sched-nav .sched-rt button { white-space: nowrap; flex: none; }
 .sched-nav .sched-rt #pickReset { position: static; transform: none; height: 28px; min-height: 0; padding: 0 12px; font-size: 13px; font-weight: 700; border: 1px solid var(--line); background: var(--surface); color: var(--accent); }
 .sched-nav .sched-rt #pickReset[hidden] { display: none; }
-/* 폰 폭: 추가·처음으로가 날짜 이동 줄과 겹치지 않게 윗줄(오른쪽 끝)로 분리 */
-@media (max-width: 460px) {
-  .sched-nav { flex-wrap: wrap; }
-  .sched-nav .sched-rt { position: static; transform: none; order: -1; flex: 0 0 100%; justify-content: flex-end; margin-bottom: 8px; }
-  .rh .sched-nav { padding-left: 0; }
-}
+/* 복귀·추가(···)는 어떤 폭에서도 날짜 이동 줄과 겹치지 않게 윗줄(오른쪽 끝)로 분리 */
+.sched-nav { flex-wrap: wrap; height: auto; }
+.sched-nav .sched-rt { position: static; transform: none; order: -1; flex: 0 0 100%; justify-content: flex-end; margin-bottom: 8px; }
+.rh .sched-nav { padding-left: 0; }
+.sched-nav .sched-rt #schedAdd { min-width: 40px; padding: 0 10px; font-size: 18px; letter-spacing: 1px; line-height: 1; }
 .ev-add .ev-form { border-top: 0; margin-top: 0; padding-top: 0; }
 .ev-add .ev-allday { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 15px; color: var(--t1); }
 .ev-add .ev-allday .cb { width: 20px; height: 20px; margin: 0; }
 .ev-add [data-a-times][hidden] { display: none; }
+
+/* v255: 따행 필터 줄 위아래 정렬(설문·쿠폰 글씨와 네모칸이 같은 가운데 선) */
+.dfl { align-items: center; line-height: 20px; }
+.dfl .dfg { align-items: center; gap: 8px; }
+.dfl label { display: inline-flex; align-items: center; gap: 3px; line-height: 20px; margin: 0; padding: 0; }
+.dfl input { margin: 0; flex: none; width: 16px; height: 16px; }
+.dfl { gap: 8px; flex-wrap: nowrap; font-size: 13px; }
+.dfl .dfk { font-size: 13px; }
+.dfilter .reset-btn { flex: none; white-space: nowrap; }
+.dfl .dsep { margin: 0; }
+.dfl .dfk { font-weight: 600; line-height: 20px; display: inline-flex; align-items: center; }
+.dfl .dsep { height: 16px; align-self: center; }
+/* v255: 복귀···· 도 따행·이달이관 탭처럼 묶음 버튼(회색 바탕 + 흰 버튼) */
+.sched-nav .sched-seg { display: inline-flex; gap: 2px; padding: 2px; background: var(--raised); border-radius: var(--r-ctl); }
+.sched-nav .sched-rt button, .sched-nav .sched-rt #pickReset, .sched-nav .sched-rt #schedAdd { height: 32px; min-height: 32px; padding: 0 14px; border: 0; border-radius: 6px; background: var(--surface); color: var(--t1); box-shadow: 0 0 0 1px var(--line); font-size: 13px; font-weight: 500; }
+.sched-nav .sched-rt #schedAdd { min-width: 44px; font-size: 18px; letter-spacing: 1px; }

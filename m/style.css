@@ -723,7 +723,7 @@ hr.soft { border: 0; border-top: 1px dashed var(--line); margin: 14px 0; }
 .task-list-name { flex: none; font-size: 12px; }
 .task-row.done { color: var(--muted); text-decoration: line-through; }
 .task-owner { font-weight: 500; color: var(--muted); font-size: 13px; }
-.nfilter { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.nfilter { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: 0 0 8px; }
 .nfilter .hint { font-size: 12px; }
 .dfl .dfg { display: inline-flex; align-items: center; gap: 10px; }
 .dfl .dfk { font-size: 13px; font-weight: 600; color: var(--t2, #6b7280); }
