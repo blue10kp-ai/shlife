@@ -830,3 +830,24 @@ html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
 /* v325: 관리자 영업 화면 사용자 선택 = 월 줄 왼쪽 (FC 선택은 오른쪽 그대로) */
 .sline2:not(.center) select.sales-user { right: auto; left: 0; max-width: 96px; }
 .rh .sline2:not(.center) select.sales-user { max-width: 110px; }
+/* v326: 조직도 */
+.sec-title.org-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.org-top { display: flex; align-items: center; gap: 8px; }
+.org-top .sec-title { flex: 1; margin: 0; text-align: center; }
+.org-help { font-size: 11.5px; line-height: 16px; margin: 6px 0 4px; }
+.org-tree, .org-kids { list-style: none; margin: 0; padding: 0; }
+.org-kids { margin-left: 12px; padding-left: 8px; border-left: 1px solid var(--line); }
+.org-node { margin-top: 6px; }
+.org-card { display: flex; align-items: flex-start; gap: 4px; padding: 6px 8px 6px 4px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); }
+.org-node.root > .org-card { padding-left: 10px; border-color: var(--accent); }
+.org-grip { flex: none; width: 24px; height: 40px; display: flex; align-items: center; justify-content: center; color: var(--t3); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.org-main { min-width: 0; flex: 1; }
+.org-nm { font-size: 14px; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--t1); }
+.org-nm small { font-size: 11px; font-weight: 400; }
+.org-cbs { display: flex; gap: 14px; font-size: 12.5px; line-height: 20px; color: var(--t2); }
+.org-cbs label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.org-cbs .cb { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.org-note { font-size: 11px; line-height: 15px; margin-top: 1px; }
+.org-node.dragging > .org-card { opacity: .35; }
+.org-node.drop > .org-card { outline: 2px solid var(--accent); outline-offset: 1px; }
+.org-ghost { position: fixed; left: 0; top: 0; z-index: 9999; pointer-events: none; box-shadow: 0 6px 18px rgba(0,0,0,.18); opacity: .95; }
