@@ -754,3 +754,4 @@ html { scrollbar-gutter: stable; }
 .prog-bar button.on { background: var(--raised); color: var(--t1); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
 .prog-act { align-items: center; gap: 8px; }
 .prog-when { font-size: 12px; color: var(--t3); margin-right: auto; }
+.cov-k small { font-size: 11px; color: var(--t3); margin-left: 2px; }

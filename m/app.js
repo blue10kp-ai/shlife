@@ -2446,7 +2446,7 @@
     const note = src === "신한" ? "신한라이프에 가입된 보장 요약입니다." : "전체 보험사에 가입된 보장 요약입니다.";
     const fmt = (v) => v === undefined ? `<span class="cov-na">확인 안 됨</span>` : v === "-" ? `<span class="cov-none">미가입</span>` : esc(v);
     const row = (label, html) => `<div class="cov-row"><span class="cov-k">${label}</span><span class="cov-v">${html}</span></div>`;
-    const tri = ["암", "뇌", "심"].map((k) => `<span class="cov-tri"><i>${k}</i>${fmt(vals[k])}</span>`).join("");
+    const tri = [["암", "암"], ["뇌", "뇌혈관"], ["심", "심혈관"]].map(([k, lab]) => `<span class="cov-tri"><i>${lab}</i>${fmt(vals[k])}</span>`).join("");
     // 설명란: 정보를 모은 날(기준, 없으면 작성일)과 '그 뒤로 달라졌을 수 있으니 다시 분석'을 안내. 6개월이 넘었으면 눈에 띄게
     const when = String(j["기준"] || j["작성일"] || "").trim();
     let foot = "";
@@ -2454,7 +2454,7 @@
       const dt = new Date(when.replace(/\./g, "-")), old = !isNaN(+dt) && (Date.now() - +dt) / 86400000 > 183;
       foot = `<p class="cov-foot${old ? " old" : ""}">${old ? "⚠ " : ""}${esc(when)} ${src === "신한" ? "신한라이프 상세보장내용" : "스마트보장분석"}으로 모은 정보입니다. 그 뒤로 보장이 달라졌을 수 있으니, 정확한 내용은 다시 분석해 확인하세요.</p>`;
     }
-    return `<div class="card cov"><h3 class="sec-title">보장 요약</h3><p class="cov-note">${note}</p>${j["코멘트"] ? `<p class="cov-comment">${esc(j["코멘트"])}</p>` : ""}<div class="cov-rows">${row("사망", fmt(vals.사망))}<div class="cov-row cov-3"><span class="cov-k">3대진단</span><span class="cov-tris">${tri}</span></div>${row("수술", fmt(vals.수술))}${row("입원", fmt(vals.입원))}${row("간병", fmt(vals.간병))}</div>${silHtml}${foot}</div>`;
+    return `<div class="card cov"><h3 class="sec-title">보장 요약</h3><p class="cov-note">${note}</p>${j["코멘트"] ? `<p class="cov-comment">${esc(j["코멘트"])}</p>` : ""}<div class="cov-rows">${row("사망", fmt(vals.사망))}<div class="cov-row cov-3"><span class="cov-k">3대진단 <small>(암·뇌혈관·심혈관)</small></span><span class="cov-tris">${tri}</span></div>${row("수술", fmt(vals.수술))}${row("입원", fmt(vals.입원))}${row("간병", fmt(vals.간병))}</div>${silHtml}${foot}</div>`;
   }
   function contractHtml() {
     const all = current.contracts;
