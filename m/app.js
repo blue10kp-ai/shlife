@@ -351,7 +351,14 @@
     const e = installEvt; installEvt = null; ev.target.closest("#installBtn").hidden = true;
     try { e.prompt(); await e.userChoice; } catch (er) { /* 무시 */ }
   });
-  const rhCardHtml = () => `<div class="card"><h3 class="sec-title">화면</h3>${rhOptHtml()}</div>`;
+  const rhCardHtml = () => { // v337(2026-11-15 사용자 지시): 화면 카드 3칸, 바꾸면 바로 저장
+    const cur = readStartPref();
+    return `<div class="card" id="startCard"><h3 class="sec-title">화면</h3><div class="disp3">
+      <label class="d3"><span>시작하면 AI</span><span class="d3c"><input type="checkbox" class="cb" id="startAi" ${cur.ai ? "checked" : ""}> 바로 열기</span></label>
+      <label class="d3"><span>시작 화면</span><select id="startPage" aria-label="시작 화면">${START_PAGES.map(([k, l]) => `<option value="${k}" ${cur.page === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      <label class="d3"><span>오른손 모드</span><span class="d3c"><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}> 켜기</span></label>
+    </div></div>`;
+  };
   document.addEventListener("change", (ev) => {
     if (!ev.target || ev.target.id !== "rhMode") return;
     try { localStorage.setItem(RH_KEY, ev.target.checked ? "1" : "0"); } catch (e) { /* 저장 못 해도 이번엔 적용 */ }
@@ -479,7 +486,7 @@
   async function readPerms() {
     await resolveAppDir();
     const p = await stReadJsonIn(appDir, PERM_FILE);
-    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, prefixes: (p && p.prefixes && typeof p.prefixes === "object") ? p.prefixes : {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [], salesFcs: (p && p.salesFcs && typeof p.salesFcs === "object") ? p.salesFcs : {}, starts: (p && p.starts && typeof p.starts === "object") ? p.starts : {}, org: (p && p.org && typeof p.org === "object") ? p.org : {}, orgApplied: (p && p.orgApplied && typeof p.orgApplied === "object") ? p.orgApplied : {}, orgSalesApplied: (p && p.orgSalesApplied && typeof p.orgSalesApplied === "object") ? p.orgSalesApplied : {} }; // orgSalesApplied(v330): { 이메일: [FC] } 조직도가 영업 페이지 접근 허용에 더한 FC // orgApplied(v327): { 이메일: [{fc, prev}] } 조직도가 더한 권한(조직도에서 빼면 이것만 되돌림, 직접 준 권한은 그대로) // org(v326): { 이메일: { parent, view, edit } } 조직도 // salesFcs: { 이메일: [영업 화면에서 추가로 볼 수 있는 FC 이름] } / sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
+    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, prefixes: (p && p.prefixes && typeof p.prefixes === "object") ? p.prefixes : {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [], salesFcs: (p && p.salesFcs && typeof p.salesFcs === "object") ? p.salesFcs : {}, starts: (p && p.starts && typeof p.starts === "object") ? p.starts : {}, org: (p && p.org && typeof p.org === "object") ? p.org : {}, orgApplied: (p && p.orgApplied && typeof p.orgApplied === "object") ? p.orgApplied : {}, orgSalesApplied: (p && p.orgSalesApplied && typeof p.orgSalesApplied === "object") ? p.orgSalesApplied : {}, orgVer: (p && p.orgVer) || 1 }; // orgVer 2(v335): 보기·수정 = 그 사용자가 자기 FC를 위 사용자들에게 주는 권한 // orgSalesApplied(v330): { 이메일: [FC] } 조직도가 영업 페이지 접근 허용에 더한 FC // orgApplied(v327): { 이메일: [{fc, prev}] } 조직도가 더한 권한(조직도에서 빼면 이것만 되돌림, 직접 준 권한은 그대로) // org(v326): { 이메일: { parent, view, edit } } 조직도 // salesFcs: { 이메일: [영업 화면에서 추가로 볼 수 있는 FC 이름] } / sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
     permNamesCache = { ...out.names };
     permPrefixCache = { ...out.prefixes };
     try { const k = "shlife.startAdmin." + me(), v = out.starts[me()]; if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch (e) { /* 무시 */ } // 관리자가 정한 시작 화면 (다음 실행부터)
@@ -2988,9 +2995,9 @@
   }
   const orgSetHtml = (v, self) => {
     const pg = v ? (START_PAGES.find((x) => x[0] === v.page) || [, "고객"])[1] : null;
-    const it = (k, val, on) => `<span class="${on ? "on" : ""}">${k} <b>${val}</b></span>`;
-    if (!v) return `<div class="org-set">${it("시작", orgStartCache ? "기본(고객)" : "…", false)}${it("AI", orgStartCache ? "끔" : "…", false)}${it("오른손", orgStartCache ? "–" : "…", false)}</div>`;
-    return `<div class="org-set">${it("시작", pg, false)}${it("AI", v.ai ? "켬" : "끔", v.ai)}${it("오른손", v.rh === true ? "켬" : v.rh === false ? "끔" : "–", v.rh === true)}${self ? '<small class="hint">이 기기</small>' : ""}</div>`;
+    const it = (k, val, on) => `<span class="${on ? "on" : ""}"><i>${k}</i><b>${val}</b></span>`;
+    if (!v) return `<div class="org-set">${it("시작", orgStartCache ? "고객" : "…", false)}${it("AI", orgStartCache ? "끔" : "…", false)}${it("오른손", orgStartCache ? "–" : "…", false)}</div>`;
+    return `<div class="org-set">${it("시작", pg, false)}${it("AI", v.ai ? "켬" : "끔", v.ai)}${it("오른손", v.rh === true ? "켬" : v.rh === false ? "끔" : "–", v.rh === true)}${self ? '<small class="hint">이 기기</small>' : ""}</div>`; // v334: 카드 오른쪽
   };
   const orgRoot = () => String((CFG.admins || [])[0] || "").toLowerCase();
   const orgUsers = () => { const adm = (CFG.admins || []).map((a) => a.toLowerCase()); return Object.keys((adminState.perms || {}).users || {}).map((e) => e.toLowerCase()).filter((e) => e && !adm.includes(e)); };
@@ -3004,25 +3011,39 @@
   const orgKids = (d, em) => Object.keys(d).filter((x) => d[x].parent === em).sort((a, b) => { const o = CFG.fcOrder || [], ia = o.indexOf(orgName(a)), ib = o.indexOf(orgName(b)); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || orgName(a).localeCompare(orgName(b), "ko"); });
   const orgDesc = (d, em) => { const r = []; const walk = (x) => orgKids(d, x).forEach((k) => { r.push(k); walk(k); }); walk(em); return r; };
   const orgDirty = () => JSON.stringify(orgDraft) !== orgSaved;
+  // v335(2026-11-15 사용자 지시): 사용자 X의 보기 = X의 FC를 X 위의 사용자들(관리자 제외)이 봄, 수정 = 수정 권한까지 위임
+  function orgGets(d, em, fcOf) {
+    const m = new Map();
+    orgDesc(d, em).forEach((x) => { const o = d[x] || {}, fc = fcOf(x); if (!o.view || !fc) return; m.set(fc, m.get(fc) || !!o.edit); });
+    return [...m].map(([fc, edit]) => ({ fc, edit }));
+  }
+  // 예전 방식(위 사용자에 체크 = 아래 조직을 봄)으로 저장된 조직도를 새 방식으로 바꿔 읽음 → 권한 결과는 같게
+  function orgFromV1(d) {
+    const nv = {}; Object.keys(d).forEach((x) => { nv[x] = { view: false, edit: false }; });
+    Object.keys(d).forEach((em) => { const o = d[em]; if (!o.view) return; orgDesc(d, em).forEach((x) => { nv[x].view = true; if (o.edit) nv[x].edit = true; }); });
+    Object.keys(d).forEach((x) => { d[x].view = nv[x].view; d[x].edit = nv[x].edit; });
+    return d;
+  }
   function renderOrg() {
     const d = orgDraft, root = orgRoot(), fcs = adminState.fcs || [];
     const fcOf = (em) => { const n = ((adminState.perms || {}).names || {})[em]; return n && fcs.includes(n) ? n : ""; };
     const node = (em) => {
       const isRoot = em === root, o = d[em] || {}, kids = orgKids(d, em), desc = isRoot ? [] : orgDesc(d, em);
       const subFcs = desc.map(fcOf).filter(Boolean);
-      const note = isRoot ? "전체 FC" : !desc.length ? "" : o.view ? `${o.edit ? "보기·수정" : "보기"}·영업: ${esc(subFcs.join(", ") || "FC 없음")}` : `아래 ${desc.length}명 · 권한 없음`;
-      return `<li class="org-node${isRoot ? " root" : ""}" data-org-em="${esc(em)}"><div class="org-card">${isRoot ? "" : `<span class="org-grip" data-org-grip role="button" aria-label="${esc(orgName(em))} 끌어서 옮기기"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>`}<div class="org-main"><div class="org-nm"><b>${esc(orgName(em))}</b>${isRoot ? ' <span class="tag">ESL</span>' : ""} <small class="hint">${esc(em)}</small></div>${isRoot ? orgSetHtml({ ...readStartPref(), rh: rhOn() }, true) : orgSetHtml((orgStartCache || {})[em], false)}${isRoot ? "" : `<div class="org-cbs"><label><input type="checkbox" class="cb" data-org-v ${o.view ? "checked" : ""}> 보기</label><label><input type="checkbox" class="cb" data-org-e ${o.edit ? "checked" : ""}> 수정</label><i class="org-sep" aria-hidden="true"></i><label title="이 사용자 본인만(아래 조직에는 적용 안 됨)"><input type="checkbox" class="cb" data-org-s ${o.sens ? "checked" : ""}> 민감정보</label></div>`}${note ? `<div class="org-note hint">${note}</div>` : ""}</div></div>${kids.length ? `<ul class="org-kids">${kids.map(node).join("")}</ul>` : ""}</li>`;
+      const gets = isRoot ? [] : orgGets(d, em, fcOf);
+      const note = isRoot ? "전체 FC" : gets.length ? "받은 권한: " + gets.map((g) => esc(g.fc) + (g.edit ? "(수정)" : "(보기)")).join(", ") + " · 영업 포함" : desc.length ? `아래 ${desc.length}명 · 받은 권한 없음` : "";
+      return `<li class="org-node${isRoot ? " root" : ""}" data-org-em="${esc(em)}"><div class="org-card">${isRoot ? "" : `<span class="org-grip" data-org-grip role="button" aria-label="${esc(orgName(em))} 끌어서 옮기기"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>`}<div class="org-main"><div class="org-nm"><b>${esc(orgName(em))}</b>${isRoot ? ' <span class="tag">ESL</span>' : ""}</div><div class="org-mail hint">${esc(em)}</div>${isRoot ? "" : `<div class="org-cbs"><label><input type="checkbox" class="cb" data-org-v ${o.view ? "checked" : ""}> 보기</label><label><input type="checkbox" class="cb" data-org-e ${o.edit ? "checked" : ""}> 수정</label><i class="org-sep" aria-hidden="true"></i><label title="이 사용자 본인만(아래 조직에는 적용 안 됨)"><input type="checkbox" class="cb" data-org-s ${o.sens ? "checked" : ""}> 민감정보</label></div>`}${note ? `<div class="org-note hint">${note}</div>` : ""}</div>${isRoot ? orgSetHtml({ ...readStartPref(), rh: rhOn() }, true) : orgSetHtml((orgStartCache || {})[em], false)}</div>${kids.length ? `<ul class="org-kids">${kids.map(node).join("")}</ul>` : ""}</li>`;
     };
     const plan = orgPlan(), off = plan.changes.length + Object.keys(plan.sales).length; // 지금 권한이 조직도와 다른 계정 수
     $("adminBody").innerHTML = `<div class="card org-wrap"><div class="org-top"><button type="button" class="ev-edit" data-org-back>‹ 관리자</button><h3 class="sec-title">조직도</h3><button type="button" class="ev-edit ev-done" data-org-save ${orgDirty() || off ? "" : "disabled"}>저장</button></div>${off && !orgDirty() ? '<p class="hint org-off">지금 권한 중 조직도와 다른 것이 있습니다. [저장]을 누르면 확인창을 보고 조직도대로 맞춥니다.</p>' : ""}
-      <p class="hint org-help">점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 밑으로 옮겨집니다. 보기·수정은 그 사람 아래 조직(하위 사용자 FC)의 고객 권한이고, 저장하면 고객·영업 페이지 접근 허용과 Drive 공유에 반영됩니다.</p>
+      <p class="hint org-help">점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 밑으로 옮겨집니다. <b>보기</b>를 켜면 그 사용자의 FC를 위 사용자들이 보고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정은 보기 포함). 민감정보는 그 사용자 본인 권한입니다. 저장하면 고객·영업 페이지 접근과 Drive 공유에 반영됩니다.</p>
       <ul class="org-tree">${node(root)}</ul>${orgUsers().length ? "" : '<p class="hint">관리자 화면에서 사용자를 먼저 추가하세요.</p>'}</div>`;
   }
   function openOrg() {
-    const d = orgNorm((adminState.perms || {}).org), sens = ((adminState.perms || {}).sensitive || []).map((e) => String(e).toLowerCase());
+    const d0 = orgNorm((adminState.perms || {}).org), d = (adminState.perms || {}).orgVer >= 2 ? d0 : orgFromV1(d0), sens = ((adminState.perms || {}).sensitive || []).map((e) => String(e).toLowerCase());
     Object.keys(d).forEach((em) => { d[em].sens = sens.includes(em); }); // v329: 민감정보 접근 = 권한 파일 sensitive (계정 카드 체크와 같은 값)
     orgSaved = JSON.stringify(d); orgDraft = JSON.parse(orgSaved); renderOrg(); window.scrollTo(0, 0);
-    if (!orgStartCache) orgLoadStarts();
+    orgStartCache = null; orgLoadStarts();
   }
   document.addEventListener("click", async (ev) => {
     const t = ev.target && ev.target.closest && ev.target.closest("[data-org],[data-org-back],[data-org-save]");
@@ -3041,8 +3062,8 @@
     orgUsers().forEach((em) => {
       const cur = ((P.users || {})[em] || []).slice(), own = fcOf(em);
       // v332(2026-11-15 사용자 지시 '정리'): 조직도가 유일한 기준. 고객 = 본인 FC(보기+수정) + 조직도 권한, 계정 카드에서 예전에 직접 준 권한은 뺌
-      const o = d[em] || {}, want = o.view ? [...new Set(orgDesc(d, em).map(fcOf))].filter((f) => f && f !== own) : [];
-      let list = [...(own ? [own] : []), ...want.map((fc) => (o.edit ? fc : fc + ":r"))];
+      const gets = orgGets(d, em, fcOf).filter((g) => g.fc !== own), want = gets.map((g) => g.fc); // v335: 아래 사용자가 보기·수정을 켜서 나에게 준 FC
+      let list = [...(own ? [own] : []), ...gets.map((g) => (g.edit ? g.fc : g.fc + ":r"))];
       if (!list.length) list = cur.slice(); // 본인 FC도 조직도 권한도 없으면 계정이 지워지지 않게 그대로 둠
       if (want.length) applied[em] = want.map((fc) => ({ fc, prev: null }));
       // 영업 페이지 접근 허용 = 조직도 아래 조직 FC (보기·수정 어느 쪽이든)
@@ -3064,6 +3085,7 @@
     const set = new Set((perms.sensitive || []).map((e) => String(e).toLowerCase()));
     Object.keys(draft).forEach((em) => { if (draft[em].sens) set.add(em); else set.delete(em); });
     perms.sensitive = [...set];
+    perms.orgVer = 2;
     const org = {}; Object.keys(draft).forEach((em) => { const { sens, ...rest } = draft[em]; org[em] = rest; }); perms.org = org;
   }
   async function saveOrg(btn) {
@@ -3187,12 +3209,13 @@
       const em = $("newUser").value.trim().toLowerCase();
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) return toast("이메일 형식을 확인해 주세요.");
       if ((CFG.admins || []).map((a) => a.toLowerCase()).includes(em)) return toast("관리자는 이미 모든 폴더를 볼 수 있습니다.");
-      const pending = collectRows(); // 표에서 아직 저장 안 한 체크 상태 유지
       const nm = $("newName").value.trim();
-      extraUsers.add(em); permOpen.add(em);
-      renderAdmin();
-      applyRows(pending);
-      if (nm) { const nr = $("adminBody").querySelector(`.perm-row[data-em="${CSS.escape(em)}"] [data-name]`); if (nr) { nr.value = nm; nr.dispatchEvent(new Event("input", { bubbles: true })); } }
+      if (!nm) return toast("이름(FC명)을 적어 주세요.");
+      if ((perms.users || {})[em]) return toast("이미 있는 사용자입니다.");
+      // v336(2026-11-15 사용자 지시): 추가하면 바로 저장 → 조직도에 자동으로 나옴. 이름이 FC 폴더와 같으면 본인 FC(보기+수정)·폴더 공유, 아니면 권한 없이 등록(조직도에서 받은 권한으로 열림)
+      const own = fcs.includes(nm) ? [nm] : [];
+      permOpen.add(em);
+      savePerms([[em, own, nm]], { pre: [`사용자 ${nm} (${em})를 추가합니다.` + (own.length ? ` 본인 FC '${nm}' 보기+수정` : " (같은 이름의 FC 폴더가 없어 권한 없이 등록 — 조직도에서 받은 권한이 생기면 열림)")], btn: ev.submitter || $("addUserForm").querySelector("button"), after: () => { orgStartCache = null; renderAdmin(); toast(`${nm}: 추가했습니다. 조직도에서 위치를 정하세요.`); } });
     });
 
     const rows = [...$("adminBody").querySelectorAll(".perm-row")];
@@ -3391,7 +3414,7 @@
       perms.names = perms.names || {};
       changes.forEach(([em, list, nm]) => {
         if (list.length) { perms.users[em] = list; if (nm !== undefined) { if (nm) perms.names[em] = nm; else delete perms.names[em]; } }
-        else { delete perms.users[em]; delete perms.names[em]; extraUsers.delete(em); }
+        else { perms.users[em] = []; if (nm) perms.names[em] = nm; extraUsers.delete(em); } // v336: 권한 없이도 계정은 남김(조직도에 보이게). 계정 삭제는 [삭제]로
       });
       perms.fcFolders = adminState.fcIds || perms.fcFolders || {}; // 사용자 앱이 FC 폴더를 ID로 바로 열 수 있게
       if (opt.mutate) opt.mutate(perms);
@@ -3489,7 +3512,7 @@
     const iconBox = `<div class="help-icon"><img src="icon.svg?v=3" width="72" height="72" alt="신한FC m 앱 아이콘"><div><b>앱 아이콘 안내</b><p>고객의 보장을 지키는 <b>방패</b> 안에, 계약과 실적이 꾸준히 <b>오르는 화살표</b>를 담았습니다. 보험 설계사의 일(고객을 지키고, 함께 성장하는 것)을 한 그림으로 줄였습니다.</p><p>연한 하늘색 바탕과 파란 선은 신뢰감 있고 차분한 업무용 앱의 느낌을 주고, 굵은 윤곽선 방패는 작은 홈 화면 아이콘에서도 또렷하게 보이도록 단순하게 만들었습니다. 신한FC m(모바일)에서는 아래 메뉴 맨 왼쪽의 이 아이콘을 누르면 AI 도우미가 열리고, PC 화면 왼쪽 위에는 "신한FC"로 표시됩니다.</p></div></div>`;
     const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
     const grp = (t) => `<h3 class="help-grp">${t}</h3>`; // 하단 메뉴 순서대로 묶음: AI · 일정 · (고객) · 영업 · 설정/관리자
-    const s_start = sec("시작 화면", ["<b>처음 보일 화면</b>: 설정(관리자는 관리자) 화면의 '시작 화면' 카드에서 앱을 열었을 때 처음 보일 화면을 고릅니다. 일정 · 고객(기본) · 영업 중 하나를 고르고 아래 [저장]을 누르면 다음에 앱을 열 때부터 적용됩니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '시작하면 AI 도우미를 바로 열기'를 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
+    const s_start = sec("시작 화면", ["<b>처음 보일 화면</b>: 설정 화면의 '화면' 카드 가운데 칸(시작 화면)에서 일정 · 고객(기본) · 영업 중 하나를 고르면 바로 저장되고, 다음에 앱을 열 때부터 적용됩니다. 같은 카드 왼쪽 칸은 ‘시작하면 AI 도우미 바로 열기’, 오른쪽 칸은 ‘오른손 모드’입니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '화면' 카드 왼쪽 칸을 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
     const s_ai = sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 위 말처럼 규칙으로 알아듣는 말은 이 폰 안에서만 처리하고 밖으로 보내지 않습니다. 규칙으로 못 알아들은 말만 Gemini(외부 AI)에 '무슨 뜻인지'를 묻는데, 그때 고객 이름은 [고객1] 같은 자리표시로, 주민번호·전화·계좌·이메일·주소 같은 숫자·주소는 [숫자]·[주소]로 가려서 보내고 답을 받은 뒤 앱 안에서 되돌립니다. 말만해요 설정에 Gemini 키가 없거나 연결이 안 되면 규칙만 쓰며, 확인 카드에 ‘AI가 해석’이라고 표시되고 [실행]을 눌러야 처리됩니다."]);
     const s_task = sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드의 <b>비영업</b> 버튼을 눌러 영업일정으로 바꾼 일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
@@ -3505,9 +3528,9 @@
     const s_srch = sec("전체검색 · 고객검색", ["<b>위쪽 전체검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호뿐 아니라 고객 메모, 상담기록, 오늘 기준 1년 전~1개월 뒤 일정(제목·장소)에서도 찾습니다. 결과는 아래에서 올라오는 창에 고객(어디서 찾았는지 표시)과 일정으로 나뉘어 나오고, 누르면 고객 정보(상담기록에서 찾았으면 상담 탭) 또는 그날 일정으로 이동합니다.", "<b>고객 화면의 고객검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호로 고객만 찾는 기존 검색입니다. 한 명만 나오면 바로 고객 정보가 열립니다.", "검색칸이 비어 있을 때의 글자(전체검색·고객검색)는 오른쪽에 보입니다."]);
     const s_cov = sec("보장 요약 (고객 정보 > 분석 탭)", ["분석 탭 맨 위에 사망 · 3대진단(암·뇌·심) · 수술 · 입원 · 간병을 간단히 보여 줍니다. 스마트보장분석이 있으면 ‘전체 보험사에 가입된 보장 요약입니다.’, 신한라이프 상세보장내용만 있으면 ‘신한라이프에 가입된 보장 요약입니다.’라고 위에 적고, 맨 아래에 어느 문서의 몇 월 며칠 기준인지 나옵니다.", "‘미가입’은 가입한 보장이 없다는 뜻이고, ‘확인 안 됨’은 원본 문서에서 그 항목을 읽지 못했다는 뜻입니다. 이 값은 고객 등록·업데이트 때 미리 만들어 고객 시트의 ‘보장요약’ 칸에 저장해 둔 것을 읽기만 하므로 분석 탭을 열 때 계산하지 않습니다."]);
     const s_prog = sec("보관 (이동 · 원복)", ["고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 영업 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다.", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 고객 화면 [이관] 목록에서는 <b>이달 N / 보관 M</b> 칩(이달 이관 고객 수)과 줄의 이동·원복으로 그 고객의 <b>이달 이관 계약만</b> 한꺼번에 보관하거나 원복합니다(이관일자가 이번 달인 계약 = 이달목표 > 이관에 나오는 계약, 지난 달 이관·담당이 다른 FC 계약은 그대로). 이달 이관 계약이 없는 이관 고객에는 버튼이 없습니다. 고객 정보 화면 탭 줄 오른쪽에도 보관할 수 있는 목록마다 <b>보관으로 이동</b>/<b>원복</b> 버튼이 나옵니다(여러 개면 ‘진행 보관’·‘DB 보관’·‘이관 보관’처럼 앞에 목록 이름). 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
-    const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
+    const s_rh = sec("오른손 모드", ["'화면' 카드 오른쪽 칸입니다. 하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용되고, 관리자 조직도에서 볼 수 있게 기록됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
-    const s_perm = sec("FC 사용 설정 (권한)", ["사용자를 추가할 때 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작합니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>[조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자 줄의 ‘영업 페이지 접근 허용’은 관리자 본인 선택창용이라 그대로 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: ‘FC 사용 설정’ 제목 옆 [조직도]를 누르면 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>·<b>수정</b>으로 그 사람이 아래 조직(하위 사용자 FC)의 고객을 볼지·고칠지 정합니다(수정은 보기를 포함). 카드 아래 작은 글씨에 그 결과 FC가 보이고, [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 아래 작은 줄은 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정입니다."]);
+    const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>[조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자 줄의 ‘영업 페이지 접근 허용’은 관리자 본인 선택창용이라 그대로 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: ‘FC 사용 설정’ 제목 옆 [조직도]를 누르면 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 아래 작은 줄은 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정입니다."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("검색"), s_srch, grp("고객 정보"), s_cov, s_prog, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_sub, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
@@ -5444,7 +5467,8 @@
     return { page: START_PAGES.some((p) => p[0] === v.page) ? v.page : "customer", ai: !!v.ai };
   }
   function writeStartPref(v) { try { localStorage.setItem(startPrefKey(), JSON.stringify(v)); return true; } catch (e) { return false; } }
-  function startCardHtml() {
+  function startCardHtml() { return ""; } // v337: '화면' 카드(rhCardHtml)로 합침
+  function startCardHtmlOld() {
     const cur = readStartPref();
     return `<div class="card" id="startCard"><h3 class="sec-title">시작 화면</h3>
       <p class="hint">앱을 열면 처음 보일 화면을 고릅니다. 내 FC 폴더에 저장되어 관리자도 볼 수 있습니다.</p>
@@ -5453,7 +5477,17 @@
       <label class="st-ai"><input type="checkbox" id="startAi" ${cur.ai ? "checked" : ""}><span>시작하면 AI 도우미를 바로 열기</span></label>
       <div class="file-actions"><button type="button" class="primary" id="startSave" disabled>저장</button></div></div>`;
   }
-  function bindStartCard() {
+  function bindStartCard() { // v337: 화면 카드의 AI·시작 화면은 바꾸면 바로 저장
+    const sel = $("startPage"), ai = $("startAi"); if (!sel || !ai) return;
+    const save = async () => {
+      const v = { page: sel.value, ai: ai.checked }, ok = writeStartPref(v);
+      let shared = false;
+      if (!isAdmin()) { try { const perms = await readPerms(); shared = await writeStartShared(perms, me(), { ...v, rh: rhOn() }, perms.fcFolders); } catch (e) { console.error(e); } }
+      toast(ok || shared ? "저장했습니다. 다음에 앱을 열 때 적용됩니다." : "저장하지 못했습니다.");
+    };
+    sel.addEventListener("change", save); ai.addEventListener("change", save);
+  }
+  function bindStartCardOld() {
     const box = $("startCard"); if (!box) return;
     const read = () => { const r = box.querySelector('input[name="startPage"]:checked'); return { page: r ? r.value : "customer", ai: $("startAi").checked }; };
     let base = JSON.stringify(read());

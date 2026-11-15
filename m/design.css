@@ -866,3 +866,26 @@ html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
 .org-set span.on b { color: var(--accent); }
 .org-set small { font-size: 10px; margin-left: 2px; }
 .org-card .org-set small.hint { font-size: 10px; line-height: 18px; }
+/* v334: 사용자 설정(시작·AI·오른손)을 카드 오른쪽 빈 곳에 세로로, 더 잘 보이게 */
+.org-card .org-mail { font-size: 11px; line-height: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.org-card .org-set { flex: none; display: grid; grid-template-columns: auto auto; column-gap: 8px; row-gap: 2px; align-content: start; margin: 0 0 0 auto; padding: 4px 8px; border-left: 1px solid var(--line); min-width: 92px; }
+.org-card .org-set span { display: contents; height: auto; padding: 0; border: 0; font-size: 12px; line-height: 18px; color: var(--t2); }
+.org-card .org-set span i { font-style: normal; color: var(--t3); }
+.org-card .org-set span b { font-weight: 600; color: var(--t1); text-align: right; }
+.org-card .org-set span.on b { color: var(--accent); }
+.org-card .org-set small.hint { grid-column: 1 / -1; font-size: 10px; line-height: 14px; text-align: right; margin: 0; }
+/* v334: 오른쪽 설정칸 때문에 체크 글자가 줄바꿈되지 않게 */
+.org-card .org-cbs { gap: 8px; flex-wrap: wrap; row-gap: 0; }
+.org-card .org-cbs label { white-space: nowrap; flex: none; }
+.org-card .org-cbs .org-sep { margin: 0 -2px; }
+.org-card .org-set { min-width: 0; column-gap: 6px; padding: 2px 0 2px 8px; }
+.org-card .org-set span { font-size: 11.5px; }
+/* v335: [조직도] 버튼 조금 크게 */
+.sec-title.org-h [data-org] { height: 28px; padding: 0 12px; font-size: 13px; }
+/* v337: 화면 카드 3칸 (AI · 시작 화면 · 오른손) */
+.disp3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 6px; }
+.disp3 .d3 { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); cursor: pointer; }
+.disp3 .d3 > span:first-child { font-size: 11.5px; line-height: 15px; color: var(--t3); }
+.disp3 .d3c { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--t1); white-space: nowrap; }
+.disp3 .d3c .cb { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.disp3 select { width: 100%; height: 30px; padding: 0 6px; font-size: 14px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--bg); color: var(--t1); }
