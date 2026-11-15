@@ -1099,7 +1099,7 @@
         }
         const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
         const pd = progView ? progDay.get(c) : "";
-        const pdHtml = pd ? `<span class="r-day">${progShowRemoved ? "삭제" : "진행"} ${esc(pd.slice(5))}</span>` : "";
+        const pdHtml = pd ? `<span class="r-day">${progShowRemoved ? "삭제" : "진행"} ${esc(pd.slice(5))}</span>` : ""; // FC 이름 뒤에 한 칸 띄우고 작게
         return `<li${progView ? ' class="pv"' : ""}><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
           <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length || pdHtml ? `<span class="r-sub">${esc(fcs.join(", "))}${pdHtml}</span>` : ""}${c.why && c.why.size ? `<span class="r-why">${[...c.why].map(([k, v]) => esc(k) + (v && k !== "연락처" ? " · " + esc(v) : "")).join(" / ")}</span>` : ""}</span>
           ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(typeLabel(t))}</span>`).join("")}${stage ? `<span class="tag stg stg-${esc(stage)}">${esc(stage)}</span>` : ""}<span class="chev">›</span></button>${progView && !isRO((c.entries[0] || {}).fc) ? (progShowRemoved ? `<button type="button" class="prog-mini" data-prest="${i}" aria-label="${esc(c.name)} 다시 진행">다시 진행</button>` : `<button type="button" class="prog-mini" data-pdel="${i}" aria-label="${esc(c.name)} 진행에서 삭제">삭제</button>`) : ""}${insLineHtml(c)}</li>`;
