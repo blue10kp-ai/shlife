@@ -939,18 +939,18 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 .arch-row:first-of-type { border-top: 0; }
 /* v344: 조직도 위 [저장] 없앰 — 제목 가운데 맞춤용 빈칸 */
 .org-top .org-top-sp { flex: none; width: 64px; }
-/* v345: 영업 위쪽 한 줄 = [사용자] [‹ 월 ›] … [FC] [따행·이관·DB] */
-#salesView .sline2.sl3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; position: static; justify-content: flex-start; }
-#salesView .sline2.sl3 .ymnav { flex: none; margin: 0; gap: 6px; }
-#salesView .sline2.sl3 .sl-sp { flex: 1 1 0; min-width: 0; }
-#salesView .sline2.sl3 select { position: static !important; transform: none !important; flex: none; height: 32px; padding: 0 6px; font-size: 13.5px; max-width: 110px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); color: var(--t1); }
-#salesView .sline2.sl3 #salesTab { font-weight: 600; color: var(--accent); }
-@media (max-width: 480px) { #salesView .sline2.sl3 .ymnav button { width: 30px; height: 30px; } #salesView .sline2.sl3 .ymnav > b { font-size: 15.5px; } }
-/* v345: 폰 폭에서 [사용자][월][FC][따행] 네 칸이 한 줄에 들어가게 조금 줄임 */
-@media (max-width: 480px) {
-  #salesView .sline2.sl3 { gap: 4px; }
-  #salesView .sline2.sl3 .ymnav { gap: 2px; }
-  #salesView .sline2.sl3 .ymnav button { width: 26px; height: 26px; }
-  #salesView .sline2.sl3 .ymnav > b { font-size: 14.5px; letter-spacing: -0.2px; }
-  #salesView .sline2.sl3 select { max-width: 74px; padding: 0 2px; font-size: 13px; height: 30px; }
+/* v347(2026-11-15 사용자 지시): 영업 위쪽 — 넓은 화면(481px 이상)은 한 줄 [사용자][‹ 월 ›] … [FC][따행·이관·DB], 폰 폭(480 이하)은 예전 모양(위 탭 줄 + 월 줄) */
+@media (min-width: 481px) {
+  #salesView .sales-top .seg { display: none; }
+  #salesView .sline2.sl3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; position: static; justify-content: flex-start; }
+  #salesView .sline2.sl3 .ymnav { flex: none; margin: 0; gap: 6px; }
+  #salesView .sline2.sl3 .sl-sp { flex: 1 1 0; min-width: 0; }
+  #salesView .sline2.sl3 select { position: static !important; transform: none !important; flex: none; height: 32px; padding: 0 6px; font-size: 13.5px; max-width: 110px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); color: var(--t1); }
+  #salesView .sline2.sl3 #salesTab { font-weight: 600; color: var(--accent); }
 }
+@media (max-width: 480px) { #salesView .sline2.sl3 #salesTab, #salesView .sline2.sl3 .sl-sp { display: none; } }
+/* v346(2026-11-15 사용자 지시): 일정 [복귀][추가]를 날짜 이동 줄 오른쪽으로 (따로 한 줄 차지하지 않음) */
+.sched-nav { flex-wrap: nowrap; }
+.sched-nav::before { content: ""; flex: 1 1 0; min-width: 0; }
+.sched-nav .sched-rt { position: static; transform: none; order: 9; flex: 1 1 0; min-width: max-content; display: flex; justify-content: flex-end; margin: 0; }
+@media (max-width: 480px) { .sched-nav .sched-rt button, .sched-nav .sched-rt #pickReset, .sched-nav .sched-rt #schedAdd { padding: 0 10px; min-width: 0; } .sched-nav .sched-label { padding: 0 2px; } }
