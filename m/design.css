@@ -807,3 +807,7 @@ html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
 #salesView .sline.l1 .ar-btn { flex: none; height: 20px; min-height: 0; margin: 0; padding: 0 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--t2); font: inherit; font-size: 10.5px; font-weight: 600; line-height: 18px; white-space: nowrap; cursor: pointer; box-shadow: none; -webkit-tap-highlight-color: transparent; }
 #salesView .sline.l1 .ar-btn.back { color: var(--brand, #1f5fae); border-color: currentColor; }
 #salesView .sline.l1 .ar-auto { flex: none; font-size: 10.5px; font-weight: 600; color: var(--t3); line-height: 20px; }
+/* v320: 고객 정보 탭 줄 오른쪽 보관 버튼(여러 개 가능), 원복은 파란 글자 */
+.tabs-row > .stage-act { display: flex; gap: 4px; }
+.tabs-row > .stage-act[hidden] { display: none; }
+.stage-act button.back { color: var(--brand, #1f5fae); border-color: currentColor; }
