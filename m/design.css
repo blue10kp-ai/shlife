@@ -858,3 +858,11 @@ html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
 .org-note-top { font-size: 11.5px; margin: -2px 0 6px; }
 /* v332: 조직도와 다른 권한 안내 */
 .org-off { font-size: 11.5px; line-height: 16px; margin: 6px 0 0; color: var(--bad, #c0392b); }
+/* v333: 조직도 카드의 시작 화면·AI·오른손 한 줄 */
+.org-set { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0 1px; }
+.org-set span { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 6px; border: 1px solid var(--line); border-radius: 9px; font-size: 10.5px; color: var(--t3); line-height: 1; white-space: nowrap; }
+.org-set span b { font-weight: 600; color: var(--t2); }
+.org-set span.on { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.org-set span.on b { color: var(--accent); }
+.org-set small { font-size: 10px; margin-left: 2px; }
+.org-card .org-set small.hint { font-size: 10px; line-height: 18px; }
