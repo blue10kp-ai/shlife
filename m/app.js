@@ -1554,6 +1554,15 @@
         const cp = String(c.row["연락처"] || "").replace(/\D/g, "");
         return !cp || !phones.size || phones.has(cp); // 이관 계약은 계약자 연락처로 동명이인 구분
       });
+      { // 정보 탭 '유지 계약'·'계약현황' 표시용: 이 고객이 피보험자(주·종)이고 계약자는 다른 사람인 유효 계약 (고객 시트 값은 계약자 기준이라 그대로 둠)
+        const VALID = /^(유지|완납|납입면제|연금지급|신계약승낙)$/;
+        const ins = contracts.filter((c) => {
+          if (!VALID.test(String(c.row["계약상태"] || c.row["상태"] || "").trim())) return false;
+          if (custIds.has(String(c.row["계약자ID"] || "").trim())) return false;
+          return [c.row["주피보험자ID"], c.row["종피보험자ID"]].some((x) => custIds.has(String(x || "").trim()));
+        });
+        current.insCt = { n: ins.length, holders: [...new Set(ins.map((c) => String(c.row["계약자"] || "").trim()).filter(Boolean))] };
+      }
       current.extra = extra;
       { // 해지 고객 표시(머리 카드): 계약을 불러온 뒤 판단
         const k = churnOf(custIds, contracts), tg = $("custChurn"), note = $("custNote");
@@ -1827,7 +1836,7 @@
         ${addrs.length ? `<dt>주소</dt><dd class="dd-left">${addrs.map(([, v]) => addrWithMap(v)).join("")}</dd>` : ""}
         ${carRows.length ? row("차량", carRows.map((r) => `<div>${esc(r.num || "-")}${r.d ? ` · 보험 갱신 ${esc(mdText(r.d))}` : ""}</div>`).join("")) : ""}
         ${chips ? row("추가", `<div class="chips">${chips}</div>`) : ""}
-        ${rest.map(([k, vs]) => /가입\s*설계\s*동의\s*만료일/.test(k) ? row("설계 동의 만료", vs.map((v) => `<div>${esc(v)}</div>`).join("")) : k === "신한라이프 유지계약" ? row("유지 계약", vs.map((v) => `<div>${esc(/^\d+$/.test(String(v).trim()) ? String(v).trim() + "건" : v)}</div>`).join("")) : LAND_COLS.test(k.trim()) ? row(k, vs.map((v) => valueWithActions(k, v)).join("")) : row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
+        ${rest.map(([k, vs]) => /가입\s*설계\s*동의\s*만료일/.test(k) ? row("설계 동의 만료", vs.map((v) => `<div>${esc(v)}</div>`).join("")) : k === "신한라이프 유지계약" ? row("유지 계약", (current.insCt && current.insCt.n) ? `<div>본인 ${esc(/^\d+$/.test(String(vs[0]).trim()) ? String(vs[0]).trim() : (vs[0] || "0"))}건 · 피보험자 ${current.insCt.n}건${current.insCt.holders.length ? ` <span class="hint">(계약자 ${esc(current.insCt.holders.join(", "))})</span>` : ""}</div>` : vs.map((v) => `<div>${esc(/^\d+$/.test(String(v).trim()) ? String(v).trim() + "건" : v)}</div>`).join("")) : k === "계약현황" && current.insCt && current.insCt.n && vs.some((v) => /계약\s*없음/.test(String(v))) ? row("계약현황", `<div>본인 계약 없음 · 피보험자 계약 있음</div>`) : LAND_COLS.test(k.trim()) ? row(k, vs.map((v) => valueWithActions(k, v)).join("")) : row(k, vs.map((v) => `<div>${esc(v)}</div>`).join(""))).join("")}
       </dl></div>`;
     const prim = (x.fields || []).filter((k) => EXTRA.primary.includes(k));
     // 미팅장소·메모: 수정 모드가 아니어도 바로 입력하고 저장
