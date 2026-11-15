@@ -755,3 +755,20 @@ html { scrollbar-gutter: stable; }
 .prog-act { align-items: center; gap: 8px; }
 .prog-when { font-size: 12px; color: var(--t3); margin-right: auto; }
 .cov-k small { font-size: 11px; color: var(--t3); margin-left: 2px; }
+/* 진행 목록 다듬기(데이터가 많이 보이게, 버튼·설명 줄은 얇게): 보기 전환은 상태 줄 오른쪽 작은 칩, 삭제·다시 진행은 같은 줄 오른쪽 작은 버튼 */
+#searchStatus.has-pbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.prog-bar { display: inline-flex; gap: 2px; padding: 2px; margin: 0; background: var(--raised); border-radius: 999px; flex: none; }
+.prog-bar button { flex: none; height: 22px; min-height: 0; padding: 0 10px; border: 0; border-radius: 999px; background: none; color: var(--t2); font-size: 12px; font-weight: 500; box-shadow: none; }
+.prog-bar button.on { background: var(--surface); color: var(--t1); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+.list li.pv { display: flex; flex-wrap: wrap; align-items: center; }
+.list li.pv > button[data-i] { flex: 1 1 0; min-width: 0; }
+.list li.pv > .ins-line { flex-basis: 100%; }
+.prog-mini { flex: none; height: 24px; min-height: 0; margin: 0 10px 0 2px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t3); font-size: 11px; font-weight: 500; line-height: 1; }
+.r-day { margin-left: 6px; font-size: 11px; color: var(--t3); font-variant-numeric: tabular-nums; }
+.r-sub .r-day:first-child { margin-left: 0; }
+.prog-act, .prog-del { display: none; }
+/* 진행 목록 줄: 고객 줄 버튼(#results.list button)의 큰 크기 규칙이 작은 버튼까지 덮지 않게 */
+#results.list li.pv { background: var(--surface); border-top: 1px solid var(--line); }
+#results.list li.pv > button[data-i] { border-top: 0; }
+#results.list button.prog-mini { width: auto; flex: none; min-height: 0; height: 26px; margin: 0 12px 0 0; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t3); font-size: 12px; font-weight: 500; gap: 0; justify-content: center; }
+#results.list button.prog-mini:active { background: var(--raised); }

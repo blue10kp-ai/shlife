@@ -963,7 +963,7 @@
     const status = $("searchStatus");
     const list = $("results");
     list.innerHTML = "";
-    { const eh = $("evHits"); if (eh) eh.remove(); const pb = $("progBar"); if (pb) pb.remove(); }
+    { const eh = $("evHits"); if (eh) eh.remove(); const pb = $("progBar"); if (pb) pb.remove(); $("searchStatus").classList.remove("has-pbar"); }
     const wide = searchWide;
     syncOpts();
     $("pageSearch").hidden = !!q || !!force;
@@ -1067,10 +1067,25 @@
       if (wide && q && !force) { openSearchPopup(q, custs, evs); return; } // 위쪽 전체검색: 결과는 팝업으로
       if (custs.length === 1 && q && (!keepList || tabReq)) { await openCustomer(custs[0]); if (tabReq) selectTab(tabReq); return; }
       const progView = optTypes.includes("progress");
-      if (progView) { // 진행 목록 위: [진행 N명] [진행 삭제 M명] 전환 (기본은 진행 고객)
+      const progDay = new Map(); // 고객 → 정렬·표시용 날짜(YYYY-MM-DD)
+      if (progView) { // 상태 줄 오른쪽 작은 칩: [진행 N] [삭제 M] (기본은 진행 고객). 한 줄을 따로 차지하지 않음
         const on = new Set(), off = new Set();
         records.forEach((r) => { if (fcPick !== FC_ALL && r.fc !== fcPick) return; const k = idOf(r) || r.name; if (r.type === "진행") on.add(k); else if (r.type === "진행제외") off.add(k); });
-        list.insertAdjacentHTML("beforebegin", `<div id="progBar" class="prog-bar"><button type="button" data-pview="on" class="${progShowRemoved ? "" : "on"}">진행 ${on.size}명</button><button type="button" data-pview="off" class="${progShowRemoved ? "on" : ""}">진행 삭제 ${off.size}명</button></div>`);
+        status.classList.add("has-pbar");
+        status.insertAdjacentHTML("beforeend", `<span id="progBar" class="prog-bar" role="group" aria-label="진행 보기"><button type="button" data-pview="on" class="${progShowRemoved ? "" : "on"}">진행 ${on.size}</button><button type="button" data-pview="off" class="${progShowRemoved ? "on" : ""}">삭제 ${off.size}</button></span>`);
+        // 정렬: 진행 = 진행이 된 날(이력의 '단계변경 … → 진행' 일시, 없으면 고객 줄 입력일시) 최신순 / 삭제 = 진행제외 날짜 최신순
+        const d10 = (v) => String(v || "").replace(/\./g, "-").slice(0, 10);
+        let hist = [];
+        if (!progShowRemoved) { try { hist = await loadHistory(); } catch (e) { hist = []; } }
+        const stageDay = new Map();
+        hist.forEach((h) => { if (String(h["유형"] || "").trim() !== "단계변경" || !/→\s*진행/.test(String(h["내용"] || ""))) return; const id = String(h["고객ID"] || "").trim(), t = d10(h["일시"]); if (id && t && (!stageDay.has(id) || stageDay.get(id) < t)) stageDay.set(id, t); });
+        custs.forEach((c) => {
+          let t = "";
+          if (progShowRemoved) t = d10(c.entries.map((e) => fieldOf(e, "진행제외")).find(Boolean));
+          else { const ids = c.entries.map(idOf).filter(Boolean); t = ids.map((id) => stageDay.get(id)).filter(Boolean).sort().pop() || d10(c.entries.map((e) => fieldOf(e, "입력일시")).filter(Boolean).sort().pop()); }
+          progDay.set(c, t);
+        });
+        custs.sort((x, y) => (progDay.get(y) || "").localeCompare(progDay.get(x) || "") || x.name.localeCompare(y.name, "ko"));
       }
       // 진행 보기: 계약한 고객이면 '계약' 태그, 영업단계(통화·AP·PC)도 함께 보여 줌
       list.innerHTML = custs.map((c, i) => {
@@ -1083,9 +1098,11 @@
           stage = all.map((e) => fieldOf(e, "영업단계")).find(Boolean) || "";
         }
         const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
-        return `<li><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
-          <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length ? `<span class="r-sub">${esc(fcs.join(", "))}</span>` : ""}${c.why && c.why.size ? `<span class="r-why">${[...c.why].map(([k, v]) => esc(k) + (v && k !== "연락처" ? " · " + esc(v) : "")).join(" / ")}</span>` : ""}</span>
-          ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(typeLabel(t))}</span>`).join("")}${stage ? `<span class="tag stg stg-${esc(stage)}">${esc(stage)}</span>` : ""}<span class="chev">›</span></button>${progView && !isRO((c.entries[0] || {}).fc) ? `<div class="prog-act">${progShowRemoved ? `<span class="prog-when">진행 삭제 · ${esc(c.entries.map((e) => fieldOf(e, "진행제외")).find(Boolean) || "")}</span><button type="button" class="prog-del" data-prest="${i}">다시 진행</button>` : `<button type="button" class="prog-del" data-pdel="${i}">진행에서 삭제</button>`}</div>` : ""}${insLineHtml(c)}</li>`;
+        const pd = progView ? progDay.get(c) : "";
+        const pdHtml = pd ? `<span class="r-day">${progShowRemoved ? "삭제" : "진행"} ${esc(pd.slice(5))}</span>` : "";
+        return `<li${progView ? ' class="pv"' : ""}><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
+          <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length || pdHtml ? `<span class="r-sub">${esc(fcs.join(", "))}${pdHtml}</span>` : ""}${c.why && c.why.size ? `<span class="r-why">${[...c.why].map(([k, v]) => esc(k) + (v && k !== "연락처" ? " · " + esc(v) : "")).join(" / ")}</span>` : ""}</span>
+          ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(typeLabel(t))}</span>`).join("")}${stage ? `<span class="tag stg stg-${esc(stage)}">${esc(stage)}</span>` : ""}<span class="chev">›</span></button>${progView && !isRO((c.entries[0] || {}).fc) ? (progShowRemoved ? `<button type="button" class="prog-mini" data-prest="${i}" aria-label="${esc(c.name)} 다시 진행">다시 진행</button>` : `<button type="button" class="prog-mini" data-pdel="${i}" aria-label="${esc(c.name)} 진행에서 삭제">삭제</button>`) : ""}${insLineHtml(c)}</li>`;
       }).join("");
       list.querySelectorAll("button[data-i]").forEach((b) =>
         b.addEventListener("click", async () => { await openCustomer(custs[+b.dataset.i]); if (tabReq) selectTab(tabReq); }));
@@ -3264,7 +3281,7 @@
     const s_inst = sec("앱 설치", ["안드로이드 크롬: 설정 화면의 [앱 설치](없으면 브라우저 메뉴의 ‘앱 설치’), 아이폰 사파리: 공유 → ‘홈 화면에 추가’. 설치하면 앱처럼 전체 화면으로 열립니다. 이미 설치했으면 설정에 설치 카드가 보이지 않습니다."]);
     const s_srch = sec("전체검색 · 고객검색", ["<b>위쪽 전체검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호뿐 아니라 고객 메모, 상담기록, 오늘 기준 1년 전~1개월 뒤 일정(제목·장소)에서도 찾습니다. 결과는 아래에서 올라오는 창에 고객(어디서 찾았는지 표시)과 일정으로 나뉘어 나오고, 누르면 고객 정보(상담기록에서 찾았으면 상담 탭) 또는 그날 일정으로 이동합니다.", "<b>고객 화면의 고객검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호로 고객만 찾는 기존 검색입니다. 한 명만 나오면 바로 고객 정보가 열립니다.", "검색칸이 비어 있을 때의 글자(전체검색·고객검색)는 오른쪽에 보입니다."]);
     const s_cov = sec("보장 요약 (고객 정보 > 분석 탭)", ["분석 탭 맨 위에 사망 · 3대진단(암·뇌·심) · 수술 · 입원 · 간병을 간단히 보여 줍니다. 스마트보장분석이 있으면 ‘전체 보험사에 가입된 보장 요약입니다.’, 신한라이프 상세보장내용만 있으면 ‘신한라이프에 가입된 보장 요약입니다.’라고 위에 적고, 맨 아래에 어느 문서의 몇 월 며칠 기준인지 나옵니다.", "‘미가입’은 가입한 보장이 없다는 뜻이고, ‘확인 안 됨’은 원본 문서에서 그 항목을 읽지 못했다는 뜻입니다. 이 값은 고객 등록·업데이트 때 미리 만들어 고객 시트의 ‘보장요약’ 칸에 저장해 둔 것을 읽기만 하므로 분석 탭을 열 때 계산하지 않습니다."]);
-    const s_prog = sec("진행 고객 삭제", ["고객 화면의 [진행] 목록 줄 아래 작은 <b>진행에서 삭제</b> 버튼, 또는 진행 고객의 고객 정보 머리 카드 아래 버튼을 누르면 ‘OO 고객을 진행 고객에서 뺄까요? 고객 정보는 지워지지 않아요.’라고 묻고, 확인하면 그 고객이 진행 목록에서 빠집니다. 고객 정보와 계약·상담 기록은 그대로입니다(고객 시트 ‘진행제외’ 칸에 날짜가 기록되고 이력에 ‘진행 삭제’ 한 줄이 남으며, 고객 정보 머리에 ‘진행 삭제 · 날짜’ 표시가 붙습니다). [진행] 목록 위의 <b>진행 N명 / 진행 삭제 M명</b> 버튼으로 진행 고객과 진행 삭제 고객을 바꿔 볼 수 있고(처음에는 진행 고객), 진행 삭제 목록의 줄마다, 그리고 진행 삭제 고객의 고객 정보에 <b>다시 진행</b> 버튼이 있어 누르면 확인 없이 바로 진행 고객으로 돌아가고(6초 안에 되돌릴 수도 있음) 이력에 ‘다시 진행’이 남습니다. 진행 삭제 표시는 지워지고 이력에는 남습니다.", "뺀 직후 6초 안에 나오는 [되돌리기]를 누르거나, 나중에 그 고객의 고객 정보에서 <b>다시 진행</b>을 누르면 다시 진행 고객이 됩니다. 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
+    const s_prog = sec("진행 고객 삭제", ["고객 화면의 [진행] 목록 줄 오른쪽 작은 <b>삭제</b> 버튼, 또는 진행 고객의 고객 정보 머리 카드 아래 버튼을 누르면 ‘OO 고객을 진행 고객에서 뺄까요? 고객 정보는 지워지지 않아요.’라고 묻고, 확인하면 그 고객이 진행 목록에서 빠집니다. 고객 정보와 계약·상담 기록은 그대로입니다(고객 시트 ‘진행제외’ 칸에 날짜가 기록되고 이력에 ‘진행 삭제’ 한 줄이 남으며, 고객 정보 머리에 ‘진행 삭제 · 날짜’ 표시가 붙습니다). [진행] 목록의 ‘N명 찾음’ 줄 오른쪽 작은 <b>진행 N / 삭제 M</b> 칩으로 진행 고객과 진행 삭제 고객을 바꿔 볼 수 있고(처음에는 진행 고객), 진행 목록은 진행이 된 날 최신순, 삭제 목록은 삭제한 날 최신순이며 줄마다 ‘진행 11-12’·‘삭제 11-15’처럼 날짜가 작게 보입니다, 진행 삭제 목록의 줄마다, 그리고 진행 삭제 고객의 고객 정보에 <b>다시 진행</b> 버튼이 있어 누르면 확인 없이 바로 진행 고객으로 돌아가고(6초 안에 되돌릴 수도 있음) 이력에 ‘다시 진행’이 남습니다. 진행 삭제 표시는 지워지고 이력에는 남습니다.", "뺀 직후 6초 안에 나오는 [되돌리기]를 누르거나, 나중에 그 고객의 고객 정보에서 <b>다시 진행</b>을 누르면 다시 진행 고객이 됩니다. 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
