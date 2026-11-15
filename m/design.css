@@ -827,3 +827,6 @@ html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
 .task-card .task-in { flex: 1 1 100%; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); color: var(--t1, inherit); font: inherit; font-size: 14px; box-sizing: border-box; }
 .task-card .task-ed { display: flex; align-items: center; gap: 4px; flex: 1 1 100%; justify-content: flex-end; }
 .task-card .task-date { height: 26px; padding: 0 6px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); color: var(--t1, inherit); font: inherit; font-size: 12.5px; margin-right: auto; color-scheme: light dark; }
+/* v325: 관리자 영업 화면 사용자 선택 = 월 줄 왼쪽 (FC 선택은 오른쪽 그대로) */
+.sline2:not(.center) select.sales-user { right: auto; left: 0; max-width: 96px; }
+.rh .sline2:not(.center) select.sales-user { max-width: 110px; }
