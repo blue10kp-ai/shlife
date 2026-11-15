@@ -801,3 +801,9 @@ html.embed .save-ind { bottom: calc(64px + env(safe-area-inset-bottom)); }
 #salesView .sales-info .sinfo-r { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 /* v317: 고객 화면 아래 필터 줄과 하단 메뉴 사이 틈으로 목록 글자가 비치지 않게, 필터 줄 배경을 아래로 이어 메뉴 뒤까지 채움 */
 html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
+/* v319: [이동]/[원복]은 이름 줄 칩 오른쪽, 얇은 세로 구분선 뒤. 칩과 같은 높이·가운데 정렬 */
+#salesView .sline.l1 .rt { align-items: center; }
+#salesView .sline.l1 .ar-sep { display: inline-block; width: 1px; height: 14px; margin: 0 3px 0 4px; background: var(--line); flex: none; }
+#salesView .sline.l1 .ar-btn { flex: none; height: 20px; min-height: 0; margin: 0; padding: 0 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--t2); font: inherit; font-size: 10.5px; font-weight: 600; line-height: 18px; white-space: nowrap; cursor: pointer; box-shadow: none; -webkit-tap-highlight-color: transparent; }
+#salesView .sline.l1 .ar-btn.back { color: var(--brand, #1f5fae); border-color: currentColor; }
+#salesView .sline.l1 .ar-auto { flex: none; font-size: 10.5px; font-weight: 600; color: var(--t3); line-height: 20px; }
