@@ -3339,7 +3339,7 @@
     const grp = (t) => `<h3 class="help-grp">${t}</h3>`; // 하단 메뉴 순서대로 묶음: AI · 일정 · (고객) · 영업 · 설정/관리자
     const s_start = sec("시작 화면", ["<b>처음 보일 화면</b>: 설정(관리자는 관리자) 화면의 '시작 화면' 카드에서 앱을 열었을 때 처음 보일 화면을 고릅니다. 일정 · 고객(기본) · 영업 중 하나를 고르고 아래 [저장]을 누르면 다음에 앱을 열 때부터 적용됩니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '시작하면 AI 도우미를 바로 열기'를 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
     const s_ai = sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 위 말처럼 규칙으로 알아듣는 말은 이 폰 안에서만 처리하고 밖으로 보내지 않습니다. 규칙으로 못 알아들은 말만 Gemini(외부 AI)에 '무슨 뜻인지'를 묻는데, 그때 고객 이름은 [고객1] 같은 자리표시로, 주민번호·전화·계좌·이메일·주소 같은 숫자·주소는 [숫자]·[주소]로 가려서 보내고 답을 받은 뒤 앱 안에서 되돌립니다. 말만해요 설정에 Gemini 키가 없거나 연결이 안 되면 규칙만 쓰며, 확인 카드에 ‘AI가 해석’이라고 표시되고 [실행]을 눌러야 처리됩니다."]);
-    const s_task = sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
+    const s_task = sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드의 <b>비영업</b> 버튼을 눌러 영업일정으로 바꾼 일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
     const s_addev = sec("일정 추가 (일정 화면)", ["일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). <b>복귀</b> 버튼(추가의 왼쪽)은 그날 영업일정을 모두 비영업일정으로 바꾸고, 동명이인 지정·고객 정보로 넣은 일정 장소도 되돌립니다(영업일정이나 처리한 일정이 있는 날에만 보임). 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
     const s_sub = sec("영업 서브메뉴", ["영업 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>자료</b>를 눌러 바꿉니다. 이달목표 안에는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘영업 페이지 접근 허용’에 체크한 FC만 나옵니다(관리자 계정도 같은 기준, 하나뿐이면 선택창 없음). 자료는 영업에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
@@ -4133,6 +4133,19 @@
     }));
     return all.filter((t) => t.due >= ymdStr(from) && t.due < ymdStr(to)).sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title, "ko"));
   }
+  // v323: 미완료 할 일 전부(마감 조건 없음). Today 카드의 '밀린 할 일'·'날짜 없음' 묶음용
+  async function fetchOpenTasks() {
+    const lists = ((await gtasks("/users/@me/lists?maxResults=100")).items) || [], all = [];
+    await Promise.all(lists.map(async (l) => {
+      let tok = "", n = 0;
+      do {
+        const r = await gtasks("/lists/" + encodeURIComponent(l.id) + "/tasks?showCompleted=false&showHidden=true&maxResults=100" + (tok ? "&pageToken=" + encodeURIComponent(tok) : ""));
+        (r.items || []).forEach((t) => { if (t.status !== "completed" && !t.deleted && String(t.title || "").trim()) all.push({ id: t.id, listId: l.id, list: l.title || "", title: t.title || "(제목 없음)", done: false, due: t.due ? String(t.due).slice(0, 10) : "" }); });
+        tok = r.nextPageToken || "";
+      } while (tok && ++n < 20);
+    }));
+    return all;
+  }
   const taskConnectHtml = (msg) => `<div class="card task-card"><h3 class="sec-title">할 일</h3><p class="hint">${esc(msg || "구글 할 일을 보려면 한 번 연결해 주세요.")}</p><button type="button" class="ev-edit" data-taskconnect>할 일 연결</button></div>`;
   let taskOwnerCal = "";
   // 할 일 소유주 = 앱에 등록된 사용자 이름(관리자 화면의 이름), 없으면 내 기본 캘린더 이름
@@ -4142,18 +4155,23 @@
     if (!n) { try { const pc = (await calendarList()).find((c) => c.primary); n = pc ? pc.name : ""; } catch (e) { n = ""; } }
     return n;
   }
-  const taskItemHtml = (t) => `<li class="task-item${t.done ? " done" : ""}"><label><input type="checkbox" class="cb" data-task="${esc(t.listId)}|${esc(t.id)}" ${t.done ? "checked" : ""}> <span class="task-title">${esc(t.title)}</span>${taskOwnerCal ? ` <span class="ev-cal">- ${esc(taskOwnerCal)}</span>` : ""}</label>${t.list ? `<span class="hint task-list-name">${esc(t.list)}</span>` : ""}</li>`;
+  const taskItemHtml = (t, grp) => `<li class="task-item${t.done ? " done" : ""}"${grp ? ` data-tgrp="${grp}"` : ""}><label><input type="checkbox" class="cb" data-task="${esc(t.listId)}|${esc(t.id)}" ${t.done ? "checked" : ""}>${grp === "late" && t.due ? ` <span class="task-due">${esc(t.due.slice(5))}</span>` : ""} <span class="task-title">${esc(t.title)}</span>${taskOwnerCal ? ` <span class="ev-cal">- ${esc(taskOwnerCal)}</span>` : ""}</label>${t.list ? `<span class="hint task-list-name">${esc(t.list)}</span>` : ""}</li>`;
   // 하루 보기 맨 위 '할 일' 카드
   async function loadDayTasks(box, d, req) {
     if (!box) return;
     if (!storedTasksToken()) { box.innerHTML = taskConnectHtml(); trySilentTasks().then((ok) => { if (ok && req === schedReq) loadDayTasks(box, d, req); }); return; }
     try {
-      const list = await fetchTasks(d, addDays(d, 1));
+      const today = ymdStr(dayStart(new Date())), isToday = ymdStr(d) === today;
+      const [list, open] = await Promise.all([fetchTasks(d, addDays(d, 1)), isToday ? fetchOpenTasks().catch((e) => { console.warn("tasks open", e.message); return []; }) : Promise.resolve([])]);
       if (req !== schedReq) return;
+      const late = open.filter((t) => t.due && t.due < today).sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title, "ko"));
+      const nodue = open.filter((t) => !t.due).sort((a, b) => a.title.localeCompare(b.title, "ko"));
       // 소유주: 구글 할 일은 로그인한 구글 계정 것이라, 앱에 등록된 내 이름(없으면 구글 계정)을 제목에 붙임
       taskOwnerCal = await taskOwnerName();
       if (req !== schedReq) return;
-      box.innerHTML = list.length ? `<div class="card task-card"><h3 class="sec-title">할 일 <small class="hint">${list.filter((t) => !t.done).length}/${list.length}</small></h3><ul class="task-list">${list.map(taskItemHtml).join("")}</ul></div>` : "";
+      const grpHtml = (key, label, arr) => arr.length ? `<div class="task-grp" data-tgrpbox="${key}"><div class="task-grp-h">${label} <small>${arr.length}</small></div><ul class="task-list">${arr.map((t) => taskItemHtml(t, key)).join("")}</ul></div>` : "";
+      const total = list.length + late.length + nodue.length;
+      box.innerHTML = total ? `<div class="card task-card"><h3 class="sec-title">할 일 <small class="hint task-cnt">${list.filter((t) => !t.done).length + late.length + nodue.length}/${total}</small></h3>${list.length ? `<ul class="task-list">${list.map((t) => taskItemHtml(t)).join("")}</ul>` : ""}${grpHtml("late", "밀린 할 일", late)}${grpHtml("nodue", "날짜 없음", nodue)}</div>` : "";
     } catch (e) {
       if (req !== schedReq) return;
       box.innerHTML = e.message === "TASKS_AUTH" ? taskConnectHtml("할 일 연결 시간이 지났거나 할 일 권한을 허용하지 않았습니다. 다시 연결해 주세요.")
@@ -4178,6 +4196,12 @@
       });
     } catch (e) { /* 연결이 없거나 만료면 주간 보기엔 아무 것도 덧붙이지 않음 */ }
   }
+  // 카드 제목 카운트 = 미완료/전체 (밀린 할 일·날짜 없음 포함, 빠진 줄은 제외)
+  function taskCount(card) {
+    const el = card.querySelector(".task-cnt"), lis = [...card.querySelectorAll(".task-item")];
+    if (el) el.textContent = lis.filter((li) => !li.classList.contains("done")).length + "/" + lis.length;
+    card.querySelectorAll(".task-grp").forEach((g) => { const n = g.querySelectorAll(".task-item").length, sm = g.querySelector(".task-grp-h small"); if (sm) sm.textContent = n; });
+  }
   // 체크 → 완료/미완료 저장, '할 일 연결' 버튼
   document.addEventListener("change", async (ev) => {
     const cb = ev.target && ev.target.closest && ev.target.closest("[data-task]");
@@ -4187,6 +4211,18 @@
     try {
       await gtasks("/lists/" + encodeURIComponent(listId) + "/tasks/" + encodeURIComponent(taskId), { method: "PATCH", body: JSON.stringify(want ? { status: "completed" } : { status: "needsAction", completed: null }) });
       const li = cb.closest("li"); if (li) li.classList.toggle("done", want);
+      const grp = li && li.dataset.tgrp, card = cb.closest(".task-card");
+      if (want && grp && card) { // 밀린 할 일·날짜 없음: 완료되면 묶음에서 빠짐
+        const box = li.closest(".task-grp"), ul = li.parentNode, next = li.nextSibling;
+        li.remove(); if (box && !box.querySelector("li")) box.hidden = true;
+        taskCount(card);
+        undoToast("완료했어요", async () => {
+          try {
+            await gtasks("/lists/" + encodeURIComponent(listId) + "/tasks/" + encodeURIComponent(taskId), { method: "PATCH", body: JSON.stringify({ status: "needsAction", completed: null }) });
+            cb.checked = false; li.classList.remove("done"); ul.insertBefore(li, next && next.parentNode === ul ? next : null); if (box) box.hidden = false; taskCount(card);
+          } catch (e) { toast(e.message === "TASKS_AUTH" ? "할 일 연결이 만료됐습니다. 다시 연결해 주세요." : e.message); }
+        });
+      } else if (card) taskCount(card);
     } catch (e) { cb.checked = !want; toast(e.message === "TASKS_AUTH" ? "할 일 연결이 만료됐습니다. 다시 연결해 주세요." : e.message); }
     cb.disabled = false;
   });
