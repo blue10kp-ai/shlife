@@ -889,3 +889,30 @@ html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
 .disp3 .d3c { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 500; color: var(--t1); white-space: nowrap; }
 .disp3 .d3c .cb { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
 .disp3 select { width: 100%; height: 30px; padding: 0 6px; font-size: 14px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--bg); color: var(--t1); }
+/* v338: 조직도 오른쪽 표시란 — 구분선 대신 연한 바탕 상자, 켜짐만 색 */
+.org-card .org-set { align-self: flex-start; margin: 0 0 0 auto; padding: 6px 10px; border-left: 0; border-radius: 8px; background: color-mix(in srgb, var(--t3) 8%, transparent); column-gap: 10px; row-gap: 3px; min-width: 88px; }
+.org-card .org-set span { font-size: 11.5px; line-height: 16px; }
+.org-card .org-set span i { color: var(--t3); }
+.org-card .org-set span b { font-weight: 600; color: var(--t1); }
+.org-card .org-set span.off b { font-weight: 400; color: var(--t3); }
+.org-card .org-set span.on b { color: var(--accent); }
+/* v339: 직책 드롭박스·태그, (이 기기) */
+.org-card .org-nm { display: flex; align-items: center; gap: 6px; }
+.org-card .org-title { height: 22px; padding: 0 4px; font-size: 11.5px; font-weight: 600; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--accent); }
+.org-card .org-dev { font-size: 11px; }
+.perm-nmrow { display: inline-flex; align-items: center; gap: 6px; }
+.rank-tag { flex: none; font-size: 11px; font-weight: 600; color: var(--accent); }
+/* v340: 조직도 이름 버튼 · 사용자 정보 화면 */
+.org-card .org-nmbtn { padding: 0; border: 0; background: none; font: inherit; font-size: 14px; font-weight: 700; color: var(--t1); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; }
+.pf-head { margin: 10px 0 8px; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+.pf-form { display: grid; gap: 6px; }
+.pf-row { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; font-size: 13px; color: var(--t2); }
+.pf-row input, .pf-row select, .pf-row textarea { width: 100%; min-width: 0; box-sizing: border-box; height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); color: var(--t1); font: inherit; font-size: 14px; }
+.pf-row textarea { height: auto; padding: 6px 8px; resize: vertical; }
+.pf-row input.ro { background: transparent; color: var(--t3); }
+.pf-sub { margin: 16px 0 6px; font-size: 14px; font-weight: 600; color: var(--t1); }
+.pf-kvs { display: grid; gap: 0; border-top: 1px solid var(--line); }
+.pf-kv { display: grid; grid-template-columns: 110px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.pf-kv span { color: var(--t3); }
+.pf-kv b { font-weight: 500; color: var(--t1); }
+.pf-note { font-size: 11.5px; margin-top: 8px; }
