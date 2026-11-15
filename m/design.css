@@ -988,3 +988,14 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 .perm-row.pf-click .perm-id .perm-name { display: none; }
 .perm-row.pf-click .perm-nm-txt { font-size: 16px; font-weight: 700; color: var(--t1); white-space: nowrap; }
 .perm-row.pf-click .perm-nmrow { gap: 6px; }
+/* v357(2026-11-16 사용자 지시): 영업 위쪽 '예전 모양(탭 줄)' 폐기 — 폰 폭도 한 줄 [‹ 월 ›] … [사용자][FC][따행·이관·DB] */
+#salesView .sales-top .seg { display: none !important; }
+@media (max-width: 480px) {
+  #salesView .sline2.sl3 { display: flex; align-items: center; justify-content: space-between; gap: 4px; position: static; }
+  #salesView .sline2.sl3 .ymnav { flex: none; margin: 0; gap: 2px; }
+  #salesView .sline2.sl3 .ymnav button { width: 26px; height: 26px; }
+  #salesView .sline2.sl3 .ymnav > b { font-size: 14.5px; letter-spacing: -0.2px; }
+  #salesView .sline2.sl3 .sl-rt { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+  #salesView .sline2.sl3 select { position: static !important; transform: none !important; flex: none; height: 30px; padding: 0 2px; font-size: 13px; max-width: 74px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); color: var(--t1); }
+  #salesView .sline2.sl3 #salesTab { display: inline-block !important; font-weight: 600; color: var(--accent); }
+}
