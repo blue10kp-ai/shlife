@@ -954,3 +954,22 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 .sched-nav::before { content: ""; flex: 1 1 0; min-width: 0; }
 .sched-nav .sched-rt { position: static; transform: none; order: 9; flex: 1 1 0; min-width: max-content; display: flex; justify-content: flex-end; margin: 0; }
 @media (max-width: 480px) { .sched-nav .sched-rt button, .sched-nav .sched-rt #pickReset, .sched-nav .sched-rt #schedAdd { padding: 0 10px; min-width: 0; } .sched-nav .sched-label { padding: 0 2px; } }
+/* v348(2026-11-16 사용자 지시): 넓은 화면 영업 위 줄 = 가운데 [‹ 월 ›], 오른쪽 끝 [사용자][FC][따행·이관·DB]. 폰 폭은 예전 그대로 */
+@media (min-width: 481px) {
+  #salesView .sline2.sl3 { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 8px; }
+  #salesView .sline2.sl3 .ymnav { grid-column: 2; }
+  #salesView .sline2.sl3 .sl-rt { grid-column: 3; justify-self: end; display: flex; align-items: center; gap: 6px; }
+}
+@media (max-width: 480px) { #salesView .sline2.sl3 .sl-rt { display: contents; } }
+/* v349: 계정 카드 [수정] 다시 보임(팝업 수정 모드), 팝업 보기 모드는 입력 칸 테두리 없이 */
+.perm-row.pf-click [data-rowedit] { display: inline-flex !important; }
+.pf-view .pf-row input, .pf-view .pf-row select, .pf-view .pf-row textarea { border-color: transparent; background: transparent; color: var(--t1); -webkit-text-fill-color: var(--t1); opacity: 1; appearance: none; -webkit-appearance: none; padding-left: 0; }
+.pf-view .pf-row input::placeholder { color: transparent; }
+.pf-view .pf-start select { flex: none; }
+.pf-view .pf-ai { opacity: .8; }
+.pf-view .pf-row input[type="checkbox"] { appearance: auto; -webkit-appearance: checkbox; width: 16px; height: 16px; padding: 0; }
+.pf-view .pf-row textarea { resize: none; }
+.pf-view .pf-start select { flex: 0 0 auto; width: auto; min-width: 48px; }
+/* v350(2026-11-16 사용자 지시): 고객 화면 FC 칩(전체·김현성·…)을 오른쪽으로 */
+#fcOpts { text-align: right; justify-content: flex-end; }
+#fcOpts #fcoSel { margin-left: auto; }
