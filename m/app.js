@@ -3128,6 +3128,7 @@
     $("adminBody").innerHTML = personal + `<h2 class="admin-sec">관리자</h2>
       <div class="card">
         <h3 class="sec-title org-h">FC 사용 설정 <button type="button" class="ev-edit" data-org>조직도</button></h3>
+        <p class="hint org-note-top">고객·영업 페이지 접근과 민감정보 권한은 [조직도]에서 정합니다.</p>
         ${(() => {
           const sh = adminState.shares, adm = (CFG.admins || []).map((a) => a.toLowerCase());
           const hits = ((sh && sh.anc) || []).flatMap((a) => a.perms.filter((p) => p.role !== "owner" && !adm.includes(p.email)).map((p) => esc((perms.names || {})[p.email] || p.email) + " ← '" + esc(a.name) + "' 폴더(" + p.role + ")"));
@@ -3142,6 +3143,7 @@
               <span class="perm-btns"><button type="button" class="secondary" data-rowedit="${esc(em)}">수정</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button><button type="button" class="secondary" data-rowcancel="${esc(em)}" hidden>취소</button><button type="button" class="primary row-save" data-rowsave="${esc(em)}" hidden>저장</button></span>
             </div>
             <div class="perm-body"><div class="perm-pfx">${pfxHtml(em)}</div>${startRowHtml(perms, em)}
+            <div class="perm-moved" hidden>
             <div class="perm-sens"><label class="chip"><input type="checkbox" class="cb" data-sens="${esc(em)}" ${(perms.sensitive || []).includes(em) ? "checked" : ""} aria-label="${esc(em)} 민감정보 접근"> 민감정보 접근 허용</label></div>
             ${salesHtml(em)}
             <p class="hint perm-lbl">• 고객 페이지 접근 허용</p>
@@ -3149,7 +3151,7 @@
               <label class="chip chip-all" hidden title="전체(*)는 폐지 — 해제하고 FC를 체크하세요"><input type="checkbox" class="cb" data-all ${isAll(em) ? "checked" : ""} aria-label="${esc(em)} 전체"> 전체(폐지 예정)</label>
               <div class="fc-line fc-head"><span class="fc-nm">FC</span><span class="fc-c">보기</span><span class="fc-c">수정</span></div>
               ${fcsFor(em).map((fc) => { const own = fc === ownFc(em); return `<div class="fc-line${own ? " own" : ""}"><span class="fc-nm">${esc(fc)}${own ? ' <small class="hint">(본인)</small>' : ""}</span><label class="fc-c"><input type="checkbox" class="cb" data-fc="${esc(fc)}" ${has(em, fc) ? "checked" : ""} ${own ? 'data-own="1" disabled' : ""} aria-label="${esc(em)} ${esc(fc)} 보기"></label><label class="fc-c"><input type="checkbox" class="cb ro" data-edit="${esc(fc)}" ${has(em, fc) && canEdit(em, fc) ? "checked" : ""} ${own || isAll(em) ? 'data-own="1" disabled' : ""} aria-label="${esc(em)} ${esc(fc)} 수정"></label></div>`; }).join("")}
-            </div></div>
+            </div></div></div>
           </div>`).join("")}
         </div>
         ${users.length ? "" : '<p class="hint">아직 권한을 준 사용자가 없습니다. 아래에서 이메일을 추가하세요.</p>'}
@@ -3183,10 +3185,13 @@
     const same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
     const sel = (row) => {
       const all = row.querySelector("input[data-all]");
-      return all.checked ? ["*"] : [...row.querySelectorAll("input[data-fc]")].filter((b) => b.checked).map((b) => {
+      const l = all.checked ? ["*"] : [...row.querySelectorAll("input[data-fc]")].filter((b) => b.checked).map((b) => {
         const ed = row.querySelector(`input[data-edit="${CSS.escape(b.dataset.fc)}"]`);
         return b.dataset.fc + (ed && ed.checked ? "" : ":r"); // 수정 체크 없으면 보기만
       });
+      const nm = (row.querySelector("[data-name]") || {}).value; // v331: FC 체크 칸이 조직도로 옮겨져, 새 사용자는 이름(FC명) = 본인 FC로 시작
+      if (!l.length && nm && fcs.includes(nm.trim())) l.push(nm.trim());
+      return l;
     };
     const nameVal = (row) => row.querySelector("[data-name]").value.trim();
     // 체크가 바뀐 줄 + Drive 공유가 체크 상태와 다른 줄(예: 예전 방식 공유)도 '변경 저장' 대상으로 표시
@@ -3488,7 +3493,7 @@
     const s_prog = sec("보관 (이동 · 원복)", ["고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 영업 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다.", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 고객 화면 [이관] 목록에서는 <b>이달 N / 보관 M</b> 칩(이달 이관 고객 수)과 줄의 이동·원복으로 그 고객의 <b>이달 이관 계약만</b> 한꺼번에 보관하거나 원복합니다(이관일자가 이번 달인 계약 = 이달목표 > 이관에 나오는 계약, 지난 달 이관·담당이 다른 FC 계약은 그대로). 이달 이관 계약이 없는 이관 고객에는 버튼이 없습니다. 고객 정보 화면 탭 줄 오른쪽에도 보관할 수 있는 목록마다 <b>보관으로 이동</b>/<b>원복</b> 버튼이 나옵니다(여러 개면 ‘진행 보관’·‘DB 보관’·‘이관 보관’처럼 앞에 목록 이름). 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
-    const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 이 체크대로 그 사용자의 FC를 봅니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: ‘FC 사용 설정’ 제목 옆 [조직도]를 누르면 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>·<b>수정</b>으로 그 사람이 아래 조직(하위 사용자 FC)의 고객을 볼지·고칠지 정합니다(수정은 보기를 포함). 카드 아래 작은 글씨에 그 결과 FC가 보이고, [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 준 권한만 조직도에서 빼면 되돌아가고, 계정 카드에서 직접 체크한 권한은 그대로 둡니다. 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다."]);
+    const s_perm = sec("FC 사용 설정 (권한)", ["사용자를 추가할 때 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작합니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>[조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자 줄의 ‘영업 페이지 접근 허용’은 관리자 본인 선택창용이라 그대로 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: ‘FC 사용 설정’ 제목 옆 [조직도]를 누르면 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>·<b>수정</b>으로 그 사람이 아래 조직(하위 사용자 FC)의 고객을 볼지·고칠지 정합니다(수정은 보기를 포함). 카드 아래 작은 글씨에 그 결과 FC가 보이고, [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 준 권한만 조직도에서 빼면 되돌아가고, 계정 카드에서 직접 체크한 권한은 그대로 둡니다. 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("검색"), s_srch, grp("고객 정보"), s_cov, s_prog, grp("일정"), s_addev, s_task, s_cal, grp("영업"), s_sub, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];

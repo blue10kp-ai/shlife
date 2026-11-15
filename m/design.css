@@ -854,3 +854,5 @@ html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
 /* v329: 조직도 체크 줄 구분선 (보기·수정 | 민감정보) */
 .org-cbs { align-items: center; }
 .org-cbs .org-sep { display: inline-block; width: 1px; height: 12px; background: var(--line); margin: 0 -4px; }
+/* v331: 계정 카드 권한 칸은 조직도로 옮김 */
+.org-note-top { font-size: 11.5px; margin: -2px 0 6px; }
