@@ -851,3 +851,6 @@ html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
 .org-node.dragging > .org-card { opacity: .35; }
 .org-node.drop > .org-card { outline: 2px solid var(--accent); outline-offset: 1px; }
 .org-ghost { position: fixed; left: 0; top: 0; z-index: 9999; pointer-events: none; box-shadow: 0 6px 18px rgba(0,0,0,.18); opacity: .95; }
+/* v329: 조직도 체크 줄 구분선 (보기·수정 | 민감정보) */
+.org-cbs { align-items: center; }
+.org-cbs .org-sep { display: inline-block; width: 1px; height: 12px; background: var(--line); margin: 0 -4px; }
