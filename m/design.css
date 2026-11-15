@@ -973,3 +973,18 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 /* v350(2026-11-16 사용자 지시): 고객 화면 FC 칩(전체·김현성·…)을 오른쪽으로 */
 #fcOpts { text-align: right; justify-content: flex-end; }
 #fcOpts #fcoSel { margin-left: auto; }
+/* v353: 계정 카드 자체는 눌러도 반응 없음 */
+.perm-row.pf-click .perm-head { cursor: default; }
+/* v355(2026-11-16 사용자 지시): 계정 카드 — 이름·직책·이메일을 한 줄로, 긴 이메일은 줄바꿈 대신 … 로 */
+.perm-row.pf-click .perm-id { flex-wrap: nowrap; }
+.perm-row.pf-click .perm-nmrow { flex: none; }
+.perm-row.pf-click .perm-id .perm-name { flex: none; width: 6.5em; max-width: none; }
+.perm-row.pf-click .perm-id .perm-mail { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; word-break: normal; text-align: right; }
+@media (max-width: 480px) { /* 폰 폭: 모든 카드가 같은 모양 — 1줄 이름·직책, 2줄 이메일(넘치면 …) */
+  .perm-row.pf-click .perm-id { flex-wrap: wrap; row-gap: 2px; }
+  .perm-row.pf-click .perm-id .perm-mail { flex: 1 1 100%; text-align: left; }
+}
+/* v356(2026-11-16 사용자 지시): 계정 카드 직책을 이름 바로 옆에 — 이름은 글자로, 숨긴 입력칸은 그대로(저장 로직용) */
+.perm-row.pf-click .perm-id .perm-name { display: none; }
+.perm-row.pf-click .perm-nm-txt { font-size: 16px; font-weight: 700; color: var(--t1); white-space: nowrap; }
+.perm-row.pf-click .perm-nmrow { gap: 6px; }
