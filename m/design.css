@@ -771,3 +771,8 @@ html { scrollbar-gutter: stable; }
 #results.list li.pv > button[data-i] { border-top: 0; }
 #results.list button.prog-mini { width: auto; flex: none; min-height: 0; height: 26px; margin: 0 12px 0 0; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t3); font-size: 12px; font-weight: 500; gap: 0; justify-content: center; }
 #results.list button.prog-mini:active { background: var(--raised); }
+/* 고객 정보: [진행에서 삭제]/[다시 진행]은 정보·계약·분석·상담 탭 줄 오른쪽 끝 (머리 카드 아래 한 줄을 따로 쓰지 않음) */
+.tabs-row { display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--line); margin: 20px 0 8px; }
+.tabs-row > .tabs { flex: 1 1 auto; min-width: 0; border-bottom: 0; margin: 0; overflow-x: auto; scrollbar-width: none; }
+.tabs-row > .stage-act { flex: none; margin: 0; }
+.tabs-row > .stage-act button { height: 26px; padding: 0 9px; font-size: 12px; }
