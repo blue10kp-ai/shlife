@@ -970,9 +970,9 @@
   // 검색 결과에서 같은 이름을 구분하도록 이름 옆에 작게: 생년 · 남/여 · 지역
   function birthYear(b) { const raw = String(b || "").trim(), m4 = raw.match(/^((?:19|20)\d{2})(?:\D|$)/); if (m4) return m4[1]; const x = raw.replace(/\D/g, ""); if (/^(19|20)\d{2}($|\d{4})/.test(x) && (x.length === 4 || x.length === 8)) return x.slice(0, 4); if (x.length >= 6) { const yy = +x.slice(0, 2), cy = new Date().getFullYear() % 100; return (yy > cy ? 1900 + yy : 2000 + yy) + ""; } return ""; }
   const resultInfo = (c) => [birthYear(c.birth), genderOf(c), regionOf(c)].filter(Boolean).join(" · ");
-  let progShowRemoved = false; // [진행] 목록: false = 진행 고객, true = 진행 삭제 고객
-  let dbShowRemoved = false; // [DB] 목록: false = DB 고객, true = DB 삭제 고객(삭제한 고객 + 계약 고객)
-  const typeLabel = (t) => (t === "진행제외" ? "진행 삭제" : t);
+  let progShowRemoved = false; // [진행] 목록: false = 진행 고객, true = 보관(진행에서 이동한) 고객
+  let dbShowRemoved = false; // [DB] 목록: false = DB 고객, true = 보관(이동한 고객 + 계약 고객)
+  const typeLabel = (t) => (t === "진행제외" ? "진행 보관" : t);
   let goTabPending = ""; // 말만해요 tab=analysis 등: 고객 정보를 열 때 이 탭으로
   let goKeepList = null; // 말만해요에서 넘어온 검색어: 한 명만 나와도 목록을 보여 줌
   async function search(q, force) {
@@ -1086,13 +1086,14 @@
       if (wide && q && !force) { openSearchPopup(q, custs, evs); return; } // 위쪽 전체검색: 결과는 팝업으로
       if (custs.length === 1 && q && (!keepList || tabReq)) { await openCustomer(custs[0]); if (tabReq) selectTab(tabReq); return; }
       const progView = optTypes.includes("progress");
-      const dbView = !progView && optTypes.includes("db");
+      const dbOn = optTypes.includes("db"); // DB 필터가 켜져 있음(다른 필터와 함께여도)
+      const dbView = !progView && dbOn; // DB 보기 칩·정렬은 진행 필터가 없을 때
       const progDay = new Map(); // 고객 → 정렬·표시용 날짜(YYYY-MM-DD)
       if (progView) { // 상태 줄 오른쪽 작은 칩: [진행 N] [삭제 M] (기본은 진행 고객). 한 줄을 따로 차지하지 않음
         const on = new Set(), off = new Set();
         records.forEach((r) => { if (fcPick !== FC_ALL && r.fc !== fcPick) return; const k = idOf(r) || r.name; if (r.type === "진행") on.add(k); else if (r.type === "진행제외") off.add(k); });
         status.classList.add("has-pbar");
-        status.insertAdjacentHTML("beforeend", `<span id="progBar" class="prog-bar" role="group" aria-label="진행 보기"><button type="button" data-pview="on" class="${progShowRemoved ? "" : "on"}">진행 ${on.size}</button><button type="button" data-pview="off" class="${progShowRemoved ? "on" : ""}">삭제 ${off.size}</button></span>`);
+        status.insertAdjacentHTML("beforeend", `<span id="progBar" class="prog-bar" role="group" aria-label="진행 보기"><button type="button" data-pview="on" class="${progShowRemoved ? "" : "on"}">진행 ${on.size}</button><button type="button" data-pview="off" class="${progShowRemoved ? "on" : ""}">보관 ${off.size}</button></span>`);
         // 정렬: 진행 = 진행이 된 날(이력의 '단계변경 … → 진행' 일시, 없으면 고객 줄 입력일시) 최신순 / 삭제 = 진행제외 날짜 최신순
         const d10 = (v) => String(v || "").replace(/\./g, "-").slice(0, 10);
         let hist = [];
@@ -1111,7 +1112,7 @@
         const on = new Set(), off = new Set();
         records.forEach((r) => { if (fcPick !== FC_ALL && r.fc !== fcPick) return; if (!isDbRec(r)) return; (dbOffRec(r) ? off : on).add(idOf(r) || r.name); });
         status.classList.add("has-pbar");
-        status.insertAdjacentHTML("beforeend", `<span id="progBar" class="prog-bar" role="group" aria-label="DB 보기"><button type="button" data-dview="on" class="${dbShowRemoved ? "" : "on"}">DB ${on.size}</button><button type="button" data-dview="off" class="${dbShowRemoved ? "on" : ""}">삭제 ${off.size}</button></span>`);
+        status.insertAdjacentHTML("beforeend", `<span id="progBar" class="prog-bar" role="group" aria-label="DB 보기"><button type="button" data-dview="on" class="${dbShowRemoved ? "" : "on"}">DB ${on.size}</button><button type="button" data-dview="off" class="${dbShowRemoved ? "on" : ""}">보관 ${off.size}</button></span>`);
         const d10 = (v) => String(v || "").replace(/\./g, "-").slice(0, 10);
         custs.forEach((c) => {
           const ex = c.entries.map((e) => fieldOf(e, "DB제외")).find(Boolean);
@@ -1133,10 +1134,14 @@
         }
         const fcs = [...new Set(c.entries.map((e) => e.fc).filter(Boolean))];
         const pd = progView || dbView ? progDay.get(c) : "";
-        const pdHtml = c.dbAuto && dbView ? `<span class="r-day">계약</span>` : pd ? `<span class="r-day">${dbView ? (dbShowRemoved ? "삭제 " + esc(pd.slice(5)) : "유입 " + esc(pd.slice(2))) : (progShowRemoved ? "삭제" : "진행") + " " + esc(pd.slice(5))}</span>` : ""; // FC 이름 뒤에 한 칸 띄우고 작게
-        return `<li${progView || dbView ? ' class="pv"' : ""}><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
+        const pdHtml = c.dbAuto && dbView ? `<span class="r-day">계약</span>` : pd ? `<span class="r-day">${dbView ? (dbShowRemoved ? "보관 " + esc(pd.slice(5)) : "유입 " + esc(pd.slice(2))) : (progShowRemoved ? "보관" : "진행") + " " + esc(pd.slice(5))}</span>` : ""; // FC 이름 뒤에 한 칸 띄우고 작게
+        // 보관 버튼: 필터가 여럿이어도 이 고객이 보관 가능할 때만 (진행 필터 → 진행 고객, DB 필터 → DB 고객). 둘 다 해당하면 진행 우선
+        const ro = isRO((c.entries[0] || {}).fc);
+        const canProg = progView && !ro && c.entries.some((e) => e.sheet === CUST_SHEET && e.type === (progShowRemoved ? "진행제외" : "진행"));
+        const canDb = dbOn && !ro && !canProg && !c.dbAuto && c.entries.some((e) => e.sheet === CUST_SHEET && isDbRec(e) && (dbShowRemoved ? !!fieldOf(e, "DB제외") && !dbAutoRec(e) : !dbOffRec(e)));
+        return `<li${progView || dbOn ? ' class="pv"' : ""}><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
           <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length || pdHtml ? `<span class="r-sub">${esc(fcs.join(", "))}${pdHtml}</span>` : ""}${c.why && c.why.size ? `<span class="r-why">${[...c.why].map(([k, v]) => esc(k) + (v && k !== "연락처" ? " · " + esc(v) : "")).join(" / ")}</span>` : ""}</span>
-          ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(typeLabel(t))}</span>`).join("")}${stage ? `<span class="tag stg stg-${esc(stage)}">${esc(stage)}</span>` : ""}<span class="chev">›</span></button>${dbView && !isRO((c.entries[0] || {}).fc) && !c.dbAuto ? `<button type="button" class="prog-mini" data-dbc="${i}" aria-label="${esc(c.name)} ${dbShowRemoved ? "다시 DB" : "DB에서 삭제"}">${dbShowRemoved ? "다시 DB" : "삭제"}</button>` : ""}${progView && !isRO((c.entries[0] || {}).fc) ? (progShowRemoved ? `<button type="button" class="prog-mini" data-prest="${i}" aria-label="${esc(c.name)} 다시 진행">다시 진행</button>` : `<button type="button" class="prog-mini" data-pdel="${i}" aria-label="${esc(c.name)} 진행에서 삭제">삭제</button>`) : ""}${insLineHtml(c)}</li>`;
+          ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(typeLabel(t))}</span>`).join("")}${stage ? `<span class="tag stg stg-${esc(stage)}">${esc(stage)}</span>` : ""}<span class="chev">›</span></button>${canDb ? `<button type="button" class="prog-mini" data-dbc="${i}" aria-label="${esc(c.name)} ${dbShowRemoved ? "DB로 원복" : "보관으로 이동"}">${dbShowRemoved ? "원복" : "이동"}</button>` : ""}${canProg ? (progShowRemoved ? `<button type="button" class="prog-mini" data-prest="${i}" aria-label="${esc(c.name)} 진행으로 원복">원복</button>` : `<button type="button" class="prog-mini" data-pdel="${i}" aria-label="${esc(c.name)} 보관으로 이동">이동</button>`) : ""}${insLineHtml(c)}</li>`;
       }).join("");
       list.querySelectorAll("button[data-i]").forEach((b) =>
         b.addEventListener("click", async () => { await openCustomer(custs[+b.dataset.i]); if (tabReq) selectTab(tabReq); }));
@@ -3313,7 +3318,7 @@
     const s_task = sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드의 <b>비영업</b> 버튼을 눌러 영업일정으로 바꾼 일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
     const s_addev = sec("일정 추가 (일정 화면)", ["일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). <b>복귀</b> 버튼(추가의 왼쪽)은 그날 영업일정을 모두 비영업일정으로 바꾸고, 동명이인 지정·고객 정보로 넣은 일정 장소도 되돌립니다(영업일정이나 처리한 일정이 있는 날에만 보임). 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
-    const s_sub = sec("영업 서브메뉴", ["영업 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>자료</b>를 눌러 바꿉니다. 이달목표 안에는 <b>이관</b>(이달 이관) · <b>따행</b> · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. DB 목록은 ‘N명’ 줄 오른쪽 <b>DB N / 삭제 M</b> 칩으로 DB 고객과 DB 삭제 고객을 바꿔 보고, 줄의 작은 <b>삭제</b>로 DB 목록에서 빼고(고객 정보는 그대로, 고객 시트 ‘DB제외’ 칸에 날짜·이력에 ‘DB삭제’), 삭제 목록의 <b>다시 DB</b>로 되돌립니다(6초 안에 되돌리기도 가능). 계약 고객이 된 DB 고객은 저절로 삭제 목록에 ‘계약’으로 보입니다. 고객 화면의 [DB] 필터도 같은 방식입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 자료는 영업에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
+    const s_sub = sec("영업 서브메뉴", ["영업 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>자료</b>를 눌러 바꿉니다. 이달목표 안에는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 자료는 영업에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
     const s_stage = sec("영업단계 칩 (이관 · DB)", ["이관·DB 목록의 고객 줄 오른쪽에 <b>통화 · AP · PC · 계약</b> 칩이 있고, 그 고객의 지금 영업단계인 칩만 색이 들어옵니다. 칩을 누르면 고객 시트의 ‘영업단계’ 칸에 누른 칩의 글자가 저장됩니다(칸이 없으면 새로 만듭니다). 이미 색이 켜진 칩을 다시 누르면 ‘고객의 영업상태를 제거하시겠습니까?’ 확인 뒤 빈칸이 됩니다."]);
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_sms = sec("문자 문구", ["영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
@@ -3323,7 +3328,7 @@
     const s_inst = sec("앱 설치", ["안드로이드 크롬: 설정 화면의 [앱 설치](없으면 브라우저 메뉴의 ‘앱 설치’), 아이폰 사파리: 공유 → ‘홈 화면에 추가’. 설치하면 앱처럼 전체 화면으로 열립니다. 이미 설치했으면 설정에 설치 카드가 보이지 않습니다."]);
     const s_srch = sec("전체검색 · 고객검색", ["<b>위쪽 전체검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호뿐 아니라 고객 메모, 상담기록, 오늘 기준 1년 전~1개월 뒤 일정(제목·장소)에서도 찾습니다. 결과는 아래에서 올라오는 창에 고객(어디서 찾았는지 표시)과 일정으로 나뉘어 나오고, 누르면 고객 정보(상담기록에서 찾았으면 상담 탭) 또는 그날 일정으로 이동합니다.", "<b>고객 화면의 고객검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호로 고객만 찾는 기존 검색입니다. 한 명만 나오면 바로 고객 정보가 열립니다.", "검색칸이 비어 있을 때의 글자(전체검색·고객검색)는 오른쪽에 보입니다."]);
     const s_cov = sec("보장 요약 (고객 정보 > 분석 탭)", ["분석 탭 맨 위에 사망 · 3대진단(암·뇌·심) · 수술 · 입원 · 간병을 간단히 보여 줍니다. 스마트보장분석이 있으면 ‘전체 보험사에 가입된 보장 요약입니다.’, 신한라이프 상세보장내용만 있으면 ‘신한라이프에 가입된 보장 요약입니다.’라고 위에 적고, 맨 아래에 어느 문서의 몇 월 며칠 기준인지 나옵니다.", "‘미가입’은 가입한 보장이 없다는 뜻이고, ‘확인 안 됨’은 원본 문서에서 그 항목을 읽지 못했다는 뜻입니다. 이 값은 고객 등록·업데이트 때 미리 만들어 고객 시트의 ‘보장요약’ 칸에 저장해 둔 것을 읽기만 하므로 분석 탭을 열 때 계산하지 않습니다."]);
-    const s_prog = sec("진행 고객 삭제", ["고객 화면의 [진행] 목록 줄 오른쪽 작은 <b>삭제</b> 버튼, 또는 진행 고객의 고객 정보 머리 카드 아래 버튼을 누르면 ‘OO 고객을 진행 고객에서 뺄까요? 고객 정보는 지워지지 않아요.’라고 묻고, 확인하면 그 고객이 진행 목록에서 바로 빠집니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’이 보이고, 저장이 안 되면 목록이 원래대로 돌아오고 알림이 뜹니다). 고객 정보와 계약·상담 기록은 그대로입니다(고객 시트 ‘진행제외’ 칸에 날짜가 기록되고 이력에 ‘진행 삭제’ 한 줄이 남으며, 고객 정보 머리에 ‘진행 삭제 · 날짜’ 표시가 붙습니다). [진행] 목록의 ‘N명 찾음’ 줄 오른쪽 작은 <b>진행 N / 삭제 M</b> 칩으로 진행 고객과 진행 삭제 고객을 바꿔 볼 수 있고(처음에는 진행 고객), 진행 목록은 진행이 된 날 최신순, 삭제 목록은 삭제한 날 최신순이며 줄마다 ‘진행 11-12’·‘삭제 11-15’처럼 날짜가 작게 보입니다, 진행 삭제 목록의 줄마다, 그리고 진행 삭제 고객의 고객 정보에 <b>다시 진행</b> 버튼이 있어 누르면 확인 없이 바로 진행 고객으로 돌아가고(6초 안에 되돌릴 수도 있음) 이력에 ‘다시 진행’이 남습니다. 진행 삭제 표시는 지워지고 이력에는 남습니다.", "뺀 직후 6초 안에 나오는 [되돌리기]를 누르거나, 나중에 그 고객의 고객 정보에서 <b>다시 진행</b>을 누르면 다시 진행 고객이 됩니다. 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
+    const s_prog = sec("보관 (이동 · 원복)", ["고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 영업 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다.", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 이관 보관은 계약 단위라 영업 > 이달목표 > 이관에서 합니다. 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
     const s_rh = sec("오른손 모드", ["하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["이름(FC명)을 적고, <b>고객 페이지 접근 허용</b>에서 볼 FC를 체크하세요. 'FC 체크 = 보기', 옆의 '수정'도 체크하면 수정까지 가능합니다." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보 접근 허용</b>: 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근 허용</b>: 영업(이달이관·따행) 선택창에 나올 FC입니다. 아래 고객 페이지 접근을 허용한 FC만 고를 수 있습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다."]);
@@ -5335,7 +5340,7 @@
 
   // ---------- 영업 (이달이관 · 이달 따행) + 전화·문자 '시도' 기록 ----------
   //   이관: 계약 단위(계약 시트 최근통화일시·최근문자일시 + 이력 시트에 계약ID와 함께 한 줄) / 따행: 고객 단위(고객 시트 최근통화일시·최근문자일시 + 이력에 계약ID 비움)
-  const SALES = { tab: "transfer", ym: "", showRef: false, dbOff: false, data: null, df: { send: false, resp: false, coupon: false }, nf: { call: false, sms: false }, open: new Set(), dct: "", dcls: "", dact: true };
+  const SALES = { tab: "transfer", ym: "", showRef: false, arch: { transfer: false, dda: false, valueup: false }, data: null, df: { send: false, resp: false, coupon: false }, nf: { call: false, sms: false }, open: new Set(), dct: "", dcls: "", dact: true };
   const ymNow = () => { const d = new Date(); return d.getFullYear() + pad2(d.getMonth() + 1); };
   const ymShift = (ym, n) => { let y = +ym.slice(0, 4), m = +ym.slice(4) + n; while (m > 12) { m -= 12; y++; } while (m < 1) { m += 12; y--; } return y + pad2(m); };
   const ymLabel = (ym) => ym.slice(0, 4) + "년 " + (+ym.slice(4)) + "월";
@@ -5561,7 +5566,8 @@
         bday: (ce && fieldOf(ce, "생년월일")) || rr["생일"] || "", phone: firstPhone((ce && (ce.phone || fieldOf(ce, "연락처"))) || rr["연락처"]),
         phoneText: (ce && (ce.phone || fieldOf(ce, "연락처"))) || rr["연락처"] || "", job: (ce && fieldOf(ce, "직업")) || rr["직업"] || "",
         addr: cleanAddr((ce && fieldOf(ce, "주소")) || rr["주소"]), recFc: rr["모집FC"] || "", status: rr["계약상태"] || rr["상태"] || "", idate,
-        ent: ce && ce.sheet === CUST_SHEET ? ce : null, stage: ce && ce.sheet === CUST_SHEET ? fieldOf(ce, "영업단계") : undefined // 영업단계 칩(통화·AP·PC·계약): 고객 시트의 '영업단계' 칸
+        ent: ce && ce.sheet === CUST_SHEET ? ce : null, stage: ce && ce.sheet === CUST_SHEET ? fieldOf(ce, "영업단계") : undefined, // 영업단계 칩(통화·AP·PC·계약): 고객 시트의 '영업단계' 칸
+        ct: c, archDay: String(rr["이관보관"] || "").trim() // 보관(계약 단위): 계약 시트 '이관보관' 날짜
       });
     });
     out.sort((a, b) => a.holder.localeCompare(b.holder, "ko") || dateKey(b.cdate).localeCompare(dateKey(a.cdate)));
@@ -5581,12 +5587,12 @@
       out.push({
         key: "u:" + id, cid: "", custId: id, fc: e.fc, srcFc: e.fc, ref: false, fileId: e.src && e.src.fileId, holder: e.name, ins: "", ent: e, stage: fieldOf(e, "영업단계"), // 영업단계 칩(통화·AP·PC·계약)은 이관 목록과 같은 방식
         product: fieldOf(e, "유입DB명").replace(/^[\s■□▪▫◼◾]+/, "") || (cts.length ? "계약 " + cts.length + "건" : "DB 고객"), fee: "", cdLabel: "유입일", cdate: fieldOf(e, "유입일"),
-        db: true, dbAuto: cts.length > 0 || mine.some(dbAutoRec), dbDay: fieldOf(e, "DB제외"), // DB 삭제: 'DB제외' 날짜 또는 계약 고객(자동)
+        db: true, dbAuto: cts.length > 0 || mine.some(dbAutoRec), dbDay: fieldOf(e, "DB제외"), // DB 보관: 'DB제외' 날짜 또는 계약 고객(자동)
         bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
         job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC") || "", status: ""
       });
     });
-    out.forEach((r) => { r.dbOff = !!r.dbDay || r.dbAuto; });
+    out.forEach((r) => { r.dbOff = !!r.dbDay || r.dbAuto; r.archDay = r.dbDay; });
     // 유입일 최신순, 같은 날은 이름 가나다순 (삭제 목록은 삭제한 날 최신순, 계약 자동은 유입일)
     const day = (r) => dateKey(r.dbOff && r.dbDay ? r.dbDay : r.cdate);
     out.sort((a, b) => day(b).localeCompare(day(a)) || a.holder.localeCompare(b.holder, "ko"));
@@ -5614,6 +5620,7 @@
       seen.add(id);
       const r = base(e, id);
       r.fileId = f._fileId; r.follow = f;
+      r.archDay = String(f["따행보관"] || "").trim(); // 보관(그 달 대상 단위): 따행 시트 '따행보관'
       r.dda = { done: f["방문완료일"] || (["방문완료", "설문발송", "설문응답", "쿠폰발송"].includes(String(f["접촉현황"] || "").trim()) ? "방문완료" : ""), send: f["설문발송일"], resp: f["설문응답일"], coupon: f["쿠폰발송일"], assign: "", apply: "", due: f["방문약속일"], gift: f["선물"], deliver: f["전달여부"], cls: f["따행분류"], active: f["캠페인대상여부"], contact: f["접촉현황"] };
       out.push(r);
     });
@@ -5628,6 +5635,7 @@
       if (fieldOf(e, "따행대상") !== "예") return;
       seen.add(id);
       const r = base(e, id);
+      r.archDay = fieldOf(e, "따행보관"); // 따행 시트가 없는 파일: 고객 시트 '따행보관'
       r.dda = { send: fieldOf(e, "설문발송일"), resp: fieldOf(e, "설문응답일"), coupon: fieldOf(e, "쿠폰발송일"), assign: fieldOf(e, "따행배정일"), apply: fieldOf(e, "따행고객신청"), due: fieldOf(e, "따행방문예정일"), done: fieldOf(e, "따행방문완료일"), gift: fieldOf(e, "따행선물"), deliver: fieldOf(e, "따행전달"), cls: "", active: "", contact: "" };
       out.push(r);
     });
@@ -5674,6 +5682,9 @@
       // 따행: 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 가장 마지막에 달성한 칩만 색(값이 있는 앞 칩은 'past': 색 없이, 누르면 그대로 켬/끔)
       const lastD = isD ? DCHIPS.reduce((acc, [f], i) => (r.dda[f] ? i : acc), -1) : -1;
       const chips = stageChips ? stageChips : isD ? DCHIPS.map(([f, lab, cls], i) => `<button type="button" class="dc ${cls} ${i === lastD ? "on" : r.dda[f] ? "off past" : "off"}${lock ? " lock" : ""}" data-chip="${f}" data-key="${esc(r.key)}" aria-pressed="${r.dda[f] ? "true" : "false"}">${lab}</button>`).join("") : "";
+      // [이동]/[원복]: 담당이 다른 FC 계약(참고)·계약ID 없는 계약·보기 전용은 없음. 계약 고객이 된 DB 고객은 '계약'(자동 보관)
+      const arDay = r.arch && r.archDay ? `<span class="r-day">보관 ${esc(String(r.archDay).slice(5, 10))}</span>` : "";
+      const arHtml = r.db && r.arch && r.dbAuto ? `<span class="ar-act"><span class="r-day">계약</span></span>` : (r.ref || !r.key || isRO(r.fc) || r.arch === undefined) ? "" : `<span class="ar-act">${arDay}<button type="button" class="prog-mini" data-arx="${esc(r.key)}" aria-label="${esc(r.holder)} ${r.arch ? "원복" : "보관으로 이동"}">${r.arch ? "원복" : "이동"}</button></span>`;
       // 왼쪽 굵은 선 = 지금 단계 색 (이관·DB = 영업단계 칩, 따행 = 마지막 달성 칩). 단계가 없으면 선 없음
       const lv = isD ? (lastD >= 0 ? DCHIPS[lastD][2] : "") : ((STAGE_CHIPS.find(([lab]) => lab === r.stage) || [])[1] || "");
       const prodLines = isD
@@ -5682,9 +5693,9 @@
       const detail = isD ? `<div class="sline sub detail">방문완료 ${esc(r.dda.done || "-")} · 설문발송일 ${esc(r.dda.send || "-")} · 설문응답일 ${esc(r.dda.resp || "-")} · 쿠폰발송일 ${esc(r.dda.coupon || "-")}</div>` : "";
       return `<div class="srow${lv ? " lv lv-" + lv : ""}${r.ref ? " ref" : ""}${isD ? (r.dda.done ? " d-done" : " d-open") + " fold" + (openSet && openSet.has(r.key) ? " open" : "") : ""}" data-fold="${esc(r.key)}">
         <div class="sline l1"><span class="no">${idx + 1}</span><span class="nmw ${isD ? "n30" : "n50"} ${gradeClass(gradeOf({ entries: (SALES.data && SALES.data.custById && SALES.data.custById.get(r.custId)) || [] })) || "grade-good"}">${r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder)}${r.ins ? ` <small class="ins">→ ${esc(r.ins)}</small>` : ""}</span><span class="rt">${chips}</span></div>
-        ${prodLines.map((p) => `<div class="sline prod"><span class="si pd">${esc(p.name)}${isD ? "" : st}</span>${r.db ? (r.dbOff && r.dbAuto ? `<span class="r-day">계약</span>` : isRO(r.fc) ? "" : `<button type="button" class="prog-mini" data-dbx="${esc(r.key)}" aria-label="${esc(r.holder)} ${r.dbOff ? "다시 DB" : "DB에서 삭제"}">${r.dbOff ? "다시 DB" : "삭제"}</button>`) : `<span class="si fe">${esc(p.fee ? wonText(p.fee) : "")}</span>`}</div>`).join("")}
+        ${prodLines.map((p) => `<div class="sline prod"><span class="si pd">${esc(p.name)}${isD ? "" : st}</span><span class="si fe">${esc(p.fee ? wonText(p.fee) : "")}</span></div>`).join("")}
         <div class="sline l2">${it("", r.cdLabel || "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span></div>
-        <div class="sline l3">${it("", "직업", esc(r.job))}${it("", "모집", esc(r.recFc))}</div>
+        <div class="sline l3">${it("", "직업", esc(r.job))}${it("", "모집", esc(r.recFc))}${arHtml}</div>
         <div class="sline l4">${it("ad", "", esc(r.addr))}</div>
         ${times ? `<div class="sline sub ok">${times}</div>` : ""}${detail}</div>`;
     }).join("") + `</div>`;
@@ -5711,10 +5722,63 @@
     if (ents.some((e) => isRO(e.fc))) { toast("보기 전용 권한이라 수정할 수 없습니다."); return null; }
     return ents;
   }
+  const ARCH_ASK = (name, what) => `${name} 고객${what ? "의 " + what : ""}을 보관으로 이동할까요?\n고객 정보는 그대로예요.`;
+  // 이관·따행 보관: 한 시트의 한 줄(이관 = 계약 시트의 계약ID 줄 '이관보관', 따행 = 따행 시트의 고객ID+대상년월 줄 또는 고객 시트의 고객ID 줄 '따행보관')에 날짜, 이력 한 줄 → 한 번 받고 한 번 저장
+  async function saveArchCell(fileId, sheet, keyCol, match, col, value, hist) {
+    const wb = await stGetBook(fileId);
+    const info = sheetInfo(wb, sheet, keyCol);
+    if (!info) throw new Error(sheet + " 시트를 찾지 못했습니다.");
+    let r0 = -1;
+    for (let r = info.hr + 1; r <= info.rg.e.r; r++) if (match(info, r)) { r0 = r; break; }
+    if (r0 < 0) throw new Error(sheet + " 시트에서 이 줄을 찾지 못했습니다.");
+    const c = ensureColumn(info, col);
+    if (value === "") delete info.ws[info.enc(r0, c)]; else info.ws[info.enc(r0, c)] = { t: "s", v: value };
+    const hi = sheetInfo(wb, "이력", "고객ID"), stamp = tsDigits(nowStamp());
+    if (hi) appendRow(hi, { 일시: { stamp }, 고객ID: hist.custId, 계약ID: hist.cid || "", 담당FC: hist.fc || "", 유형: value ? "이동(보관)" : "원복", 결과: "입력", 내용: hist.text, 입력일시: { stamp } });
+    await stPutBook(fileId, wb);
+    bookCache[fileId] = Promise.resolve(wb); // 방금 저장한 내용이 최신
+    if (histCache) histCache.then((a) => a.push({ fc: hist.fc, fileId, 일시: nowStamp(), 고객ID: hist.custId, 계약ID: hist.cid || "", 담당FC: hist.fc || "", 유형: value ? "이동(보관)" : "원복", 결과: "입력", 내용: hist.text })).catch(() => {});
+  }
+  // 영업 이관·따행 줄의 이동/원복: 화면 먼저, 저장은 뒤에서 차례로, 실패하면 화면 되돌림
+  function archSalesRow(row, on, after) {
+    const isT = SALES.tab === "transfer", today = todayStr();
+    let setUi, save;
+    if (isT) {
+      if (!row.ct || !row.cid) return toast("계약ID가 없는 계약이라 보관할 수 없습니다.");
+      setUi = (v) => { row.ct.row["이관보관"] = v; };
+      save = (v) => saveArchCell(row.fileId, "계약", "계약ID", (info, r) => info.txt(r, info.colOf("계약ID")) === row.cid, "이관보관", v,
+        { custId: row.custId, cid: row.cid, fc: row.fc, text: v ? `이관 → 보관 (계약 ${row.product || row.cid}, 앱에서 이동)` : `보관 → 이관 (계약 ${row.product || row.cid}, 앱에서 원복)` });
+    } else if (row.follow) {
+      const fo = row.follow;
+      setUi = (v) => { fo["따행보관"] = v; };
+      save = (v) => saveArchCell(row.fileId, "따행", "고객ID", (info, r) => info.txt(r, info.colOf("고객ID")) === row.custId && ymOfFollow(info.txt(r, info.colOf("대상년월"))) === ymOfFollow(fo["대상년월"]), "따행보관", v,
+        { custId: row.custId, fc: row.fc, text: (v ? "따행 → 보관" : "보관 → 따행") + ` (대상 ${fo["대상년월"]}, 앱에서 ${v ? "이동" : "원복"})` });
+    } else {
+      if (!row.ent) return toast("고객 정보를 찾지 못했습니다.");
+      setUi = (v) => { setEntField(row.ent, "따행보관", v); };
+      save = (v) => saveArchCell(row.fileId, CUST_SHEET, ID_COL, (info, r) => info.txt(r, info.colOf(ID_COL)) === row.custId, "따행보관", v,
+        { custId: row.custId, fc: row.fc, text: (v ? "따행 → 보관" : "보관 → 따행") + ` (앱에서 ${v ? "이동" : "원복"})` });
+    }
+    if (isRO(row.fc)) return toast("보기 전용 권한이라 수정할 수 없습니다.");
+    const run = (v, prev) => {
+      setUi(v); if (after) after();
+      progBusy(1);
+      progQ = progQ.then(() => save(v)).then(() => true, (err) => { setUi(prev); if (after) after(); handleError(err); return false; }).finally(() => progBusy(-1));
+    };
+    const prev = row.archDay || "";
+    if (on) {
+      if (!confirm(ARCH_ASK(row.holder, isT ? "이 계약(" + (row.product || "") + ")" : ""))) return;
+      run(today, prev);
+      undoToast(`${row.holder} 고객을 보관으로 이동했습니다`, () => { run(prev, today); toast("원복했습니다."); });
+    } else {
+      run("", prev);
+      undoToast(`${row.holder} 고객을 원복했습니다`, () => { run(prev, ""); toast("다시 보관했습니다."); });
+    }
+  }
   // 목록에서 빼기/되돌리기 공통(진행 = '진행제외' 칸, DB = 'DB제외' 칸): 칸에 날짜를 적고 이력 한 줄 → 파일마다 한 번 받고 한 번 저장
   const EXCL = {
-    progress: { field: "진행제외", on: "진행삭제", off: "다시진행", onText: "진행 삭제 (진행 고객에서 뺌, 앱에서 삭제)", offText: "다시 진행 (진행 삭제 해제, 진행 고객으로 바꿈, 앱)", type: true },
-    db: { field: "DB제외", on: "DB삭제", off: "다시DB", onText: "DB 삭제 (DB 고객 목록에서 뺌, 앱에서 삭제)", offText: "다시 DB (DB 삭제 해제, DB 고객 목록으로 되돌림, 앱)", type: false }
+    progress: { field: "진행제외", on: "이동(보관)", off: "원복", onText: "진행 → 보관 (앱에서 이동, 고객 정보는 그대로)", offText: "보관 → 진행 (앱에서 원복)", type: true },
+    db: { field: "DB제외", on: "이동(보관)", off: "원복", onText: "DB → 보관 (앱에서 이동, 고객 정보는 그대로)", offText: "보관 → DB (앱에서 원복)", type: false }
   };
   async function saveExclude(mode, ents, exclude) {
     const M = EXCL[mode], e0 = ents[0], stamp = tsDigits(nowStamp());
@@ -5753,7 +5817,7 @@
     return progQ;
   }
   const progApply = (cust, ents, exclude, after) => exclApply("progress", ents, exclude, after);
-  // DB 고객: 고객 시트의 최초유입경로가 'DB'(또는 현재단계 DB). 'DB제외' 날짜가 있거나 계약 고객이 되면 DB 삭제 목록(계약은 자동, 화면 계산)
+  // DB 고객: 고객 시트의 최초유입경로가 'DB'(또는 현재단계 DB). 'DB제외' 날짜가 있거나 계약 고객이 되면 DB 보관 목록(계약은 자동, 화면 계산)
   const isDbRec = (r) => r.type === "DB" || fieldOf(r, "최초유입경로") === "DB";
   const dbAutoRec = (r) => r.type === "계약" || fieldOf(r, "계약현황") === "유효";
   const dbOffRec = (r) => !!fieldOf(r, "DB제외") || dbAutoRec(r);
@@ -5764,28 +5828,28 @@
     return ents;
   }
   function dbRemove(name, entries, after) {
-    if (!confirm(name + " 고객을 DB 고객에서 뺄까요?\n고객 정보는 지워지지 않아요.")) return;
+    if (!confirm(ARCH_ASK(name))) return;
     const ents = dbEnts(entries); if (!ents) return;
     exclApply("db", ents, true, after);
-    undoToast(`${name} 고객을 DB에서 뺐습니다`, () => { exclApply("db", ents, false, after); toast("DB로 되돌렸습니다."); });
+    undoToast(`${name} 고객을 보관으로 이동했습니다`, () => { exclApply("db", ents, false, after); toast("원복했습니다."); });
   }
   function dbRestore(name, entries, after) {
     const ents = dbEnts(entries); if (!ents) return;
     exclApply("db", ents, false, after);
-    undoToast(`${name} 고객을 다시 DB로 바꿨습니다`, () => { exclApply("db", ents, true, after); toast("DB 삭제로 되돌렸습니다."); });
+    undoToast(`${name} 고객을 원복했습니다`, () => { exclApply("db", ents, true, after); toast("다시 보관했습니다."); });
   }
-  const PROG_ASK = (name) => name + " 고객을 진행 고객에서 뺄까요?\n고객 정보는 지워지지 않아요.";
+  const PROG_ASK = (name) => ARCH_ASK(name);
   // 진행 목록·고객 정보에서 쓰는 공통 동작: 확인 → (화면 바로 바뀜, 저장은 뒤에서) → 6.5초 되돌리기
   function progressRemove(cust, after) {
     if (!confirm(PROG_ASK(cust.name))) return;
     const ents = progEnts(cust); if (!ents) return;
     progApply(cust, ents, true, after);
-    undoToast(`${cust.name} 고객을 진행에서 뺐습니다`, () => { progApply(cust, ents, false, after); toast("진행으로 되돌렸습니다."); });
+    undoToast(`${cust.name} 고객을 보관으로 이동했습니다`, () => { progApply(cust, ents, false, after); toast("원복했습니다."); });
   }
-  function progressRestore(cust, after) { // 확인 없이 바로 진행으로 → 6.5초 되돌리기(다시 진행 삭제)
+  function progressRestore(cust, after) { // 확인 없이 바로 진행으로(원복) → 6.5초 되돌리기(다시 보관)
     const ents = progEnts(cust); if (!ents) return;
     progApply(cust, ents, false, after);
-    undoToast(`${cust.name} 고객을 다시 진행으로 바꿨습니다`, () => { progApply(cust, ents, true, after); toast("진행 삭제로 되돌렸습니다."); });
+    undoToast(`${cust.name} 고객을 원복했습니다`, () => { progApply(cust, ents, true, after); toast("다시 보관했습니다."); });
   }
   function renderStageAct(cust) { // 고객 정보 머리 카드 아래: 진행 고객이면 [진행에서 삭제], 뺀 고객이면 [진행으로 되돌리기]
     const box = $("stageAct"), btn = $("stageBtn");
@@ -5794,7 +5858,7 @@
     const ro = cust.entries.some((e) => isRO(e.fc));
     box.hidden = !(inProg || out) || ro;
     if (box.hidden) return;
-    btn.textContent = out ? "다시 진행" : "진행에서 삭제";
+    btn.textContent = out ? "원복" : "보관으로 이동";
     btn.onclick = () => (out ? progressRestore(cust, () => renderStageAct(cust)) : progressRemove(cust, () => renderStageAct(cust)));
   }
   // ---- 따행 칩 터치: 필드에 오늘 날짜(방문완료는 '방문완료')를 쓰거나 비움, 이력에 '수동 변경' 기록 ----
@@ -6073,9 +6137,9 @@
     if (!SALES.ym) SALES.ym = ymNow();
     const ym = SALES.ym;
     const top = (fcHtml) => `<div class="sales-top">
-        <div class="seg"><button type="button" data-stab="transfer" class="${SALES.tab === "transfer" ? "on" : ""}">이관</button><button type="button" data-stab="dda" class="${SALES.tab === "dda" ? "on" : ""}">따행</button><button type="button" data-stab="valueup" class="${SALES.tab === "valueup" ? "on" : ""}">DB</button></div>
+        <div class="seg"><button type="button" data-stab="dda" class="${SALES.tab === "dda" ? "on" : ""}">따행</button><button type="button" data-stab="transfer" class="${SALES.tab === "transfer" ? "on" : ""}">이관</button><button type="button" data-stab="valueup" class="${SALES.tab === "valueup" ? "on" : ""}">DB</button></div>
         <div class="sline2${fcHtml ? "" : " center"}"><div class="ymnav"><button type="button" data-ym="-1" aria-label="이전 달"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>${top.note || ""}</div>${fcHtml}</div></div>`;
-    if (!keep || !box.querySelector("#salesBody .slist, #salesBody .sales-info")) box.innerHTML = top("") + `<div id="salesBody"><p class="hint pad">불러오는 중…</p></div>`; // keep이면 기존 목록을 그대로 두고 새 내용으로 바꿈
+    if (!keep || !box.querySelector("#salesBody .slist, #salesBody .sales-info")) box.innerHTML = top(SALES.fcHtml || "") + `<div id="salesBody"><p class="hint pad">불러오는 중…</p></div>`; // 불러오는 동안에도 지난번 FC 선택창을 그대로 두어 월 줄이 위아래로 흔들리지 않게 // keep이면 기존 목록을 그대로 두고 새 내용으로 바꿈
     try {
       const data = await loadSalesData();
       if (req !== salesReq) return;
@@ -6096,8 +6160,12 @@
       }
       const fcSel = SALES.fc;
       let baseRows = (SALES.tab === "transfer" ? transferRows(data, ym, SALES.showRef) : SALES.tab === "valueup" ? valueupRows(data) : ddaRows(data, ym)).filter((r) => !fcSel || r.srcFc === fcSel);
-      const dbCnt = SALES.tab === "valueup" ? { on: baseRows.filter((r) => !r.dbOff).length, off: baseRows.filter((r) => r.dbOff).length } : null;
-      if (dbCnt) baseRows = baseRows.filter((r) => !!r.dbOff === !!SALES.dbOff); // DB N / 삭제 M 칩으로 바꿔 봄
+      baseRows.forEach((r) => { r.arch = SALES.tab === "valueup" ? !!r.dbOff : !!r.archDay; });
+      const arState = SALES.arch[SALES.tab] || false; // 이 탭에서 보관 목록을 보는 중인지
+      const arCnt = { on: baseRows.filter((r) => !r.arch).length, off: baseRows.filter((r) => r.arch).length };
+      baseRows = baseRows.filter((r) => r.arch === arState); // [이관/따행/DB N] [보관 M] 칩으로 바꿔 봄
+      const arLabel = SALES.tab === "transfer" ? "이관" : SALES.tab === "dda" ? "따행" : "DB";
+      const arBar = `<span class="prog-bar" role="group" aria-label="${arLabel} 보기"><button type="button" data-arview="on" class="${arState ? "" : "on"}">${arLabel} ${arCnt.on}</button><button type="button" data-arview="off" class="${arState ? "on" : ""}">보관 ${arCnt.off}</button></span>`;
       // 따행: 활동대상 → 접촉현황 → 따행분류 (SOL 조회 조건과 같은 기준: 대상년월 · 활동대상 기본)
       const bMode = SALES.tab === "dda" && baseRows.some((r) => r.follow);
       let allRows = baseRows, ddaTotals = null, classes = [];
@@ -6118,10 +6186,11 @@
       const marked = rows.filter((r) => r.key && mark.get(r.key)).length;
       SALES.data = data;
       top.note = ymNote;
-      box.innerHTML = top(selFcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${selFcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : "") +
-        `<div id="salesBody">${SALES.tab === "dda" ? "" : `<div class="sales-info"><span>${SALES.tab === "dda" ? (bMode ? `${(SALES.dct || SALES.dcls || dfOn) ? `필터 ${rows.length}명` : `표시 ${rows.length}명`}` : `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}`) : (SALES.tab === "valueup" ? `${SALES.dbOff ? "삭제 " : ""}${rows.length}명` : `${rows.length}건 · ${holders}명`)}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${dbCnt ? `<span class="prog-bar" role="group" aria-label="DB 보기"><button type="button" data-dbview="on" class="${SALES.dbOff ? "" : "on"}">DB ${dbCnt.on}</button><button type="button" data-dbview="off" class="${SALES.dbOff ? "on" : ""}">삭제 ${dbCnt.off}</button></span>` : ""}${SALES.tab === "transfer" ? `<span class="sinfo-r">${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}</span>` : ""}</div>${nfHtml}`}` +
+      SALES.fcHtml = selFcs.length > 1 ? `<select id="salesFc" aria-label="FC 선택">${selFcs.map((f) => `<option value="${esc(f)}"${f === fcSel ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : "";
+      box.innerHTML = top(SALES.fcHtml) +
+        `<div id="salesBody">${SALES.tab === "dda" ? `<div class="sales-info"><span>${arState ? "보관 " : ""}${rows.length}명</span>${arBar}</div>` : `<div class="sales-info"><span>${SALES.tab === "dda" ? (bMode ? `${(SALES.dct || SALES.dcls || dfOn) ? `필터 ${rows.length}명` : `표시 ${rows.length}명`}` : `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}`) : (SALES.tab === "valueup" ? `${arState ? "보관 " : ""}${rows.length}명` : `${arState ? "보관 " : ""}${rows.length}건 · ${holders}명`)}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "valueup" ? arBar : ""}${SALES.tab === "transfer" ? `<span class="sinfo-r">${arBar}${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}</span>` : ""}</div>${nfHtml}`}` +
         (SALES.tab === "dda" ? `<div class="dfilter"><span class="dfl"><span class="dfg"><b class="dfk">설문</b><label><input type="checkbox" data-df="send" ${df.send ? "checked" : ""}> 발송</label><label><input type="checkbox" data-df="resp" ${df.resp ? "checked" : ""}> 응답</label></span><i class="dsep" aria-hidden="true"></i><span class="dfg"><label><input type="checkbox" data-df="coupon" ${df.coupon ? "checked" : ""}> 쿠폰</label></span><i class="dsep" aria-hidden="true"></i><span class="dfg">${nfBox("call", "전화")}${nfBox("sms", "문자")}</span></span></div>` : "") +
-        (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : SALES.tab === "valueup" ? (SALES.dbOff ? "DB 삭제" : "DB") : "따행"} 고객이 없습니다.${nfOn ? " (전화·문자 필터를 확인해 주세요)" : ""}</p>`) +
+        (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : SALES.tab === "valueup" ? "DB" : "따행"}${arState ? " 보관" : ""} 고객이 없습니다.${nfOn ? " (전화·문자 필터를 확인해 주세요)" : ""}</p>`) +
         (SALES.tab === "valueup" ? "" : `<p class="hint pad">전화·문자는 버튼을 누른 '시도'만 기록됩니다(실제 통화·발송 여부는 알 수 없음).${readQueue().length ? ` 아직 저장 안 된 기록 ${readQueue().length}건은 앱이 다시 열리면 반영합니다.` : ""}</p>`) + `</div>`;
       box._rows = rows; box._mark = mark;
       if (anchor) salesRestore(anchor); else if (!keep) window.scrollTo(0, 0);
@@ -6135,16 +6204,18 @@
     renderSales();
   });
   $("salesView").addEventListener("click", (ev) => {
-    const dbv = ev.target.closest("[data-dbview]");
-    if (dbv) { SALES.dbOff = dbv.dataset.dbview === "off"; return renderSales(); }
-    const dbx = ev.target.closest("[data-dbx]");
-    if (dbx) {
-      const row = (($("salesView")._rows) || []).find((r) => r.key === dbx.dataset.dbx);
+    const arv = ev.target.closest("[data-arview]");
+    if (arv) { SALES.arch[SALES.tab] = arv.dataset.arview === "off"; return renderSales(); }
+    const arx = ev.target.closest("[data-arx]");
+    if (arx) { // 줄의 [이동] / [원복]
+      const row = (($("salesView")._rows) || []).find((r) => r.key === arx.dataset.arx);
       if (!row) return;
-      const ents = ((SALES.data && SALES.data.custById.get(row.custId)) || [row.ent]).filter(Boolean);
-      const el = dbx.closest(".srow"); let first = true;
+      const el = arx.closest(".srow"); let first = true;
       const after = () => { if (first && el) el.style.display = "none"; first = false; renderSales(true); }; // 누르는 즉시 줄을 숨기고, 목록(건수 칩 포함)은 이어서 다시 그림
-      if (row.dbOff) dbRestore(row.holder, ents, after); else dbRemove(row.holder, ents, after);
+      if (SALES.tab === "valueup") {
+        const ents = ((SALES.data && SALES.data.custById.get(row.custId)) || [row.ent]).filter(Boolean);
+        if (row.arch) dbRestore(row.holder, ents, after); else dbRemove(row.holder, ents, after);
+      } else archSalesRow(row, !row.arch, after);
       return;
     }
     const stg = ev.target.closest("[data-stg]");
@@ -6274,6 +6345,7 @@
       SALES.tab = o.q === "dda" ? "dda" : o.q === "valueup" ? "valueup" : "transfer";
       SALES.goFc = String(o.kind || "").trim(); // FC 이름(없으면 본인 FC)
       SALES.ym = mm && +mm[2] >= 1 && +mm[2] <= 12 ? mm[1] + mm[2] : ymNow();
+      SALES.arch[SALES.tab] = o.tab === "archive"; // tab=archive: 그 탭의 보관 목록
       loadSettings().then(() => openSales());
       return;
     }
@@ -6287,7 +6359,8 @@
     if (o.go === "customer") { const id = String(o.id || ""); if (id) { if (!$("customerView").hidden) show("searchView"); goCustomer(id, String(o.tab || "")); } return; }
     const q = String(o.q || "").trim();
     let kd = String(o.kind || "").trim();
-    progShowRemoved = kd === "progress_removed"; if (progShowRemoved) kd = "progress"; // kind=progress_removed: 진행 삭제 고객 보기
+    progShowRemoved = kd === "progress_removed" || kd === "progress_archive"; if (progShowRemoved) kd = "progress"; // kind=progress_archive(예전 progress_removed): 진행 보관 고객 보기
+    dbShowRemoved = kd === "db_archive"; if (dbShowRemoved) kd = "db"; // kind=db_archive: DB 보관 고객 보기
     // 고객 범위 옵션(contract·transfer·db·ddahaeng·plan): 그 옵션만 켜고 보여 줌. q가 비어도 그 분류 전체 목록
     if (OPT_LABEL[kd]) { optSel.clear(); optSel.add(kd); syncOpts(); }
     if (!q) {
@@ -6305,8 +6378,8 @@
   }
   const whereNow = () => {
     if (!$("customerView").hidden && current && current.cust) return { go: "customer", id: custKey(current.cust), tab: ((document.querySelector("#tabs button.on") || {}).dataset || {}).tab || "", canBack: true }; // 고객 정보에서는 앱 안 뒤로(목록)가 있음. 검색 목록이 첫 화면이면 canBack=false
-    if (!$("searchView").hidden) return { go: "customers", q: curQuery(), kind: optSel.size === 1 ? ([...optSel][0] === "progress" && progShowRemoved ? "progress_removed" : [...optSel][0]) : "" };
-    if (!$("salesView").hidden) return { go: "sales", q: SALES.tab === "dda" ? "dda" : SALES.tab === "valueup" ? "valueup" : "transfer", id: SALES.ym ? SALES.ym.slice(0, 4) + "-" + SALES.ym.slice(4) : "", kind: SALES.fc || "" }; // 탭·달 (앱으로 열기용)
+    if (!$("searchView").hidden) return { go: "customers", q: curQuery(), kind: optSel.size === 1 ? ([...optSel][0] === "progress" && progShowRemoved ? "progress_archive" : [...optSel][0] === "db" && dbShowRemoved ? "db_archive" : [...optSel][0]) : "" };
+    if (!$("salesView").hidden) return { go: "sales", q: SALES.tab === "dda" ? "dda" : SALES.tab === "valueup" ? "valueup" : "transfer", id: SALES.ym ? SALES.ym.slice(0, 4) + "-" + SALES.ym.slice(4) : "", kind: SALES.fc || "", tab: SALES.arch[SALES.tab] ? "archive" : "" }; // 탭·달·보관 목록 (앱으로 열기용)
     if (!$("scheduleView").hidden) return { go: "schedule", q: `${schedDate.getFullYear()}-${pad2(schedDate.getMonth() + 1)}-${pad2(schedDate.getDate())}` }; // 보고 있는 날짜(앱으로 열기용)
     return { go:!$("salesView").hidden ? "sales" : !$("adminView").hidden ? "settings" : "" };
   };

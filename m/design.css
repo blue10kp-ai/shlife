@@ -795,3 +795,9 @@ html.embed .save-ind { bottom: calc(64px + env(safe-area-inset-bottom)); }
 .entry-head .rec-fc.rec-other { color: #b26a00; font-weight: 600; }
 @media (prefers-color-scheme: dark) { .entry-head .rec-fc.rec-other { color: #f0b25a; } }
 :root[data-theme="dark"] .entry-head .rec-fc.rec-other { color: #f0b25a; }
+/* v316: 영업 줄 [이동]/[원복] = 직업·모집 줄 오른쪽 */
+#salesView .sline.l3 .ar-act { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; flex: none; }
+#salesView .sline.l3 .ar-act .prog-mini { margin: 0; height: 22px; }
+#salesView .sales-info .sinfo-r { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+/* v317: 고객 화면 아래 필터 줄과 하단 메뉴 사이 틈으로 목록 글자가 비치지 않게, 필터 줄 배경을 아래로 이어 메뉴 뒤까지 채움 */
+html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
