@@ -856,3 +856,5 @@ html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
 .org-cbs .org-sep { display: inline-block; width: 1px; height: 12px; background: var(--line); margin: 0 -4px; }
 /* v331: 계정 카드 권한 칸은 조직도로 옮김 */
 .org-note-top { font-size: 11.5px; margin: -2px 0 6px; }
+/* v332: 조직도와 다른 권한 안내 */
+.org-off { font-size: 11.5px; line-height: 16px; margin: 6px 0 0; color: var(--bad, #c0392b); }
