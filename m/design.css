@@ -999,3 +999,6 @@ html.pf-open, html.pf-open body { overflow: hidden; }
   #salesView .sline2.sl3 select { position: static !important; transform: none !important; flex: none; height: 30px; padding: 0 2px; font-size: 13px; max-width: 74px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); color: var(--t1); }
   #salesView .sline2.sl3 #salesTab { display: inline-block !important; font-weight: 600; color: var(--accent); }
 }
+/* v358: 다크 모드 아래 띠 방지 — 브라우저 기본 바탕·스크롤바·폼 컨트롤도 다크로, 바운스 때 바탕과 같은 색 */
+:root { color-scheme: light dark; background-color: var(--bg); }
+.mainnav { background-color: var(--surface); }
