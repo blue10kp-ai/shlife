@@ -776,3 +776,22 @@ html { scrollbar-gutter: stable; }
 .tabs-row > .tabs { flex: 1 1 auto; min-width: 0; border-bottom: 0; margin: 0; overflow-x: auto; scrollbar-width: none; }
 .tabs-row > .stage-act { flex: none; margin: 0; }
 .tabs-row > .stage-act button { height: 26px; padding: 0 9px; font-size: 12px; }
+/* 뒤에서 저장 중 표시(진행 삭제·다시 진행): 하단 메뉴 바로 위 왼쪽, 작게 */
+.save-ind { position: fixed; left: 12px; bottom: calc(68px + env(safe-area-inset-bottom)); z-index: 41; padding: 3px 9px; border-radius: 999px; background: var(--raised); color: var(--t2); font-size: 11px; line-height: 16px; box-shadow: 0 0 0 1px var(--line); pointer-events: none; }
+.save-ind[hidden] { display: none; }
+html.embed .save-ind { bottom: calc(64px + env(safe-area-inset-bottom)); }
+.toast2 b { white-space: nowrap; }
+/* v315: 영업 줄 왼쪽 굵은 선 = 지금 단계 색 (이관·DB 영업단계, 따행 마지막 칩) */
+#salesView .srow.lv { box-shadow: inset 4px 0 0 var(--lvc); }
+#salesView .srow.lv-send { --lvc: #1f5fae; } #salesView .srow.lv-resp { --lvc: #6a3fb5; }
+#salesView .srow.lv-cpn { --lvc: #00706a; } #salesView .srow.lv-done { --lvc: #1d7a46; }
+@media (prefers-color-scheme: dark) { #salesView .srow.lv-send { --lvc: #8db8f2; } #salesView .srow.lv-resp { --lvc: #c3a8f0; } #salesView .srow.lv-cpn { --lvc: #6fd6cf; } #salesView .srow.lv-done { --lvc: #6fd39a; } }
+:root[data-theme="dark"] #salesView .srow.lv-send { --lvc: #8db8f2; } :root[data-theme="dark"] #salesView .srow.lv-resp { --lvc: #c3a8f0; } :root[data-theme="dark"] #salesView .srow.lv-cpn { --lvc: #6fd6cf; } :root[data-theme="dark"] #salesView .srow.lv-done { --lvc: #6fd39a; }
+/* DB 보기 칩(영업 > DB 'N명' 줄 오른쪽), DB 줄 삭제 버튼은 상품 줄 오른쪽 */
+#salesView .sales-info { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#salesView .sline.prod .prog-mini { margin: 0; height: 22px; }
+#salesView .sline.prod .r-day { flex: none; }
+/* 계약 탭: 참고 계약(담당이 다른 FC)의 모집 FC는 다른 색 */
+.entry-head .rec-fc.rec-other { color: #b26a00; font-weight: 600; }
+@media (prefers-color-scheme: dark) { .entry-head .rec-fc.rec-other { color: #f0b25a; } }
+:root[data-theme="dark"] .entry-head .rec-fc.rec-other { color: #f0b25a; }
