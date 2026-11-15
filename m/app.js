@@ -678,7 +678,7 @@
     { id: "Bad", label: "Bad", color: "#f39c12" },
     { id: "Shit", label: "Shit", color: "#e53935" }
   ];
-  const gradeOf = (c) => { const g = (c.entries || []).map((e) => e.grade).find(Boolean) || ""; return GRADES.find((x) => x.id.toLowerCase() === g.toLowerCase()) ? g : ""; };
+  const gradeOf = (c) => { const g = (c.entries || []).map((e) => e.grade).find(Boolean) || ""; return GRADES.find((x) => x.id.toLowerCase() === g.toLowerCase()) ? g : "Good"; }; // 성향이 비어 있으면 Good으로 봄(이름 굵게)
   const gradeClass = (g) => (g ? "grade-" + g.toLowerCase() : "");
 
   // entries의 원래 줄(파일·시트·행)에 values({열이름: 값})를 기록. 열이 없으면 머리글 끝에 새로 만듦
