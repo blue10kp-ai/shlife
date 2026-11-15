@@ -916,3 +916,41 @@ html:not(.embed) #searchOpts { box-shadow: 0 32px 0 0 var(--bg); }
 .pf-kv span { color: var(--t3); }
 .pf-kv b { font-weight: 500; color: var(--t1); }
 .pf-note { font-size: 11.5px; margin-top: 8px; }
+/* v342: 사용자 정보 팝업 · 계정 목록은 접기·펼치기 없이 누르면 팝업 */
+.pf-modal { position: fixed; inset: 0; z-index: 900; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.4); }
+.pf-modal[hidden] { display: none; }
+.pf-modal .pf-sheet { width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; margin: 0; border-radius: 16px 16px 0 0; padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); box-sizing: border-box; }
+@media (min-width: 640px) { .pf-modal { align-items: center; } .pf-modal .pf-sheet { border-radius: 16px; } }
+html.pf-open, html.pf-open body { overflow: hidden; }
+.pf-top { display: flex; align-items: center; gap: 8px; }
+.pf-top .sec-title { flex: 1; margin: 0; }
+.pf-x { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t2); cursor: pointer; }
+.pf-start { display: flex; align-items: center; gap: 10px; }
+.pf-start select { flex: 0 0 96px; }
+.pf-ai { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--t1); white-space: nowrap; }
+.pf-ai .cb { width: 16px; height: 16px; margin: 0; }
+.perm-row.pf-click .perm-fold, .perm-row.pf-click [data-rowedit], .perm-row.pf-click .perm-body { display: none !important; }
+.perm-row.pf-click .perm-head { cursor: pointer; }
+.perm-row.pf-click .perm-name { pointer-events: none; }
+/* v343: 보관된 사용자 */
+.arch-users { margin-top: 8px; border: 1px dashed var(--line); border-radius: var(--r-ctl, 8px); padding: 6px 10px; }
+.arch-users summary { font-size: 13px; color: var(--t2); cursor: pointer; }
+.arch-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.arch-row:first-of-type { border-top: 0; }
+/* v344: 조직도 위 [저장] 없앰 — 제목 가운데 맞춤용 빈칸 */
+.org-top .org-top-sp { flex: none; width: 64px; }
+/* v345: 영업 위쪽 한 줄 = [사용자] [‹ 월 ›] … [FC] [따행·이관·DB] */
+#salesView .sline2.sl3 { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; position: static; justify-content: flex-start; }
+#salesView .sline2.sl3 .ymnav { flex: none; margin: 0; gap: 6px; }
+#salesView .sline2.sl3 .sl-sp { flex: 1 1 0; min-width: 0; }
+#salesView .sline2.sl3 select { position: static !important; transform: none !important; flex: none; height: 32px; padding: 0 6px; font-size: 13.5px; max-width: 110px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); color: var(--t1); }
+#salesView .sline2.sl3 #salesTab { font-weight: 600; color: var(--accent); }
+@media (max-width: 480px) { #salesView .sline2.sl3 .ymnav button { width: 30px; height: 30px; } #salesView .sline2.sl3 .ymnav > b { font-size: 15.5px; } }
+/* v345: 폰 폭에서 [사용자][월][FC][따행] 네 칸이 한 줄에 들어가게 조금 줄임 */
+@media (max-width: 480px) {
+  #salesView .sline2.sl3 { gap: 4px; }
+  #salesView .sline2.sl3 .ymnav { gap: 2px; }
+  #salesView .sline2.sl3 .ymnav button { width: 26px; height: 26px; }
+  #salesView .sline2.sl3 .ymnav > b { font-size: 14.5px; letter-spacing: -0.2px; }
+  #salesView .sline2.sl3 select { max-width: 74px; padding: 0 2px; font-size: 13px; height: 30px; }
+}
