@@ -1062,3 +1062,14 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 .prog-bar button[data-dbv="new"].on { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
 .prog-bar button[data-dbv="arch"].on { background: color-mix(in srgb, var(--ok) 16%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 55%, transparent); }
 .prog-bar button[data-dbv="del"].on { background: color-mix(in srgb, var(--bad) 16%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--bad) 55%, transparent); }
+
+/* v368: DB 칩 색 — 신규 검정 · 계약 초록 · 보관 파랑 · 삭제 빨강 (v366의 색을 대체) */
+.prog-bar button[data-dbv="new"] { color: var(--t1); }
+.prog-bar button[data-dbv="ctr"] { color: var(--ok); }
+.prog-bar button[data-dbv="arch"] { color: var(--accent); }
+.prog-bar button[data-dbv="new"].on { background: var(--surface); box-shadow: 0 0 0 1px var(--t2); }
+.prog-bar button[data-dbv="ctr"].on { background: color-mix(in srgb, var(--ok) 16%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 55%, transparent); }
+.prog-bar button[data-dbv="arch"].on { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+#salesView .sales-info .prog-bar button[data-dbv] { padding: 0 8px; }
+#salesView .sales-info.db4 > span:first-child { display: none; } /* 칩 4개(삭제 포함)일 때는 자리가 없어 'N명' 글자를 감춤(칩 숫자로 확인) */
+#salesView .sales-info.db4 { justify-content: flex-end; }
