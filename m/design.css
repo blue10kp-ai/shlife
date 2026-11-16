@@ -1055,3 +1055,10 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 
 /* v363: DB 보관 줄 [삭제] */
 #salesView .sline.l1 .ar-btn.del { margin-left: 4px; color: var(--bad, #c0392b); border-color: currentColor; }
+/* v366: DB 칩 색 — DB 파랑 · 보관 초록 · 삭제 빨강 */
+.prog-bar button[data-dbv="new"] { color: var(--accent); }
+.prog-bar button[data-dbv="arch"] { color: var(--ok); }
+.prog-bar button[data-dbv="del"] { color: var(--bad); }
+.prog-bar button[data-dbv="new"].on { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.prog-bar button[data-dbv="arch"].on { background: color-mix(in srgb, var(--ok) 16%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--ok) 55%, transparent); }
+.prog-bar button[data-dbv="del"].on { background: color-mix(in srgb, var(--bad) 16%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--bad) 55%, transparent); }
