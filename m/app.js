@@ -3092,7 +3092,7 @@
   document.addEventListener("click", async (ev) => {
     const t = ev.target && ev.target.closest && ev.target.closest("[data-org],[data-org-back],[data-org-save]");
     if (!t || !adminState) return;
-    if (t.hasAttribute("data-org")) { openOrg(); return; }
+    if (t.hasAttribute("data-org")) { orgOpen.clear(); openOrg(); return; } // v374: [조직도]를 열 때마다 모두 접힌 상태
     if (t.hasAttribute("data-org-back")) { if (orgDirty() && !confirm("저장하지 않은 조직도 변경을 버릴까요?")) return; orgDraft = null; renderAdmin(); window.scrollTo(0, 0); return; }
     await saveOrg(t);
   });
