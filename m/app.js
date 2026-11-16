@@ -3722,7 +3722,7 @@
     const s_task = sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드의 <b>비영업</b> 버튼을 눌러 영업일정으로 바꾼 일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
     const s_addev = sec("일정 추가 (일정 화면)", ["일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). <b>초기화</b> 버튼(추가의 왼쪽)은 그날 영업일정을 모두 비영업일정으로 바꾸고, 동명이인 지정·고객 정보로 넣은 일정 장소도 되돌립니다(영업일정이나 처리한 일정이 있는 날에만 보임). 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
-    const s_sub = sec("영업 서브메뉴", ["영업 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>자료</b>를 눌러 바꿉니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘영업 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘영업 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 자료는 영업에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
+    const s_sub = sec("영업 서브메뉴", ["영업 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>자료</b>를 눌러 바꿉니다. <b>자료</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 따행/이관/DB(여러 개 선택) · 보관 포함 · 년월을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘영업 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘영업 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 자료는 영업에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
     const s_stage = sec("영업단계 칩 (이관 · DB)", ["이관·DB 목록의 고객 줄 오른쪽에 <b>통화 · AP · PC · 계약</b> 칩이 있고, 그 고객의 지금 영업단계인 칩만 색이 들어옵니다. 칩을 누르면 고객 시트의 ‘영업단계’ 칸에 누른 칩의 글자가 저장됩니다(칸이 없으면 새로 만듭니다). 이미 색이 켜진 칩을 다시 누르면 ‘고객의 영업상태를 제거하시겠습니까?’ 확인 뒤 빈칸이 됩니다."]);
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
@@ -6702,10 +6702,7 @@
     SALES.resume = null;
     show("salesView", !!keep);
     const box = $("salesView");
-    if (SALES.sub === "material") { // 영업 > 자료 (담을 내용은 아직 정해지지 않음)
-      box.innerHTML = `<div class="card"><h3 class="sec-title">자료</h3><p class="hint">영업에 쓰는 자료를 모아 두는 곳입니다. 어떤 자료를 담을지 정하면 여기에 채워 넣습니다.</p></div>`;
-      return;
-    }
+    if (SALES.sub === "material") { await renderMaterial(req); return; } // 영업 > 자료: 조건 보고서 (v360)
     if (!SALES.ym) SALES.ym = ymNow();
     const ym = SALES.ym;
     const top = (fcHtml) => `<div class="sales-top">
@@ -6786,6 +6783,181 @@
       if (anchor) salesRestore(anchor); else if (!keep) window.scrollTo(0, 0);
     } catch (e) { if (req === salesReq) { $("salesBody").innerHTML = ""; handleError(e); } }
   }
+  // ---------- 영업 > 자료: 조건 보고서 (v360, 2026-11-16 사용자 지시) ----------
+  // 사용자(내 권한 범위) · 따행/이관/DB(복수) · 보관 포함 · 년월 → 건수를 보여 준 뒤 [진행] → 보고서를 화면에 보여 주고 아래에 엑셀·PDF 다운, PDF 열람, 이메일(자신에게)
+  // 고객 정보는 이 기기 안에서만 만들고 어디에도 올리지 않음(이메일·공유는 사용자가 직접 누를 때만)
+  const RPT = { opt: "", types: { dda: true, transfer: true, valueup: true }, arch: false, y: 0, m: 0, built: null, data: null, opts: [], cache: null };
+  const RPT_T = [["dda", "따행"], ["transfer", "이관"], ["valueup", "DB"]];
+  const RPT_COLS = ["구분", "FC", "이름", "피보", "상품", "보험료", "기준일", "계약일", "생일", "연락처", "직업", "주소", "모집FC", "상태", "진행", "보관"];
+  async function rptOptions(data) {
+    const myFc = await myFcName();
+    const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc)].filter(Boolean))];
+    let opts = [];
+    if (isAdmin() && salesPermsAll) { // 관리자: 모든 사용자 (고른 사용자의 '영업 페이지 접근 허용' FC까지)
+      const P = salesPermsAll, meE = me(), ord = CFG.fcOrder || [];
+      const ownOf = (em) => (em === meE ? myFc : String((P.names || {})[em] || "").trim());
+      const fcsOf = (em) => [...new Set([ownOf(em), ...(Array.isArray((P.salesFcs || {})[em]) ? P.salesFcs[em] : [])])].filter((f) => f && fcs.includes(f));
+      opts = [...new Set([meE, ...Object.keys(P.users || {}), ...Object.keys(P.names || {}), ...Object.keys(P.salesFcs || {})])].filter(Boolean)
+        .map((em) => ({ id: em, label: ownOf(em) || em.split("@")[0], fcs: fcsOf(em) })).filter((u) => u.fcs.length)
+        .sort((a, b) => (b.id === meE) - (a.id === meE) || ((ord.indexOf(a.label) + 1 || 999) - (ord.indexOf(b.label) + 1 || 999)) || a.label.localeCompare(b.label, "ko"));
+    } else { // 일반 사용자: 내 FC + 관리자가 '영업 페이지 접근 허용'한 FC
+      opts = [...new Set([myFc, ...salesExtra])].filter((f) => f && fcs.includes(f)).map((f) => ({ id: f, label: f, fcs: [f] }));
+    }
+    if (!opts.length && fcs.length) opts = [{ id: fcs[0], label: fcs[0], fcs: [fcs[0]] }];
+    if (opts.length > 1) opts.push({ id: "__all", label: "전체", fcs: [...new Set(opts.flatMap((o) => o.fcs))] });
+    return opts;
+  }
+  const rptYm = () => RPT.y + pad2(RPT.m);
+  function rptCollect() { // 선택한 사용자·년월의 따행/이관/DB 행(보관 포함 전체). 같은 조건이면 다시 만들지 않음
+    const o = RPT.opts.find((x) => x.id === RPT.opt) || { id: "", fcs: [] }, key = o.id + "|" + rptYm();
+    if (RPT.cache && RPT.cache.key === key) return RPT.cache.rows;
+    const data = RPT.data, ym = rptYm(), inF = (r) => o.fcs.includes(r.srcFc);
+    const dda = ddaRows(data, ym).filter(inF); dda.forEach((r) => { r.arch = !!r.archDay; });
+    const tr = transferRows(data, ym, false).filter(inF); tr.forEach((r) => { r.arch = !!r.archDay; });
+    const db = valueupRows(data).filter(inF); db.forEach((r) => { r.arch = !!r.dbOff; });
+    const rows = { dda: ddaFilter(dda, dda.some((r) => r.follow), { dct: "", dcls: "", dact: true }).rows, transfer: tr, valueup: db };
+    RPT.cache = { key, rows };
+    return rows;
+  }
+  function rptSelected() { // 체크한 유형만, 보관 포함이 아니면 보관 제외
+    const all = rptCollect(), out = {};
+    RPT_T.forEach(([k]) => { if (RPT.types[k]) out[k] = all[k].filter((r) => RPT.arch || !r.arch); });
+    return out;
+  }
+  const dshow = (v) => { const k = dateKey(v); return k.length >= 8 ? k.slice(0, 4) + "-" + k.slice(4, 6) + "-" + k.slice(6, 8) : String(v == null ? "" : v).trim(); };
+  function rptRec(type, r, ymLab) {
+    const nz = (v) => { const t = String(v == null ? "" : v).trim(); const n = Number(t.replace(/[^\d.-]/g, "")); return t && isFinite(n) && /\d/.test(t) ? n : t; };
+    let fee = nz(r.fee), prod = r.product || "";
+    if (r.prods && r.prods.length > 1) { prod = r.prods.map((p) => p.name).join(" / "); fee = r.prods.reduce((s, p) => s + (typeof nz(p.fee) === "number" ? nz(p.fee) : 0), 0); }
+    const prog = type === "dda" ? ((DCHIPS.slice().reverse().find(([f]) => r.dda && r.dda[f]) || [])[1] || "") : (r.stage || "");
+    const arch = !r.arch ? "" : type === "valueup" ? (r.dbAuto ? "계약" : dshow(r.dbDay) || "보관") : (dshow(r.archDay) || "보관");
+    return { 구분: RPT_T.find((t) => t[0] === type)[1], FC: r.srcFc || "", 이름: r.holder || "", 피보: r.ins || "", 상품: prod, 보험료: fee, 기준일: type === "transfer" ? dshow(r.idate) : type === "valueup" ? dshow(r.cdate) : ymLab,
+      계약일: type === "valueup" ? "" : dshow(r.cdate), 생일: dshow(r.bday), 연락처: r.phoneText || r.phone || "", 직업: r.job || "", 주소: r.addr || "", 모집FC: r.recFc || "", 상태: r.status || "", 진행: prog, 보관: arch };
+  }
+  function rptBuild() {
+    const sel = rptSelected(), o = RPT.opts.find((x) => x.id === RPT.opt) || { label: "", fcs: [] }, ymLab = ymLabel(rptYm());
+    const groups = RPT_T.filter(([k]) => sel[k]).map(([k, l]) => ({ type: k, label: l, recs: sel[k].map((r) => rptRec(k, r, ymLab)) }));
+    const total = groups.reduce((s, g) => s + g.recs.length, 0);
+    const cond = `${o.label} · ${ymLab} · ${groups.map((g) => g.label).join("·")}${RPT.arch ? " · 보관 포함" : ""}`;
+    const now = new Date(), stamp = now.getFullYear() + "-" + pad2(now.getMonth() + 1) + "-" + pad2(now.getDate()) + " " + pad2(now.getHours()) + ":" + pad2(now.getMinutes());
+    return { title: "영업 보고서", cond, stamp, user: o.label, ym: rptYm(), groups, total, multiFc: o.fcs.length > 1, arch: RPT.arch };
+  }
+  const rptView = (rep) => ["구분", ...(rep.multiFc ? ["FC"] : []), "이름", "상품", "보험료", "기준일", "연락처", "주소", "진행", "보관"];
+  const rptCell = (c, v) => (c === "보험료" && typeof v === "number" ? v.toLocaleString("ko-KR") : esc(String(v == null ? "" : v)));
+  function rptTableHtml(rep) {
+    const cols = rptView(rep).filter((c) => c !== "구분");
+    return rep.groups.map((g) => `<div class="rpt-grp"><div class="rpt-gh"><b>${g.label}</b> <span>${g.recs.length}건</span></div>` + (g.recs.length
+      ? `<div class="rpt-tw"><table class="rpt-t"><thead><tr><th>#</th>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${g.recs.map((r, i) => `<tr><td>${i + 1}</td>${cols.map((c) => `<td class="${c === "보험료" ? "n" : ""}">${rptCell(c, r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+      : `<p class="hint pad">해당 고객이 없습니다.</p>`) + `</div>`).join("");
+  }
+  const rptFileName = (rep, ext) => { const n = new Date(); return `${n.getFullYear()}${pad2(n.getMonth() + 1)}${pad2(n.getDate())} - 영업 보고서 - ${rep.user} - ${rep.ym}.${ext}`.replace(/[\\/:*?"<>|]/g, ""); };
+  function rptSave(blob, name) { const a = document.createElement("a"), u = URL.createObjectURL(blob); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); }
+  function rptXlsxBlob(rep) {
+    if (typeof XLSX === "undefined") throw new Error("엑셀 도구를 아직 불러오지 못했어요. 잠시 뒤 다시 눌러 주세요.");
+    const wb = XLSX.utils.book_new();
+    const sum = [["영업 보고서"], ["조건", rep.cond], ["만든 시각", rep.stamp], [], ["구분", "건수"], ...rep.groups.map((g) => [g.label, g.recs.length]), ["합계", rep.total]];
+    const ws0 = XLSX.utils.aoa_to_sheet(sum); ws0["!cols"] = [{ wch: 12 }, { wch: 48 }]; XLSX.utils.book_append_sheet(wb, ws0, "요약");
+    rep.groups.forEach((g) => {
+      const ws = XLSX.utils.aoa_to_sheet([RPT_COLS, ...g.recs.map((r) => RPT_COLS.map((c) => r[c]))]);
+      ws["!cols"] = RPT_COLS.map((c) => ({ wch: { 주소: 36, 상품: 28, 이름: 10, 연락처: 14, 보험료: 11 }[c] || 11 }));
+      const fi = RPT_COLS.indexOf("보험료"); g.recs.forEach((r, i) => { const cell = ws[XLSX.utils.encode_cell({ r: i + 1, c: fi })]; if (cell && cell.t === "n") cell.z = "#,##0"; });
+      XLSX.utils.book_append_sheet(wb, ws, g.label);
+    });
+    return new Blob([XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true })], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  }
+  const rptLibs = {};
+  const rptLoad = (u) => rptLibs[u] || (rptLibs[u] = new Promise((res, rej) => { const s = document.createElement("script"); s.src = u; s.onload = res; s.onerror = () => { delete rptLibs[u]; rej(new Error("PDF 도구를 불러오지 못했어요. 인터넷 연결을 확인해 주세요.")); }; document.head.appendChild(s); }));
+  async function rptPdfBlob(rep) { // 보고서를 화면 글꼴 그대로 그려 쪽마다 이미지로 담음(한글 글꼴 파일 없이)
+    await rptLoad("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js");
+    await rptLoad("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js");
+    const { jsPDF } = window.jspdf, doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4", compress: true });
+    const th = rptView(rep).filter((c) => c !== "구분"), PER = 20, pages = [];
+    rep.groups.forEach((g) => { const n = Math.max(1, Math.ceil(g.recs.length / PER)); for (let p = 0; p < n; p++) pages.push({ g, rows: g.recs.slice(p * PER, p * PER + PER), from: p * PER }); });
+    if (!pages.length) pages.push({ g: { label: "", recs: [] }, rows: [], from: 0 });
+    const host = document.createElement("div"); host.style.cssText = "position:fixed;left:-20000px;top:0;"; document.body.appendChild(host);
+    try {
+      for (let i = 0; i < pages.length; i++) {
+        const pg = pages[i];
+        host.innerHTML = `<div class="rpt-pdf"><div class="rpt-ph"><b>${esc(rep.title)}</b><span>${esc(rep.cond)}</span></div><div class="rpt-pg"><b>${esc(pg.g.label)}</b> ${pg.g.recs.length}건</div><table><thead><tr><th>#</th>${th.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${pg.rows.map((r, k) => `<tr><td>${pg.from + k + 1}</td>${th.map((c) => `<td class="${c === "보험료" ? "n" : ""}">${rptCell(c, r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table><div class="rpt-pf">${esc(rep.stamp)} · ${i + 1} / ${pages.length}</div></div>`;
+        const cv = await window.html2canvas(host.firstChild, { scale: 1.6, backgroundColor: "#ffffff", logging: false });
+        if (i) doc.addPage();
+        doc.addImage(cv.toDataURL("image/jpeg", 0.88), "JPEG", 0, 0, 841.89, 595.28);
+      }
+    } finally { host.remove(); }
+    return doc.output("blob");
+  }
+  function rptFormHtml() {
+    const yNow = new Date().getFullYear(), ys = []; for (let y = yNow - 3; y <= yNow + 1; y++) ys.push(y);
+    return `<div class="card rpt"><h3 class="sec-title">조건 보고서</h3>
+      <div class="rpt-row"><span class="rpt-k">사용자</span><select id="rptUser" aria-label="사용자">${RPT.opts.map((o) => `<option value="${esc(o.id)}"${o.id === RPT.opt ? " selected" : ""}>${esc(o.label)}</option>`).join("")}</select></div>
+      <div class="rpt-row"><span class="rpt-k">유형</span><span class="rpt-chk">${RPT_T.map(([k, l]) => `<label><input type="checkbox" data-rt="${k}"${RPT.types[k] ? " checked" : ""}> ${l}</label>`).join("")}<label class="rpt-arch"><input type="checkbox" id="rptArch"${RPT.arch ? " checked" : ""}> 보관 포함</label></span></div>
+      <div class="rpt-row"><span class="rpt-k">이달 지정</span><span class="rpt-ym"><select id="rptY" aria-label="년">${ys.map((y) => `<option value="${y}"${y === RPT.y ? " selected" : ""}>${y}년</option>`).join("")}</select><select id="rptM" aria-label="월">${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}"${i + 1 === RPT.m ? " selected" : ""}>${i + 1}월</option>`).join("")}</select><button type="button" class="ev-edit" data-rpt="now">이번 달</button></span></div>
+      <div class="rpt-go"><span id="rptCount" class="rpt-count"></span><button type="button" class="ev-edit ev-done" id="rptGo" data-rpt="go">진행</button></div>
+      <p class="hint">DB는 월과 상관없이 지금 DB 고객 전체입니다. 이관은 이관일이, 따행은 대상년월이 위 달인 고객입니다.</p></div><div id="rptOut"></div>`;
+  }
+  function rptCounts() {
+    const el = $("rptCount"); if (!el) return;
+    const all = rptCollect(), parts = RPT_T.filter(([k]) => RPT.types[k]).map(([k, l]) => { const a = all[k].filter((r) => !r.arch).length, b = all[k].length - a; return { l, n: RPT.arch ? a + b : a, b }; });
+    const total = parts.reduce((s, p) => s + p.n, 0);
+    el.innerHTML = parts.length ? parts.map((p) => `${p.l} <b>${p.n}</b>건${RPT.arch && p.b ? `<small>(보관 ${p.b})</small>` : ""}`).join(" · ") + ` · 합계 <b>${total}</b>건` : "유형을 하나 이상 골라 주세요";
+    $("rptGo").disabled = !total;
+  }
+  async function renderMaterial(req) { // 영업 > 자료
+    const box = $("salesView");
+    box.innerHTML = `<div class="card"><h3 class="sec-title">조건 보고서</h3><p class="hint">불러오는 중…</p></div>`;
+    try {
+      const data = await loadSalesData(); if (req !== salesReq) return;
+      await loadMyPrefs().catch(() => {}); await refreshSalesExtra();
+      const opts = await rptOptions(data); if (req !== salesReq) return;
+      RPT.data = data; RPT.opts = opts; RPT.cache = null; RPT.built = null;
+      if (!RPT.y) { const n = new Date(); RPT.y = n.getFullYear(); RPT.m = n.getMonth() + 1; }
+      if (!opts.some((o) => o.id === RPT.opt)) RPT.opt = (opts[0] || {}).id || "";
+      box.innerHTML = rptFormHtml(); rptCounts();
+    } catch (e) { if (req === salesReq) { box.innerHTML = ""; handleError(e); } }
+  }
+  function rptOutHtml(rep) {
+    let share = false; try { share = !!(navigator.canShare && navigator.canShare({ files: [new File(["x"], "a.pdf", { type: "application/pdf" })] })); } catch (e) { share = false; }
+    return `<div class="card rpt-out"><div class="rpt-oh"><b>${esc(rep.title)}</b><span class="hint">${esc(rep.cond)} · ${rep.total}건 · ${esc(rep.stamp)}</span></div>${rptTableHtml(rep)}
+      <div class="rpt-acts"><button type="button" class="ev-edit" data-rpt="xlsx">엑셀 다운</button><button type="button" class="ev-edit" data-rpt="pdf">PDF 다운</button><button type="button" class="ev-edit" data-rpt="pdfopen">PDF 열람</button><button type="button" class="ev-edit" data-rpt="mail">이메일(나에게)</button>${share ? `<button type="button" class="ev-edit" data-rpt="share">파일 공유</button>` : ""}</div>
+      <p class="hint" id="rptMsg"></p></div>`;
+  }
+  async function rptAct(kind, btn) {
+    const rep = RPT.built; if (!rep) return;
+    const msg = $("rptMsg"), say = (t) => { if (msg) msg.textContent = t; };
+    if (kind === "mail") {
+      const to = me(), lines = rep.groups.flatMap((g) => g.recs.map((r) => `[${g.label}] ${r.이름}${r.상품 ? " · " + r.상품 : ""}${r.연락처 ? " · " + r.연락처 : ""}`));
+      let body = `${rep.title}\n${rep.cond}\n${rep.groups.map((g) => g.label + " " + g.recs.length + "건").join(" / ")} (합계 ${rep.total}건)\n\n`;
+      for (const ln of lines) { if ((body + ln).length > 1700) { body += "…(나머지는 앱에서 엑셀·PDF로 받으세요)"; break; } body += ln + "\n"; }
+      location.href = "mailto:" + encodeURIComponent(to) + "?subject=" + encodeURIComponent(`${rep.title} ${rep.user} ${rep.ym}`) + "&body=" + encodeURIComponent(body);
+      say("메일 앱이 열립니다. 파일 첨부는 안 되어 본문에 명단만 담았어요. 파일은 다운 후 직접 첨부하세요.");
+      return;
+    }
+    const old = btn && btn.textContent; if (btn) { btn.disabled = true; btn.textContent = "만드는 중…"; }
+    let w = null; if (kind === "pdfopen") { try { w = window.open("", "_blank"); } catch (e) { w = null; } }
+    try {
+      if (kind === "xlsx") { rptSave(rptXlsxBlob(rep), rptFileName(rep, "xlsx")); say("엑셀을 내려받았어요."); }
+      else {
+        const blob = await rptPdfBlob(rep), name = rptFileName(rep, "pdf");
+        if (kind === "pdf") { rptSave(blob, name); say("PDF를 내려받았어요."); }
+        else if (kind === "pdfopen") { const u = URL.createObjectURL(blob); if (w) { w.location.href = u; say("PDF를 새 창으로 열었어요."); } else { rptSave(blob, name); say("새 창이 막혀 PDF를 내려받았어요."); } }
+        else if (kind === "share") { await navigator.share({ files: [new File([blob], name, { type: "application/pdf" })], title: rep.title }); say("공유 창을 열었어요."); }
+      }
+    } catch (e) { if (w) { try { w.close(); } catch (e2) { /* 무시 */ } } if (!(e && e.name === "AbortError")) say("실패: " + (e && e.message ? e.message : e)); }
+    finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
+  }
+  $("salesView").addEventListener("change", (ev) => {
+    const t = ev.target; if (!t || !$("rptCount")) return;
+    if (t.id === "rptUser") RPT.opt = t.value; else if (t.id === "rptY") RPT.y = +t.value; else if (t.id === "rptM") RPT.m = +t.value;
+    else if (t.id === "rptArch") RPT.arch = t.checked; else if (t.dataset && t.dataset.rt) RPT.types[t.dataset.rt] = t.checked; else return;
+    RPT.built = null; $("rptOut").innerHTML = ""; rptCounts();
+  });
+  $("salesView").addEventListener("click", (ev) => {
+    const b = ev.target.closest && ev.target.closest("[data-rpt]"); if (!b) return;
+    const k = b.dataset.rpt;
+    if (k === "now") { const n = new Date(); RPT.y = n.getFullYear(); RPT.m = n.getMonth() + 1; $("rptY").value = RPT.y; $("rptM").value = RPT.m; RPT.built = null; $("rptOut").innerHTML = ""; rptCounts(); }
+    else if (k === "go") { RPT.built = rptBuild(); $("rptOut").innerHTML = rptOutHtml(RPT.built); $("rptOut").scrollIntoView({ behavior: "smooth", block: "start" }); }
+    else rptAct(k, b);
+  });
   function openSales() { renderSales(); flushContacts(); }
   $("salesSub").addEventListener("click", (ev) => { // 영업 서브메뉴: 이달목표 / 자료 (영업 화면 위, 화면 바깥 줄)
     const b = ev.target.closest("[data-ssub]");
