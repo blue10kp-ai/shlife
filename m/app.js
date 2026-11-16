@@ -3073,7 +3073,7 @@
       const isRoot = em === root, o = d[em] || {}, kids = orgKids(d, em), desc = isRoot ? [] : orgDesc(d, em);
       const subFcs = desc.map(fcOf).filter(Boolean);
       const gets = isRoot ? [] : orgGets(d, em, fcOf);
-      const note = isRoot ? "전체 FC" : ""; // v339: '받은 권한' 줄 삭제(사용자 지시)
+      const note = ""; // v373: ESL(관리자) 카드의 "전체 FC" 문구 삭제(2026-11-16 사용자 지시) // v339: '받은 권한' 줄 삭제(사용자 지시)
       const tSel = `<select class="org-title" data-org-t aria-label="${esc(orgName(em))} 직책">${ORG_TITLES.map((t) => `<option ${orgTitles[em] === t ? "selected" : ""}>${t}</option>`).join("")}</select>`;
       return `<li class="org-node${isRoot ? " root" : ""}${orgOpen.has(em) ? " open" : ""}" data-org-em="${esc(em)}"><div class="org-card">${isRoot ? "" : `<span class="org-grip" data-org-grip role="button" aria-label="${esc(orgName(em))} 끌어서 옮기기"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></span>`}<div class="org-main"><div class="org-nm"><button type="button" class="org-nmbtn" data-org-tg aria-expanded="${orgOpen.has(em) ? "true" : "false"}" aria-label="${esc(orgName(em))} 펼치기·접기">${esc(orgName(em))}</button> ${tSel}<button type="button" class="org-info" data-org-prof aria-label="${esc(orgName(em))} 사용자 정보">정보</button>${isRoot ? ' <span class="hint org-dev">(이 기기)</span>' : ""}</div><div class="org-mail hint">${isPend(em) ? "이메일 미입력" : esc(em)}</div>${isRoot ? "" : `<div class="org-cbs"><label><input type="checkbox" class="cb" data-org-v ${o.view ? "checked" : ""}> 보기</label><label><input type="checkbox" class="cb" data-org-e ${o.edit ? "checked" : ""}> 수정</label><i class="org-sep" aria-hidden="true"></i><label title="이 사용자 본인만(아래 조직에는 적용 안 됨)"><input type="checkbox" class="cb" data-org-s ${o.sens ? "checked" : ""}> 민감정보</label></div>`}${note ? `<div class="org-note hint">${note}</div>` : ""}</div>${isRoot ? orgSetHtml({ ...readStartPref(), rh: rhOn() }, true) : orgSetHtml((orgStartCache || {})[em], false)}</div>${kids.length ? `<ul class="org-kids">${kids.map(node).join("")}</ul>` : ""}</li>`;
     };
@@ -3364,7 +3364,9 @@
 
   function renderAdmin() {
     const { fcs, perms } = adminState;
-    const users = [...new Set([...Object.keys(perms.users), ...extraUsers])].sort();
+    // v372(2026-11-16 사용자 지시): 사용자 순서 = 1순위 직급(ESL > SSL > GSL > FC), 2순위 사번(작은 것이 위, 사번 모르면 뒤), 그다음 이름
+    const noKey = (em) => { const n = fcNoOf((perms.names || {})[em]); return n && /^\d+$/.test(n) ? Number(n) : Infinity; };
+    const users = [...new Set([...Object.keys(perms.users), ...extraUsers])].sort((x, y) => ORG_TITLES.indexOf(titleOf(perms, x)) - ORG_TITLES.indexOf(titleOf(perms, y)) || (noKey(x) === noKey(y) ? 0 : noKey(x) < noKey(y) ? -1 : 1) || String((perms.names || {})[x] || x).localeCompare(String((perms.names || {})[y] || y), "ko"));
     const listOf = (em) => perms.users[em] || [];
     const isAll = (em) => listOf(em).includes("*");
     const nameOfEm = (em) => (perms.names || {})[em] || "";
