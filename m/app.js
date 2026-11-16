@@ -1196,12 +1196,13 @@
         const pdHtml = c.dbAuto && dbView ? `<span class="r-day">계약</span>` : trDay ? `<span class="r-day">보관 ${esc(pd.slice(5))}</span>` : pd ? `<span class="r-day">${dbView ? (dbShowRemoved ? "보관 " + esc(pd.slice(5)) : "유입 " + esc(pd.slice(2))) : (progShowRemoved ? "보관" : "진행") + " " + esc(pd.slice(5))}</span>` : ""; // FC 이름 뒤에 한 칸 띄우고 작게
         // 보관 버튼: 필터가 여럿이어도 이 고객이 보관 가능할 때만 (진행 필터 → 진행 고객, DB 필터 → DB 고객). 둘 다 해당하면 진행 우선
         const ro = isRO((c.entries[0] || {}).fc);
+        const srcLbl = progView ? (c.entries.map((e) => fieldOf(e, "최초유입경로")).find(Boolean) || "") : ""; // v376(2026-11-16): 진행 목록의 '진행' 태그 대신 유입경로
         const canProg = progView && !ro && c.entries.some((e) => e.sheet === CUST_SHEET && e.type === (progShowRemoved ? "진행제외" : "진행"));
         const canDb = dbOn && !ro && !canProg && !c.dbAuto && c.entries.some((e) => e.sheet === CUST_SHEET && isDbRec(e) && (dbShowRemoved ? dbState(e) === "보관" && !dbAutoRec(e) : !dbOffRec(e)));
         const canTr = trOn && !ro && !canProg && !canDb && !!trInfo && c.entries.some((e) => e.type === "이관") && trInfo.st === (trShowRemoved ? "off" : "on");
         return `<li${progView || dbOn || trOn ? ' class="pv"' : ""}><button data-i="${i}"><span class="avatar sm">${esc(c.name[0])}</span>
           <span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${fcs.length || pdHtml ? `<span class="r-sub">${esc(fcs.join(", "))}${pdHtml}</span>` : ""}${c.why && c.why.size ? `<span class="r-why">${[...c.why].map(([k, v]) => esc(k) + (v && k !== "연락처" ? " · " + esc(v) : "")).join(" / ")}</span>` : ""}</span>
-          ${churnTagHtml(churnMap.get(c))}${types.map((t) => `<span class="tag t-${esc(t)}">${esc(typeLabel(t))}</span>`).join("")}${stage ? `<span class="tag stg stg-${esc(stage)}">${esc(stage)}</span>` : ""}<span class="chev">›</span></button>${canTr ? `<button type="button" class="prog-mini" data-trc="${i}" aria-label="${esc(c.name)} ${trShowRemoved ? "이관으로 원복" : "보관으로 이동"}">${trShowRemoved ? "원복" : "이동"}</button>` : ""}${canDb ? `<button type="button" class="prog-mini" data-dbc="${i}" aria-label="${esc(c.name)} ${dbShowRemoved ? "DB로 원복" : "보관으로 이동"}">${dbShowRemoved ? "원복" : "이동"}</button>` : ""}${canProg ? (progShowRemoved ? `<button type="button" class="prog-mini" data-prest="${i}" aria-label="${esc(c.name)} 진행으로 원복">원복</button>` : `<button type="button" class="prog-mini" data-pdel="${i}" aria-label="${esc(c.name)} 보관으로 이동">이동</button>`) : ""}${insLineHtml(c)}</li>`;
+          ${churnTagHtml(churnMap.get(c))}${types.map((t) => progView && t === "진행" ? (srcLbl ? `<span class="tag t-진행">${esc(srcLbl)}</span>` : "") : `<span class="tag t-${esc(t)}">${esc(typeLabel(t))}</span>`).join("")}${stage ? `<span class="tag stg stg-${esc(stage)}">${esc(stage)}</span>` : ""}<span class="chev">›</span></button>${canTr ? `<button type="button" class="prog-mini" data-trc="${i}" aria-label="${esc(c.name)} ${trShowRemoved ? "이관으로 원복" : "보관으로 이동"}">${trShowRemoved ? "원복" : "이동"}</button>` : ""}${canDb ? `<button type="button" class="prog-mini" data-dbc="${i}" aria-label="${esc(c.name)} ${dbShowRemoved ? "DB로 원복" : "보관으로 이동"}">${dbShowRemoved ? "원복" : "이동"}</button>` : ""}${canProg ? (progShowRemoved ? `<button type="button" class="prog-mini" data-prest="${i}" aria-label="${esc(c.name)} 진행으로 원복">원복</button>` : `<button type="button" class="prog-mini" data-pdel="${i}" aria-label="${esc(c.name)} 보관으로 이동">이동</button>`) : ""}${insLineHtml(c)}</li>`;
       }).join("");
       list.querySelectorAll("button[data-i]").forEach((b) =>
         b.addEventListener("click", async () => { await openCustomer(custs[+b.dataset.i]); if (tabReq) selectTab(tabReq); }));
@@ -1710,7 +1711,8 @@
     if (tab.id !== "analysis") return out;
     // 분석 탭: 워드(docx) 파일은 숨기고, ① AI/클로드 분석 보고서 ② 스마트보장분석 ③ 손해담보 ④ 그 밖의 순으로 (같은 종류는 파일 이름 앞 날짜가 최근인 것부터)
     const rank = (f) => { const n = f.name.replace(/\s/g, ""); return /AI.*분석|클로드|claude|보장분석보고서|심화분석/i.test(n) ? 0 : /스마트보장분석/.test(n) ? 1 : /손해담보/.test(n) ? 2 : 3; };
-    return out.filter((f) => kind(f.name) !== "word")
+    // v377(데이터수집 전달, 사용자 지시): 분석 탭은 'old'(예전 '과거 - 날짜') 하위 폴더의 옛 파일을 숨기고 고객 폴더의 최신 파일만
+    return out.filter((f) => kind(f.name) !== "word" && !/(^|\/)(old|과거 - [^/]*)\//i.test(f.path))
       .map((f, i) => [f, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || String(b[0].name).localeCompare(String(a[0].name)) || a[1] - b[1]).map((x) => x[0]);
   }
 
