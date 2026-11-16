@@ -806,6 +806,7 @@
   // 동명이인 표시를 뺀 이름: "이영숙(640927)" → "이영숙" (일정 제목·계약 매칭은 이 이름으로)
   const baseName = (n) => String(n || "").replace(/\(\d{6}\)\s*$/, "").trim();
   // ---- 새 구조: 고객ID·담당FC ----
+  const progFlag = (r) => (r.type === "계약" || r.type === "이관") && /^y$/i.test(fieldOf(r, "진행")); // v375(2026-11-16): 계약·이관관리 고객도 고객 시트 '진행'=Y면 진행 목록에 함께 나옴(계약·이관 목록에도 그대로)
   const fieldOf = (e, k) => { const f = (e.fields || []).find(([x]) => x.trim() === k); return f ? String(f[1]).trim() : ""; };
   const idOf = (e) => fieldOf(e, "고객ID");
   // 해지 고객 표시(화면에서 계산, 데이터 수정 없음): 계약자 기준 계약이 1건 이상 있고 유효 계약(유지·완납·납입면제·연금지급·신계약승낙)이 0건이면 '해지', 실효 계약만 남았으면 '실효'. 계약이 없으면(가망·진행·피보험자) 표시 없음
@@ -1073,7 +1074,7 @@
       const hits = records.filter((r) => {
         if (fcPick !== FC_ALL && r.fc !== fcPick) return false;
         if (want && r.type !== want.label) return false;
-        if (optTypes.length && !optTypes.some((id) => id === "ddahaeng" ? (r.type === typeOfOpt(id) || fieldOf(r, "따행대상") === "예") : id === "progress" ? (progShowRemoved ? r.type === "진행제외" : r.type === typeOfOpt(id)) : id === "db" ? (isDbRec(r) && dbOffRec(r) === dbShowRemoved) : id === "transfer" ? (r.type === typeOfOpt(id) && trOff(r) === trShowRemoved) : r.type === typeOfOpt(id))) return false; // DB = 현재단계가 DB인 고객 + 유입경로가 DB인 고객(이미 계약·진행으로 넘어간 고객 포함)
+        if (optTypes.length && !optTypes.some((id) => id === "ddahaeng" ? (r.type === typeOfOpt(id) || fieldOf(r, "따행대상") === "예") : id === "progress" ? (progShowRemoved ? r.type === "진행제외" : r.type === typeOfOpt(id) || progFlag(r)) : id === "db" ? (isDbRec(r) && dbOffRec(r) === dbShowRemoved) : id === "transfer" ? (r.type === typeOfOpt(id) && trOff(r) === trShowRemoved) : r.type === typeOfOpt(id))) return false; // DB = 현재단계가 DB인 고객 + 유입경로가 DB인 고객(이미 계약·진행으로 넘어간 고객 포함)
         if (!q) return true;
         let ok = false;
         if (polIds && (polIds.has(idOf(r)) || (!idOf(r) && polNames.includes(norm(baseName(r.name)) + "|" + r.fc)))) ok = true;
@@ -1147,7 +1148,7 @@
       const progDay = new Map(); // 고객 → 정렬·표시용 날짜(YYYY-MM-DD)
       if (progView) { // 상태 줄 오른쪽 작은 칩: [진행 N] [삭제 M] (기본은 진행 고객). 한 줄을 따로 차지하지 않음
         const on = new Set(), off = new Set();
-        records.forEach((r) => { if (fcPick !== FC_ALL && r.fc !== fcPick) return; const k = idOf(r) || r.name; if (r.type === "진행") on.add(k); else if (r.type === "진행제외") off.add(k); });
+        records.forEach((r) => { if (fcPick !== FC_ALL && r.fc !== fcPick) return; const k = idOf(r) || r.name; if (r.type === "진행" || progFlag(r)) on.add(k); else if (r.type === "진행제외") off.add(k); });
         status.classList.add("has-pbar");
         status.insertAdjacentHTML("beforeend", `<span id="progBar" class="prog-bar" role="group" aria-label="진행 보기"><button type="button" data-pview="on" class="${progShowRemoved ? "" : "on"}">진행 ${on.size}</button><button type="button" data-pview="off" class="${progShowRemoved ? "on" : ""}">보관 ${off.size}</button></span>`);
         // 정렬: 진행 = 진행이 된 날(이력의 '단계변경 … → 진행' 일시, 없으면 고객 줄 입력일시) 최신순 / 삭제 = 진행제외 날짜 최신순
