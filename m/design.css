@@ -1052,3 +1052,6 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 #salesView .sales-info .dfl-in { gap: 4px; font-size: 12px; }
 #salesView .sales-info .dfl-in .dfg { gap: 4px; }
 #salesView .sales-info .dfl-in input { width: 14px; height: 14px; }
+
+/* v363: DB 보관 줄 [삭제] */
+#salesView .sline.l1 .ar-btn.del { margin-left: 4px; color: var(--bad, #c0392b); border-color: currentColor; }

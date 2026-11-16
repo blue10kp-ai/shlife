@@ -3732,7 +3732,7 @@
     const s_inst = sec("앱 설치", ["안드로이드 크롬: 설정 화면의 [앱 설치](없으면 브라우저 메뉴의 ‘앱 설치’), 아이폰 사파리: 공유 → ‘홈 화면에 추가’. 설치하면 앱처럼 전체 화면으로 열립니다. 이미 설치했으면 설정에 설치 카드가 보이지 않습니다."]);
     const s_srch = sec("전체검색 · 고객검색", ["<b>위쪽 전체검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호뿐 아니라 고객 메모, 상담기록, 오늘 기준 1년 전~1개월 뒤 일정(제목·장소)에서도 찾습니다. 결과는 아래에서 올라오는 창에 고객(어디서 찾았는지 표시)과 일정으로 나뉘어 나오고, 누르면 고객 정보(상담기록에서 찾았으면 상담 탭) 또는 그날 일정으로 이동합니다.", "<b>고객 화면의 고객검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호로 고객만 찾는 기존 검색입니다. 한 명만 나오면 바로 고객 정보가 열립니다.", "검색칸이 비어 있을 때의 글자(전체검색·고객검색)는 오른쪽에 보입니다."]);
     const s_cov = sec("보장 요약 (고객 정보 > 분석 탭)", ["분석 탭 맨 위에 사망 · 3대진단(암·뇌·심) · 수술 · 입원 · 간병을 간단히 보여 줍니다. 스마트보장분석이 있으면 ‘전체 보험사에 가입된 보장 요약입니다.’, 신한라이프 상세보장내용만 있으면 ‘신한라이프에 가입된 보장 요약입니다.’라고 위에 적고, 맨 아래에 어느 문서의 몇 월 며칠 기준인지 나옵니다.", "‘미가입’은 가입한 보장이 없다는 뜻이고, ‘확인 안 됨’은 원본 문서에서 그 항목을 읽지 못했다는 뜻입니다. 이 값은 고객 등록·업데이트 때 미리 만들어 고객 시트의 ‘보장요약’ 칸에 저장해 둔 것을 읽기만 하므로 분석 탭을 열 때 계산하지 않습니다."]);
-    const s_prog = sec("보관 (이동 · 원복)", ["고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 영업 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다.", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 고객 화면 [이관] 목록에서는 <b>이달 N / 보관 M</b> 칩(이달 이관 고객 수)과 줄의 이동·원복으로 그 고객의 <b>이달 이관 계약만</b> 한꺼번에 보관하거나 원복합니다(이관일자가 이번 달인 계약 = 이달목표 > 이관에 나오는 계약, 지난 달 이관·담당이 다른 FC 계약은 그대로). 이달 이관 계약이 없는 이관 고객에는 버튼이 없습니다. 고객 정보 화면 탭 줄 오른쪽에도 보관할 수 있는 목록마다 <b>보관으로 이동</b>/<b>원복</b> 버튼이 나옵니다(여러 개면 ‘진행 보관’·‘DB 보관’·‘이관 보관’처럼 앞에 목록 이름). 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
+    const s_prog = sec("보관 (이동 · 원복)", ["고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 영업 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다. DB 보관 목록에는 원복 오른쪽에 <b>삭제</b> 버튼도 있습니다: 확인 뒤 누르면 자료는 지우지 않고 고객 시트의 ‘DB삭제’ 칸에 ‘삭제’만 표시해, 보관 목록에서도 안 보이게 합니다(6초 안에 [되돌리기] 가능).", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 고객 화면 [이관] 목록에서는 <b>이달 N / 보관 M</b> 칩(이달 이관 고객 수)과 줄의 이동·원복으로 그 고객의 <b>이달 이관 계약만</b> 한꺼번에 보관하거나 원복합니다(이관일자가 이번 달인 계약 = 이달목표 > 이관에 나오는 계약, 지난 달 이관·담당이 다른 FC 계약은 그대로). 이달 이관 계약이 없는 이관 고객에는 버튼이 없습니다. 고객 정보 화면 탭 줄 오른쪽에도 보관할 수 있는 목록마다 <b>보관으로 이동</b>/<b>원복</b> 버튼이 나옵니다(여러 개면 ‘진행 보관’·‘DB 보관’·‘이관 보관’처럼 앞에 목록 이름). 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
     const s_rh = sec("오른손 모드", ["'화면' 카드 오른쪽 칸입니다. 하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용되고, 관리자 조직도에서 볼 수 있게 기록됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>[조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 영업 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 영업 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: ‘FC 사용 설정’ 제목 옆 [조직도]를 누르면 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 조직도에서 이름을 누르거나 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/영업 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
@@ -6084,6 +6084,7 @@
       const mine = data.custById.get(id) || [e];
       const own = mine.find((x) => x.fc === primaryFc(mine)) || e;
       if (own !== e || fieldOf(e, "최초유입경로") !== "DB") return;
+      if (mine.some((x) => fieldOf(x, "DB삭제") === "삭제")) return; // v363: 삭제 표시한 DB 고객은 보관 목록에서도 숨김
       seen.add(id);
       const cts = data.contracts.filter((c) => String(c.row["계약자ID"] || "").trim() === id && !DEAD_STATUS.includes(c.row["계약상태"] || c.row["상태"] || ""));
       out.push({
@@ -6186,7 +6187,7 @@
       const chips = stageChips ? stageChips : isD ? DCHIPS.map(([f, lab, cls], i) => `<button type="button" class="dc ${cls} ${i === lastD ? "on" : r.dda[f] ? "off past" : "off"}${lock ? " lock" : ""}" data-chip="${f}" data-key="${esc(r.key)}" aria-pressed="${r.dda[f] ? "true" : "false"}">${lab}</button>`).join("") : "";
       // [이동]/[원복]: 담당이 다른 FC 계약(참고)·계약ID 없는 계약·보기 전용은 없음. 계약 고객이 된 DB 고객은 '계약'(자동 보관)
       const arDay = r.arch && r.archDay ? `<span class="r-day">보관 ${esc(String(r.archDay).slice(5, 10))}</span>` : "";
-      const arBtn = r.db && r.arch && r.dbAuto ? `<i class="ar-sep" aria-hidden="true"></i><span class="ar-auto">계약</span>` : (r.ref || !r.key || isRO(r.fc) || r.arch === undefined) ? "" : `<i class="ar-sep" aria-hidden="true"></i><button type="button" class="ar-btn${r.arch ? " back" : ""}" data-arx="${esc(r.key)}" aria-label="${esc(r.holder)} ${r.arch ? "원복" : "보관으로 이동"}">${r.arch ? "원복" : "이동"}</button>`;
+      const arBtn = r.db && r.arch && r.dbAuto ? `<i class="ar-sep" aria-hidden="true"></i><span class="ar-auto">계약</span>` : (r.ref || !r.key || isRO(r.fc) || r.arch === undefined) ? "" : `<i class="ar-sep" aria-hidden="true"></i><button type="button" class="ar-btn${r.arch ? " back" : ""}" data-arx="${esc(r.key)}" aria-label="${esc(r.holder)} ${r.arch ? "원복" : "보관으로 이동"}">${r.arch ? "원복" : "이동"}</button>${r.db && r.arch ? `<button type="button" class="ar-btn del" data-ardel="${esc(r.key)}" aria-label="${esc(r.holder)} 삭제">삭제</button>` : ""}`;
       const arHtml = arDay ? `<span class="ar-act">${arDay}</span>` : "";
       // 왼쪽 굵은 선 = 지금 단계 색 (이관·DB = 영업단계 칩, 따행 = 마지막 달성 칩). 단계가 없으면 선 없음
       const lv = isD ? (lastD >= 0 ? DCHIPS[lastD][2] : "") : ((STAGE_CHIPS.find(([lab]) => lab === r.stage) || [])[1] || "");
@@ -6328,12 +6329,13 @@
   // 목록에서 빼기/되돌리기 공통(진행 = '진행제외' 칸, DB = 'DB제외' 칸): 칸에 날짜를 적고 이력 한 줄 → 파일마다 한 번 받고 한 번 저장
   const EXCL = {
     progress: { field: "진행제외", on: "이동(보관)", off: "원복", onText: "진행 → 보관 (앱에서 이동, 고객 정보는 그대로)", offText: "보관 → 진행 (앱에서 원복)", type: true },
-    db: { field: "DB제외", on: "이동(보관)", off: "원복", onText: "DB → 보관 (앱에서 이동, 고객 정보는 그대로)", offText: "보관 → DB (앱에서 원복)", type: false }
+    db: { field: "DB제외", on: "이동(보관)", off: "원복", onText: "DB → 보관 (앱에서 이동, 고객 정보는 그대로)", offText: "보관 → DB (앱에서 원복)", type: false },
+    dbdel: { field: "DB삭제", on: "삭제", off: "삭제취소", onText: "DB 보관 → 삭제 표시 (앱에서 삭제, 자료는 그대로 두고 목록에서만 숨김)", offText: "DB 삭제 표시 취소 (앱에서 되돌림, 보관 목록으로)", type: false, val: "삭제" } // v363: 'DB삭제' 칸에 '삭제' 표시
   };
   async function saveExclude(mode, ents, exclude) {
     const M = EXCL[mode], e0 = ents[0], stamp = tsDigits(nowStamp());
     const kind = exclude ? M.on : M.off, text = exclude ? M.onText : M.offText;
-    await writeEntryCells(ents, { [M.field]: exclude ? todayStr() : "" }, (wb, fileId) => {
+    await writeEntryCells(ents, { [M.field]: exclude ? (M.val || todayStr()) : "" }, (wb, fileId) => {
       if (fileId !== e0.src.fileId) return;
       try {
         const hist = sheetInfo(wb, "이력", "고객ID");
@@ -6355,7 +6357,7 @@
     const M = EXCL[mode];
     const prev = ents.map((e) => [e.type, fieldOf(e, M.field)]);
     const setUi = (i, type, day) => { const e = ents[i]; if (M.type) e.type = type; setEntField(e, M.field, day); };
-    ents.forEach((e, i) => setUi(i, exclude ? "진행제외" : "진행", exclude ? todayStr() : ""));
+    ents.forEach((e, i) => setUi(i, exclude ? "진행제외" : "진행", exclude ? (M.val || todayStr()) : ""));
     if (after) after();
     progBusy(1);
     progQ = progQ.then(() => saveExclude(mode, ents, exclude)).then(() => true, (err) => {
@@ -6387,6 +6389,14 @@
     const ents = dbEnts(entries); if (!ents) return;
     exclApply("db", ents, false, after);
     undoToast(`${name} 고객을 원복했습니다`, () => { exclApply("db", ents, true, after); toast("다시 보관했습니다."); });
+  }
+  function dbDelete(name, entries, after) { // v363: 보관 목록에서도 숨김(자료는 지우지 않고 'DB삭제' 칸에 '삭제'만 표시)
+    if (!confirm(`${name} 고객을 삭제할까요?
+보관 목록에서도 안 보이게 됩니다.
+(자료는 지워지지 않고 '삭제' 표시만 남아요.)`)) return;
+    const ents = dbEnts(entries); if (!ents) return;
+    exclApply("dbdel", ents, true, after);
+    undoToast(`${name} 고객을 삭제했습니다`, () => { exclApply("dbdel", ents, false, after); toast("삭제를 취소했습니다."); });
   }
   const PROG_ASK = (name) => ARCH_ASK(name);
   // 진행 목록·고객 정보에서 쓰는 공통 동작: 확인 → (화면 바로 바뀜, 저장은 뒤에서) → 6.5초 되돌리기
@@ -6968,6 +6978,15 @@
   $("salesView").addEventListener("click", (ev) => {
     const arv = ev.target.closest("[data-arview]");
     if (arv) { SALES.arch[SALES.tab] = arv.dataset.arview === "off"; return renderSales(); }
+    const ard = ev.target.closest("[data-ardel]");
+    if (ard) { // DB 보관 줄의 [삭제]: 'DB삭제' 칸에 '삭제' 표시 → 보관 목록에서도 숨김
+      const row = (($("salesView")._rows) || []).find((r) => r.key === ard.dataset.ardel);
+      if (!row || SALES.tab !== "valueup") return;
+      const el = ard.closest(".srow"); let first = true;
+      const after = () => { if (first && el) el.style.display = "none"; first = false; renderSales(true); };
+      dbDelete(row.holder, ((SALES.data && SALES.data.custById.get(row.custId)) || [row.ent]).filter(Boolean), after);
+      return;
+    }
     const arx = ev.target.closest("[data-arx]");
     if (arx) { // 줄의 [이동] / [원복]
       const row = (($("salesView")._rows) || []).find((r) => r.key === arx.dataset.arx);
