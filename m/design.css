@@ -1037,3 +1037,7 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 .rpt-pdf td.n { text-align: right; }
 .rpt-pdf .rpt-pf { position: absolute; left: 36px; right: 36px; bottom: 18px; font-size: 10.5px; color: #6b7382; text-align: right; }
 .rpt-t td { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+
+/* v361: 이관·DB 건수 줄에 전화·문자 체크 통합 */
+#salesView .sales-info .nfl { display: inline-flex; align-items: center; gap: 8px; }
+#salesView .sales-info .nfl label { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; }
