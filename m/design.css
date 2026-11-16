@@ -1041,3 +1041,14 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 /* v361: 이관·DB 건수 줄에 전화·문자 체크 통합 */
 #salesView .sales-info .nfl { display: inline-flex; align-items: center; gap: 8px; }
 #salesView .sales-info .nfl label { display: inline-flex; align-items: center; gap: 3px; font-size: 13px; }
+
+/* v362: 따행 건수 줄에 필터 통합 */
+#salesView .sales-info .dfl-in { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; font-size: 12.5px; }
+#salesView .sales-info .dfl-in .dfg { gap: 5px; }
+#salesView .sales-info .dfl-in label { gap: 2px; }
+#salesView .sales-info .dfl-in .dfk, #salesView .sales-info .dfl-in .dsep { display: none; }
+#salesView .sales-info .dfl-in input { width: 15px; height: 15px; }
+#salesView .sales-info:has(.dfl-in) { gap: 4px; flex-wrap: nowrap; }
+#salesView .sales-info .dfl-in { gap: 4px; font-size: 12px; }
+#salesView .sales-info .dfl-in .dfg { gap: 4px; }
+#salesView .sales-info .dfl-in input { width: 14px; height: 14px; }
