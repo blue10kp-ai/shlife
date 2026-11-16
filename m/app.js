@@ -475,9 +475,36 @@
   async function refreshSalesExtra() { if (Date.now() - salesExtraAt < 60000) return; salesExtraAt = Date.now(); try { await readPerms(); } catch (e) { /* 이전 값 유지 */ } }
   let salesPermsAll = null; // v325: 관리자 영업 화면의 사용자 선택(각 사용자의 FC + '영업 페이지 접근 허용')
   let salesExtra = []; // 영업(이달이관·따행) 화면의 FC 선택창에 추가로 보이는 FC (관리자 화면에서 계정마다 지정)
+  // ---------- FC 이름 ↔ 사번 (v359) ----------
+  // 기준표: Claude/_양식/사용자권한.json (users[{no,name,...}]) — 관리자만 읽을 수 있음(일반 사용자는 권한 파일의 fcNos 보조칸을 씀)
+  // 못 읽거나 이름이 안 맞으면 빈 값을 돌려주고, 화면·권한 판단은 지금처럼 이름으로 동작(사번은 어디에도 새로 보이지 않음)
+  let fcNoMap = {};
+  async function loadFcTable() {
+    if (!isAdmin()) return null;
+    try {
+      const dir = await stFindPathCached("Claude/_양식");
+      const t = dir && await stReadJsonIn(dir, "사용자권한.json");
+      const out = {};
+      ((t && t.users) || []).forEach((u) => { const n = String((u && u.name) || "").trim(), no = String((u && u.no) || "").trim(); if (n && no) out[n] = no; });
+      return Object.keys(out).length ? out : null;
+    } catch (e) { return null; }
+  }
+  const fcNoOf = (name) => fcNoMap[String(name || "").trim()] || "";
+  const fcNameOfNo = (no) => { const k = Object.keys(fcNoMap).find((n) => fcNoMap[n] === String(no || "").trim()); return k || ""; };
+  async function fillFcNos(perms) { // 기준표에서 채움(권한 파일에 있는 FC 이름과 맞는 것만). 실패하면 기존 값 그대로
+    try {
+      const t = await loadFcTable(); if (!t) return;
+      const known = new Set([...Object.keys(perms.fcFolders || {}), ...Object.values(perms.names || {}), ...Object.values(perms.users || {}).flat().map((x) => String(x).replace(/:r$/, ""))]);
+      const next = { ...(perms.fcNos || {}) };
+      Object.keys(t).forEach((n) => { if (known.has(n)) next[n] = t[n]; });
+      perms.fcNos = next;
+    } catch (e) { /* 무시 */ }
+  }
   async function writePerms(perms) {
     await resolveAppDir();
+    if (isAdmin()) await fillFcNos(perms);
     await stWriteJsonIn(appDir, PERM_FILE, perms);
+    fcNoMap = { ...(perms.fcNos || {}) };
     permNamesCache = { ...(perms.names || {}) };
     permPrefixCache = { ...(perms.prefixes || {}) };
   }
@@ -486,9 +513,10 @@
   async function readPerms() {
     await resolveAppDir();
     const p = await stReadJsonIn(appDir, PERM_FILE);
-    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, prefixes: (p && p.prefixes && typeof p.prefixes === "object") ? p.prefixes : {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [], salesFcs: (p && p.salesFcs && typeof p.salesFcs === "object") ? p.salesFcs : {}, starts: (p && p.starts && typeof p.starts === "object") ? p.starts : {}, org: (p && p.org && typeof p.org === "object") ? p.org : {}, orgApplied: (p && p.orgApplied && typeof p.orgApplied === "object") ? p.orgApplied : {}, orgSalesApplied: (p && p.orgSalesApplied && typeof p.orgSalesApplied === "object") ? p.orgSalesApplied : {}, orgVer: (p && p.orgVer) || 1, titles: (p && p.titles && typeof p.titles === "object") ? p.titles : {}, archived: (p && p.archived && typeof p.archived === "object") ? p.archived : {} }; // archived(v343): { 이메일: {...} } 보관한(삭제한) 사용자 — 데이터는 지우지 않음 // titles(v339): { 이메일: "ESL"|"SSL"|"GSL"|"FC" } 직책 // orgVer 2(v335): 보기·수정 = 그 사용자가 자기 FC를 위 사용자들에게 주는 권한 // orgSalesApplied(v330): { 이메일: [FC] } 조직도가 영업 페이지 접근 허용에 더한 FC // orgApplied(v327): { 이메일: [{fc, prev}] } 조직도가 더한 권한(조직도에서 빼면 이것만 되돌림, 직접 준 권한은 그대로) // org(v326): { 이메일: { parent, view, edit } } 조직도 // salesFcs: { 이메일: [영업 화면에서 추가로 볼 수 있는 FC 이름] } / sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
+    const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, prefixes: (p && p.prefixes && typeof p.prefixes === "object") ? p.prefixes : {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [], salesFcs: (p && p.salesFcs && typeof p.salesFcs === "object") ? p.salesFcs : {}, starts: (p && p.starts && typeof p.starts === "object") ? p.starts : {}, org: (p && p.org && typeof p.org === "object") ? p.org : {}, orgApplied: (p && p.orgApplied && typeof p.orgApplied === "object") ? p.orgApplied : {}, orgSalesApplied: (p && p.orgSalesApplied && typeof p.orgSalesApplied === "object") ? p.orgSalesApplied : {}, orgVer: (p && p.orgVer) || 1, titles: (p && p.titles && typeof p.titles === "object") ? p.titles : {}, archived: (p && p.archived && typeof p.archived === "object") ? p.archived : {}, fcNos: (p && p.fcNos && typeof p.fcNos === "object") ? p.fcNos : {} }; // fcNos(v359): { FC이름: 사번 } 보조칸(이름 키는 그대로, 일반 사용자가 기준표를 못 읽을 때 사번을 알 수 있게) // archived(v343): { 이메일: {...} } 보관한(삭제한) 사용자 — 데이터는 지우지 않음 // titles(v339): { 이메일: "ESL"|"SSL"|"GSL"|"FC" } 직책 // orgVer 2(v335): 보기·수정 = 그 사용자가 자기 FC를 위 사용자들에게 주는 권한 // orgSalesApplied(v330): { 이메일: [FC] } 조직도가 영업 페이지 접근 허용에 더한 FC // orgApplied(v327): { 이메일: [{fc, prev}] } 조직도가 더한 권한(조직도에서 빼면 이것만 되돌림, 직접 준 권한은 그대로) // org(v326): { 이메일: { parent, view, edit } } 조직도 // salesFcs: { 이메일: [영업 화면에서 추가로 볼 수 있는 FC 이름] } / sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
     permNamesCache = { ...out.names };
     permPrefixCache = { ...out.prefixes };
+    fcNoMap = { ...out.fcNos };
     try { const k = "shlife.startAdmin." + me(), v = out.starts[me()]; if (v) localStorage.setItem(k, JSON.stringify(v)); else localStorage.removeItem(k); } catch (e) { /* 무시 */ } // 관리자가 정한 시작 화면 (다음 실행부터)
     salesExtra = Array.isArray(out.salesFcs[me()]) ? out.salesFcs[me()].slice() : [];
     salesExtraAt = Date.now();
