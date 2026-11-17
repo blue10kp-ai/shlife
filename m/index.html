@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=3">
   <link rel="stylesheet" href="style.css?v=150">
   <link rel="stylesheet" href="tokens.css?v=117">
-  <link rel="stylesheet" href="design.css?v=329">
+  <link rel="stylesheet" href="design.css?v=331">
 </head>
 <body>
   <header class="topbar">
@@ -56,7 +56,7 @@
           <button class="primary" type="submit">검색</button>
         </div>
       </form>
-      <div id="searchOpts" class="sopts" role="group" aria-label="고객 범위"><button type="button" data-opt="all" class="on">전체</button><button type="button" data-opt="contract">직접모집</button><button type="button" data-opt="transfer">이관고객</button><button type="button" data-opt="db">DB</button><button type="button" data-opt="plan">가망</button><button type="button" id="gradeOpt" aria-label="성향 Good"><span class="gl gl-Good on">G</span><span class="gl gl-Bad">B</span><span class="gl gl-Shit">S</span></button></div>
+      <div id="searchOpts" class="sopts" role="group" aria-label="고객 범위"><button type="button" data-opt="all" class="on">전체</button><button type="button" data-opt="contract">직접모집</button><button type="button" data-opt="transfer">이관고객</button><button type="button" data-opt="db">DB</button><button type="button" data-opt="plan">가망</button><button type="button" id="gradeOpt" aria-label="성향 Good"><span class="gl gl-Good on">G</span><span class="gl gl-Bad">B</span><span class="gl gl-Shit">S</span></button><button type="button" id="introBtn" class="intro-open">소개찾기</button></div>
       <p id="searchStatus" class="hint"></p>
       <ul id="results" class="list"></ul>
       <p class="data-stamp"></p>
@@ -91,6 +91,7 @@
     <!-- 영업 화면 (이달 이관·이달 따행) -->
     <div id="salesSub" class="sales-sub" hidden><div class="seg"><button type="button" data-ssub="check" class="on">이달목표</button><button type="button" data-ssub="prog">계약진행</button><button type="button" data-ssub="material">자료</button></div></div>
     <section id="salesView" class="view" hidden></section>
+    <section id="introView" class="view" hidden></section>
 
     <section id="adminView" class="view" hidden>
       <div id="adminBody"></div>
@@ -149,6 +150,6 @@
   <script async src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
   <script src="config.js?v=118"></script>
-  <script src="app.js?v=398"></script>
+  <script src="app.js?v=401"></script>
 </body>
 </html>
