@@ -1100,3 +1100,13 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dc.on.new { background: #2a3140; color: #d7dde8; } }
 :root[data-theme="dark"] .dc.on.new { background: #2a3140; color: #d7dde8; }
 .prow .nmw small.ins { font-size: 10.5px; color: var(--t3); font-weight: 400; margin-left: 4px; }
+
+/* v398(2026-11-17): 소개 — 소개자 트로피(동·은·금)와 고객 정보의 소개 입력 */
+.trophy { vertical-align: -2px; margin-right: 3px; }
+.trophy.bronze { color: #b0713a; } .trophy.silver { color: #8f98a6; } .trophy.gold { color: #d19a0d; }
+.intro-fld .intro-conf { display: flex; gap: 6px; margin: 4px 0 6px; }
+.intro-fld .intro-conf button, .intro-sug button { border: 1px solid var(--line); background: var(--surface); color: var(--t2); border-radius: 8px; font: inherit; font-size: 12.5px; padding: 3px 10px; cursor: pointer; }
+.intro-fld .intro-conf button.on, .intro-sug button.on { border-color: var(--accent, #2b6cb0); color: var(--accent, #2b6cb0); background: transparent; font-weight: 600; }
+.intro-sug { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.intro-sug small { color: var(--t3); font-size: 11px; margin-left: 2px; }
+.intro-sug .name-only { border-style: dashed; }

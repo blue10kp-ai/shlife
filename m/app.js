@@ -821,7 +821,7 @@
         });
       });
     }));
-    listCache = out;
+    listCache = out; introCache = null;
     renderDataStamp();
     return out;
   }
@@ -890,6 +890,7 @@
           const f = e.fields.find(([fk]) => fk === k);
           if (f) f[1] = String(v); else e.fields.push([k, String(v)]);
           if (k === "주민번호") { const pj = parseJumin(v), setf = (kk, vv) => { const ff = e.fields.find(([fk]) => fk === kk); if (ff) ff[1] = vv; else if (vv) e.fields.push([kk, vv]); }; if (pj.birth) { e.birth = pj.birth; setf("생년월일", pj.birth); } if (pj.sex) setf("성별", pj.sex); if (pj.back) setf("후번호", pj.back); }
+          if (/^소개/.test(k)) introCache = null;
           if (k === GRADE_COL) e.grade = String(v);
           if (PHONE_COLS.includes(k)) e.phone = String(v);
         }
@@ -1056,7 +1057,7 @@
     const custHtml = custs.map((c, i) => {
       const types = [...new Set(c.entries.map((e) => e.type))];
       const why = c.why && c.why.size ? [...c.why].map(([k, v]) => esc(k) + (v && k !== "연락처" ? " · " + esc(v) : "")).join(" / ") : "";
-      return `<li><button type="button" data-spc="${i}"><span class="avatar sm">${esc(c.name[0])}</span><span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${why ? `<span class="r-why">${why}</span>` : ""}</span>${types.map((t) => `<span class="tag t-${esc(t)}">${esc(typeLabel(t))}</span>`).join("")}<span class="chev">›</span></button></li>`;
+      return `<li><button type="button" data-spc="${i}"><span class="avatar sm">${esc(c.name[0])}</span><span class="r-name"><span><span class="cname ${gradeClass(gradeOf(c))}">${trophyOf(c)}${esc(c.name)}</span>${resultInfo(c) ? ` <span class="rinfo">${esc(resultInfo(c))}</span>` : ""}</span>${why ? `<span class="r-why">${why}</span>` : ""}</span>${types.map((t) => `<span class="tag t-${esc(t)}">${esc(typeLabel(t))}</span>`).join("")}<span class="chev">›</span></button></li>`;
     }).join("");
     const evHtml = evs.map((e, i) => `<li><button type="button" data-spe="${i}"><span class="r-name"><span class="cname">${esc(e.title)}</span><span class="r-sub">${e.start.getFullYear()}.${pad2(e.start.getMonth() + 1)}.${pad2(e.start.getDate())}(${WDK[e.start.getDay()]}) ${e.allDay ? "종일" : hm(e.start)} · ${esc(e.cal)}${e.location ? " · " + esc(e.location) : ""}</span></span><span class="chev">›</span></button></li>`).join("");
     box.innerHTML = `<div class="help-sheet" role="dialog" aria-label="전체검색 결과"><div class="help-top"><div class="ai-grab" aria-hidden="true"></div><div class="help-head"><b>전체검색 · ${esc(q)}</b><button type="button" class="secondary" data-spclose>닫기</button></div></div><div class="help-body sp-body">` +
@@ -1689,7 +1690,7 @@
     if (!$("salesView").hidden) SALES.cardAnchor = salesAnchor(); // 영업 화면에서 열면 돌아올 때 이 위치로
     returnView = !$("scheduleView").hidden ? "scheduleView" : !$("salesView").hidden ? "salesView" : "searchView";
     show("customerView");
-    $("custName").textContent = cust.name;
+    $("custName").innerHTML = trophyOf(cust) + esc(cust.name);
     editMode = false;
     renderGrade(cust);
     renderStageAct(cust);
@@ -2006,6 +2007,66 @@
     if (front.length === 6 && back) return row("주민번호", `<div>${esc(front + "-" + back)}</div>`);
     return "";
   }
+  // ---------- 소개 (4단계 ③, 2026-11-17 확정안 3-4) ----------
+  // 칸: 소개확인(빈칸=안 물어봄 / 아님 / 소개 / 모름), 소개고객ID(소개자가 등록 고객일 때), 소개자명(등록 안 된 분일 때 이름만). 유입경로는 바꾸지 않음
+  const introOf = (c) => { for (const e of c.entries) { const id = fieldOf(e, "소개고객ID"), nm = fieldOf(e, "소개자명"), cf = fieldOf(e, "소개확인"); if (cf || id || nm) return { conf: cf || "소개", id, name: nm }; } return { conf: "", id: "", name: "" }; };
+  const custIdOf = (c) => (c.entries.map((e) => idOf(e)).find(Boolean) || "");
+  let introCache = null;
+  function introCounts() { // 소개자 고객ID → 소개한 서로 다른 고객 수(새 칸 없이 소개고객ID를 세어 계산)
+    if (introCache) return introCache;
+    const m = new Map();
+    (listCache || []).forEach((e) => { if (e.sheet !== CUST_SHEET) return; const id = fieldOf(e, "소개고객ID"), me = idOf(e); if (!id || !me) return; if (!m.has(id)) m.set(id, new Set()); m.get(id).add(me); });
+    introCache = new Map([...m].map(([k, v]) => [k, v.size]));
+    return introCache;
+  }
+  const TROPHY_CLS = (n) => (n >= 5 ? "gold" : n >= 3 ? "silver" : n >= 1 ? "bronze" : ""); // 1~2명 동, 3~4명 은, 5명 이상 금
+  const trophyHtml = (n) => { const k = TROPHY_CLS(n); return k ? `<svg class="trophy ${k}" viewBox="0 0 16 16" width="13" height="13" role="img" aria-label="소개 ${n}명"><title>소개 ${n}명</title><path fill="currentColor" d="M4 1.5h8V5a4 4 0 0 1-3.2 3.9V11H11v1.5H5V11h2.2V8.9A4 4 0 0 1 4 5V1.5ZM2 2.5h1.5V5H2.7A.7.7 0 0 1 2 4.3V2.5Zm10.5 0H14v1.8a.7.7 0 0 1-.7.7h-.8V2.5ZM4.5 13h7v1.5h-7V13Z"/></svg>` : ""; };
+  const trophyOf = (c) => trophyHtml(introCounts().get(custIdOf(c)) || 0);
+  // 소개자 후보: 같은 FC 등록 고객 중 이름에 글자가 들어간 사람(자기 자신 제외)
+  function introCands(q, selfId, fc) {
+    q = String(q || "").trim(); if (!q) return [];
+    const seen = new Set(), out = [];
+    (listCache || []).forEach((e) => {
+      if (e.sheet !== CUST_SHEET || (fc && e.fc !== fc)) return;
+      const id = idOf(e); if (!id || id === selfId || seen.has(id) || !String(e.name).includes(q)) return;
+      seen.add(id);
+      const by = (fieldOf(e, "생년월일") || String(e.birth || "")).slice(2, 4);
+      out.push({ id, name: e.name, yy: /^\d\d$/.test(by) ? by : "", route: routeShow(fieldOf(e, "최초유입경로")) });
+    });
+    out.sort((a, b) => (a.name === q ? -1 : 0) - (b.name === q ? -1 : 0) || a.name.localeCompare(b.name, "ko"));
+    return out.slice(0, 8);
+  }
+  const introNameOf = (id) => { const e = (listCache || []).find((x) => x.sheet === CUST_SHEET && idOf(x) === id); return e ? e.name : ""; };
+  function introFldHtml(c) { // 고객 정보 수정 화면의 '소개' 입력(소개확인 선택 + 소개자 찾기)
+    const it = introOf(c), conf = it.conf || "";
+    const cur = it.id ? introNameOf(it.id) || it.id : it.name;
+    return `<div class="fld intro-fld" id="introFld" data-conf="${esc(conf)}" data-id="${esc(it.id)}"><span>소개</span>
+      <div class="intro-conf" role="group" aria-label="소개 여부">${[["소개", "소개"], ["아님", "아님"], ["모름", "모름"]].map(([v, l]) => `<button type="button" data-intro-conf="${v}" class="${conf === v ? "on" : ""}" aria-pressed="${conf === v ? "true" : "false"}">${l}</button>`).join("")}</div>
+      <div class="intro-src"${conf === "소개" ? "" : " hidden"}><input id="introName" value="${esc(cur)}" placeholder="소개자 이름 — 등록 고객이면 고르기" autocomplete="off" aria-label="소개자 이름"><div id="introSug" class="intro-sug"></div><div class="hint" id="introNote">${it.id ? "등록 고객과 연결됨" : it.name ? "이름만 저장됨" : ""}</div></div></div>`;
+  }
+  function introSuggest() {
+    const f = $("introFld"); if (!f || !current || !current.cust) return;
+    const c = current.cust, q = $("introName").value.trim(), box = $("introSug"), note = $("introNote");
+    const own = c.entries.find((e) => e.fc) || c.entries[0], cands = introCands(q, custIdOf(c), own && own.fc);
+    box.innerHTML = cands.map((k) => `<button type="button" data-intro-pick="${esc(k.id)}" class="${f.dataset.id === k.id ? "on" : ""}">${esc(k.name)}${k.yy ? ` <small>${k.yy}년생</small>` : ""}${k.route ? ` <small>${esc(k.route)}</small>` : ""}</button>`).join("") +
+      (q ? `<button type="button" data-intro-pick="" class="name-only${f.dataset.id ? "" : " on"}">‘${esc(q)}’ 이름만 남기기</button>` : "");
+    note.textContent = !q ? "" : f.dataset.id ? "등록 고객과 연결됨" : cands.length ? `등록 고객 ${cands.length}명 — 골라야 연결됩니다. 고르지 않으면 이름만 저장` : "등록 고객에 없음 → 이름만 저장";
+  }
+  document.addEventListener("click", (ev) => {
+    const cf = ev.target.closest && ev.target.closest("[data-intro-conf]"), pk = ev.target.closest && ev.target.closest("[data-intro-pick]");
+    const f = $("introFld"); if (!f) return;
+    if (cf) { const v = cf.dataset.introConf, on = f.dataset.conf === v; f.dataset.conf = on ? "" : v; f.querySelectorAll("[data-intro-conf]").forEach((b) => { const o = b.dataset.introConf === f.dataset.conf; b.classList.toggle("on", o); b.setAttribute("aria-pressed", o ? "true" : "false"); }); f.querySelector(".intro-src").hidden = f.dataset.conf !== "소개"; if (f.dataset.conf === "소개") { $("introName").focus(); introSuggest(); } return; }
+    if (pk) { const id = pk.dataset.introPick; f.dataset.id = id; if (id) $("introName").value = introNameOf(id) || $("introName").value; introSuggest(); }
+  });
+  document.addEventListener("input", (ev) => { if (ev.target && ev.target.id === "introName") { const f = $("introFld"); if (f) { f.dataset.id = ""; introSuggest(); } } });
+  function introChange(c) { // 저장할 값: { 소개확인, 소개고객ID, 소개자명 } 또는 바뀐 게 없으면 null
+    const f = $("introFld"); if (!f) return null;
+    const cur = introOf(c), conf = f.dataset.conf, nm = ($("introName") && $("introName").value.trim()) || "", id = f.dataset.id || "";
+    let nConf = conf, nId = "", nName = "";
+    if (conf === "소개") { if (id) nId = id; else if (nm) nName = nm; else nConf = ""; }
+    if (nConf === (cur.conf || "") && nId === (cur.id || "") && nName === (cur.name || "")) return null;
+    return { 소개확인: nConf, 소개고객ID: nId, 소개자명: nName };
+  }
   // 주민번호 입력 검사: 13자리 / 앞6+뒤1(7자리) / 생년월일 8자리 / 성별만(뒤 1자리). 틀리면 메시지, 맞으면 저장 형식(norm)과 생년월일·성별
   function jminCheck(raw) {
     const d = String(raw || "").replace(/\D/g, "");
@@ -2130,7 +2191,7 @@
     { label: "계좌", cols: ["계좌"], type: "text", ph: "예: 신한 110-123-456789" },
     { label: "이메일", cols: EMAIL_COLS, type: "email" },
     { label: "유입경로", col: "최초유입경로", cols: ["최초유입경로"], type: "text", ro: true }, // v383(2026-11-17): 읽기만 하는 표시(신규유입·이관유입·DB유입, 처음 한 번 정해져 안 바뀜). 소개는 유입경로가 아니라 소개자 칸
-    { label: "소개자", col: "소개자명", cols: ["소개자명"], type: "text", ph: "소개자 이름" }
+    { label: "소개자", col: "소개자명", cols: ["소개자명"], type: "text", ph: "소개자 이름", paired: true } // v398: 소개자 입력은 introFldHtml(소개확인·소개고객ID·소개자명)이 맡음
   ];
   function currentValue(c, cols) {
     for (const e of c.entries) for (const k of cols) { const f = e.fields.find(([fk]) => fk.trim() === k); if (f && f[1]) return k === "최초유입경로" ? routeShow(f[1]) : f[1]; }
@@ -2221,7 +2282,7 @@
     };
     const listFields = canList ? EDIT_FIELDS.filter((f) => !f.paired && (canSens() || f.label !== "계좌")).map((f) => f.label === "연락처"
       ? (carrierInRow ? `<div class="fld-2 carrier-phone">${field(EXTRA.carrierCol)}${fld(f)}</div>` : fld(f)) + (canSens() ? ssnFld() : "")
-      : fld(f)).join("") : "";
+      : fld(f)).join("") + introFldHtml(c) : "";
     const hasAddr = !!currentValue(c, ["주소"]); // 주소가 있으면 지역 항목은 수정 화면에서도 숨김
     const more = fields.filter((k) => !EXTRA.primary.includes(k) && k !== CAR_NUM && k !== CAR_DATE && !(carrierInRow && k === EXTRA.carrierCol) && !(hasAddr && k === "지역")); // 미팅장소·메모는 정보 화면에서 바로 입력 (차량은 여러 대 입력 칸으로 따로)
     const hasCars = fields.includes(CAR_NUM) || fields.includes(CAR_DATE);
@@ -2280,6 +2341,7 @@
       const fl = current.follows || [], fcur = fl[Math.min(current.followIdx || 0, Math.max(fl.length - 1, 0))];
       const followChanges = {};
       if (fcur) body.querySelectorAll("[data-fl]").forEach((i) => { if (i.value.trim() !== (fcur[i.dataset.fl] || "")) followChanges[i.dataset.fl] = i.value.trim(); });
+      { const ic = introChange(c); if (ic) Object.assign(listValues, ic); } // v398: 소개확인·소개고객ID·소개자명
       if ("주민번호" in listValues) { // v396: 형식 검사 + 성별·생년월일이 바뀌면 확인
         const jc = jminCheck(listValues["주민번호"]);
         if (!jc.ok) { toast(jc.msg); return false; }
@@ -2299,7 +2361,7 @@
       btn.disabled = true; btn.textContent = "저장 중…"; $("editSave").disabled = true; $("editSave").textContent = "저장 중…";
       try {
         if (Object.keys(listValues).length) {
-          listValues[PRIORITY_COL] = 1; listValues["직접수정"] = 1; // v385(2026-11-17): '우선'(옛 칸)과 '직접수정' 두 칸에 함께 씀
+          if (Object.keys(listValues).some((k) => !/^소개/.test(k))) { listValues[PRIORITY_COL] = 1; listValues["직접수정"] = 1; } // v385(2026-11-17): '우선'(옛 칸)과 '직접수정' 두 칸에 함께 씀 (v398: 소개 칸만 고칠 때는 표시하지 않음)
           await writeEntryCells(c.entries, listValues);
         }
         if (extraDirty) {
