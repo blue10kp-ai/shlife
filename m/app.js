@@ -205,7 +205,11 @@
       const iCls = m["고객분류"], iIdc = m["고객ID"], iSr = ensure(C, "상령일");
       const td = new Date(), tdKey = td.getFullYear() * 10000 + (td.getMonth() + 1) * 100 + td.getDate();
       C.rows.forEach((r) => {
-        if (jm != null) { const p = parseJumin(r[jm]); if (p.birth) setv(C, r, iBirth, p.birth); if (p.sex) setv(C, r, iSex, p.sex); if (p.back) setv(C, r, iBack, p.back); }
+        if (jm != null) { // 주민번호 → 생년월일·성별·후번호. 형식이 틀렸거나(있을 수 없는 날짜) 옛 칸 값과 어긋나면 새 칸을 믿지 않고 옛 칸을 그대로 둠(2026-11-17: 잘못 채워진 주민번호 50건 사고)
+          const p = parseJumin(r[jm]), ob = day(r[iBirth]), os = txt(r[iSex]);
+          const dateOk = (v) => { const mm = /^(\d{4})-(\d\d)-(\d\d)$/.exec(v); if (!mm) return false; const dt = new Date(+mm[1], +mm[2] - 1, +mm[3]); return dt.getFullYear() === +mm[1] && dt.getMonth() === +mm[2] - 1 && dt.getDate() === +mm[3] && +mm[1] >= 1900 && +mm[1] <= td.getFullYear(); };
+          const ok = (p.birth ? dateOk(p.birth) && (!ob || ob === p.birth) : true) && (p.sex ? (!os || os === p.sex) : true) && (p.birth || p.sex);
+          if (ok) { if (p.birth) setv(C, r, iBirth, p.birth); if (p.sex) setv(C, r, iSex, p.sex); if (p.back) setv(C, r, iBack, p.back); } }
         { const bd = /^(\d{4})-(\d\d)-(\d\d)$/.exec(txt(r[iBirth])); // 상령일 = 생년월일 + 6개월의 월·일 중 오늘 이후 가장 가까운 날(칸 없이 계산, 확정안 3-2)
           if (bd && !txt(r[iSr])) { const bm = +bd[2] - 1 + 6, dim = (y, mo) => new Date(y, mo + 1, 0).getDate(); let y = td.getFullYear(); const mk = (yy) => { const mo = bm % 12, yy2 = yy + Math.floor(bm / 12); return [yy2, mo, Math.min(+bd[3], dim(yy2, mo))]; }; let a = mk(y); if (a[0] * 10000 + (a[1] + 1) * 100 + a[2] < tdKey) a = mk(y + 1); setv(C, r, iSr, a[0] + "-" + String(a[1] + 1).padStart(2, "0") + "-" + String(a[2]).padStart(2, "0")); } }
         let rt = txt(r[iRoute]); if (ROUTE_IN[rt]) { rt = ROUTE_IN[rt]; setv(C, r, iRoute, rt); }
@@ -6168,7 +6172,8 @@
     const getc = (r, col) => { const c = info.colOf(col); return c < 0 ? "" : info.txt(r, c); };
     const route = fieldOf(e, "최초유입경로"), from = route === "이관" ? "이관" : route === "DB" ? "DB" : "신규";
     let pid = r0 >= 0 ? getc(r0, "진행ID") : "", result = "";
-    const mk = (stage, status, end) => { pid = "P" + stamp + String(Math.floor(Math.random() * 900) + 100); appendRow(info, { 진행ID: pid, 고객ID: cid, 출발: from, 시작일: today, 단계: stage, 단계일: today, 상태: status, ...(end ? { 종료일: end } : {}), 입력일시: { stamp } }); };
+    let nRows = 0; for (let r = info.hr + 1; r <= info.rg.e.r; r++) if (info.txt(r, kc) === cid) nRows++; // 진행ID 형식(데이터수집): 'J' + 고객ID 숫자 + '-회차'(예: J00829-1)
+    const mk = (stage, status, end) => { pid = "J" + cid.replace(/\D/g, "") + "-" + (nRows + 1); appendRow(info, { 진행ID: pid, 고객ID: cid, 출발: from, 시작일: today, 단계: stage, 단계일: today, 상태: status, ...(end ? { 종료일: end } : {}), 입력일시: { stamp } }); };
     if (key === "영업단계") {
       const stage = { "통화": "전화", "AP": "AP", "PC": "PC", "계약": "계약", "": "고객등록" }[v];
       if (!stage) return;
