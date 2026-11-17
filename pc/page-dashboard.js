@@ -66,7 +66,7 @@
     var plus = function (n) { var t = new Date(today + 'T00:00:00'); t.setDate(t.getDate() + n); return t.getFullYear() + '-' + p2(t.getMonth() + 1) + '-' + p2(t.getDate()); };
     var in30 = plus(30);
     var h = [].concat.apply([], Object.keys(K.haeng).map(function (k) { return K.haeng[k]; })).filter(function (x) { return String(x.ym).slice(0, 7) === ym; });
-    var tg = h.filter(function (x) { return x.target !== '아니오' && x.target !== 'N'; });
+    var tg = h.filter(function (x) { return x.tgt !== false; });   // 따행 대상 = 따행상태·활동기한(없으면 캠페인대상여부)
     var done = tg.filter(function (x) { return x.done; }).length;
     var exp = K.customers.filter(function (c) { var d = c['가입설계동의 만료일']; return d && d >= today && d <= in30; }).length;
     var expired = K.customers.filter(function (c) { var d = c['가입설계동의 만료일']; return d && d < today && c['현재단계'] !== '피보험자'; }).length;
@@ -75,7 +75,7 @@
     var renew = cons.filter(function (x) { return x.renew && x.renew >= today && x.renew <= in30; }).length;
     var line = function (t, v, c) { return '<div class="kv"><span>' + t + '</span><b class="' + (c || '') + '">' + v + '</b></div>'; };
     return line(ym + ' 따행 완료', done + ' / ' + tg.length + '명') + line('가입설계동의 만료 30일 내', exp + '명', exp ? 'dn' : '') + line('가입설계동의 이미 만료', expired + '명') + line('실효 계약', lapsed + '건', lapsed ? 'dn' : '') + line('갱신 도래 30일 내', renew + '건') +
-      '<p class="note">수집이 끝난 FC(' + Object.keys(K.files).join('·') + ') 기준이고, 나머지 FC는 고객 데이터를 모은 뒤 포함됩니다. 따행 대상은 캠페인대상여부가 아닌 건을 뺀 수입니다.</p>';
+      '<p class="note">수집이 끝난 FC(' + Object.keys(K.files).join('·') + ') 기준이고, 나머지 FC는 고객 데이터를 모은 뒤 포함됩니다. 따행 대상은 따행상태(목표)와 활동기한으로 센 수입니다.</p>';
   }
 
   // ===== 상단: 이번달 / 이전달 / 최근 3개월 / 최근 1년 계약 통계 =====

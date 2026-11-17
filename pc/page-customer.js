@@ -57,11 +57,12 @@
   function indexIns() { insIdx = {}; insHold = {}; Object.keys(K.contracts).forEach(function (id) { K.contracts[id].forEach(function (x) { [x.insured, x.insured2].forEach(function (i) { if (i && i !== id) { (insIdx[i] = insIdx[i] || []).push(x); (insHold[i] = insHold[i] || []).push({ hid: id, x: x }); } }); }); }); }
   indexIns();
   function allContractsOf(c) { return (K.contracts[c['고객ID']] || []).concat(insIdx[c['고객ID']] || []); }
+  var rShow = function (v) { return window.DRIVE && window.DRIVE.routeShow ? window.DRIVE.routeShow(v) : v; };   // 유입경로 화면 글자
   function routeText(c) {
     var r = c['최초유입경로'] || '', parts = [], sc = allContractsOf(c).filter(function (x) { return x.route === '소개'; });
     if (sc.length) { parts.push('소개'); var n = sc.map(function (x) { return x.intro; }).filter(Boolean)[0]; if (n) parts.push(n); }
     else {
-      if (r && r !== '이관') parts.push(r);
+      if (r && r !== '이관') parts.push(rShow(r));
       if (r === 'DB' && c['유입DB명']) parts.push(c['유입DB명']);
       if ((r === '소개' || r === '지인') && c['소개자명']) parts.push(c['소개자명']);
     }
@@ -80,7 +81,7 @@
   var custTransfer = function () { return K.teamCustomers || K.customers; };   // 이달이관: 이관일자가 이번 달인 계약의 계약자는 현재단계(가망 포함)와 상관없이 나온다
   var custTeam = function () { return (K.teamCustomers || K.customers).filter(visible); };
   // 고객 분류 칩: 전체 / 본인(계약) / 이관(이관관리) / DB / 가망 | 이달이관 / 따행
-  var CHIP_STAGES = [['계약', '본인'], ['이관관리', '이관'], ['DB', 'DB']];   // 가망은 회사 분류라 칩에서 뺌 (진행이 비슷한 개념)
+  var CHIP_STAGES = [['계약', '직접모집'], ['이관관리', '이관고객'], ['DB', 'DB']];   // 가망은 회사 분류라 칩에서 뺌 (진행이 비슷한 개념)
   var STAGES = ['DB', '가망', '진행', '계약', '이관관리', '피보험자'];
   // FC 드롭다운 목록: 이달 이관은 내 팀 전체, 그 외는 지금 보기 범위의 고객 FC (직급 먼저, 같은 직급은 사번순)
   var fcCache = {};
@@ -152,7 +153,7 @@
   }
   // 따행(따뜻한 행복) 버튼: 이달 따행 대상 고객만. 하위 구분 = 방문 완료 / 약속 / 미완료
   function hStatus(c) {
-    var h = haengNow(c); if (!h || h.target === '아니오' || h.target === 'N') return '';
+    var h = haengNow(c); if (!h || h.tgt === false) return '';
     return h.done ? 'done' : (h.plan ? 'plan' : 'todo');
   }
   function haengNow(c) { var h = (K.haeng[c['고객ID']] || []).filter(function (x) { return String(x.ym).slice(0, 7) === ymNow; })[0]; return h; }
@@ -244,9 +245,8 @@
   }
   // 유입경로: DB·이관은 자동 값, 지인·소개는 직접 고름(소개자 입력)
   function routeSel(c) {
-    var cur = c['최초유입경로'] || '', list = ['', '지인', '소개'];
-    if (cur && list.indexOf(cur) < 0) list.splice(1, 0, cur);
-    return '<span class="efr"><select data-e="최초유입경로" class="csel">' + list.map(function (o) { return '<option value="' + esc(o) + '"' + (o === cur ? ' selected' : '') + '>' + (o || '(없음)') + '</option>'; }).join('') + '</select>' + inp(c, '소개자명', '소개자') + '</span>';
+    // v383(2026-11-17): 유입경로(신규유입·이관유입·DB유입)는 처음 한 번 정해져 바뀌지 않으므로 읽기만. 소개는 소개자 칸으로 따로 둔다
+    return '<span class="efr"><span class="mut">' + esc(rShow(c['최초유입경로']) || '(없음)') + '</span>' + inp(c, '소개자명', '소개자') + '</span>';
   }
   function gradeDots(c) {
     var g = String(c['성향'] || 'Good').toLowerCase();
@@ -316,7 +316,7 @@
     return view.map(function (c, vi) {
       var h = haengNow(c) || {};
       return '<tr class="pick-row ' + (state.sel === c['고객ID'] ? 'selrow' : '') + '" data-cid="' + esc(c['고객ID']) + '"><td>' + (state.page * PAGE + vi + 1) + '</td><td class="l nm"><b class="' + gcls(c) + '">' + esc(c['이름']) + '</b></td><td>' + cellContact(c) + '</td>' + cellPerson(c) + '<td class="mfc">' + (recFc(c).map(esc).join('<br>') || '-') + '</td>' +
-        ck(!!(h.done || DONE_CONTACT.indexOf(h.contact) >= 0), '방문완료') + ck(!!h.survey, '설문발송') + ck(!!h.answer, '설문응답') + ck(!!h.coupon, '쿠폰발송') + '</tr>';
+        ck(!!h.done, '방문완료') + ck(!!h.survey, '설문발송') + ck(!!h.answer, '설문응답') + ck(!!h.coupon, '쿠폰발송') + '</tr>';
     }).join('');
   }
   function render() {
@@ -331,14 +331,14 @@
     chips += '<span class="csep" aria-hidden="true">|</span>';
     chips += '<button class="chip haeng ' + (state.transfer ? 'on' : '') + '" data-transfer="1">이달이관</button>';
     chips += '<button class="chip haeng ' + (state.haeng ? 'on' : '') + '" data-haeng="1">따행</button>';
-    chips += '<button class="chip haeng ' + (state.progress ? 'on' : '') + '" data-progress="1">진행</button>';
+    chips += '<button class="chip haeng ' + (state.progress ? 'on' : '') + '" data-progress="1">계약진행</button>';
     if (state.haeng) {
       chips += '<span class="hsub">' + [['', '전체', hc.all], ['todo', '미완료', hc.todo], ['plan', '방문 약속', hc.plan], ['done', '방문 완료', hc.done]].map(function (x) { return '<button class="chip small ' + (state.hs === x[0] ? 'on' : '') + '" data-hs="' + x[0] + '">' + x[1] + ' ' + x[2] + '</button>'; }).join('') + '</span>';
     }
     var opt = function (arr, cur) { return arr.map(function (x) { return '<option value="' + esc(x) + '"' + (cur === x ? ' selected' : '') + '>' + esc(x) + '</option>'; }).join(''); };
     var body = view.map(function (c, vi) {
       var cs = contractsOf(c), act = cs.filter(active).length, h = haengNow(c);
-      return '<tr class="pick-row ' + (state.sel === c['고객ID'] ? 'selrow' : '') + '" data-cid="' + esc(c['고객ID']) + '"><td>' + (state.page * PAGE + vi + 1) + '</td><td class="l nm"><b class="' + gcls(c) + '">' + esc(c['이름']) + '</b>' + insMark(c) + '</td><td>' + esc(c['담당FC']) + '</td><td class="' + (c['현재단계'] === '피보험자' ? 'l insc' : '') + '">' + cellPhone(c) + '</td><td>' + esc(c['최초유입경로'] || '-') + '</td><td class="l job" title="' + esc(c['직업'] || '') + '">' + esc(c['직업'] || '-') + '</td><td class="l">' + esc(c['지역'] || '-') + '</td><td>' + (cs.length ? act + '/' + cs.length : '-') + '</td></tr>';
+      return '<tr class="pick-row ' + (state.sel === c['고객ID'] ? 'selrow' : '') + '" data-cid="' + esc(c['고객ID']) + '"><td>' + (state.page * PAGE + vi + 1) + '</td><td class="l nm"><b class="' + gcls(c) + '">' + esc(c['이름']) + '</b>' + insMark(c) + '</td><td>' + esc(c['담당FC']) + '</td><td class="' + (c['현재단계'] === '피보험자' ? 'l insc' : '') + '">' + cellPhone(c) + '</td><td>' + esc(rShow(c['최초유입경로']) || '-') + '</td><td class="l job" title="' + esc(c['직업'] || '') + '">' + esc(c['직업'] || '-') + '</td><td class="l">' + esc(c['지역'] || '-') + '</td><td>' + (cs.length ? act + '/' + cs.length : '-') + '</td></tr>';
     }).join('');
     if (state.haeng) body = haengBody(view);
     if (state.transfer) body = transferBody(view);

@@ -49,6 +49,90 @@
 
   // JSON 원본(FC별 data.json, 고객추가정보.json). 주소 끝에 ?json=test 를 붙이면 시험 폴더(_변환시험6-11-11)에서 읽는다.
   var TEST = /[?&]json=test/.test(location.search);
+  // ===== 과도기 읽기(2026-11-17 데이터구조 확정안 1단계) =====
+  // 새 칸이 있으면 새 칸, 없으면 옛 칸. 읽을 때만 쓰는 변환이라 data.json 원본은 바꾸지 않는다.
+  //   새 칸 → 앱 코드가 아직 쓰는 옛 칸 이름으로 채워 주어(옛 칸이 비었거나 없을 때) 나머지 코드는 그대로 돈다.
+  //   주민번호 → 생년월일·성별·후번호 / 고객분류(직접모집·타인모집·가망) + 유입경로 + 계약진행 표 → 현재단계·진행·진행제외·영업단계
+  //   유입경로(신규유입·이관유입·DB유입) → 내부 값(계약·이관·DB) / 계약분류 → 모집유형 / 이관상태·따행상태 → 이관보관·따행보관(날짜)
+  const NEWCLS = { "직접모집": "계약", "타인모집": "이관관리", "가망": "가망" };
+  const ROUTE_IN = { "신규유입": "계약", "이관유입": "이관", "DB유입": "DB" }; // 새 값 → 내부 값(옛 코드가 보는 값)
+  const ROUTE_OUT = { "계약": "신규유입", "지인": "신규유입", "소개": "신규유입", "신규": "신규유입", "신규유입": "신규유입", "이관": "이관유입", "이관유입": "이관유입", "DB": "DB유입", "DB유입": "DB유입" }; // 화면에 보이는 말
+  const routeShow = (v) => { const t = String(v == null ? "" : v).trim(); return ROUTE_OUT[t] || t; };
+  const STAGE_NEW_OLD = { "고객등록": "", "전화": "통화", "AP": "AP", "PC": "PC", "계약": "계약" }; // 계약진행 단계 → 영업단계 칩
+  function parseJumin(v) { // 주민번호(13자리 / 앞6+뒤1 / 생년월일 8자리 / 뒤1) → { birth: YYYY-MM-DD, sex: 남·여, back: 뒤7자리 }
+    const d = String(v == null ? "" : v).replace(/\D/g, ""), o = { birth: "", sex: "", back: "" };
+    const cen = (g) => ("1256".includes(g) ? "19" : "3478".includes(g) ? "20" : "90".includes(g) ? "18" : "");
+    if (d.length >= 13 || d.length === 7) { const g = d[6]; o.sex = +g % 2 === 1 ? "남" : "여"; if (d.length >= 13) o.back = d.slice(6, 13); const c = cen(g); if (c) o.birth = c + d.slice(0, 2) + "-" + d.slice(2, 4) + "-" + d.slice(4, 6); }
+    else if (d.length === 8) o.birth = d.slice(0, 4) + "-" + d.slice(4, 6) + "-" + d.slice(6, 8);
+    else if (d.length === 1) o.sex = +d % 2 === 1 ? "남" : "여";
+    return o;
+  }
+  function compatDoc(doc) {
+    if (!doc || !doc.sheets) return doc;
+    const SS = {};
+    Object.keys(doc.sheets).forEach((n) => { const s0 = doc.sheets[n]; SS[n] = { columns: (s0.columns || []).slice(), rows: (s0.rows || []).map((r) => r.slice()) }; });
+    const txt = (v) => (v == null ? "" : String(v).trim());
+    const day = (v) => txt(v).slice(0, 10);
+    const ix = (s) => { const m = {}; s.columns.forEach((c, i) => { if (c && !(c in m)) m[c] = i; }); return m; };
+    const ensure = (s, c) => { let i = s.columns.indexOf(c); if (i < 0) { s.columns.push(c); i = s.columns.length - 1; } return i; };
+    const setv = (s, r, i, v) => { while (r.length < s.columns.length) r.push(null); r[i] = v === "" ? null : v; };
+    const hist = SS["이력"], histRows = hist ? (() => { const m = ix(hist); return hist.rows.map((r) => ({ at: txt(r[m["일시"]]), cust: txt(r[m["고객ID"]]), ct: txt(r[m["계약ID"]]), type: txt(r[m["유형"]]), prog: txt(r[m["진행ID"]]) })); })() : [];
+    const archAt = (pred) => { let best = ""; histRows.forEach((h) => { if (h.type === "이동(보관)" && pred(h) && h.at > best) best = h.at; }); return day(best); };
+    // 계약진행 표 → 고객별 가장 최근 줄
+    const progBy = new Map();
+    if (SS["계약진행"]) { const s = SS["계약진행"], m = ix(s); s.rows.forEach((r) => { const id = txt(r[m["고객ID"]]); if (!id) return; const o = { 단계: txt(r[m["단계"]]), 상태: txt(r[m["상태"]]), 종료일: day(r[m["종료일"]]), 단계일: day(r[m["단계일"]]), 시작일: day(r[m["시작일"]]) }; const p = progBy.get(id); if (!p || o.시작일 >= p.시작일) progBy.set(id, o); }); }
+    // 고객 시트
+    const C = SS["고객"];
+    if (C) {
+      const m = ix(C), jm = m["주민번호"], v2 = !C.columns.includes("현재단계"); // v2 = 현재단계 칸이 없는 새 구조(옛 파일의 고객분류 '가망'과 헷갈리지 않게)
+      const iBirth = ensure(C, "생년월일"), iSex = ensure(C, "성별"), iBack = ensure(C, "후번호"), iStage = ensure(C, "현재단계"), iRoute = ensure(C, "최초유입경로"), iProg = ensure(C, "진행"), iEx = ensure(C, "진행제외"), iBiz = ensure(C, "영업단계");
+      const iCls = m["고객분류"], iIdc = m["고객ID"], iSr = ensure(C, "상령일");
+      const td = new Date(), tdKey = td.getFullYear() * 10000 + (td.getMonth() + 1) * 100 + td.getDate();
+      C.rows.forEach((r) => {
+        if (jm != null) { const p = parseJumin(r[jm]); if (p.birth) setv(C, r, iBirth, p.birth); if (p.sex) setv(C, r, iSex, p.sex); if (p.back) setv(C, r, iBack, p.back); }
+        { const bd = /^(\d{4})-(\d\d)-(\d\d)$/.exec(txt(r[iBirth])); // 상령일 = 생년월일 + 6개월의 월·일 중 오늘 이후 가장 가까운 날(칸 없이 계산, 확정안 3-2)
+          if (bd && !txt(r[iSr])) { const bm = +bd[2] - 1 + 6, dim = (y, mo) => new Date(y, mo + 1, 0).getDate(); let y = td.getFullYear(); const mk = (yy) => { const mo = bm % 12, yy2 = yy + Math.floor(bm / 12); return [yy2, mo, Math.min(+bd[3], dim(yy2, mo))]; }; let a = mk(y); if (a[0] * 10000 + (a[1] + 1) * 100 + a[2] < tdKey) a = mk(y + 1); setv(C, r, iSr, a[0] + "-" + String(a[1] + 1).padStart(2, "0") + "-" + String(a[2]).padStart(2, "0")); } }
+        let rt = txt(r[iRoute]); if (ROUTE_IN[rt]) { rt = ROUTE_IN[rt]; setv(C, r, iRoute, rt); }
+        const cls = iCls != null ? txt(r[iCls]) : "";
+        if (NEWCLS[cls] && (v2 || cls !== "가망")) { // 새 고객분류 값이 있으면 새 칸 기준
+          let base = NEWCLS[cls];
+          if (base === "가망" && rt === "DB") base = "DB";
+          const pr = progBy.get(txt(r[iIdc]));
+          if (pr) {
+            if (pr.상태 === "진행") { if (base === "가망" || base === "DB") base = "진행"; else setv(C, r, iProg, "Y"); }
+            else if ((pr.상태 === "보관" || pr.상태 === "삭제") && base === "가망") { base = "진행"; setv(C, r, iEx, pr.종료일 || pr.단계일 || "보관"); }
+            if (pr.단계 && pr.단계 !== "고객등록" && STAGE_NEW_OLD[pr.단계] != null) setv(C, r, iBiz, STAGE_NEW_OLD[pr.단계]);
+          }
+          setv(C, r, iStage, base);
+        }
+      });
+    }
+    // 계약 시트: 납입완료 예정 = 최초계약일 + 납입기간(년)(칸 없이 계산) / 계약분류 → 모집유형 / 이관상태 → 이관보관(날짜)
+    const T = SS["계약"];
+    if (T) {
+      { const m0 = ix(T), iFirst = m0["최초계약일"], iPay = m0["납입기간"];
+        if (iFirst != null && iPay != null) { const iDone = ensure(T, "납입완료 예정"); T.rows.forEach((r) => { if (txt(r[iDone])) return; const d0 = /^(\d{4})-(\d\d)-\d\d/.exec(txt(r[iFirst])), n0 = /^(\d+)\s*\(?\s*년/.exec(txt(r[iPay])); if (d0 && n0) setv(T, r, iDone, (+d0[1] + +n0[1]) + "-" + d0[2]); }); } }
+      const m = ix(T), iKind = m["계약분류"], iSt = m["이관상태"];
+      if (iKind != null || iSt != null) {
+        const iType = ensure(T, "모집유형"), iArch = ensure(T, "이관보관"), iId = m["계약ID"], iIn = m["입력일시"];
+        T.rows.forEach((r) => {
+          if (iKind != null && txt(r[iKind])) setv(T, r, iType, txt(r[iKind]));
+          if (iSt != null) { const st = txt(r[iSt]); if (st === "보관" || st === "삭제") { const id = txt(r[iId]); setv(T, r, iArch, archAt((h) => h.ct === id) || (iIn != null ? day(r[iIn]) : "") || "보관"); } else if (st === "목표" || st === "") setv(T, r, iArch, ""); }
+        });
+      }
+    }
+    // 따행 시트: 따행상태 → 따행보관(날짜)
+    const D = SS["따행"];
+    if (D) {
+      const m = ix(D), iSt = m["따행상태"];
+      if (iSt != null) {
+        const iArch = ensure(D, "따행보관"), iCust = m["고객ID"], iIn = m["입력일시"];
+        D.rows.forEach((r) => { const st = txt(r[iSt]); if (st === "보관" || st === "삭제") setv(D, r, iArch, archAt((h) => h.cust === txt(r[iCust]) && !h.ct) || (iIn != null ? day(r[iIn]) : "") || "보관"); else setv(D, r, iArch, ""); });
+      }
+    }
+    return { ...doc, sheets: SS };
+  }
+
   function sheetObjs(doc, name) {   // {columns, rows:[[…]]} → [{열: 값}]
     var sh = doc && doc.sheets && doc.sheets[name]; if (!sh) return [];
     return sh.rows.map(function (r) { var o = {}; sh.columns.forEach(function (c, i) { if (c) o[c] = r[i] == null ? '' : r[i]; }); return o; });
@@ -129,6 +213,7 @@
     var out = { customers: [], contracts: {}, history: {}, haeng: {}, files: {} }, fcFolderIds = [];
     var stamps = {};   // FC별 데이터 시각(JSON의 made = 데이터를 만들거나 저장한 때, UTC) — 추가 요청 없이 읽은 파일에서 얻음
     results.filter(Boolean).forEach(function (res) {
+      if (res.doc) res.doc = compatDoc(res.doc);   // v383: 새 칸·옛 칸을 둘 다 읽는 과도기 변환(읽기만, 원본은 그대로)
       if (res.doc && res.doc.made) stamps[res.doc.fc || res.fc] = res.doc.made;
       var wb = res.wb, rowsOf2 = function (name) { return res.doc ? sheetObjs(res.doc, name) : rowsOf(wb.Sheets[name]); };
       out.files[res.fc] = res.file;
@@ -152,10 +237,17 @@
         var cid = r['고객ID'];
         (out.history[cid] = out.history[cid] || []).push({ at: d10(r['일시']), type: nz(r['유형']), res: nz(r['결과']), memo: nz(r['내용']), next: d10(r['다음접촉일']) });
       });
+      var today0 = (function () { var t = new Date(); return t.getFullYear() + '-' + p2(t.getMonth() + 1) + '-' + p2(t.getDate()); })();
+      // 따행 대상(v384): '따행상태'가 있으면 목표 = 대상, 빈칸 = 활동기한이 안 끝난 줄만, 보관·삭제 = 아님. 없으면 옛 '캠페인대상여부'
+      var tgt = function (r) {
+        if (!('따행상태' in r)) return !(r['캠페인대상여부'] === '아니오' || r['캠페인대상여부'] === 'N');
+        var st = s(r['따행상태']); if (st === '목표') return true; if (st) return false;
+        var to = s(r['활동기한종료일']).slice(0, 10); return !!to && to >= today0;
+      };
       rowsOf2('따행').forEach(function (r) {
         var cid = r['고객ID'];
         (out.haeng[cid] = out.haeng[cid] || []).push({
-          ym: nz(r['대상년월']), cat: nz(r['따행분류']), contact: nz(r['접촉현황']), target: nz(r['캠페인대상여부']),
+          ym: nz(r['대상년월']), cat: nz(r['따행분류']), contact: nz(r['접촉현황']), target: nz(r['캠페인대상여부']), tgt: tgt(r),
           from: d10(r['활동기한시작일']), to: d10(r['활동기한종료일']), plan: d10(r['방문약속일']), done: d10(r['방문완료일']),
           survey: d10(r['설문발송일']), answer: d10(r['설문응답일']), coupon: d10(r['쿠폰발송일']), gift: nz(r['선물']), handed: nz(r['전달여부'])
         });
@@ -321,6 +413,7 @@
 
   D.updateRoster = updateRoster;
   D.loadAll = loadAll;
+  D.routeShow = routeShow;   // 유입경로 화면 글자(신규유입·이관유입·DB유입)
   D.customerFiles = customerFiles;
   D.readJson = readJson;
 })();
