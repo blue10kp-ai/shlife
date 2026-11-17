@@ -1178,3 +1178,26 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 .dsh-rank .no { color: var(--t3); font-size: 12px; min-width: 14px; }
 .dsh-rank .nm { flex: 1; } .dsh-rank small { color: var(--t3); font-size: 11px; }
 #dashView .hint { font-size: 11.5px; margin-top: 10px; }
+
+/* v407: “몰리야”로 AI 부르기(시험용) — 설정 옵션과 듣는 중 표시 */
+.wake-opt { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; font-size: 13px; }
+.wake-opt small { display: block; color: var(--t3); font-size: 11.5px; margin-top: 2px; }
+.wake-badge { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 58px); right: 12px; z-index: 40; border: 1px solid var(--line); background: var(--surface); color: var(--t3); border-radius: 12px; font: inherit; font-size: 11px; padding: 2px 9px; cursor: pointer; opacity: .9; }
+.wake-badge.on { color: var(--accent, #2b6cb0); border-color: currentColor; }
+.wake-badge.on::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 5px; vertical-align: 1px; }
+
+/* v408(2026-11-17): 오른쪽 아래 AI 버튼(몰리 선 그림·녹색 테두리·반투명) */
+.ai-fab { position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); z-index: 20; width: 56px; height: 56px; border-radius: 50%; border: 2px solid #2e9e6b; color: #2e9e6b; background: rgba(255, 255, 255, .55); -webkit-backdrop-filter: blur(1.5px); backdrop-filter: blur(1.5px); display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; box-shadow: 0 2px 8px rgba(0, 0, 0, .08); }
+.ai-fab:active { transform: scale(.96); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .ai-fab { background: rgba(23, 27, 34, .55); color: #5cc795; border-color: #5cc795; } }
+:root[data-theme="dark"] .ai-fab { background: rgba(23, 27, 34, .55); color: #5cc795; border-color: #5cc795; }
+html.ai-open .ai-fab, html[data-view="loginView"] .ai-fab { display: none; }
+html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); } /* 고객 정보 수정의 취소·확인, 소개찾기 연결 버튼과 겹치지 않게 */
+.rh .ai-fab { right: auto; left: 16px; }
+
+/* v408: 일정 날짜 이동 — 초기화·추가 버튼을 뺀 나머지 공간의 가운데, 두 버튼 사이 간격 넓힘 */
+.sched-nav { flex-wrap: nowrap; justify-content: flex-start; }
+.sched-nav .sched-rt { position: static; transform: none; order: 3; flex: none; margin: 0 0 0 8px; }
+.sched-nav #schedPrev { margin-left: auto; }
+.sched-nav #schedNext { margin-right: auto; }
+.sched-nav .sched-seg { display: inline-flex; align-items: center; gap: 12px; }
