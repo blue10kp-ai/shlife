@@ -1086,3 +1086,17 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 /* v390(2026-11-17 사용자 지시): 관리자 '지원 기능' 박스 — 얇은 링크 버튼 한 줄 */
 #supportCard .support-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 #supportCard .support-link { text-decoration: none; display: inline-flex; align-items: center; }
+
+/* v394: 이달목표 목록의 그룹 머리('이번 달' / '지난 목표') — 얇은 한 줄 */
+.sgrp { margin: 10px 2px 4px; font-size: 11.5px; color: var(--t3); letter-spacing: 0; }
+.sgrp:first-child { margin-top: 2px; }
+
+/* v395(2026-11-17): 영업 > 계약진행 — 단계 5칸(고객등록·전화·AP·PC·계약)을 한 줄에, 현재 단계만 색 */
+.prow .prow-steps { display: flex; gap: 6px; flex-wrap: nowrap; align-items: center; margin: 2px 0 4px; overflow: hidden; }
+.prow .dc { min-height: 22px; padding: 0 8px; font-size: 11px; }
+.prow .dc.off { padding: 0 7px; }
+.prow .dc.off.past { border-style: solid; border-color: var(--line); color: var(--t3); }
+.dc.on.new { background: var(--surface-2, #eceff3); color: var(--t1, #1a2330); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dc.on.new { background: #2a3140; color: #d7dde8; } }
+:root[data-theme="dark"] .dc.on.new { background: #2a3140; color: #d7dde8; }
+.prow .nmw small.ins { font-size: 10.5px; color: var(--t3); font-weight: 400; margin-left: 4px; }
