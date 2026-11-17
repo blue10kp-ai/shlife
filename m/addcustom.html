@@ -124,7 +124,7 @@ textarea.in{height:64px;padding:8px 10px;resize:vertical}
         <div class="seg" id="i_inflow" role="group" aria-label="유입경로"><button type="button" data-v="신규유입" aria-pressed="false">신규유입</button><button type="button" data-v="DB유입" aria-pressed="false">DB유입</button></div><div class="msg"></div></div>
       <div class="f w" data-f="유입DB명" id="dbBox" hidden><label for="i_db">유입DB명<span class="req">*</span></label><input class="in" id="i_db" maxlength="60" placeholder="DB 캠페인 이름"><div class="msg"></div></div>
       <div class="f" data-f="주민번호"><label for="i_rrn">주민번호<span class="opt">앞 7자리</span></label><input class="in mono" id="i_rrn" inputmode="numeric" placeholder="780109-2" maxlength="14"><div class="msg"></div></div>
-      <div class="f" data-f="통신사"><label for="i_tel">통신사</label><select class="in" id="i_tel"><option value=""></option><option>SKT</option><option>KT</option><option>LGU+</option><option>알뜰폰</option></select></div>
+      <div class="f" data-f="통신사"><label for="i_tel">통신사</label><select class="in" id="i_tel"><option value=""></option><option>SKT</option><option>KT</option><option>LG U+</option><option>SKT 알뜰폰</option><option>KT 알뜰폰</option><option>LG U+ 알뜰폰</option></select></div>
     </div>
   </div>
 
@@ -316,6 +316,16 @@ textarea.in{height:64px;padding:8px 10px;resize:vertical}
     } catch (e) { onErr(e); }
   }
 
+  // ---------- 고객 폴더 (2026-11-17 사용자 지시): 저장되면 FC 폴더 아래 _고객\이름 (YYMMDD) - 고객ID 폴더도 만든다(생년월일을 모르면 '이름 - 고객ID') ----------
+  const mkFolder = (name, parent) => gfetch(GDAPI + "/files?supportsAllDrives=true&fields=id,name", { method: "POST", headers: { "Content-Type": "application/json; charset=utf-8" }, body: JSON.stringify({ name, mimeType: "application/vnd.google-apps.folder", parents: [parent] }) });
+  async function ensureCustFolder(fc, name, birth, cid) {
+    const nm = String(name).replace(/[\/:*?"<>|]/g, "").trim() + (birth ? " (" + birth.slice(2, 4) + birth.slice(5, 7) + birth.slice(8, 10) + ")" : "") + " - " + cid;
+    let dir = await findIn(fcDirs[fc], "_고객", true);
+    if (!dir) dir = await mkFolder("_고객", fcDirs[fc]);
+    if (await findIn(dir.id, nm, true)) return nm; // 이미 있으면 그대로
+    await mkFolder(nm, dir.id);
+    return nm;
+  }
   // ---------- 저장 ----------
   function regionOf(addr) { const p = String(addr || "").replace(/^\[[^\]]*\]\s*/, "").replace(/^\(\d{5}\)\s*/, "").split(/\s+/).filter(Boolean); return p.slice(0, 2).join(" ") || null; }
   const pad = (n) => String(n).padStart(2, "0");
@@ -363,7 +373,9 @@ textarea.in{height:64px;padding:8px 10px;resize:vertical}
       const dm2 = await meta(fcDataInfo.id); if (dm2.version !== dm.version) throw new Error("자료가 방금 바뀌었습니다. 다시 저장해 주세요." + (newId ? " (고객ID " + cid + "는 이미 정해져 그대로 씁니다)" : ""));
       await writeJson(fcDataInfo.id, data);
       $("#tagId").textContent = cid;
-      status(name + " 저장 완료 · " + cid, "ok"); toast(name + " 고객을 " + fc + " 가망 고객으로 저장했습니다");
+      let fnote = "";
+      try { await ensureCustFolder(fc, name, r.birth, cid); fnote = " · 고객 폴더 만듦"; } catch (e) { fnote = " · 고객 폴더는 만들지 못했습니다(" + String(e.message).slice(0, 60) + ")"; } // 폴더 실패는 저장 결과에 영향 없음
+      status(name + " 저장 완료 · " + cid + fnote, "ok"); toast(name + " 고객을 " + fc + " 가망 고객으로 저장했습니다" + fnote);
       fcData = data;
     } catch (e) { onErr(e); } finally { btn.disabled = false; }
   }

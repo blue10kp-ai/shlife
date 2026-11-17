@@ -1919,7 +1919,7 @@
     const n = Number(t.replace(/,/g, ""));
     return (t && isFinite(n) ? n.toLocaleString("ko-KR") : t) + "원";
   };
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "직접수정", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류", "고객등급", "고객 등급", "마케팅동의 만료일", "마케팅 동의 만료일", "계약안내 수신", "통신사", "보장요약", "생일구분", "생일 구분", "차량번호", "자동차보험갱신일"]; // 차량번호·갱신일은 아래 '차량' 줄 하나로 합쳐 보여 줌 // 정보 탭 보기에서 숨기는 항목
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "직접수정", "주민번호", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류", "고객등급", "고객 등급", "마케팅동의 만료일", "마케팅 동의 만료일", "계약안내 수신", "통신사", "보장요약", "생일구분", "생일 구분", "차량번호", "자동차보험갱신일"]; // 차량번호·갱신일은 아래 '차량' 줄 하나로 합쳐 보여 줌 // 정보 탭 보기에서 숨기는 항목
   const BIRTH_KEYS = ["생년월일", "생일"];
   const EMAIL_COLS = ["이메일", "e-mail", "Email"];
   let editMode = false;
@@ -2188,7 +2188,7 @@
           </div>`;
       } else if (/메모/.test(k)) input = `<textarea data-ex="${esc(k)}" rows="4">${v}</textarea>`;
       else if (k === EXTRA.carrierCol) { // 통신사는 목록에서 고르기만 함 (예전에 다른 글자로 저장된 값은 그대로 보이게 목록에 추가)
-        const cur = String(ev[k] || "").trim(), base = ["SKT", "KT", "LG U+", "알뜰폰"], opts = cur && !base.includes(cur) ? [cur, ...base] : base;
+        const cur = String(ev[k] || "").trim(), base = ["SKT", "KT", "LG U+", "SKT 알뜰폰", "KT 알뜰폰", "LG U+ 알뜰폰"], opts = cur && !base.includes(cur) ? [cur, ...base] : base;
         input = `<select data-ex="${esc(k)}"><option value=""></option>${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
       }
       else input = `<input data-ex="${esc(k)}" value="${v}" autocomplete="off">`;
@@ -2219,7 +2219,7 @@
         ${x.missing || x.error ? `<p class="hint">추가 정보 엑셀을 읽지 못해 통신사·차량번호·갱신일은 수정할 수 없습니다.</p>` : more.map(field).join("") + (hasCars ? carsFormHtml(ev) : "")}
         ${followFormHtml()}
         <datalist id="routeList"><option value="DB유입"><option value="이관유입"><option value="신규유입"></datalist>
-        <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
+        <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="SKT 알뜰폰"><option value="KT 알뜰폰"><option value="LG U+ 알뜰폰"></datalist>
         <div class="file-actions">
           <button type="button" class="secondary" id="infoCancel">취소</button>
           <button type="button" class="primary" id="infoSave">저장</button>
