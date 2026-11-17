@@ -111,6 +111,13 @@
         }
       });
     }
+    // 계약현황(옛 칸이 없을 때): 이 고객이 계약자인 유효 계약(유지·완납·납입면제·연금지급·신계약승낙)이 있으면 '유효'
+    if (C && SS["계약"] && C.columns.indexOf("계약현황") < 0) {
+      const T0 = SS["계약"], m0 = ix(T0), iOwn = m0["계약자ID"], iSt0 = m0["계약상태"] != null ? m0["계약상태"] : m0["상태"], valid = new Set();
+      if (iOwn != null && iSt0 != null) T0.rows.forEach((r) => { if (["유지", "완납", "납입면제", "연금지급", "신계약승낙"].includes(txt(r[iSt0]))) valid.add(txt(r[iOwn])); });
+      const iIdc2 = C.columns.indexOf("고객ID"), iCur = ensure(C, "계약현황");
+      if (iIdc2 >= 0) C.rows.forEach((r) => { if (valid.has(txt(r[iIdc2]))) setv(C, r, iCur, "유효"); });
+    }
     // 계약 시트: 납입완료 예정 = 최초계약일 + 납입기간(년)(칸 없이 계산) / 계약분류 → 모집유형 / 이관상태 → 이관보관(날짜)
     const T = SS["계약"];
     if (T) {

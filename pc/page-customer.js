@@ -273,7 +273,7 @@
     if (!c) return '';
     var allH = (K.history[c['고객ID']] || []).slice().sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); }), cs = contractsOf(c),
       cons = consultsOf(c), hg = (K.haeng[c['고객ID']] || []).filter(function (x) { return String(x.ym).slice(0, 7) === ymNow; });
-    var ct = cs.map(function (x) { var href = pdfHref(c, x); return '<tr class="' + (active(x) ? '' : 'gray') + (href ? ' pdfrow' : '') + '"' + (href ? ' data-pdf="' + esc(href) + '" title="눌러서 상품 PDF 열기"' : '') + '><td class="l"><span class="dot"></span>' + esc(x.goods) + '</td><td>' + esc(x.st) + '</td><td>' + won(x.sum) + '</td><td>' + esc(x.start) + '</td><td>' + esc(x.recruit) + '</td><td class="cr">' + (state.edit ? '<select data-cr="' + esc(x.pol) + '" data-crfc="' + esc(x.fc) + '"><option value=""></option><option value="소개"' + (x.route === '소개' ? ' selected' : '') + '>소개</option></select><input data-ci="' + esc(x.pol) + '" value="' + esc(x.intro || '') + '" placeholder="소개자">' : esc(x.route ? x.route + (x.intro ? '(' + x.intro + ')' : '') : '')) + '</td></tr>'; }).join('');
+    var ct = cs.map(function (x) { var href = pdfHref(c, x); return '<tr class="' + (active(x) ? '' : 'gray') + (href ? ' pdfrow' : '') + '"' + (href ? ' data-pdf="' + esc(href) + '" title="눌러서 상품 PDF 열기"' : '') + '><td class="l"><span class="dot"></span>' + esc(x.goods) + '</td><td>' + esc(x.st) + '</td><td>' + won(x.sum) + '</td><td>' + esc(x.start) + '</td><td>' + esc(x.recruit) + '</td><td class="cr">' + (esc(x.route ? x.route + (x.intro ? '(' + x.intro + ')' : '') : '')) + '</td></tr>'; }).join('');
     var ht = hg.map(function (h) { return '<tr><td>' + esc(String(h.ym).slice(0, 7)) + '</td><td>' + esc(h.cat) + '</td><td>' + esc(h.contact) + '</td><td>' + esc(h.plan || '-') + '</td><td>' + esc(h.done || '-') + '</td><td>' + (h.survey ? '발송' : '-') + (h.answer ? '/응답' : '') + '</td></tr>'; }).join('');
     var evs = allH.map(function (h) { return { at: h.at, type: h.type, res: h.res, memo: h.memo }; })
       .concat(cons.map(function (r) { return { at: r.at, type: '상담기록 입력', res: '', memo: '', plain: true }; }))
@@ -410,18 +410,6 @@
     var mm = document.querySelector('.drawer [data-emm]'), dd = document.querySelector('.drawer [data-edd]');
     if (mm && dd) { var m = +mm.value, d = +dd.value; vals['자동차보험갱신일'] = m && d ? (m < 10 ? '0' : '') + m + (d < 10 ? '0' : '') + d : ''; }
     applyVals(c, vals);
-    document.querySelectorAll('.drawer [data-cr]').forEach(function (sel) {   // 계약 단위 유입경로(소개)·소개자
-      var pol = sel.getAttribute('data-cr'), x = (K.contracts[c['고객ID']] || []).filter(function (y) { return y.pol === pol; })[0]; if (!x) return;
-      var ii = document.querySelector('.drawer [data-ci="' + pol + '"]'), route = sel.value, intro = ii ? ii.value.trim() : '';
-      if ((x.route || '') === route && (x.intro || '') === intro) return;
-      var oldR = x.route || '', oldI = x.intro || ''; x.route = route; x.intro = intro; indexIns();
-      var lg = readLog(); lg.push({ id: c['고객ID'], at: nowStamp(), type: '계약 유입 수정', text: '' }); try { localStorage.setItem(LOG_KEY, JSON.stringify(lg.slice(-500))); } catch (e) { /* 무시 */ }
-      if (window.DRIVE && DRIVE.on()) {
-        dToast('엑셀에 저장하는 중…');
-        DRIVE.updateContract(x.fc || c['담당FC'], pol, { '유입경로': route, '소개자': intro }).then(function (n) { dToast('엑셀에 저장했습니다 (' + n + ')'); })
-          .catch(function (e) { x.route = oldR; x.intro = oldI; indexIns(); dToast('엑셀 저장 실패: ' + (e.message || e), true); window.APP.rerender(); });
-      } else { var ce = readCE(); ce[pol] = { route: route, intro: intro }; try { localStorage.setItem(CE_KEY, JSON.stringify(ce)); } catch (e) { alert('이 브라우저에 저장하지 못했습니다.'); } }
-    });
     state.edit = false; window.APP.rerender();
   }
   function partial() {
