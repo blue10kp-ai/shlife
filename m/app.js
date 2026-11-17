@@ -1196,7 +1196,7 @@
         const pdHtml = c.dbAuto && dbView ? `<span class="r-day">계약</span>` : trDay ? `<span class="r-day">보관 ${esc(pd.slice(5))}</span>` : pd ? `<span class="r-day">${dbView ? (dbShowRemoved ? "보관 " + esc(pd.slice(5)) : "유입 " + esc(pd.slice(2))) : (progShowRemoved ? "보관" : "진행") + " " + esc(pd.slice(5))}</span>` : ""; // FC 이름 뒤에 한 칸 띄우고 작게
         // 보관 버튼: 필터가 여럿이어도 이 고객이 보관 가능할 때만 (진행 필터 → 진행 고객, DB 필터 → DB 고객). 둘 다 해당하면 진행 우선
         const ro = isRO((c.entries[0] || {}).fc);
-        const srcLbl = progView ? (c.entries.map((e) => fieldOf(e, "최초유입경로")).find(Boolean) || "") : ""; // v376(2026-11-16): 진행 목록의 '진행' 태그 대신 유입경로
+        const srcLbl = progView ? routeShow(c.entries.map((e) => fieldOf(e, "최초유입경로")).find(Boolean) || "") : ""; // v376(2026-11-16): 진행 목록의 '진행' 태그 대신 유입경로
         const canProg = progView && !ro && c.entries.some((e) => e.sheet === CUST_SHEET && e.type === (progShowRemoved ? "진행제외" : "진행"));
         const canDb = dbOn && !ro && !canProg && !c.dbAuto && c.entries.some((e) => e.sheet === CUST_SHEET && isDbRec(e) && (dbShowRemoved ? dbState(e) === "보관" && !dbAutoRec(e) : !dbOffRec(e)));
         const canTr = trOn && !ro && !canProg && !canDb && !!trInfo && c.entries.some((e) => e.type === "이관") && trInfo.st === (trShowRemoved ? "off" : "on");
@@ -2012,11 +2012,12 @@
     { label: "주소", cols: ["주소"], type: "text", multi: true },
     { label: "계좌", cols: ["계좌"], type: "text", ph: "예: 신한 110-123-456789" },
     { label: "이메일", cols: EMAIL_COLS, type: "email" },
-    { label: "유입경로", col: "최초유입경로", cols: ["최초유입경로"], type: "text", select: ["DB", "이관", "지인", "소개"] }, // 직접 쓰지 않고 선택창(드롭박스)에서 고름
+    { label: "유입경로", col: "최초유입경로", cols: ["최초유입경로"], type: "text", select: ["계약", "이관", "DB", "신규", "소개"] }, // 직접 쓰지 않고 선택창(드롭박스)에서 고름
     { label: "소개자", col: "소개자명", cols: ["소개자명"], type: "text", ph: "소개자 이름" }
   ];
+  const routeShow = (v) => (String(v).trim() === "지인" ? "신규" : v); // v379(2026-11-16): 유입경로 옛 값 '지인'은 화면에서 '신규'로
   function currentValue(c, cols) {
-    for (const e of c.entries) for (const k of cols) { const f = e.fields.find(([fk]) => fk.trim() === k); if (f && f[1]) return f[1]; }
+    for (const e of c.entries) for (const k of cols) { const f = e.fields.find(([fk]) => fk.trim() === k); if (f && f[1]) return k === "최초유입경로" ? routeShow(f[1]) : f[1]; }
     return "";
   }
 
@@ -2118,7 +2119,7 @@
         ${listFields}
         ${x.missing || x.error ? `<p class="hint">추가 정보 엑셀을 읽지 못해 통신사·차량번호·갱신일은 수정할 수 없습니다.</p>` : more.map(field).join("") + (hasCars ? carsFormHtml(ev) : "")}
         ${followFormHtml()}
-        <datalist id="routeList"><option value="DB"><option value="이관"><option value="지인"><option value="소개"></datalist>
+        <datalist id="routeList"><option value="DB"><option value="이관"><option value="신규"><option value="소개"></datalist>
         <datalist id="carrierList"><option value="SKT"><option value="KT"><option value="LG U+"><option value="알뜰폰"></datalist>
         <div class="file-actions">
           <button type="button" class="secondary" id="infoCancel">취소</button>
@@ -5173,6 +5174,21 @@
     { // 수정 모드에 들어가면 카드 위의 일정 제목이 바로 수정 칸이 됨
       const tl = $("ev" + i).querySelector(".ev-title-l");
       if (tl) { tl.dataset.orig = tl.innerHTML; tl.innerHTML = `<input data-f="title" class="ev-title-in" value="${esc(e.title)}" autocomplete="off" aria-label="일정 제목">`; }
+    }
+    { // v380(2026-11-17 사용자 지시): 시작 시간을 바꾸면 길이(종료-시작)를 유지하도록 종료 시간도 자동 계산
+      const sIn = box.querySelector('[data-f="start"]'), eIn = box.querySelector('[data-f="end"]');
+      if (sIn && eIn) {
+        const toMin = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ""); return m ? +m[1] * 60 + +m[2] : null; };
+        let prev = toMin(sIn.value);
+        sIn.addEventListener("change", () => {
+          const ns = toMin(sIn.value), oe = toMin(eIn.value);
+          if (ns == null) return;
+          let dur = prev != null && oe != null && oe > prev ? oe - prev : 60;
+          prev = ns;
+          const ne = Math.min(ns + dur, 23 * 60 + 59);
+          eIn.value = String(Math.floor(ne / 60)).padStart(2, "0") + ":" + String(ne % 60).padStart(2, "0");
+        });
+      }
     }
     const acts = $("evActs" + i);
     const val = (k) => ((box.querySelector(`[data-f="${k}"]`) || $("ev" + i).querySelector(`[data-f="${k}"]`)) || {}).value;
