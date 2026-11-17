@@ -93,9 +93,9 @@
         { const bd = /^(\d{4})-(\d\d)-(\d\d)$/.exec(txt(r[iBirth])); // 상령일 = 생년월일 + 6개월의 월·일 중 오늘 이후 가장 가까운 날(칸 없이 계산, 확정안 3-2)
           if (bd && !txt(r[iSr])) { const bm = +bd[2] - 1 + 6, dim = (y, mo) => new Date(y, mo + 1, 0).getDate(); let y = td.getFullYear(); const mk = (yy) => { const mo = bm % 12, yy2 = yy + Math.floor(bm / 12); return [yy2, mo, Math.min(+bd[3], dim(yy2, mo))]; }; let a = mk(y); if (a[0] * 10000 + (a[1] + 1) * 100 + a[2] < tdKey) a = mk(y + 1); setv(C, r, iSr, a[0] + "-" + String(a[1] + 1).padStart(2, "0") + "-" + String(a[2]).padStart(2, "0")); } }
         let rt = txt(r[iRoute]); if (ROUTE_IN[rt]) { rt = ROUTE_IN[rt]; setv(C, r, iRoute, rt); }
-        const cls = iCls != null ? txt(r[iCls]) : "";
+        const cls0 = iCls != null ? txt(r[iCls]) : "", insOnly = /\(피보험자만\)\s*$/.test(cls0), cls = cls0.replace(/\s*\(피보험자만\)\s*$/, ""); // '타인모집(피보험자만)'처럼 뒤에 붙은 표시는 떼고 읽음
         if (NEWCLS[cls] && (v2 || cls !== "가망")) { // 새 고객분류 값이 있으면 새 칸 기준
-          let base = NEWCLS[cls];
+          let base = insOnly ? "피보험자" : NEWCLS[cls];
           if (base === "가망" && rt === "DB") base = "DB";
           const pr = progBy.get(txt(r[iIdc]));
           if (pr) {
@@ -116,7 +116,7 @@
       if (iKind != null || iSt != null) {
         const iType = ensure(T, "모집유형"), iArch = ensure(T, "이관보관"), iId = m["계약ID"], iIn = m["입력일시"];
         T.rows.forEach((r) => {
-          if (iKind != null && txt(r[iKind])) setv(T, r, iType, txt(r[iKind]));
+          if (iKind != null) setv(T, r, iType, txt(r[iKind]) || "타인모집(미정)"); // 계약분류가 빈칸(정해지지 않은 계약)이면 직접모집으로 세지 않음 → '타인모집…'으로 읽어 이관도 직접모집도 아닌 칸에 둠
           if (iSt != null) { const st = txt(r[iSt]); if (st === "보관" || st === "삭제") { const id = txt(r[iId]); setv(T, r, iArch, archAt((h) => h.ct === id) || (iIn != null ? day(r[iIn]) : "") || "보관"); } else if (st === "목표" || st === "") setv(T, r, iArch, ""); }
         });
       }
