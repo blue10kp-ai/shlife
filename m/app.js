@@ -4205,6 +4205,7 @@
         desc: String(e.description || ""),
         location: String(e.location || "").trim(),
         pick: String(((e.extendedProperties || {}).private || {}).shlifeCust || ""), // 동명이인 선택(모든 기기 공유)
+        author: String(((e.extendedProperties || {}).shared || {}).shlifeAuthorName || ""), // v382: 관리자가 일정 추가 때 고른 작성자 이름
         sales: String(((e.extendedProperties || {}).private || {}).shlifeSales || ""), // 영업일정 표시: "1"=영업(확정), "0"=비영업(복귀), 없음=기본(아래 salesOf 규칙)
         created: e.created ? new Date(e.created) : null,
         allDay: !!e.start.date,
@@ -4939,7 +4940,7 @@
     return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head"><span class="ev-time">${esc(timeText(e))}</span></div>
         ${e.allDay ? "" : salesOf(e) ? '<button type="button" class="ev-edit ev-sales" data-evunsales title="누르면 비영업일정으로 바꿉니다">영업</button>' : `<button type="button" class="ev-edit ev-confirm" data-evconfirm="${i}" title="누르면 영업일정으로 바꿉니다">비영업</button>`}<button type="button" class="ev-edit" data-evedit="${i}">수정</button><button type="button" class="ev-edit ev-del" data-evdel="${i}">삭제</button>
         <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
-      <div class="ev-line2"><span class="ev-title-l"><span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}</span></span>${it.all.length ? (it.ignored
+      <div class="ev-line2"><span class="ev-title-l"><span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}${e.author ? " · 작성 " + esc(e.author) : ""}</span></span>${it.all.length ? (it.ignored
         ? `<button type="button" class="ev-edit" data-unignore="${i}">되돌리기</button>`
         : `<button type="button" class="ev-edit" data-ignore="${i}">해당 없음</button>`) : ""}</div>
       ${it.ignored ? `<p class="hint ev-hid">검색된 고객 ${it.all.length}명을 숨겼어요</p>` : ""}
@@ -5111,6 +5112,7 @@
         <div class="fld-2" data-a-times><label class="fld"><span>시작</span><input data-a="start" type="time" value="${pad2(h0)}:00"></label>
           <label class="fld"><span>종료</span><input data-a="end" type="time" value="${pad2(Math.min(h0 + 1, 23))}:00"></label></div>
         <label class="fld"><span>장소</span><input data-a="loc" autocomplete="off"></label>
+        ${isAdmin() ? `<label class="fld"><span>작성자</span><select data-a="author"><option value="${esc(String(account().username).toLowerCase())}" selected>${esc((permNamesCache || {})[String(account().username).toLowerCase()] || String(account().username).split("@")[0])} (관리자)</option></select></label>` : ""}
         <div class="file-actions"><button type="button" class="secondary" data-a-cancel>취소</button><button type="button" class="primary" data-a-save>등록</button></div>
       </div></div>`;
     box.hidden = false;
@@ -5118,6 +5120,14 @@
     q("all").addEventListener("change", () => { box.querySelector("[data-a-times]").hidden = q("all").checked; });
     box.querySelector("[data-a-cancel]").addEventListener("click", closeSchedAdd);
     q("title").focus();
+    if (q("author")) { // v382(2026-11-17 사용자 지시): 관리자는 작성자를 사용자 중에서 고름(기본 = 관리자 본인)
+      readPerms().then((pm) => {
+        const sel = q("author"); if (!sel) return;
+        const my = String(account().username).toLowerCase(), nm = (em) => (pm.names || {})[em] || em.split("@")[0];
+        Object.keys(pm.users || {}).filter((em) => em !== my && !/@email\.pending$/.test(em)).sort((a, b) => nm(a).localeCompare(nm(b), "ko"))
+          .forEach((em) => sel.insertAdjacentHTML("beforeend", `<option value="${esc(em)}">${esc(nm(em))}</option>`));
+      }).catch(() => {});
+    }
     box.querySelector("[data-a-save]").addEventListener("click", async (ev) => {
       const btn = ev.currentTarget, title = q("title").value.trim(), date = q("date").value, all = q("all").checked;
       if (!title) return toast("제목을 입력해 주세요.");
@@ -5132,6 +5142,7 @@
         const tz = (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone || "Asia/Seoul";
         body.start = { dateTime: `${date}T${st}:00`, timeZone: tz }; body.end = { dateTime: `${date}T${en}:00`, timeZone: tz };
       }
+      if (q("author") && q("author").value) { const o = q("author").selectedOptions[0]; body.extendedProperties = { shared: { shlifeAuthor: q("author").value, shlifeAuthorName: o.textContent.replace(/ \(관리자\)$/, "") } }; }
       btn.disabled = true; btn.textContent = "등록 중…";
       try {
         await ensureGWrite();
@@ -6257,7 +6268,7 @@
       const chips = stageChips ? stageChips : isD ? DCHIPS.map(([f, lab, cls], i) => `<button type="button" class="dc ${cls} ${i === lastD ? "on" : r.dda[f] ? "off past" : "off"}${lock ? " lock" : ""}" data-chip="${f}" data-key="${esc(r.key)}" aria-pressed="${r.dda[f] ? "true" : "false"}">${lab}</button>`).join("") : "";
       // [이동]/[원복]: 담당이 다른 FC 계약(참고)·계약ID 없는 계약·보기 전용은 없음. 계약 고객이 된 DB 고객은 '계약'(자동 보관)
       const arDay = r.arch && r.archDay ? `<span class="r-day">${r.del ? "삭제" : "보관"} ${esc(dshow(r.archDay).slice(5, 10))}</span>` : "";
-      const arBtn = r.db && r.del ? (r.ref || !r.key || isRO(r.fc) ? "" : `<i class="ar-sep" aria-hidden="true"></i><button type="button" class="ar-btn back" data-ardelx="${esc(r.key)}" aria-label="${esc(r.holder)} 삭제 취소">복구</button>`) : r.db && r.arch && r.dbAuto ? `<i class="ar-sep" aria-hidden="true"></i><span class="ar-auto">계약</span>` : (r.ref || !r.key || isRO(r.fc) || r.arch === undefined) ? "" : `<i class="ar-sep" aria-hidden="true"></i><button type="button" class="ar-btn${r.arch ? " back" : ""}" data-arx="${esc(r.key)}" aria-label="${esc(r.holder)} ${r.arch ? "원복" : "보관으로 이동"}">${r.arch ? "원복" : "이동"}</button>${r.db && r.arch ? `<button type="button" class="ar-btn del" data-ardel="${esc(r.key)}" aria-label="${esc(r.holder)} 삭제">삭제</button>` : ""}`;
+      const arBtn = r.db && r.del ? (r.ref || !r.key || isRO(r.fc) ? "" : `<i class="ar-sep" aria-hidden="true"></i><button type="button" class="ar-btn back" data-ardelnew="${esc(r.key)}" aria-label="${esc(r.holder)} 신규로 이동">신규로</button><button type="button" class="ar-btn" data-ardelx="${esc(r.key)}" aria-label="${esc(r.holder)} 보관으로 이동">보관으로</button>`) : r.db && r.arch && r.dbAuto ? `<i class="ar-sep" aria-hidden="true"></i><span class="ar-auto">계약</span>` : (r.ref || !r.key || isRO(r.fc) || r.arch === undefined) ? "" : `<i class="ar-sep" aria-hidden="true"></i><button type="button" class="ar-btn${r.arch ? " back" : ""}" data-arx="${esc(r.key)}" aria-label="${esc(r.holder)} ${r.arch ? "신규로 이동" : "보관으로 이동"}">${r.arch ? "신규로" : "보관으로"}</button>${r.db && r.arch ? `<button type="button" class="ar-btn del" data-ardel="${esc(r.key)}" aria-label="${esc(r.holder)} 삭제로 이동">삭제로</button>` : ""}`;
       const arHtml = arDay ? `<span class="ar-act">${arDay}</span>` : "";
       // 왼쪽 굵은 선 = 지금 단계 색 (이관·DB = 영업단계 칩, 따행 = 마지막 달성 칩). 단계가 없으면 선 없음
       const lv = isD ? (lastD >= 0 ? DCHIPS[lastD][2] : "") : ((STAGE_CHIPS.find(([lab]) => lab === r.stage) || [])[1] || "");
@@ -7055,6 +7066,17 @@
     if (arv) { SALES.arch[SALES.tab] = arv.dataset.arview === "off"; return renderSales(); }
     const dvb = ev.target.closest("[data-dbv]");
     if (dvb) { SALES.dbv = dvb.dataset.dbv; SALES.arch.valueup = SALES.dbv !== "new"; return renderSales(); }
+    const ardn = ev.target.closest("[data-ardelnew]");
+    if (ardn) { // v381: 삭제 목록 줄의 [신규로]: 삭제 표시와 보관 표시를 모두 풀어 신규로
+      const row = (($("salesView")._rows) || []).find((r) => r.key === ardn.dataset.ardelnew);
+      if (!row || SALES.tab !== "valueup") return;
+      const el = ardn.closest(".srow"); let first = true;
+      const after = () => { if (first && el) el.style.display = "none"; first = false; renderSales(true); };
+      const ents = dbEnts(((SALES.data && SALES.data.custById.get(row.custId)) || [row.ent]).filter(Boolean)); if (!ents) return;
+      exclApply("dbdel", ents, false); exclApply("db", ents, false, after);
+      undoToast(`${row.holder} 고객을 신규로 이동했습니다`, () => { exclApply("db", ents, true); exclApply("dbdel", ents, true, after); toast("다시 삭제했습니다."); });
+      return;
+    }
     const ardx = ev.target.closest("[data-ardelx]");
     if (ardx) { // 삭제 목록 줄의 [복구]: 삭제 표시를 풀어 보관 목록으로
       const row = (($("salesView")._rows) || []).find((r) => r.key === ardx.dataset.ardelx);
@@ -7063,7 +7085,7 @@
       const after = () => { if (first && el) el.style.display = "none"; first = false; renderSales(true); };
       const ents = dbEnts(((SALES.data && SALES.data.custById.get(row.custId)) || [row.ent]).filter(Boolean)); if (!ents) return;
       exclApply("dbdel", ents, false, after);
-      undoToast(`${row.holder} 고객을 보관으로 복구했습니다`, () => { exclApply("dbdel", ents, true, after); toast("다시 삭제했습니다."); });
+      undoToast(`${row.holder} 고객을 보관으로 이동했습니다`, () => { exclApply("dbdel", ents, true, after); toast("다시 삭제했습니다."); });
       return;
     }
     const ard = ev.target.closest("[data-ardel]");
