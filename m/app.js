@@ -1908,7 +1908,7 @@
     const n = Number(t.replace(/,/g, ""));
     return (t && isFinite(n) ? n.toLocaleString("ko-KR") : t) + "원";
   };
-  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류", "고객등급", "고객 등급", "마케팅동의 만료일", "마케팅 동의 만료일", "계약안내 수신", "통신사", "보장요약", "생일구분", "생일 구분", "차량번호", "자동차보험갱신일"]; // 차량번호·갱신일은 아래 '차량' 줄 하나로 합쳐 보여 줌 // 정보 탭 보기에서 숨기는 항목
+  const BASIC_EXCLUDE = ["상품명 - 보험료", "상품명", "보험료", "이관월", "이관일", "미팅장소", "고객 폴더", "분류", "No", "순번", "메모", "모집FC", "담당FC", "담당 FC", "우편번호", "성별", "폴더", "성향", "우선", "직접수정", "입력일시", "고객ID", "고객 ID", "SOL고객번호", "SOL 고객번호", "현재단계", "현재 단계", "고객분류", "고객 분류", "고객등급", "고객 등급", "마케팅동의 만료일", "마케팅 동의 만료일", "계약안내 수신", "통신사", "보장요약", "생일구분", "생일 구분", "차량번호", "자동차보험갱신일"]; // 차량번호·갱신일은 아래 '차량' 줄 하나로 합쳐 보여 줌 // 정보 탭 보기에서 숨기는 항목
   const BIRTH_KEYS = ["생년월일", "생일"];
   const EMAIL_COLS = ["이메일", "e-mail", "Email"];
   let editMode = false;
@@ -2262,7 +2262,7 @@
       btn.disabled = true; btn.textContent = "저장 중…"; $("editSave").disabled = true; $("editSave").textContent = "저장 중…";
       try {
         if (Object.keys(listValues).length) {
-          listValues[PRIORITY_COL] = 1;
+          listValues[PRIORITY_COL] = 1; listValues["직접수정"] = 1; // v385(2026-11-17): '우선'(옛 칸)과 '직접수정' 두 칸에 함께 씀
           await writeEntryCells(c.entries, listValues);
         }
         if (extraDirty) {
@@ -6190,7 +6190,7 @@
     const v2 = isV2(wb), old = hasCol(k) || !v2, out = [];
     const nw = STATE_NEW[k];
     if (nw) { if (old) out.push([k, v]); if (v2 || hasCol(nw)) out.push([nw, v ? "보관" : "목표"]); return out; }
-    if (k === "최근통화일시" || k === "최근문자일시" || k === "진행") return old ? [[k, v]] : []; // 새 구조에서 옛 칸이 없으면 이력 시트에만 남김
+    if (k === "최근통화일시" || k === "최근문자일시" || k === "진행" || k === "우선") return old ? [[k, v]] : []; // 새 구조에서 옛 칸이 없으면 이력 시트에만 남김
     if (k === "영업단계" || k === "진행제외") { if (v2) progressWrite(wb, e, k, v); return old ? [[k, v]] : []; }
     if (k === "DB상태") { out.push([k, v]); if (hasCol("DB제외")) { if (v === "보관") out.push(["DB제외", todayStr()]); else if (v === "신규") out.push(["DB제외", ""]); } return out; }
     if (k === "후번호") { out.push([k, v]); if (v2 || hasCol("주민번호")) out.push(["주민번호", juminOf(fieldOf(e, "생년월일"), v)]); return out; }
