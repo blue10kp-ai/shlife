@@ -462,10 +462,10 @@
     if (!isAdmin()) { const on = ev.target.checked; readPerms().then((perms) => readStartShared(perms, me(), perms.fcFolders).then((v) => writeStartShared(perms, me(), { ...(v || readStartPref()), rh: on }, perms.fcFolders))).catch(() => {}); } // 관리자 조직도에 보이게 (v333)
     toast(ev.target.checked ? "오른손 모드를 켰습니다." : "오른손 모드를 껐습니다.");
   });
-  const views = ["loginView", "scheduleView", "searchView", "customerView", "salesView", "adminView", "introView"];
+  const views = ["loginView", "scheduleView", "searchView", "customerView", "salesView", "adminView", "introView", "dashView"];
   const APP_NAME = "신한FC m";
-  const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "설정", introView: "소개찾기" };
-  const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin" };
+  const TITLES = { scheduleView: "일정", searchView: "고객", customerView: "고객 정보", salesView: "영업", adminView: "설정", introView: "소개찾기", dashView: "대시보드" };
+  const SECTION = { scheduleView: "schedule", searchView: "customer", customerView: "customer", salesView: "sales", adminView: "admin", dashView: "dash", introView: "customer" };
   // 말만해요 안에 모듈(iframe)로 떠 있는 모드 (?embed=1)
   const EMBED = (() => { try { return new URLSearchParams(location.search).get("embed") === "1" && window.parent !== window; } catch (e) { return false; } })();
   let notifyWhereNow = () => {};
@@ -2210,6 +2210,70 @@
     const cu = ev.target.closest && ev.target.closest("#introView [data-cust]");
     if (cu) { ev.preventDefault(); const es = (listCache || []).filter((e) => idOf(e) === cu.dataset.cust); if (es.length) { const g = groupCustomers(es); g.forEach((x) => { x.entries.sort((a, b2) => prio(a.type) - prio(b2.type)); x.name = x.entries[0].name; }); openCustomer(g[0]); } }
   });
+  // ---------- 대시보드 (4단계 ⑤ A안, 2026-11-17 사용자 선택) ----------
+  // 위: 숫자 카드 4칸(이달 목표 착수율 · 최근 6개월 평균 업적 · 최근 수수료 · 계약진행 인원) — 업적·수수료는 민감정보 허용 계정이 그 파일을 읽을 수 있을 때만
+  // 가운데: 이관·따행·DB·계약진행 목표의 단계별 막대 / 아래: 소개 랭킹 상위 3명. 보는 범위는 FC 선택(내 권한으로 보이는 FC만, 기본은 본인)
+  const DSH = { fc: "" };
+  async function readClaudeJson(dirPath, name) { try { const d = await stFindPathCached(dirPath); if (!d) return null; return await stReadJsonIn(d, name); } catch (e) { return null; } }
+  const wonShort = (v) => { const n = Math.round(+v || 0); return n >= 10000 ? (Math.round(n / 1000) / 10).toLocaleString("ko-KR") + "만원" : n.toLocaleString("ko-KR") + "원"; };
+  function dashBar(label, total, segs) { // segs: [[이름, 수, 색 클래스]]
+    const sum = segs.reduce((a, x) => a + x[1], 0) || 1;
+    return `<div class="dsh-goal"><div class="dsh-gh"><b>${esc(label)}</b><span>${total}건</span></div>
+      <div class="dsh-bar" role="img" aria-label="${esc(label)} ${segs.map((x) => x[0] + " " + x[1]).join(", ")}">${segs.filter((x) => x[1]).map((x) => `<i class="${x[2]}" style="flex:${x[1]}"></i>`).join("") || `<i class="none" style="flex:1"></i>`}</div>
+      <div class="dsh-lg">${segs.map((x) => `<span class="${x[2]}">${esc(x[0])} <b>${x[1]}</b></span>`).join("")}</div></div>`;
+  }
+  async function openDash() { show("dashView"); renderDash(); }
+  async function renderDash() {
+    const box = $("dashView"); if (!box) return;
+    box.innerHTML = `<p class="hint pad">불러오는 중…</p>`;
+    try {
+      const data = await loadSalesData(), myFc = await myFcName(), ord = CFG.fcOrder || [];
+      const fcs = [...new Set(data.lists.map((e) => e.fc).filter(Boolean))].sort((a, b) => ((ord.indexOf(a) + 1 || 999) - (ord.indexOf(b) + 1 || 999)) || a.localeCompare(b, "ko"));
+      if (!DSH.fc || !fcs.includes(DSH.fc)) DSH.fc = fcs.includes(myFc) ? myFc : fcs[0] || "";
+      const fc = DSH.fc, ym = ymNow();
+      const tr = transferRows(data, ym, false).filter((r) => r.srcFc === fc && !r.archDay);
+      const dd = ddaRows(data, ym).filter((r) => r.srcFc === fc && !r.archDay && r.dda && r.dda.target !== false);
+      const dbr = valueupRows(data).filter((r) => r.srcFc === fc && !r.dbOff);
+      const pg = progRows(data, fc).filter((r) => r.status === "진행");
+      const stg = (rows) => { const c = { 통화: 0, AP: 0, PC: 0, 계약: 0, 없음: 0 }; rows.forEach((r) => { c[c[r.stage] !== undefined && r.stage ? r.stage : "없음"]++; }); return c; };
+      const ts = stg(tr), bs = stg(dbr);
+      const dLast = (r) => (r.dda.coupon ? "쿠폰발송" : r.dda.resp ? "설문응답" : r.dda.send ? "설문발송" : r.dda.done ? "방문완료" : "미방문");
+      const dc = { 방문완료: 0, 설문발송: 0, 설문응답: 0, 쿠폰발송: 0, 미방문: 0 }; dd.forEach((r) => dc[dLast(r)]++);
+      const pc = { 고객등록: 0, 전화: 0, AP: 0, PC: 0, 계약: 0 }; pg.forEach((r) => { if (pc[r.stage] !== undefined) pc[r.stage]++; });
+      const goalN = tr.length + dd.length + dbr.length, started = (tr.length - ts.없음) + (dd.length - dc.미방문) + (dbr.length - bs.없음);
+      const rate = goalN ? Math.round((started / goalN) * 100) : 0;
+      // 업적·수수료(민감): 읽을 수 있을 때만
+      let perfHtml = "", feeHtml = "";
+      if (canSens()) {
+        const [perf, fee] = await Promise.all([readClaudeJson("Claude/업적", "performance.json"), readClaudeJson("Claude/수수료", "수수료명세서.json")]);
+        if (perf && perf.years) {
+          const no = ((perf.fcs || []).find((x) => x.name === fc) || {}).no;
+          const upto = String(perf.upto || "").slice(0, 7), vals = [];
+          if (no && /^\d{4}-\d\d$/.test(upto)) { let y = +upto.slice(0, 4), m = +upto.slice(5, 7); for (let k = 0; k < 6; k++) { const v = (((perf.years[y] || {})[no] || {}).cmip || [])[m - 1]; vals.push(+v || 0); m--; if (!m) { m = 12; y--; } } }
+          if (vals.length) perfHtml = `<div class="dsh-card"><span>6개월 평균 업적</span><b>${wonShort(vals.reduce((a, v) => a + v, 0) / vals.length)}</b><small>~${esc(upto)} · 월초보험료</small></div>`;
+        }
+        if (Array.isArray(fee)) {
+          const mine = fee.filter((r) => r.fc === fc && r.tot).sort((a, b) => String(b.ym).localeCompare(String(a.ym)))[0];
+          if (mine) feeHtml = `<div class="dsh-card"><span>최근 수수료</span><b>${wonShort(mine.tot["실지급금"])}</b><small>${esc(mine.ym)} · 실지급</small></div>`;
+        }
+      }
+      // 소개 랭킹 상위 3명(이 FC 고객 기준)
+      const ppl = introPeople().filter((p) => p.fc === fc), rk = new Map();
+      ppl.forEach((p) => { const k = p.introId ? "id:" + p.introId : p.introName ? "nm:" + p.introName : ""; if (k) rk.set(k, (rk.get(k) || 0) + 1); });
+      const top = [...rk].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => ({ n, reg: k.startsWith("id:"), id: k.slice(3), name: k.startsWith("id:") ? introNameOf(k.slice(3)) || k.slice(3) : k.slice(3) }));
+      box.innerHTML = `<div class="dsh-head"><b>대시보드</b>${fcs.length > 1 ? `<select id="dshFc" aria-label="보는 범위(FC)">${fcs.map((f) => `<option value="${esc(f)}"${f === fc ? " selected" : ""}>${esc(f)}${f === myFc ? " (본인)" : ""}</option>`).join("")}</select>` : ""}</div>
+        <div class="dsh-cards"><div class="dsh-card"><span>이달 목표 착수</span><b>${rate}%</b><small>${started} / ${goalN}건</small></div>${perfHtml}${feeHtml}<div class="dsh-card"><span>계약진행</span><b>${pg.length}명</b><small>진행 중</small></div></div>
+        <h3 class="dsh-t">이달목표 · ${esc(ymLabel(ym))}</h3>
+        ${dashBar("이관", tr.length, [["통화", ts.통화, "s1"], ["AP", ts.AP, "s2"], ["PC", ts.PC, "s3"], ["계약", ts.계약, "s4"], ["미착수", ts.없음, "s0"]])}
+        ${dashBar("따행", dd.length, [["방문완료", dc.방문완료, "s1"], ["설문발송", dc.설문발송, "s2"], ["설문응답", dc.설문응답, "s3"], ["쿠폰발송", dc.쿠폰발송, "s4"], ["미방문", dc.미방문, "s0"]])}
+        ${dashBar("DB", dbr.length, [["통화", bs.통화, "s1"], ["AP", bs.AP, "s2"], ["PC", bs.PC, "s3"], ["계약", bs.계약, "s4"], ["미착수", bs.없음, "s0"]])}
+        ${dashBar("계약진행", pg.length, [["고객등록", pc.고객등록, "s0"], ["전화", pc.전화, "s1"], ["AP", pc.AP, "s2"], ["PC", pc.PC, "s3"], ["계약", pc.계약, "s4"]])}
+        <h3 class="dsh-t">소개 랭킹</h3>
+        ${top.length ? `<ol class="dsh-rank">${top.map((r, i) => `<li><span class="no">${i + 1}</span><span class="nm">${r.reg ? trophyHtml(introCounts().get(r.id) || r.n) : ""}${esc(r.name)}${r.reg ? "" : ' <small>미등록</small>'}</span><b>${r.n}명</b></li>`).join("")}</ol>` : `<p class="hint">아직 소개 기록이 없습니다. 고객 화면의 [소개찾기]에서 넣을 수 있습니다.</p>`}
+        <p class="hint">착수 = 이관·DB는 단계(통화·AP·PC·계약)가 있는 건, 따행은 방문완료 이상인 건. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다.${canSens() && !perfHtml ? " 업적·수수료 자료를 읽지 못해 그 카드는 숨겼습니다." : ""}</p>`;
+    } catch (e) { box.innerHTML = ""; handleError(e); }
+  }
+  document.addEventListener("change", (ev) => { if (ev.target && ev.target.id === "dshFc") { DSH.fc = ev.target.value; renderDash(); } });
   // 주민번호 입력 검사: 13자리 / 앞6+뒤1(7자리) / 생년월일 8자리 / 성별만(뒤 1자리). 틀리면 메시지, 맞으면 저장 형식(norm)과 생년월일·성별
   function jminCheck(raw) {
     const d = String(raw || "").replace(/\D/g, "");
@@ -4110,6 +4174,7 @@
     const s_sub = sec("영업 서브메뉴", ["영업 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>자료</b>를 눌러 바꿉니다. <b>자료</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 따행/이관/DB(여러 개 선택) · 보관 포함 · 년월을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘영업 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘영업 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 자료는 영업에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
     const s_stage = sec("영업단계 칩 (이관 · DB)", ["이관·DB 목록의 고객 줄 오른쪽에 <b>통화 · AP · PC · 계약</b> 칩이 있고, 그 고객의 지금 영업단계인 칩만 색이 들어옵니다. 칩을 누르면 고객 시트의 ‘영업단계’ 칸에 누른 칩의 글자가 저장됩니다(칸이 없으면 새로 만듭니다). 이미 색이 켜진 칩을 다시 누르면 ‘고객의 영업상태를 제거하시겠습니까?’ 확인 뒤 빈칸이 됩니다."]);
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
+    const s_dsh = sec("대시보드 (2026-11-17)", ["아래 메뉴 <b>AI 오른쪽 [대시보드]</b>입니다. 위 오른쪽에서 보는 범위(FC)를 고릅니다(기본은 본인, 내 권한으로 보이는 FC만).", "<b>숫자 카드</b>: 이달 목표 착수(목표 중 단계가 시작된 건 / 전체), 6개월 평균 업적(월초보험료, 업적 자료 기준), 최근 수수료(가장 최근 달 실지급), 계약진행 인원. 업적·수수료 카드는 민감정보 허용 계정이 그 자료를 읽을 수 있을 때만 보입니다.", "<b>이달목표 막대</b>: 이관·DB는 통화·AP·PC·계약·미착수, 따행은 방문완료·설문발송·설문응답·쿠폰발송·미방문, 계약진행은 고객등록·전화·AP·PC·계약별 건수입니다. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다. 맨 아래는 <b>소개 랭킹</b> 상위 3명입니다."]);
     const s_in = sec("소개 (2026-11-17)", ["<b>고객 정보 > 수정</b>의 <b>소개</b>: <b>소개 · 아님 · 모름</b> 중 고르고, <b>소개</b>이면 소개자 이름을 적습니다. 같은 FC의 등록 고객 후보(이름·출생 두 자리·유입경로)가 나오고, 고르면 <b>등록 고객과 연결</b>(소개고객ID 저장), 고르지 않거나 후보에 없으면 <b>이름만 남기기</b>(소개자명 저장)입니다. 다시 누르면 풀리고 이름을 비우면 지워집니다. 소개만 고치면 ‘직접 수정’ 표시는 붙지 않습니다.", "<b>소개자 트로피</b>: 소개해 준 고객 이름 앞에 1~2명 동, 3~4명 은, 5명 이상 금 트로피가 붙습니다(소개고객ID를 세어 계산, 고객 정보 머리·고객 검색 결과·소개찾기에 나옵니다).", "<b>소개찾기</b>(고객 화면 GBS 옆 버튼): 등록 고객 전부를 대상으로 ‘등록고객 N명 중 M명 확인’을 보여 줍니다. <b>소개고객부터</b>는 고객마다 [소개자 찾기](창에서 이름 검색 → 고객 고르기 · 이미 적힌 이름 · 이름만 · 소개 아님 · 모름), <b>소개자부터</b>는 소개자를 먼저 고른 뒤 그분이 소개한 고객을 체크해 한 번에 연결, <b>랭킹</b>은 소개한 수 순서로 보여 주며 고객이 아닌 소개자는 ‘미등록’으로 묶고 [고객으로 연결]로 한 번에 고객ID에 이어 줍니다. 묶음 <b>지역·성별·직업·직장·유입 시기·가족(같은 주소)·유입경로</b>를 겹쳐 눌러 같은 사람끼리 묶어 볼 수 있고, ‘확인한 고객도 보기’를 켜면 이미 확인한 고객도 나옵니다.", "<b>새 고객 확인</b>: 지난번 접속 뒤 입력된 내 FC 고객이 있으면 로그인 때 소개찾기 화면이 먼저 뜹니다. 고객마다 [소개자 찾기], 모두 끝내려면 <b>나머지는 소개 없음</b>, 미루려면 <b>나중에</b>(다음 접속 때 다시 뜹니다). 처음 접속한 기기는 기준 시각만 기록하고 묻지 않습니다(기존 고객은 소개찾기에서 점검)."]);
     const s_pg = sec("영업 > 계약진행 (2026-11-17)", ["영업 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
@@ -4127,7 +4192,7 @@
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>[조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 영업 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 영업 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: ‘FC 사용 설정’ 제목 옆 [조직도]를 누르면 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/영업 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, grp("검색"), s_srch, grp("고객 정보"), s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_dsh, grp("검색"), s_srch, grp("고객 정보"), s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
@@ -6020,6 +6085,7 @@
     const s = b.dataset.section;
     if (s === "schedule") { schedMode = "day"; schedDate = dayStart(new Date()); openSchedule(); } // 항상 오늘 Today
     else if (s === "admin") openAdmin();
+    else if (s === "dash") openDash();
     else if (s === "sales") openSales();
     else resetSearch(); // 고객: 검색을 지우고 처음 화면
   }));

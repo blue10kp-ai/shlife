@@ -1146,3 +1146,35 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 .is-sheet-f button { border: 1px solid var(--line); background: var(--surface); color: var(--t2); border-radius: 8px; font: inherit; font-size: 12.5px; padding: 4px 12px; cursor: pointer; }
 #introView .is-fresh-act { display: flex; gap: 8px; margin-top: 12px; }
 #introView .is-fresh-act button { flex: 1; }
+
+/* v404(2026-11-17): 대시보드 A안 — 숫자 카드 2×2, 목표 단계 막대, 소개 랭킹 */
+#dashView { padding: 0 16px 90px; }
+.dsh-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 8px; }
+.dsh-head select { font-size: 12.5px; }
+.dsh-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dsh-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dsh-card span { font-size: 11.5px; color: var(--t2); }
+.dsh-card b { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.dsh-card small { font-size: 11px; color: var(--t3); font-variant-numeric: tabular-nums; }
+.dsh-t { font-size: 13px; font-weight: 600; margin: 16px 2px 6px; color: var(--t1, inherit); }
+.dsh-goal { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; margin-bottom: 6px; }
+.dsh-gh { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+.dsh-gh span { color: var(--t2); font-variant-numeric: tabular-nums; }
+.dsh-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; background: transparent; }
+.dsh-bar i { display: block; min-width: 3px; }
+.dsh-lg { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font-size: 11.5px; color: var(--t2); }
+.dsh-lg b { font-weight: 600; color: var(--t1, inherit); font-variant-numeric: tabular-nums; }
+.dsh-lg span::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 4px; vertical-align: 0; background: currentColor; opacity: .9; }
+.dsh-bar .s0, .dsh-lg .s0::before, .dsh-bar .none { background: #d4d9e0; }
+.dsh-bar .s1, .dsh-lg .s1::before { background: #9db8e0; }
+.dsh-bar .s2, .dsh-lg .s2::before { background: #5f8fd0; }
+.dsh-bar .s3, .dsh-lg .s3::before { background: #2f67b8; }
+.dsh-bar .s4, .dsh-lg .s4::before { background: #1f8a55; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dsh-bar .s0, :root:not([data-theme="light"]) .dsh-lg .s0::before, :root:not([data-theme="light"]) .dsh-bar .none { background: #3a4252; } }
+:root[data-theme="dark"] .dsh-bar .s0, :root[data-theme="dark"] .dsh-lg .s0::before, :root[data-theme="dark"] .dsh-bar .none { background: #3a4252; }
+.dsh-rank { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.dsh-rank li { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 13.5px; }
+.dsh-rank li:first-child { border-top: 0; }
+.dsh-rank .no { color: var(--t3); font-size: 12px; min-width: 14px; }
+.dsh-rank .nm { flex: 1; } .dsh-rank small { color: var(--t3); font-size: 11px; }
+#dashView .hint { font-size: 11.5px; margin-top: 10px; }
