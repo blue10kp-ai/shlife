@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1217" media="(prefers-color-scheme: dark)">
+<title>고객 추가 · 신한FC</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="tokens.css">
+<script src="config.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+/* 고객 추가 (2026-11-17) — 신한FC 공통 디자인 기준(tokens.css)을 따른다 */
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--t1);font-family:var(--font);font-size:var(--fs-body);-webkit-text-size-adjust:100%}
+body{padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+button,input,select,textarea{font:inherit;color:inherit}
+[hidden]{display:none!important}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+
+/* 로그인: 차차차 로그인 화면과 같은 모양 */
+.login{max-width:360px;margin:16vh auto 0;padding:0 24px;text-align:center}
+.login h1{font-size:28px;font-weight:600;margin:0 0 4px;letter-spacing:-.5px}
+.login p{margin:0 0 24px;color:var(--t2);font-size:14px}
+.login .lm{min-height:22px;margin:0 0 12px;font-size:13px;color:var(--t3)}
+.login .lm.err{color:var(--bad)}
+.login .btn{width:100%;height:44px;font-size:15px;margin-top:8px}
+.embed .login{margin-top:22vh}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 14px;border-radius:var(--r-ctl);border:1px solid var(--line);background:var(--surface);color:var(--t1);font-size:14px;font-weight:500;cursor:pointer;transition:background-color var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)}
+.btn:active{transform:scale(.98)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn:focus-visible,.in:focus-visible,.seg button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* 머리 줄: 얇게 */
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;height:48px;padding:0 12px;background:var(--bg);border-bottom:1px solid var(--line)}
+header a.back{display:inline-flex;width:32px;height:32px;align-items:center;justify-content:center;border-radius:var(--r-ctl);color:var(--t2);text-decoration:none}
+header h1{font-size:var(--fs-title);font-weight:600;margin:0;flex:1}
+header select{height:32px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--surface);padding:0 8px;font-size:14px}
+.embed header a.back{display:none}
+
+main{max-width:560px;margin:0 auto;padding:12px 12px 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);padding:12px;margin-bottom:12px}
+.card h2{font-size:var(--fs-small);font-weight:600;color:var(--t2);margin:0 0 8px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 8px}
+.f{display:flex;flex-direction:column;gap:4px;min-width:0}
+.f.w{grid-column:1/-1}
+.f label{font-size:var(--fs-meta);color:var(--t3);display:flex;align-items:center;gap:2px}
+.f label .req{color:var(--bad);font-weight:600}
+.f label .opt{margin-left:auto;color:var(--t3);font-weight:400}
+.in{height:36px;width:100%;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--bg);padding:0 10px;font-size:15px;transition:border-color var(--t-fast) var(--ease)}
+textarea.in{height:64px;padding:8px 10px;resize:vertical}
+.in::placeholder{color:var(--t3)}
+.f.bad .in,.f.bad .seg{border-color:var(--bad)}
+.f .msg{font-size:var(--fs-meta);color:var(--bad);min-height:0}
+.f .note{font-size:var(--fs-meta);color:var(--t3)}
+.seg{display:flex;height:36px;border:1px solid var(--line);border-radius:var(--r-ctl);overflow:hidden;background:var(--bg)}
+.seg button{flex:1;border:0;background:transparent;font-size:14px;color:var(--t2);cursor:pointer;transition:background-color var(--t-fast) var(--ease)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent-weak);color:var(--accent);font-weight:600}
+.sug{display:flex;flex-wrap:wrap;gap:4px}
+.sug button{height:28px;border:1px solid var(--line);border-radius:var(--r-ctl);background:var(--surface);font-size:13px;padding:0 8px;cursor:pointer}
+.sug button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+
+/* 순간: 고객 카드 미리보기 (고객ID 번호표) */
+.idcard{display:flex;align-items:center;gap:12px}
+.tag{display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;min-width:96px;height:52px;padding:0 12px;border-radius:var(--r-ctl);border:1px dashed var(--line);background:var(--bg)}
+.tag b{font-size:18px;font-weight:600;letter-spacing:.5px}
+.tag small{font-size:11px;color:var(--t3)}
+.tag.sol{border-style:solid;border-color:var(--accent)}
+.tag.sol small{color:var(--accent)}
+.idcard .who{flex:1;min-width:0}
+.idcard .who div{font-size:var(--fs-title);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.idcard .who span{font-size:var(--fs-small);color:var(--t2)}
+
+/* 아래 줄: 오른쪽 88×88은 말만해요 버튼 자리로 비움 */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;gap:8px;padding:12px 96px calc(12px + env(safe-area-inset-bottom)) 12px;background:var(--bg);border-top:1px solid var(--line)}
+.bar .st{flex:1;min-width:0;font-size:var(--fs-small);color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .st.err{color:var(--bad)}
+.bar .st.ok{color:var(--ok)}
+.toast{position:fixed;left:12px;right:96px;bottom:calc(72px + env(safe-area-inset-bottom));padding:10px 12px;border-radius:var(--r-ctl);background:var(--t1);color:var(--bg);font-size:14px;opacity:0;transform:translateY(4px);transition:opacity var(--t-in) var(--ease),transform var(--t-in) var(--ease);pointer-events:none}
+.toast.on{opacity:1;transform:none}
+@media (min-width:480px){main{padding-top:16px}}
+</style>
+</head>
+<body>
+<script>try{if(new URLSearchParams(location.search).get("embed")==="1")document.documentElement.classList.add("embed")}catch(e){}</script>
+
+<section id="login" class="login">
+  <h1>신한FC</h1>
+  <p>고객 추가</p>
+  <div class="lm" id="lmsg">확인 중…</div>
+  <button class="btn pri" id="loginBtn" hidden>Google 계정으로 로그인</button>
+  <button class="btn" id="loginOtherBtn" hidden>다른 계정으로 로그인</button>
+</section>
+
+<div id="app" hidden>
+<header>
+  <a class="back" href="./" aria-label="뒤로"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></a>
+  <h1>고객 추가</h1>
+  <label class="sr" for="fc" hidden>담당FC</label>
+  <select id="fc" aria-label="담당FC"></select>
+</header>
+
+<main>
+  <div class="card">
+    <div class="idcard">
+      <div class="tag" id="tag"><b class="mono" id="tagId">C·····</b><small id="tagSrc">저장할 때 정해짐</small></div>
+      <div class="who"><div id="pvName">이름</div><span id="pvLine">가망 · 담당FC</span></div>
+    </div>
+  </div>
+
+  <form id="form" novalidate autocomplete="off">
+  <div class="card">
+    <h2>기본</h2>
+    <div class="grid">
+      <div class="f" data-f="이름"><label for="i_name">이름<span class="req">*</span></label><input class="in" id="i_name" maxlength="40"><div class="msg"></div></div>
+      <div class="f" data-f="연락처"><label for="i_phone">연락처<span class="req">*</span></label><input class="in mono" id="i_phone" inputmode="tel" placeholder="010-0000-0000" maxlength="13"><div class="msg"></div></div>
+      <div class="f w" data-f="유입경로"><label>유입경로<span class="req">*</span></label>
+        <div class="seg" id="i_inflow" role="group" aria-label="유입경로"><button type="button" data-v="신규유입" aria-pressed="false">신규유입</button><button type="button" data-v="DB유입" aria-pressed="false">DB유입</button></div><div class="msg"></div></div>
+      <div class="f w" data-f="유입DB명" id="dbBox" hidden><label for="i_db">유입DB명<span class="req">*</span></label><input class="in" id="i_db" maxlength="60" placeholder="DB 캠페인 이름"><div class="msg"></div></div>
+      <div class="f" data-f="주민번호"><label for="i_rrn">주민번호<span class="opt">앞 7자리</span></label><input class="in mono" id="i_rrn" inputmode="numeric" placeholder="780109-2" maxlength="14"><div class="msg"></div></div>
+      <div class="f" data-f="통신사"><label for="i_tel">통신사</label><select class="in" id="i_tel"><option value=""></option><option>SKT</option><option>KT</option><option>LGU+</option><option>알뜰폰</option></select></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>연락·직업</h2>
+    <div class="grid">
+      <div class="f w" data-f="주소"><label for="i_addr">주소</label><input class="in" id="i_addr" maxlength="120"></div>
+      <div class="f" data-f="우편번호"><label for="i_zip">우편번호</label><input class="in mono" id="i_zip" inputmode="numeric" maxlength="5"><div class="msg"></div></div>
+      <div class="f" data-f="이메일"><label for="i_mail">이메일</label><input class="in" id="i_mail" inputmode="email" maxlength="80"><div class="msg"></div></div>
+      <div class="f" data-f="직업"><label for="i_job">직업</label><input class="in" id="i_job" maxlength="40"></div>
+      <div class="f" data-f="직장명"><label for="i_work">직장명</label><input class="in" id="i_work" maxlength="60"></div>
+      <div class="f w" data-f="미팅장소"><label for="i_meet">미팅장소</label><input class="in" id="i_meet" maxlength="80"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>소개·연결</h2>
+    <div class="grid">
+      <div class="f w" data-f="소개자"><label for="i_ref">소개자<span class="opt">등록 고객이면 골라 연결</span></label><input class="in" id="i_ref" maxlength="40"><div class="sug" id="refSug"></div><div class="note" id="refNote"></div></div>
+      <div class="f w" data-f="SOL고객번호"><label for="i_sol">신한라이프 고객번호<span class="opt">없으면 비움 → 자체 고객ID</span></label><input class="in mono" id="i_sol" inputmode="numeric" maxlength="12" placeholder="12자리"><div class="msg"></div></div>
+      <div class="f w" data-f="메모"><label for="i_memo">메모</label><textarea class="in" id="i_memo" maxlength="500"></textarea></div>
+    </div>
+  </div>
+  </form>
+</main>
+
+<div class="bar">
+  <div class="st" id="st">* 표시는 꼭 적어야 합니다</div>
+  <button class="btn" id="resetBtn" type="button">비우기</button>
+  <button class="btn pri" id="saveBtn" type="button">저장</button>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+  const CFG = window.APP_CONFIG || {}; const GCFG = CFG.google || {}; const GDCFG = CFG.gdrive || {};
+  const $ = (s) => document.querySelector(s);
+  const EMBED = document.documentElement.classList.contains("embed");
+  const DEMO = new URLSearchParams(location.search).get("demo") === "1"; // 화면만 시험(드라이브에 쓰지 않음)
+  const GDAPI = "https://www.googleapis.com/drive/v3", GDUP = "https://www.googleapis.com/upload/drive/v3";
+  const GS = "https://www.googleapis.com/auth/";
+  const GSCOPE = GS + "drive openid email"; // 고객 자료(data.json)와 팀 고객 등록부를 읽고 써야 함
+  const GAUTH_KEY = "blue10kp.gauth";
+  const LAST_FC = "shlife.addcustom.fc";
+  const admins = (CFG.admins || []).map((x) => x.toLowerCase());
+
+  // ---------- 공통 출입증 (app\_공통\공통로그인.md) ----------
+  const readGAuth = () => { try { const a = JSON.parse(localStorage.getItem(GAUTH_KEY) || "null"); return a && a.token && a.exp > 0 ? a : null; } catch (e) { return null; } };
+  const writeGAuth = (a) => { try { localStorage.setItem(GAUTH_KEY, JSON.stringify({ v: 1, token: a.token, exp: a.exp, scopes: a.scopes || [], email: a.email || "" })); } catch (e) {} };
+  const hasDrive = (sc) => (sc || []).some((x) => String(x).replace(GS, "") === "drive");
+  let tokMem = null;
+  const token = () => { const a = readGAuth(); return a && a.exp > Date.now() + 60000 && hasDrive(a.scopes) ? a.token : tokMem; };
+  const meEmail = () => String((readGAuth() || {}).email || "").toLowerCase();
+  function clearTok(used) { const a = readGAuth(); if (a && (!used || a.token === used)) { try { localStorage.removeItem(GAUTH_KEY); } catch (e) {} } tokMem = null; }
+  function requestTok(other) {
+    return new Promise((resolve, reject) => {
+      const g = window.google && google.accounts && google.accounts.oauth2;
+      if (!g) return reject(new Error("구글 로그인 모듈을 불러오지 못했습니다. 잠시 후 다시 시도하세요."));
+      g.initTokenClient({
+        client_id: GCFG.clientId, scope: GSCOPE, include_granted_scopes: true,
+        hint: other ? undefined : (meEmail() || undefined),
+        callback: (r) => {
+          if (r.error) return reject(new Error("구글 연결 실패: " + r.error));
+          if (!google.accounts.oauth2.hasGrantedAllScopes(r, GS + "drive")) return reject(new Error("Google Drive 권한을 허용해야 합니다."));
+          const prev = readGAuth();
+          writeGAuth({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, scopes: String(r.scope || "").split(/\s+/).filter(Boolean), email: !other && prev ? prev.email : "" });
+          tokMem = r.access_token; resolve(r.access_token);
+        },
+        error_callback: (e) => reject(new Error(e && e.type === "popup_closed" ? "구글 로그인 창이 닫혔습니다." : "구글 로그인 창을 열 수 없습니다. 팝업 차단을 확인하세요."))
+      }).requestAccessToken({ prompt: other ? "select_account" : "" });
+    });
+  }
+  async function gfetch(url, opt, raw) {
+    const t = token(); if (!t) throw new Error("AUTH");
+    const o = opt || {};
+    const res = await fetch(url, { ...o, headers: { Authorization: "Bearer " + t, ...(o.headers || {}) }, cache: "no-store" });
+    if (res.status === 401) { clearTok(t); throw new Error("AUTH"); }
+    if (!res.ok) throw new Error("Drive " + res.status + ": " + (await res.text()).slice(0, 160));
+    return raw ? res.text() : res.json();
+  }
+  async function fillEmail() {
+    const a = readGAuth(); if (a && a.email) return a.email;
+    const u = await gfetch("https://www.googleapis.com/oauth2/v3/userinfo");
+    const b = readGAuth(); if (b) writeGAuth({ ...b, email: u.email || "" });
+    return u.email || "";
+  }
+  const qv = (s) => String(s).replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const findIn = async (dir, name, folder) => ((await gfetch(GDAPI + "/files?pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,version,modifiedTime)&q=" +
+    encodeURIComponent("'" + qv(dir) + "' in parents and name='" + qv(name) + "' and trashed=false" + (folder ? " and mimeType='application/vnd.google-apps.folder'" : "")))).files || [])[0] || null;
+  const meta = (id) => gfetch(GDAPI + "/files/" + encodeURIComponent(id) + "?supportsAllDrives=true&fields=id,version,modifiedTime,parents");
+  const readJson = async (id) => JSON.parse(await gfetch(GDAPI + "/files/" + encodeURIComponent(id) + "?alt=media&supportsAllDrives=true", null, true));
+  const writeJson = (id, obj) => gfetch(GDUP + "/files/" + encodeURIComponent(id) + "?uploadType=media&supportsAllDrives=true&fields=id,version",
+    { method: "PATCH", headers: { "Content-Type": "application/json; charset=utf-8" }, body: JSON.stringify(obj) });
+
+  // ---------- 위치 찾기: 고객 폴더(공유 ID) → FC 폴더 → data.json, 그리고 Claude/_양식/고객ID.json ----------
+  let fcDirs = {}, regFile = null, allowed = [];
+  async function locate() {
+    const base = GDCFG.baseId; if (!base) throw new Error("고객 폴더 설정(gdrive.baseId)이 없습니다.");
+    const email = (await fillEmail()).toLowerCase();
+    const isAdmin = admins.includes(email);
+    let list = [];
+    if (isAdmin) list = (CFG.fcOrder || []).slice();
+    else {
+      try { // 권한 파일: { users: { 이메일: ["김현성", "최수진:r"] } } — ':r'은 보기만이라 추가할 수 없음
+        const pf = GDCFG.appDirId && await findIn(GDCFG.appDirId, CFG.permFile || "shlife-권한.json");
+        const p = pf ? await readJson(pf.id) : {};
+        list = ((p.users || {})[email] || []).filter((g) => g !== "*" && !/:r$/.test(g));
+      } catch (e) { list = []; }
+    }
+    for (const fc of list) { const d = await findIn(base, fc, true); if (d) fcDirs[fc] = d.id; }
+    allowed = list.filter((fc) => fcDirs[fc]);
+    try { const m = await meta(base); const claude = (m.parents || [])[0]; const yd = claude && await findIn(claude, "_양식", true); regFile = yd && await findIn(yd.id, "고객ID.json"); } catch (e) { regFile = null; }
+    return email;
+  }
+
+  // ---------- 화면 ----------
+  const F = (k) => document.querySelector('.f[data-f="' + k + '"]');
+  const val = (id) => $(id).value.trim();
+  let inflow = "", refPick = null, fcData = null, fcDataInfo = null;
+  function toast(s) { const t = $("#toast"); t.textContent = s; t.classList.add("on"); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("on"), 2600); }
+  function status(s, cls) { const e = $("#st"); e.textContent = s; e.className = "st" + (cls ? " " + cls : ""); }
+  const digits = (s) => String(s || "").replace(/\D/g, "");
+  function fmtPhone(s) { const d = digits(s).slice(0, 11); return d.length < 4 ? d : d.length < 8 ? d.slice(0, 3) + "-" + d.slice(3) : d.slice(0, 3) + "-" + d.slice(3, d.length - 4) + "-" + d.slice(-4); }
+  function preview() {
+    $("#pvName").textContent = val("#i_name") || "이름";
+    $("#pvLine").textContent = "가망 · " + ($("#fc").value || "담당FC") + (inflow ? " · " + inflow : "");
+    const sol = digits(val("#i_sol"));
+    $("#tag").classList.toggle("sol", !!sol);
+    $("#tagSrc").textContent = sol ? "SOL 고객번호와 연결" : "자체 고객ID";
+  }
+  function setErr(k, msg) { const f = F(k); if (!f) return; f.classList.toggle("bad", !!msg); const m = f.querySelector(".msg"); if (m) m.textContent = msg || ""; }
+  function parseRrn(s) {
+    const d = digits(s);
+    if (!d) return { ok: true };
+    if (d.length === 7 || d.length === 13) {
+      const n = +d[6]; if (n < 1 || n > 4) return { ok: false };
+      const yy = d.slice(0, 2), mm = +d.slice(2, 4), dd = +d.slice(4, 6), cent = n <= 2 ? "19" : "20";
+      const dt = new Date(+(cent + yy), mm - 1, dd);
+      if (dt.getMonth() !== mm - 1 || dt.getDate() !== dd) return { ok: false };
+      return { ok: true, rrn: d.slice(0, 6) + "-" + d.slice(6), birth: cent + yy + "-" + d.slice(2, 4) + "-" + d.slice(4, 6), sex: n % 2 ? "남" : "여" };
+    }
+    if (d.length === 8) { const dt = new Date(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8)); if (dt.getMonth() !== +d.slice(4, 6) - 1) return { ok: false }; return { ok: true, rrn: d, birth: d.slice(0, 4) + "-" + d.slice(4, 6) + "-" + d.slice(6, 8) }; }
+    return { ok: false };
+  }
+  function validate() {
+    const errs = [];
+    const need = (k, ok, msg) => { setErr(k, ok ? "" : msg); if (!ok) errs.push(k); };
+    need("이름", !!val("#i_name"), "이름을 적어 주세요");
+    const ph = digits(val("#i_phone"));
+    need("연락처", /^01\d{8,9}$/.test(ph), ph ? "휴대폰 번호를 확인해 주세요" : "연락처를 적어 주세요");
+    need("유입경로", !!inflow, "유입경로를 골라 주세요");
+    if (inflow === "DB유입") need("유입DB명", !!val("#i_db"), "DB 이름을 적어 주세요"); else setErr("유입DB명", "");
+    need("주민번호", parseRrn(val("#i_rrn")).ok, "앞 7자리(780109-2) 또는 생년월일 8자리로 적어 주세요");
+    const z = digits(val("#i_zip")); need("우편번호", !z || z.length === 5, "5자리로 적어 주세요");
+    const m = val("#i_mail"); need("이메일", !m || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m), "이메일 형식을 확인해 주세요");
+    const s = digits(val("#i_sol")); need("SOL고객번호", !s || s.length >= 9, "고객번호를 확인해 주세요");
+    if (!$("#fc").value) errs.push("담당FC");
+    return errs;
+  }
+  // 소개자 후보: 그 FC 자료의 고객 이름에서 찾음
+  function refSuggest() {
+    const box = $("#refSug"); box.innerHTML = ""; refPick = null; $("#refNote").textContent = "";
+    const q = val("#i_ref"); if (!q || !fcData) return;
+    const S = fcData.sheets["고객"]; const c = S.columns; const iN = c.indexOf("이름"), iI = c.indexOf("고객ID"), iB = c.indexOf("생년월일"), iP = c.indexOf("연락처");
+    const hits = S.rows.filter((r) => r[iN] === q).slice(0, 6);
+    if (!hits.length) { $("#refNote").textContent = "등록 고객에 없음 → 소개자 이름만 저장"; return; }
+    hits.forEach((r) => {
+      const b = document.createElement("button"); b.type = "button"; b.setAttribute("aria-pressed", "false");
+      b.textContent = r[iN] + " " + (r[iB] ? String(r[iB]).slice(2, 4) + "년생" : "") + (r[iP] ? " ·" + digits(r[iP]).slice(-4) : "");
+      b.onclick = () => { refPick = refPick === r[iI] ? null : r[iI]; [...box.children].forEach((x) => x.setAttribute("aria-pressed", "false")); if (refPick) b.setAttribute("aria-pressed", "true"); $("#refNote").textContent = refPick ? "등록 고객과 연결" : "고르지 않으면 이름만 저장"; };
+      box.appendChild(b);
+    });
+    $("#refNote").textContent = "같은 이름 " + hits.length + "명 — 골라야 연결됩니다";
+  }
+  async function loadFc() {
+    fcData = null; fcDataInfo = null; $("#refSug").innerHTML = "";
+    const fc = $("#fc").value; if (!fc) return;
+    try { localStorage.setItem(LAST_FC, fc); } catch (e) {}
+    preview();
+    if (DEMO) { fcData = { sheets: { "고객": { columns: ["고객ID", "이름", "연락처", "생년월일"], rows: [] } } }; return; }
+    status(fc + " 자료 여는 중…");
+    try {
+      const f = await findIn(fcDirs[fc], "data.json");
+      if (!f) { status(fc + " 자료(data.json)를 찾지 못했습니다", "err"); return; }
+      fcDataInfo = f; fcData = await readJson(f.id);
+      status("* 표시는 꼭 적어야 합니다"); refSuggest();
+    } catch (e) { onErr(e); }
+  }
+
+  // ---------- 저장 ----------
+  function regionOf(addr) { const p = String(addr || "").replace(/^\[[^\]]*\]\s*/, "").replace(/^\(\d{5}\)\s*/, "").split(/\s+/).filter(Boolean); return p.slice(0, 2).join(" ") || null; }
+  const pad = (n) => String(n).padStart(2, "0");
+  const nowStr = () => { const d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds()); };
+  async function save() {
+    const errs = validate();
+    if (errs.length) { status("빠진 것: " + errs.join(", "), "err"); const f = F(errs[0]); if (f) { const i = f.querySelector("input,select,textarea,button"); if (i) i.focus(); } toast("* 표시 항목을 확인해 주세요"); return; }
+    const fc = $("#fc").value, name = val("#i_name"), phone = fmtPhone(val("#i_phone")), sol = digits(val("#i_sol")), r = parseRrn(val("#i_rrn"));
+    const btn = $("#saveBtn"); btn.disabled = true;
+    try {
+      if (DEMO) { $("#tagId").textContent = "C" + "00000"; status("시험 화면: 저장하지 않았습니다", "ok"); toast("시험 화면이라 저장하지 않았습니다"); return; }
+      if (!regFile) throw new Error("팀 고객 등록부(_양식/고객ID.json)를 열 수 없는 계정입니다. 관리자에게 요청해 주세요.");
+      // 1) 최신 자료로 다시 읽고 중복·잠금 확인
+      if (await findIn(fcDirs[fc], ".반영중.lock")) throw new Error("지금 자료 반영 중입니다. 잠시 후 다시 저장해 주세요.");
+      const dm = await meta(fcDataInfo.id); const data = await readJson(fcDataInfo.id);
+      const G = data.sheets["고객"], gc = G.columns, ci = (k) => gc.indexOf(k);
+      const dupPhone = G.rows.find((x) => digits(x[ci("연락처")]) === digits(phone));
+      if (dupPhone) throw new Error("같은 연락처의 고객이 이미 있습니다 (" + dupPhone[ci("고객ID")] + ")");
+      if (sol && G.rows.find((x) => String(x[ci("SOL고객번호")] || "") === sol)) throw new Error("같은 신한라이프 고객번호가 이미 있습니다");
+      // 2) 고객ID: 팀 등록부에서 (SOL 번호가 있으면 그 번호로 찾고, 없으면 자체 키 M:이름|연락처로 새 번호)
+      const rm = await meta(regFile.id); const reg = await readJson(regFile.id); reg.map = reg.map || {};
+      const key = sol || ("M:" + name + "|" + digits(phone));
+      let cid = reg.map[key], newId = false;
+      if (cid && G.rows.find((x) => x[ci("고객ID")] === cid)) throw new Error("이미 이 FC 자료에 있는 고객입니다 (" + cid + ")");
+      if (!cid) {
+        const used = new Set(Object.values(reg.map));
+        let n = Number(reg.next) || 1; while (used.has("C" + String(n).padStart(5, "0"))) n++;
+        cid = "C" + String(n).padStart(5, "0"); reg.map[key] = cid; reg.next = n + 1; newId = true;
+        const rm2 = await meta(regFile.id); if (rm2.version !== rm.version) throw new Error("등록부가 방금 바뀌었습니다. 다시 저장해 주세요.");
+        await writeJson(regFile.id, reg);
+      }
+      // 3) 고객 행 + 이력 한 줄
+      const ts = nowStr(), today = ts.slice(0, 10);
+      const vals = {
+        "고객ID": cid, "SOL고객번호": sol || null, "이름": name, "담당FC": fc, "현재단계": "가망", "고객분류": "가망", "최초유입경로": inflow, "유입일": today,
+        "유입DB명": inflow === "DB유입" ? val("#i_db") : null, "주민번호": r.rrn || null, "생년월일": r.birth || null, "성별": r.sex || null,
+        "연락처": phone, "통신사": val("#i_tel") || null, "이메일": val("#i_mail") || null, "우편번호": digits(val("#i_zip")) || null, "주소": val("#i_addr") || null, "지역": regionOf(val("#i_addr")),
+        "직업": val("#i_job") || null, "직장명": val("#i_work") || null, "미팅장소": val("#i_meet") || null,
+        "소개고객ID": refPick || null, "소개자명": !refPick && val("#i_ref") ? val("#i_ref") : null, "소개확인": val("#i_ref") ? "소개" : null,
+        "메모": val("#i_memo") || null, "직접수정": 1, "우선": 1, "입력일시": ts
+      };
+      G.rows.push(gc.map((c) => (c in vals ? vals[c] : null)));
+      const H = data.sheets["이력"];
+      if (H) { const hv = { "일시": ts, "고객ID": cid, "담당FC": fc, "유형": "고객등록", "결과": "가망", "내용": "고객 추가 화면에서 등록 (" + inflow + (sol ? ", SOL 고객번호 연결" : ", 자체 고객ID") + ")", "입력일시": ts }; H.rows.push(H.columns.map((c) => (c in hv ? hv[c] : null))); }
+      const dm2 = await meta(fcDataInfo.id); if (dm2.version !== dm.version) throw new Error("자료가 방금 바뀌었습니다. 다시 저장해 주세요." + (newId ? " (고객ID " + cid + "는 이미 정해져 그대로 씁니다)" : ""));
+      await writeJson(fcDataInfo.id, data);
+      $("#tagId").textContent = cid;
+      status(name + " 저장 완료 · " + cid, "ok"); toast(name + " 고객을 " + fc + " 가망 고객으로 저장했습니다");
+      fcData = data;
+    } catch (e) { onErr(e); } finally { btn.disabled = false; }
+  }
+  function resetForm() {
+    $("#form").reset(); inflow = ""; refPick = null; [...$("#i_inflow").children].forEach((b) => b.setAttribute("aria-pressed", "false")); $("#dbBox").hidden = true;
+    document.querySelectorAll(".f.bad").forEach((f) => setErr(f.dataset.f, "")); $("#refSug").innerHTML = ""; $("#refNote").textContent = ""; $("#tagId").textContent = "C·····";
+    status("* 표시는 꼭 적어야 합니다"); preview();
+  }
+  function onErr(e) { if (String(e.message) === "AUTH") { showLogin("로그인이 끝났습니다. 다시 연결해 주세요."); return; } status(e.message, "err"); toast(e.message); }
+
+  // ---------- 시작 ----------
+  function showLogin(msg) {
+    $("#app").hidden = true; $("#login").hidden = false;
+    $("#lmsg").textContent = msg || ""; $("#lmsg").className = "lm" + (msg && /실패|없|막|닫/.test(msg) ? " err" : "");
+    $("#loginBtn").hidden = EMBED; $("#loginOtherBtn").hidden = EMBED;
+    if (EMBED) $("#lmsg").textContent = "말만해요에서 다시 로그인해 주세요.";
+    const a = readGAuth(); if (a && a.exp > Date.now() && !hasDrive(a.scopes)) $("#loginBtn").textContent = "구글 연결 (권한 추가)";
+  }
+  async function boot() {
+    if (DEMO) { allowed = (CFG.fcOrder || ["김현성"]).slice(0, 4); return start(); }
+    if (!token()) return showLogin("");
+    try { await locate(); } catch (e) { if (String(e.message) === "AUTH") return showLogin(""); return showLogin(e.message); }
+    if (!allowed.length) return showLogin("이 계정은 고객을 추가할 수 있는 FC가 없습니다.");
+    start();
+  }
+  function start() {
+    $("#login").hidden = true; $("#app").hidden = false;
+    const sel = $("#fc"); sel.innerHTML = "";
+    let last = ""; try { last = localStorage.getItem(LAST_FC) || ""; } catch (e) {}
+    allowed.forEach((fc) => { const o = document.createElement("option"); o.value = o.textContent = fc; sel.appendChild(o); });
+    if (allowed.includes(last)) sel.value = last; else if (allowed.includes("김현성")) sel.value = "김현성";
+    if (DEMO) status("시험 화면 — 저장하지 않습니다");
+    loadFc(); preview();
+  }
+  async function doLogin(other) {
+    $("#lmsg").textContent = "구글 로그인 창을 여는 중…"; $("#lmsg").className = "lm";
+    try { if (other) clearTok(); await requestTok(other); await boot(); } catch (e) { showLogin(e.message); }
+  }
+  $("#loginBtn").onclick = () => doLogin(false);
+  $("#loginOtherBtn").onclick = () => doLogin(true);
+  $("#fc").onchange = loadFc;
+  $("#i_name").oninput = () => { preview(); if (F("이름").classList.contains("bad")) validate(); };
+  $("#i_phone").oninput = (e) => { const p = e.target.selectionStart === e.target.value.length; e.target.value = fmtPhone(e.target.value); if (!p) {} };
+  $("#i_rrn").oninput = (e) => { const d = digits(e.target.value).slice(0, 13); e.target.value = d.length > 6 && d.length !== 8 ? d.slice(0, 6) + "-" + d.slice(6) : d; };
+  $("#i_sol").oninput = preview;
+  $("#i_ref").oninput = refSuggest;
+  [...$("#i_inflow").children].forEach((b) => b.onclick = () => { inflow = b.dataset.v; [...$("#i_inflow").children].forEach((x) => x.setAttribute("aria-pressed", String(x === b))); $("#dbBox").hidden = inflow !== "DB유입"; setErr("유입경로", ""); preview(); });
+  $("#saveBtn").onclick = save;
+  $("#resetBtn").onclick = resetForm;
+  const recheck = () => { if (!$("#login").hidden && token()) boot(); };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) recheck(); });
+  window.addEventListener("focus", recheck);
+  window.addEventListener("load", () => boot());
+})();
+</script>
+</body>
+</html>

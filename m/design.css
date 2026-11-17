@@ -1082,3 +1082,7 @@ html.pf-open, html.pf-open body { overflow: hidden; }
 .org-card .org-nmbtn::after { content: "▾"; margin-left: 4px; font-size: 10px; color: var(--t3); font-weight: 400; }
 .org-node.open > .org-card .org-nmbtn::after { content: "▴"; }
 .org-card .org-info { height: 22px; padding: 0 8px; font-size: 11.5px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--t2); cursor: pointer; }
+
+/* v390(2026-11-17 사용자 지시): 관리자 '지원 기능' 박스 — 얇은 링크 버튼 한 줄 */
+#supportCard .support-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+#supportCard .support-link { text-decoration: none; display: inline-flex; align-items: center; }
