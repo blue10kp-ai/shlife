@@ -2248,9 +2248,13 @@
         const [perf, fee] = await Promise.all([readClaudeJson("Claude/업적", "performance.json"), readClaudeJson("Claude/수수료", "수수료명세서.json")]);
         if (perf && perf.years) {
           const no = ((perf.fcs || []).find((x) => x.name === fc) || {}).no;
-          const upto = String(perf.upto || "").slice(0, 7), vals = [];
-          if (no && /^\d{4}-\d\d$/.test(upto)) { let y = +upto.slice(0, 4), m = +upto.slice(5, 7); for (let k = 0; k < 6; k++) { const v = (((perf.years[y] || {})[no] || {}).cmip || [])[m - 1]; vals.push(+v || 0); m--; if (!m) { m = 12; y--; } } }
-          if (vals.length) perfHtml = `<div class="dsh-card"><span>6개월 평균 업적</span><b>${wonShort(vals.reduce((a, v) => a + v, 0) / vals.length)}</b><small>~${esc(upto)} · 월초보험료</small></div>`;
+          // v404: 자료가 일부만 있는 달(자료를 만든 달 = 아직 안 끝난 달)은 빼고, 다 끝난 최근 6개월로 계산
+          let upto = String(perf.upto || "").slice(0, 7); const made = String(perf.made || "").slice(0, 7), vals = [];
+          if (/^\d{4}-\d\d$/.test(made) && upto >= made) { let y = +made.slice(0, 4), m = +made.slice(5, 7) - 1; if (!m) { m = 12; y--; } upto = y + "-" + String(m).padStart(2, "0"); }
+          let from = "";
+          if (no && /^\d{4}-\d\d$/.test(upto)) { let y = +upto.slice(0, 4), m = +upto.slice(5, 7); for (let k = 0; k < 6; k++) { const v = (((perf.years[y] || {})[no] || {}).cmip || [])[m - 1]; vals.push(+v || 0); from = y + "-" + String(m).padStart(2, "0"); m--; if (!m) { m = 12; y--; } } }
+          const span = from && upto ? (from.slice(0, 4) === upto.slice(0, 4) ? `${+from.slice(5)}~${+upto.slice(5)}월` : `${from.slice(2).replace("-", ".")}~${upto.slice(2).replace("-", ".")}`) : "";
+          if (vals.length) perfHtml = `<div class="dsh-card"><span>6개월 평균 업적</span><b>${wonShort(vals.reduce((a, v) => a + v, 0) / vals.length)}</b><small>${esc(span)} · 월초보험료</small></div>`;
         }
         if (Array.isArray(fee)) {
           const mine = fee.filter((r) => r.fc === fc && r.tot).sort((a, b) => String(b.ym).localeCompare(String(a.ym)))[0];
