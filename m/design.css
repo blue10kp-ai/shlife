@@ -1419,3 +1419,24 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .tm-info.editing dd.tm-multi input { min-width: 0; flex: 1; }
 .tm-info.editing dd.tm-multi input.tm-narrow { flex: 0 0 84px; }
 .tm-hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
+
+/* v470(2026-11-19 사용자 지시): 팀원정보 [수정] = 보는 화면 그대로 그 자리에서 고침(줄 높이·자리·글자 그대로, 입력칸은 밑줄만) */
+.tm-info, .tm-info.editing { gap: 7px 10px; font-size: 15px; }
+.tm-info dd { min-height: 22px; }
+.tm-info.editing dt { padding-top: 2px; }
+.tm-info.editing input, .tm-info.editing textarea { display: block; width: 100%; height: 22px; min-height: 22px; padding: 0; margin: 0; border: 0; border-bottom: 1px dashed var(--t3); border-radius: 0; background: transparent; color: var(--t1); font: inherit; font-size: 16px; line-height: 21px; box-shadow: none; outline: none; -webkit-appearance: none; appearance: none; }
+.tm-info.editing input:focus, .tm-info.editing textarea:focus { border-bottom: 1px solid var(--accent); }
+.tm-info.editing input::placeholder { color: var(--t3); font-size: 13px; }
+.tm-info.editing textarea { height: auto; resize: none; field-sizing: content; overflow: hidden; }
+.tm-info.editing input[type="date"] { width: auto; min-width: 130px; }
+.tm-info.editing dd.tm-multi { display: flex; gap: 8px; align-items: flex-end; }
+.tm-info.editing dd.tm-multi input.tm-narrow { flex: 0 0 62px; }
+
+/* v471: 수정 중 못 고치는 줄은 보기 그대로 */
+.tm-info.editing dd.tm-lock { display: block; }
+
+/* v473(2026-11-19 사용자 지시): 팀원정보 = 첫 줄 [‹ 팀관리] … [수정], 둘째 줄 팀원 드롭다운 */
+.tm-bar { margin: 8px 0 6px; }
+.tm-bar .tm-sp { flex: 1; }
+.tm-selrow { margin: 0 0 10px; }
+.tm-selrow select { display: block; width: 100%; height: 36px; padding: 0 8px; font: inherit; font-size: 15px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t1); box-sizing: border-box; }
