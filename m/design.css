@@ -1474,3 +1474,18 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .team-head .sec-title { margin: 0; flex: none; }
 .team-head .team-btns { margin: 0; gap: 6px; flex: 1; min-width: 0; justify-content: flex-end; flex-wrap: wrap; }
 .team-head .team-btns .ev-edit { height: 36px; min-height: 36px; padding: 0 11px; font-size: 15px; font-weight: 600; line-height: 34px; }
+
+/* v487: 자료 탭 여러 개 선택 */
+.docs-head .ev-edit { flex: none; }
+.docs-head .docs-delbtn { color: var(--bad, #c0392b); border-color: currentColor; }
+.docs-head .docs-delbtn[disabled] { opacity: .45; }
+.docs-thumb .docs-chk { display: none; position: absolute; top: 5px; left: 5px; width: 22px; height: 22px; border-radius: 11px; border: 2px solid #fff; background: rgba(0, 0, 0, .35); box-sizing: border-box; }
+.docs-grid.selecting .docs-thumb .docs-chk { display: block; }
+.docs-item.sel .docs-thumb { outline: 3px solid var(--accent); outline-offset: -3px; }
+.docs-item.sel .docs-thumb .docs-chk { background: var(--accent); }
+.docs-item.sel .docs-thumb .docs-chk::after { content: ""; position: absolute; left: 6px; top: 2px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+/* v488: 자료 탭 = 아래 줄 왼쪽 끝 [업로드], [수정] 숨김(닫기는 그대로) */
+.cust-bar #docsUpBtn { margin-right: auto; border-color: var(--accent); color: var(--accent); }
+#customerView:not(.on-docs) #docsUpBtn { display: none !important; }
+#customerView.on-docs #editBtn, #customerView.on-docs #editBtns { display: none !important; }

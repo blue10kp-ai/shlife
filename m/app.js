@@ -1948,19 +1948,28 @@
   const docsOnTab = (cust) => current && current.cust === cust && !$("customerView").hidden && !!$("tabs").querySelector('button.on[data-tab="docs"]');
   async function renderDocs(note) {
     const body = $("tabBody"), cust = current.cust, ro = isRO(current.fc);
+    { const ub0 = $("docsUpBtn"); if (ub0) ub0.hidden = ro || !GD || !current.folders[0]; }
     if (!GD) { body.innerHTML = '<div class="card"><p class="hint">자료는 구글 드라이브에서만 쓸 수 있습니다.</p></div>'; return; }
     if (!current.folders[0]) { body.innerHTML = '<div class="card"><p class="hint">이 고객의 폴더가 없어 자료를 올릴 수 없습니다.</p></div>'; return; }
     if (!current.docs) body.innerHTML = '<p class="hint pad">자료를 불러오는 중…</p>';
     try {
       const dir = await docsDir(false);
-      const list = dir ? await docsList(dir) : [];
+      let list = dir ? await docsList(dir) : [];
       if (!docsOnTab(cust)) return;
+      { // v488: 방금 올린 파일이 드라이브 목록에 아직 안 잡혔으면 앞에 붙여 바로 보여 주고, 잠시 뒤 한 번 더 읽음
+        const pend = (current.docsPend || []).filter((x) => x.id && !list.some((f) => f.id === x.id));
+        current.docsPend = pend;
+        if (pend.length) { list = pend.concat(list); if (!current.docsRetry) { current.docsRetry = 1; setTimeout(() => { if (docsOnTab(cust)) renderDocs(note); }, 3000); } } else current.docsRetry = 0;
+      }
+      { const ub = $("docsUpBtn"); if (ub) ub.hidden = ro; }
       current.docs = list;
       { const sm = $("tabs").querySelector('button[data-tab="docs"]'); if (sm) sm.innerHTML = "자료" + (list.length ? `<small>${list.length}</small>` : ""); }
       docsFree();
+      if (current.docsSel) { const ids = new Set(list.map((f) => f.id)); [...current.docsSel].forEach((x) => { if (!ids.has(x)) current.docsSel.delete(x); }); } // v487: 여러 개 골라 삭제
+      const selMode = !ro && !!current.docsSel;
       const sizeTx = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + "MB" : n >= 1024 ? Math.round(n / 1024) + "KB" : n ? n + "B" : "");
-      body.innerHTML = `<div class="card docs-card"><div class="docs-head"><span class="docs-cnt">자료 ${list.length}개${note ? ` · ${esc(note)}` : ""}</span>${ro ? "" : `<button type="button" class="ev-edit" data-docs-add>올리기</button><input type="file" id="docsFile" multiple hidden>`}</div>
-        ${list.length ? `<ul class="docs-grid">${list.map((f, i) => `<li class="docs-item" data-di="${i}"><button type="button" class="docs-thumb" data-docs-open="${i}" aria-label="${esc(f.name)} 열기">${f.thumb || docsIsImg(f) ? `<img alt="" loading="lazy" referrerpolicy="no-referrer" data-docs-img="${i}" ${f.thumb ? `src="${esc(f.thumb.replace(/=s\d+$/, "=s240"))}"` : ""}>` : ""}<span class="docs-ext"${f.thumb || docsIsImg(f) ? " hidden" : ""}>${esc(docsExt(f))}</span></button>${ro ? "" : `<button type="button" class="docs-del" data-docs-del="${i}" aria-label="${esc(f.name)} 삭제">×</button>`}<div class="docs-nm" title="${esc(f.name)}">${esc(f.name)}</div><div class="docs-meta">${esc(String(f.mod).slice(2, 10))}${sizeTx(f.size) ? " · " + sizeTx(f.size) : ""}</div></li>`).join("")}</ul>` : `<p class="hint">올린 자료가 없습니다.${ro ? "" : " [올리기]로 사진·파일을 올리면 이 고객 폴더의 ‘자료’ 폴더에 저장됩니다."}</p>`}</div>`;
+      body.innerHTML = `<div class="card docs-card"><div class="docs-head"><span class="docs-cnt">${selMode ? `<b data-docs-seln>${current.docsSel.size}</b>개 선택` : `자료 ${list.length}개${note ? ` · ${esc(note)}` : ""}`}</span>${ro ? "" : selMode ? `<button type="button" class="ev-edit docs-delbtn" data-docs-seldel ${current.docsSel.size ? "" : "disabled"}>삭제</button><button type="button" class="ev-edit" data-docs-selcancel>취소</button>` : `${list.length ? `<button type="button" class="ev-edit" data-docs-selmode>선택</button>` : ""}<input type="file" id="docsFile" multiple hidden>`}</div>
+        ${list.length ? `<ul class="docs-grid${selMode ? " selecting" : ""}">${list.map((f, i) => `<li class="docs-item${selMode && current.docsSel.has(f.id) ? " sel" : ""}" data-di="${i}"><button type="button" class="docs-thumb" data-docs-open="${i}" aria-label="${esc(f.name)} 열기">${f.thumb || docsIsImg(f) ? `<img alt="" loading="lazy" referrerpolicy="no-referrer" data-docs-img="${i}" ${f.thumb ? `src="${esc(f.thumb.replace(/=s\d+$/, "=s240"))}"` : ""}>` : ""}<span class="docs-ext"${f.thumb || docsIsImg(f) ? " hidden" : ""}>${esc(docsExt(f))}</span><span class="docs-chk" aria-hidden="true"></span></button>${ro || selMode ? "" : `<button type="button" class="docs-del" data-docs-del="${i}" aria-label="${esc(f.name)} 삭제">×</button>`}<div class="docs-nm" title="${esc(f.name)}">${esc(f.name)}</div><div class="docs-meta">${esc(String(f.mod).slice(2, 10))}${sizeTx(f.size) ? " · " + sizeTx(f.size) : ""}</div></li>`).join("")}</ul>` : `<p class="hint">올린 자료가 없습니다.${ro ? "" : " [업로드]로 사진·파일을 올리면 이 고객 폴더의 ‘자료’ 폴더에 저장됩니다."}</p>`}</div>`;
       body.querySelectorAll("img[data-docs-img]").forEach((img) => { // 썸네일 주소가 안 열리면: 사진은 원본을 받아 작게 줄여 보여 주고, 그 밖은 파일 종류 글자
         const f = list[+img.dataset.docsImg];
         const fail = async () => {
@@ -1990,7 +1999,7 @@
     const cust = current.cust, big = files.filter((f) => f.size > DOCS_MAX), ok = files.filter((f) => f.size <= DOCS_MAX);
     if (!ok.length) { toast("50MB가 넘는 파일은 올릴 수 없습니다"); return; }
     if (btn) { btn.disabled = true; }
-    let done = 0; const failed = [];
+    let done = 0; const failed = [], upl = [];
     try {
       const dir = await docsDir(true);
       const have = new Set((await docsList(dir)).map((f) => f.name));
@@ -2001,10 +2010,11 @@
         if (!/^\d{8}\b/.test(base)) base = ymd + " - " + base; // 파일 이름 앞 날짜 규칙
         const m = base.match(/^(.*?)(\.[A-Za-z0-9]{1,5})?$/); let name = base, k = 2;
         while (have.has(name)) name = `${m[1]} (${k++})${m[2] || ""}`; // 같은 이름이 있으면 덮어쓰지 않고 (2), (3)…
-        try { await docsUpload(dir, name, f); have.add(name); done++; } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(f.name); }
+        try { const it = await docsUpload(dir, name, f); if (it && it.id) upl.push({ id: it.id, name: it.name || name, mime: (it.file && it.file.mimeType) || it.mimeType || f.type || "", size: Number(it.size || f.size || 0), mod: it.lastModifiedDateTime || it.modifiedTime || new Date().toISOString(), webUrl: it.webUrl || it.webViewLink || "", thumb: "" }); have.add(name); done++; } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(f.name); }
       }
     } catch (e) { handleError(e); }
-    if (current.cust === cust) { current.docs = null; if (docsOnTab(cust)) await renderDocs([done ? `${done}개 올림` : "", failed.length ? `${failed.length}개 실패` : "", big.length ? `${big.length}개는 50MB 초과` : ""].filter(Boolean).join(", ")); }
+    if (btn) { btn.disabled = false; btn.textContent = "업로드"; }
+    if (current.cust === cust) { current.docs = null; current.docsPend = upl.reverse().concat(current.docsPend || []); current.docsRetry = 0; if (docsOnTab(cust)) await renderDocs([done ? `${done}개 올림` : "", failed.length ? `${failed.length}개 실패` : "", big.length ? `${big.length}개는 50MB 초과` : ""].filter(Boolean).join(", ")); }
   }
   function docsView(f) { // 사진은 화면 안에서 크게, PDF는 새 창, 그 밖은 드라이브에서
     if (!docsIsImg(f)) { if (/\.pdf$/i.test(f.name) || f.mime === "application/pdf") openFileDirect(f.id); else if (f.webUrl) window.open(f.webUrl, "_blank", "noopener"); return; }
@@ -2018,8 +2028,26 @@
     stGet0(f.id).then((buf) => { if (!box.isConnected) return; url = URL.createObjectURL(new Blob([buf], { type: f.mime || "image/jpeg" })); box.innerHTML = `<img alt="${esc(f.name)}" src="${url}">`; }).catch((e) => { close(); handleError(e); });
   }
   document.addEventListener("click", async (ev) => {
-    const t = ev.target && ev.target.closest && ev.target.closest("#tabBody [data-docs-add], #tabBody [data-docs-open], #tabBody [data-docs-del]");
+    const t = ev.target && ev.target.closest && ev.target.closest("#docsUpBtn, #tabBody [data-docs-add], #tabBody [data-docs-open], #tabBody [data-docs-del], #tabBody [data-docs-selmode], #tabBody [data-docs-selcancel], #tabBody [data-docs-seldel]");
     if (!t || !current) return;
+    if (t.hasAttribute("data-docs-selmode")) { current.docsSel = new Set(); renderDocs(); return; }
+    if (t.hasAttribute("data-docs-selcancel")) { current.docsSel = null; renderDocs(); return; }
+    if (t.hasAttribute("data-docs-seldel")) {
+      const picks = (current.docs || []).filter((x) => current.docsSel && current.docsSel.has(x.id));
+      if (!picks.length || isRO(current.fc) || !confirm(`고른 자료 ${picks.length}개를 삭제할까요?\n(구글 드라이브 휴지통으로 옮겨집니다)`)) return;
+      t.disabled = true; let ok = 0, bad = 0;
+      for (const x of picks) { t.textContent = `삭제 중 ${ok + bad + 1}/${picks.length}`; try { await stDel(x.id); ok++; current.files = current.files.filter((y) => y.id !== x.id); } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) { handleError(e); break; } console.error(e); bad++; } }
+      current.docsSel = null; current.docs = null; await renderDocs([ok ? `${ok}개 삭제` : "", bad ? `${bad}개 실패` : ""].filter(Boolean).join(", "));
+      return;
+    }
+    if (t.hasAttribute("data-docs-open") && current.docsSel) { // 선택 중에는 누르면 고름/풂
+      const g = (current.docs || [])[+t.dataset.docsOpen]; if (!g) return;
+      if (current.docsSel.has(g.id)) current.docsSel.delete(g.id); else current.docsSel.add(g.id);
+      t.closest(".docs-item").classList.toggle("sel", current.docsSel.has(g.id));
+      const body = $("tabBody"), n = body.querySelector("[data-docs-seln]"), db = body.querySelector("[data-docs-seldel]");
+      if (n) n.textContent = current.docsSel.size; if (db) db.disabled = !current.docsSel.size;
+      return;
+    }
     if (t.hasAttribute("data-docs-add")) { const inp = $("docsFile"); if (inp) { inp.value = ""; inp.click(); } return; }
     const f = (current.docs || [])[+(t.dataset.docsOpen || t.dataset.docsDel)]; if (!f) return;
     if (t.hasAttribute("data-docs-open")) { docsView(f); return; }
@@ -2029,13 +2057,14 @@
   });
   document.addEventListener("change", (ev) => {
     const inp = ev.target; if (!inp || inp.id !== "docsFile" || !inp.files || !inp.files.length) return;
-    docsAddFiles([...inp.files], $("tabBody").querySelector("[data-docs-add]"));
+    docsAddFiles([...inp.files], $("docsUpBtn"));
   });
   async function selectTab(id) {
     $("tabs").querySelectorAll("button").forEach((b) =>
       b.classList.toggle("on", b.dataset.tab === id));
     const tab = CFG.tabs.find((t) => t.id === id);
     const body = $("tabBody");
+    $("customerView").classList.toggle("on-docs", id === "docs"); // v488: 자료 탭 = 아래 줄 왼쪽 끝 [업로드], [수정]은 숨김
 
     if (id === "contact") return renderContact();
     if (id === "consult") { body.innerHTML = consultHtml(); bindConsult(); return; }
@@ -4653,7 +4682,7 @@
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·영업 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 사번을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌립니다. 누르면 확인 화면에서 <b>입사일(기본 오늘) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
-    const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "<b>[올리기]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
+    const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "자료 탭에서는 화면 아래 줄의 <b>[수정]이 사라지고 왼쪽 끝에 [업로드]</b>가 나옵니다(오른쪽 [닫기]는 그대로). <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");

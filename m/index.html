@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=4">
   <link rel="stylesheet" href="style.css?v=150">
   <link rel="stylesheet" href="tokens.css?v=117">
-  <link rel="stylesheet" href="design.css?v=383">
+  <link rel="stylesheet" href="design.css?v=385">
   <script>
   /* v425(2026-11-18 사용자 지시): 다크 모드가 기본 — 첫 화면을 그리기 전에 미리 적용(폰이 라이트여도 밝게 번쩍이지 않게). 설정 > 화면 > 다크 모드에서 바꾸면 그 값(shlife.theme)을 따름. 같은 규칙을 app.js의 themeApply가 이어받음 */
   (function () {
@@ -91,7 +91,7 @@
 
     <!-- 고객 상세 화면 -->
     <section id="customerView" class="view" hidden>
-      <div class="cust-bar"><button type="button" id="editBtn" class="edit-mini">수정</button><button type="button" id="closeCust" class="edit-mini">닫기</button><span id="editBtns" class="edit-btns" hidden><button type="button" id="editCancel" class="edit-mini">취소</button><button type="button" id="editSave" class="edit-mini on">확인</button></span></div>
+      <div class="cust-bar"><button type="button" id="docsUpBtn" class="edit-mini" data-docs-add>업로드</button><button type="button" id="editBtn" class="edit-mini">수정</button><button type="button" id="closeCust" class="edit-mini">닫기</button><span id="editBtns" class="edit-btns" hidden><button type="button" id="editCancel" class="edit-mini">취소</button><button type="button" id="editSave" class="edit-mini on">확인</button></span></div>
       <div class="card cust-card">
         <div class="cust-head">
           <div class="avatar" id="avatar"></div>
@@ -181,6 +181,6 @@
   <script async src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
   <script src="config.js?v=118"></script>
-  <script src="app.js?v=486"></script>
+  <script src="app.js?v=488"></script>
 </body>
 </html>
