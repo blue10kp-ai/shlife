@@ -1852,7 +1852,7 @@
     if (tab.id === "all") return current.files;
     const kws = tab.keywords.map((k) => k.toLowerCase());
     const ex = tab.exclude ? new RegExp(tab.exclude, "i") : null;
-    const out = current.files.filter((f) => kws.some((k) => f.path.toLowerCase().includes(k)) && !(ex && ex.test(f.name)));
+    const out = current.files.filter((f) => kws.some((k) => f.path.toLowerCase().includes(k)) && !(ex && ex.test(f.name)) && !DOCS_RE.test(f.path)); // 자료 폴더의 파일은 자료 탭에서만
     if (tab.id !== "analysis") return out;
     // 분석 탭: 워드(docx) 파일은 숨기고, ① AI/클로드 분석 보고서 ② 스마트보장분석 ③ 손해담보 ④ 그 밖의 순으로 (같은 종류는 파일 이름 앞 날짜가 최근인 것부터)
     const rank = (f) => { const n = f.name.replace(/\s/g, ""); return /AI.*분석|클로드|claude|보장분석보고서|심화분석/i.test(n) ? 0 : /스마트보장분석/.test(n) ? 1 : /손해담보/.test(n) ? 2 : 3; };
@@ -1862,8 +1862,8 @@
   }
 
   function renderTabs() {
-    $("tabs").innerHTML = CFG.tabs.map((t) => {
-      const n = t.id === "contact" || t.id === "all" || t.id === "basic" || t.id === "claim" ? "" :
+    $("tabs").innerHTML = custTabs().map((t) => {
+      const n = t.id === "docs" ? (docsCount() || "") : t.id === "contact" || t.id === "all" || t.id === "basic" || t.id === "claim" ? "" :
         t.id === "consult" ? ((current.extra && current.extra.consults) || []).length :
         filesForTab(t).length + (t.id === "contract" ? ownContracts().length : 0);
       const refN = t.id === "contract" ? refContracts().length : 0;
@@ -1919,6 +1919,118 @@
     return `${esc(f.path)}<div class="hint">${new Date(f.lastModifiedDateTime).toLocaleDateString("ko-KR")}</div>`;
   }
 
+  // v466(2026-11-19 사용자 지시): 고객 정보 > [자료] 탭(청구 오른쪽). 고객 폴더 아래 '자료' 폴더의 파일을 썸네일로 보여 주고, 올리기·삭제(드라이브 휴지통)
+  const DOCS_DIR = "자료", DOCS_RE = /(^|\/)자료\//, DOCS_MAX = 50 * 1024 * 1024;
+  const custTabs = () => (CFG.tabs.some((t) => t.id === "docs") ? CFG.tabs : [...CFG.tabs, { id: "docs", label: "자료", keywords: [] }]);
+  const docsCount = () => (current && current.docs ? current.docs.length : ((current && current.files) || []).filter((f) => DOCS_RE.test(f.path)).length);
+  let docsUrls = [];
+  const docsFree = () => { docsUrls.forEach((u) => { try { URL.revokeObjectURL(u); } catch (e) { /* 무시 */ } }); docsUrls = []; };
+  const docsIsImg = (f) => /^image\//.test(f.mime || "") || /\.(jpe?g|png|gif|webp|heic|bmp)$/i.test(f.name);
+  const docsExt = (f) => { const m = String(f.name).match(/\.([A-Za-z0-9]{1,5})$/); return m ? m[1].toUpperCase() : "파일"; };
+  async function docsDir(make) { // 고객 폴더 아래 '자료' 폴더 ({id}) — 없으면 make일 때만 만듦
+    const folder = current.folders[0]; if (!folder) return null;
+    if (current.docsDir) return current.docsDir;
+    const r = await gdQuery("'" + qv(folder.id) + "' in parents and name='" + qv(DOCS_DIR) + "' and mimeType='" + GD_FOLDER + "' and trashed=false");
+    if (r.length) return (current.docsDir = { id: r[0].id });
+    if (!make) return null;
+    const mk = await gdFetch(GDAPI + "/files?fields=id&supportsAllDrives=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: DOCS_DIR, mimeType: GD_FOLDER, parents: [folder.id] }) });
+    return (current.docsDir = { id: mk.id });
+  }
+  async function docsList(dir) {
+    const out = []; let page = "";
+    do {
+      const d = await gdFetch(GDAPI + "/files?pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true&orderBy=" + encodeURIComponent("modifiedTime desc") + "&fields=" + encodeURIComponent("nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink,thumbnailLink)") + "&q=" + encodeURIComponent("'" + qv(dir.id) + "' in parents and mimeType!='" + GD_FOLDER + "' and trashed=false") + (page ? "&pageToken=" + encodeURIComponent(page) : ""));
+      (d.files || []).forEach((f) => out.push({ id: f.id, name: f.name, mime: f.mimeType || "", size: Number(f.size || 0), mod: f.modifiedTime || "", webUrl: f.webViewLink || "", thumb: f.thumbnailLink || "" }));
+      page = d.nextPageToken || "";
+    } while (page);
+    return out;
+  }
+  const docsOnTab = (cust) => current && current.cust === cust && !$("customerView").hidden && !!$("tabs").querySelector('button.on[data-tab="docs"]');
+  async function renderDocs(note) {
+    const body = $("tabBody"), cust = current.cust, ro = isRO(current.fc);
+    if (!GD) { body.innerHTML = '<div class="card"><p class="hint">자료는 구글 드라이브에서만 쓸 수 있습니다.</p></div>'; return; }
+    if (!current.folders[0]) { body.innerHTML = '<div class="card"><p class="hint">이 고객의 폴더가 없어 자료를 올릴 수 없습니다.</p></div>'; return; }
+    if (!current.docs) body.innerHTML = '<p class="hint pad">자료를 불러오는 중…</p>';
+    try {
+      const dir = await docsDir(false);
+      const list = dir ? await docsList(dir) : [];
+      if (!docsOnTab(cust)) return;
+      current.docs = list;
+      { const sm = $("tabs").querySelector('button[data-tab="docs"]'); if (sm) sm.innerHTML = "자료" + (list.length ? `<small>${list.length}</small>` : ""); }
+      docsFree();
+      const sizeTx = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + "MB" : n >= 1024 ? Math.round(n / 1024) + "KB" : n ? n + "B" : "");
+      body.innerHTML = `<div class="card docs-card"><div class="docs-head"><span class="docs-cnt">자료 ${list.length}개${note ? ` · ${esc(note)}` : ""}</span>${ro ? "" : `<button type="button" class="ev-edit" data-docs-add>올리기</button><input type="file" id="docsFile" multiple hidden>`}</div>
+        ${list.length ? `<ul class="docs-grid">${list.map((f, i) => `<li class="docs-item" data-di="${i}"><button type="button" class="docs-thumb" data-docs-open="${i}" aria-label="${esc(f.name)} 열기">${f.thumb || docsIsImg(f) ? `<img alt="" loading="lazy" referrerpolicy="no-referrer" data-docs-img="${i}" ${f.thumb ? `src="${esc(f.thumb.replace(/=s\d+$/, "=s240"))}"` : ""}>` : ""}<span class="docs-ext"${f.thumb || docsIsImg(f) ? " hidden" : ""}>${esc(docsExt(f))}</span></button>${ro ? "" : `<button type="button" class="docs-del" data-docs-del="${i}" aria-label="${esc(f.name)} 삭제">×</button>`}<div class="docs-nm" title="${esc(f.name)}">${esc(f.name)}</div><div class="docs-meta">${esc(String(f.mod).slice(2, 10))}${sizeTx(f.size) ? " · " + sizeTx(f.size) : ""}</div></li>`).join("")}</ul>` : `<p class="hint">올린 자료가 없습니다.${ro ? "" : " [올리기]로 사진·파일을 올리면 이 고객 폴더의 ‘자료’ 폴더에 저장됩니다."}</p>`}</div>`;
+      body.querySelectorAll("img[data-docs-img]").forEach((img) => { // 썸네일 주소가 안 열리면: 사진은 원본을 받아 작게 줄여 보여 주고, 그 밖은 파일 종류 글자
+        const f = list[+img.dataset.docsImg];
+        const fail = async () => {
+          img.onerror = null;
+          const ext = img.parentNode.querySelector(".docs-ext");
+          if (docsIsImg(f) && f.size <= 15 * 1024 * 1024) {
+            try { const blob = new Blob([await stGet0(f.id)], { type: f.mime || "image/jpeg" }), small = await shrinkImage(blob, 320, 0.8).catch(() => blob), u = URL.createObjectURL(small); docsUrls.push(u); img.src = u; return; } catch (e) { /* 아래로 */ }
+          }
+          img.remove(); if (ext) ext.hidden = false;
+        };
+        if (!img.getAttribute("src")) fail(); else img.onerror = fail;
+      });
+    } catch (e) { if (docsOnTab(cust)) body.innerHTML = '<div class="card"><p class="hint">자료를 불러오지 못했습니다.</p></div>'; handleError(e); }
+  }
+  async function docsUpload(dir, name, file) { // 5MB까지는 한 번에, 더 크면 이어 올리기 방식
+    const mime = file.type || "application/octet-stream";
+    if (file.size <= 4.5 * 1024 * 1024) return stPutIn(dir, name, await file.arrayBuffer(), mime);
+    const t = storedGToken() || gTokenMem; if (!t) throw new Error("GOOGLE_AUTH");
+    const r1 = await fetch(GDUP + "/files?uploadType=resumable&supportsAllDrives=true", { method: "POST", headers: { Authorization: "Bearer " + t, "Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": mime }, body: JSON.stringify({ name, parents: [dir.id] }) });
+    const loc = r1.ok ? r1.headers.get("Location") : "";
+    if (!loc) throw new Error("Drive " + r1.status + ": 큰 파일 올리기를 시작하지 못했습니다");
+    const r2 = await fetch(loc, { method: "PUT", headers: { "Content-Type": mime }, body: file });
+    if (!r2.ok) throw new Error("Drive " + r2.status + ": " + (await r2.text()).slice(0, 200));
+    return r2.json();
+  }
+  async function docsAddFiles(files, btn) {
+    const cust = current.cust, big = files.filter((f) => f.size > DOCS_MAX), ok = files.filter((f) => f.size <= DOCS_MAX);
+    if (!ok.length) { toast("50MB가 넘는 파일은 올릴 수 없습니다"); return; }
+    if (btn) { btn.disabled = true; }
+    let done = 0; const failed = [];
+    try {
+      const dir = await docsDir(true);
+      const have = new Set((await docsList(dir)).map((f) => f.name));
+      const d = new Date(), ymd = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`;
+      for (const f of ok) {
+        if (btn) btn.textContent = `올리는 중 ${done + 1}/${ok.length}`;
+        let base = String(f.name || "파일").replace(/[\\/:*?"<>|]/g, "").trim() || "파일";
+        if (!/^\d{8}\b/.test(base)) base = ymd + " - " + base; // 파일 이름 앞 날짜 규칙
+        const m = base.match(/^(.*?)(\.[A-Za-z0-9]{1,5})?$/); let name = base, k = 2;
+        while (have.has(name)) name = `${m[1]} (${k++})${m[2] || ""}`; // 같은 이름이 있으면 덮어쓰지 않고 (2), (3)…
+        try { await docsUpload(dir, name, f); have.add(name); done++; } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(f.name); }
+      }
+    } catch (e) { handleError(e); }
+    if (current.cust === cust) { current.docs = null; if (docsOnTab(cust)) await renderDocs([done ? `${done}개 올림` : "", failed.length ? `${failed.length}개 실패` : "", big.length ? `${big.length}개는 50MB 초과` : ""].filter(Boolean).join(", ")); }
+  }
+  function docsView(f) { // 사진은 화면 안에서 크게, PDF는 새 창, 그 밖은 드라이브에서
+    if (!docsIsImg(f)) { if (/\.pdf$/i.test(f.name) || f.mime === "application/pdf") openFileDirect(f.id); else if (f.webUrl) window.open(f.webUrl, "_blank", "noopener"); return; }
+    const box = document.createElement("div");
+    box.className = "modal docs-view"; box.innerHTML = `<p class="hint">사진을 여는 중…</p>`;
+    let url = "";
+    const close = () => { box.remove(); if (url) URL.revokeObjectURL(url); document.removeEventListener("keydown", onKey); };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    box.addEventListener("click", close); document.addEventListener("keydown", onKey);
+    document.body.appendChild(box);
+    stGet0(f.id).then((buf) => { if (!box.isConnected) return; url = URL.createObjectURL(new Blob([buf], { type: f.mime || "image/jpeg" })); box.innerHTML = `<img alt="${esc(f.name)}" src="${url}">`; }).catch((e) => { close(); handleError(e); });
+  }
+  document.addEventListener("click", async (ev) => {
+    const t = ev.target && ev.target.closest && ev.target.closest("#tabBody [data-docs-add], #tabBody [data-docs-open], #tabBody [data-docs-del]");
+    if (!t || !current) return;
+    if (t.hasAttribute("data-docs-add")) { const inp = $("docsFile"); if (inp) { inp.value = ""; inp.click(); } return; }
+    const f = (current.docs || [])[+(t.dataset.docsOpen || t.dataset.docsDel)]; if (!f) return;
+    if (t.hasAttribute("data-docs-open")) { docsView(f); return; }
+    if (isRO(current.fc) || !confirm(`‘${f.name}’ 자료를 삭제할까요?\n(구글 드라이브 휴지통으로 옮겨집니다)`)) return;
+    t.disabled = true;
+    try { await stDel(f.id); current.files = current.files.filter((x) => x.id !== f.id); current.docs = null; await renderDocs("1개 삭제"); } catch (e) { t.disabled = false; handleError(e); }
+  });
+  document.addEventListener("change", (ev) => {
+    const inp = ev.target; if (!inp || inp.id !== "docsFile" || !inp.files || !inp.files.length) return;
+    docsAddFiles([...inp.files], $("tabBody").querySelector("[data-docs-add]"));
+  });
   async function selectTab(id) {
     $("tabs").querySelectorAll("button").forEach((b) =>
       b.classList.toggle("on", b.dataset.tab === id));
@@ -1928,6 +2040,7 @@
     if (id === "contact") return renderContact();
     if (id === "consult") { body.innerHTML = consultHtml(); bindConsult(); return; }
     if (id === "claim") { body.innerHTML = '<div class="card"><p class="hint">청구 기능은 준비 중입니다.</p></div>'; return; } // 보험금 청구: 나중에 따로 만듦
+    if (id === "docs") return renderDocs();
 
     const files = filesForTab(tab);
     const listHtml = id === "basic" ? basicHtml() : id === "contract" ? contractHtml() : id === "analysis" ? coverageSummaryHtml() : ""; // 보장 요약은 분석 탭 맨 위
@@ -1983,6 +2096,19 @@
   // 주소 옆 위치 아이콘: 누르면 카카오맵에서 그 주소를 검색한 지도가 새 창으로 열림 (누를 때만 주소가 카카오로 전달됨)
   // v456(2026-11-19 사용자 지시): 주소가 나오는 곳은 모두 끝에 [지도보기] (카카오맵에서 그 주소 검색, 우편번호 [12345]는 떼고 보냄)
   const mapBtn = (v) => { const a = String(v || "").trim().replace(/^\[[^\]]*\]\s*/, ""); return a ? `<a class="map-btn" href="https://map.kakao.com/link/search/${encodeURIComponent(a)}" target="_blank" rel="noopener noreferrer" title="카카오맵에서 이 주소 보기" aria-label="지도보기">지도</a>` : ""; };
+  // v467(2026-11-19 사용자 지시): 고객 정보의 계좌 오른쪽 [복사] — 계좌 내용을 클립보드에 복사
+  async function copyText(t) {
+    try { await navigator.clipboard.writeText(t); return true; } catch (e) { /* 아래 방식으로 */ }
+    try { const ta = document.createElement("textarea"); ta.value = t; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;left:-9999px;top:0;font-size:16px"; document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, t.length); const ok = document.execCommand("copy"); ta.remove(); return ok; } catch (e) { return false; }
+  }
+  document.addEventListener("click", async (ev) => {
+    const b = ev.target && ev.target.closest && ev.target.closest("[data-copy]");
+    if (!b) return;
+    ev.preventDefault();
+    const ok = await copyText(b.dataset.copy || "");
+    toast(ok ? (b.dataset.copyMsg || "계좌를 복사했습니다") : "복사하지 못했습니다. 길게 눌러 복사해 주세요");
+    if (ok) { b.textContent = "복사됨"; setTimeout(() => { if (b.isConnected) b.textContent = "복사"; }, 1500); }
+  });
   function addrWithMap(v) {
     const a = String(v || "").trim();
     if (!a) return "";
@@ -2277,7 +2403,10 @@
   //   위 드롭다운 = 팀원(직급순 → 사번순), 처음에는 로그인한 본인이 선택됨
   const TM_DIR = "Claude/팀", TM_FILE = "팀원(초안).json";
   const TM_RANK = { ESL: 0, SL: 1, FC: 2 };
-  const TM_FIELDS = [["단계", "sel"], ["직급", "text"], ["신분", "text"], ["입사일", "date"], ["연락처", "tel"], ["이메일", "email"], ["주소", "text"], ["통신사", "text"], ["도입자", "text"], ["메모", "area"]];
+  // v468(2026-11-19 사용자 지시): 이름·사번·직급은 위 드롭다운에 있어 줄에서 뺌, 단계·신분 삭제, 맨 위 주민번호, 연락처 앞에 통신사, 메모 밑 구분선 뒤 사이트 계정(비번)
+  //   줄 = [라벨, [[파일의 칸 이름, 입력 종류, 입력칸 안내]…]]. 종류 secret = 가려서 보여 주고 [보기]·[복사]
+  const TM_ROWS = [["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["입사일", [["입사일", "date", ""]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["도입자", [["도입자", "text", ""]]], ["메모", [["메모", "area", ""]]]];
+  const TM_ACCTS = [["Sol FC", [["SolFC비번", "secret", "비번"]]], ["신한이지", [["신한이지비번", "secret", "비번"]]], ["지식인", [["지식인비번", "secret", "비번"]]], ["보험연수원", [["보험연수원아이디", "text", "아이디"], ["보험연수원비번", "secret", "비번"]]]];
   let tmDoc = null, tmDir = null, tmSel = "", tmEdit = false;
   const tmRank = (p) => { const r = TM_RANK[String(p.직급 || "").trim().toUpperCase()]; return r == null ? 9 : r; };
   const tmPeople = () => ((tmDoc && tmDoc.사람) || []).slice().sort((a, b) => tmRank(a) - tmRank(b) || String(a.사번 || "").localeCompare(String(b.사번 || "")) || String(a.이름 || "").localeCompare(String(b.이름 || ""), "ko"));
@@ -2300,27 +2429,38 @@
   function renderTeamInfo() {
     const box = $("teamView"), ppl = tmPeople(), p = ppl.find((x) => String(x.사번) === tmSel) || ppl[0];
     if (!box || !p) return;
-    const stages = Array.isArray(tmDoc.단계) && tmDoc.단계.length ? tmDoc.단계 : ["후보자", "교육생", "팀원", "퇴직"];
     const opts = ppl.map((x) => `<option value="${esc(String(x.사번))}" ${String(x.사번) === String(p.사번) ? "selected" : ""}>${esc(x.이름)} · ${esc(x.직급 || "-")} · ${esc(String(x.사번))}</option>`).join("");
-    const view = (k) => {
-      const v = String(p[k] == null ? "" : p[k]);
-      if (!v) return `<span class="tm-none">-</span>`;
+    const val = (k) => String(p[k] == null ? "" : p[k]);
+    const view = ([k, t]) => {
+      const v = val(k);
+      if (!v) return "";
+      if (t === "secret") return `<span class="tm-sec"><span class="tm-secv" data-v="${esc(v)}">••••••</span><button type="button" class="map-btn copy-btn" data-tm-show>보기</button><button type="button" class="map-btn copy-btn" data-copy="${esc(v)}" data-copy-msg="복사했습니다">복사</button></span>`;
       if (k === "연락처") return `<a href="tel:${esc(v.replace(/[^0-9+]/g, ""))}">${esc(v)}</a>`;
       if (k === "주소") return `${esc(v)} ${mapBtn(v)}`;
       return esc(v).replace(/\n/g, "<br>");
     };
-    const edit = (k, t) => {
-      const v = String(p[k] == null ? "" : p[k]);
-      if (t === "sel") return `<select data-tmf="${k}">${(stages.includes(v) ? stages : [v, ...stages]).map((o) => `<option ${o === v ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+    const edit = ([k, t, ph]) => {
+      const v = val(k);
       if (t === "area") return `<textarea data-tmf="${k}" rows="3">${esc(v)}</textarea>`;
-      return `<input data-tmf="${k}" type="${t}" value="${esc(v)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off">`;
+      return `<input data-tmf="${k}" type="${t === "secret" ? "text" : t}" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"${k === "통신사" ? ' class="tm-narrow"' : ""}>`;
+    };
+    const rowHtml = ([lab, cells]) => {
+      const parts = tmEdit ? cells.map(edit) : cells.map(view).filter(Boolean);
+      return `<dt>${lab}</dt><dd${cells.length > 1 ? ' class="tm-multi"' : ""}>${parts.length ? parts.join(tmEdit ? "" : '<span class="tm-gap"></span>') : '<span class="tm-none">-</span>'}</dd>`;
     };
     const acts = tmEdit ? `<button type="button" class="ev-edit" data-tm-cancel>취소</button><button type="button" class="ev-edit ev-done" data-tm-save>저장</button>` : `<button type="button" class="ev-edit" data-tm-edit>수정</button>`;
     box.innerHTML = `<div class="card tm-wrap"><h3 class="sec-title">팀원정보</h3>
       <div class="tm-bar"><button type="button" class="ev-edit org-back-btn" data-tm-back>‹ 팀관리</button><select data-tm-sel aria-label="팀원 고르기(직급순, 사번순)" ${tmEdit ? "disabled" : ""}>${opts}</select>${acts}</div>
-      <dl class="tm-info${tmEdit ? " editing" : ""}"><dt>이름</dt><dd><b>${esc(p.이름)}</b></dd><dt>사번</dt><dd>${esc(String(p.사번))}</dd>
-      ${TM_FIELDS.map(([k, t]) => `<dt>${k}</dt><dd>${tmEdit ? edit(k, t) : view(k)}</dd>`).join("")}</dl></div>`;
+      <dl class="tm-info${tmEdit ? " editing" : ""}">${TM_ROWS.map(rowHtml).join("")}</dl>
+      <hr class="tm-hr">
+      <dl class="tm-info tm-acct${tmEdit ? " editing" : ""}">${TM_ACCTS.map(rowHtml).join("")}</dl></div>`;
   }
+  document.addEventListener("click", (ev) => { // 가린 값 [보기] ↔ [가리기]
+    const b = ev.target && ev.target.closest && ev.target.closest("#teamView [data-tm-show]");
+    if (!b) return;
+    const sv = b.parentNode.querySelector(".tm-secv"), on = b.textContent === "보기";
+    sv.textContent = on ? sv.dataset.v : "••••••"; b.textContent = on ? "가리기" : "보기";
+  });
   async function saveTeamInfo(btn) {
     const box = $("teamView"), vals = {};
     box.querySelectorAll("[data-tmf]").forEach((el) => { vals[el.dataset.tmf] = String(el.value || "").trim(); });
@@ -2447,7 +2587,7 @@
     const introNames = [...new Set(introContracts.map((k) => k.row["소개자"]).filter(Boolean))].join(", ");
     const info = `<div class="card" id="infoCard"><dl class="kv">
         ${canSens() ? ssnRow(c, backs, row) : ""}
-        ${canSens() && accts.length ? row("계좌", accts.map(([, v]) => `<div>${esc(v)}</div>`).join("")) : ""}
+        ${canSens() && accts.length ? row("계좌", accts.map(([, v]) => `<div class="val-row"><span class="val">${esc(v)}</span><span class="acts"><button type="button" class="map-btn copy-btn" data-copy="${esc(v)}" aria-label="계좌 복사">복사</button></span></div>`).join("")) : ""}
         ${introContracts.length ? row("소개 계약", `<div>소개${introNames ? " · " + esc(introNames) : ""} <span class="hint">(${introContracts.length}건)</span></div>`) : ""}
         ${emails.map(([k, v]) => row("이메일", valueWithActions(k, v))).join("")}
         ${addrs.length ? `<dt>주소</dt><dd class="dd-left">${addrs.map(([, v]) => addrWithMap(v)).join("")}</dd>` : ""}
@@ -4336,8 +4476,10 @@
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>팀관리 메뉴의 [조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 영업 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 영업 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: 아래 메뉴 <b>팀관리</b>의 [조직도]를 누르면(2026-11-19에 설정에서 옮김) 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/영업 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: 이름 · 사번 · 단계 · 직급 · 신분 · 입사일 · 연락처(누르면 전화) · 이메일 · 주소([지도]) · 통신사 · 도입자 · 메모.", "<b>[수정]</b>을 누르면 이름·사번을 뺀 항목을 고칠 수 있고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, grp("검색"), s_srch, grp("고객 정보"), s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
+    const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 입사일 · 연락처(앞에 통신사, 누르면 전화) · 이메일 · 주소([지도]) · 도입자 · 메모</b>, 구분선 아래에 <b>Sol FC · 신한이지 · 지식인(비번), 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "<b>주민번호와 비번은 ••••••로 가려서</b> 보여 주고, 옆의 <b>[보기]</b>로 잠깐 보거나 <b>[복사]</b>로 클립보드에 복사합니다.", "<b>[수정]</b>을 누르면 모든 항목을 고칠 수 있고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
+    const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
+    const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "<b>[올리기]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }

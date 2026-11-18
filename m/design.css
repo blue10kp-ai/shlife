@@ -1389,3 +1389,33 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 .tm-info.editing dt { padding-top: 9px; }
 .tm-info input, .tm-info select, .tm-info textarea { width: 100%; box-sizing: border-box; padding: 7px 8px; font: inherit; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t1); }
 .tm-info textarea { resize: vertical; min-height: 64px; }
+
+/* v466: 고객 정보 > 자료 탭(썸네일) */
+.docs-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.docs-head .docs-cnt { flex: 1; min-width: 0; font-size: 13px; color: var(--t2); }
+.docs-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 560px) { .docs-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.docs-item { position: relative; min-width: 0; }
+.docs-thumb { display: block; width: 100%; aspect-ratio: 1 / 1; padding: 0; margin: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2, #eceff3); overflow: hidden; cursor: pointer; position: relative; -webkit-tap-highlight-color: transparent; }
+.docs-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.docs-thumb .docs-ext { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; font-weight: 700; color: var(--t2); letter-spacing: .02em; }
+.docs-thumb .docs-ext[hidden] { display: none; }
+.docs-del { position: absolute; top: 4px; right: 4px; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 12px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 16px; line-height: 24px; text-align: center; cursor: pointer; }
+.docs-nm { margin-top: 3px; font-size: 11.5px; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.docs-meta { font-size: 10.5px; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.modal.docs-view { padding: 8px; cursor: zoom-out; }
+.modal.docs-view img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+.modal.docs-view .hint { color: #fff; }
+
+/* v467: 계좌 [복사] 버튼(지도 버튼과 같은 모양) */
+button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: none; min-height: 0; -webkit-tap-highlight-color: transparent; }
+
+/* v468: 팀원정보 줄 정리(통신사+연락처 한 줄, 가린 값, 구분선) */
+.tm-info { grid-template-columns: 64px minmax(0, 1fr); }
+.tm-info dd .tm-gap { display: inline-block; width: 8px; }
+.tm-info .tm-sec { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tm-info .tm-secv { letter-spacing: .04em; overflow-wrap: anywhere; }
+.tm-info.editing dd.tm-multi { display: flex; gap: 6px; }
+.tm-info.editing dd.tm-multi input { min-width: 0; flex: 1; }
+.tm-info.editing dd.tm-multi input.tm-narrow { flex: 0 0 84px; }
+.tm-hr { border: 0; border-top: 1px solid var(--line); margin: 12px 0; }
