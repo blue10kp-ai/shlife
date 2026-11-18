@@ -1364,3 +1364,6 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 
 /* v457: 지도보기 = 이모티콘 */
 .map-btn { padding: 0 6px; font-size: 15px; line-height: 1; }
+
+/* v458: 지도 = 글자 버튼 */
+.map-btn { padding: 0 8px; font-size: 12px; line-height: normal; }

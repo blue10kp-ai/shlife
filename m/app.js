@@ -1982,7 +1982,7 @@
   const MOBILE_RE = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/;
   // 주소 옆 위치 아이콘: 누르면 카카오맵에서 그 주소를 검색한 지도가 새 창으로 열림 (누를 때만 주소가 카카오로 전달됨)
   // v456(2026-11-19 사용자 지시): 주소가 나오는 곳은 모두 끝에 [지도보기] (카카오맵에서 그 주소 검색, 우편번호 [12345]는 떼고 보냄)
-  const mapBtn = (v) => { const a = String(v || "").trim().replace(/^\[[^\]]*\]\s*/, ""); return a ? `<a class="map-btn" href="https://map.kakao.com/link/search/${encodeURIComponent(a)}" target="_blank" rel="noopener noreferrer" title="카카오맵에서 이 주소 보기" aria-label="지도보기">🗺️</a>` : ""; };
+  const mapBtn = (v) => { const a = String(v || "").trim().replace(/^\[[^\]]*\]\s*/, ""); return a ? `<a class="map-btn" href="https://map.kakao.com/link/search/${encodeURIComponent(a)}" target="_blank" rel="noopener noreferrer" title="카카오맵에서 이 주소 보기" aria-label="지도보기">지도</a>` : ""; };
   function addrWithMap(v) {
     const a = String(v || "").trim();
     if (!a) return "";
