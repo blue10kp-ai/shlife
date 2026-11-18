@@ -6959,9 +6959,9 @@
       const ro = isRO(r.fc), idx = PG_STAGES.findIndex(([lab]) => lab === r.stage);
       const steps = PG_STAGES.map(([lab, cls], k) => `<button type="button" class="dc ${cls} ${k === idx ? "on" : k < idx ? "off past" : "off"}${ro ? " lock" : ""}" data-pgs="${esc(r.pid)}" data-v="${lab}" aria-pressed="${k === idx ? "true" : "false"}">${lab}</button>`).join("");
       const sep = `<i class="ar-sep" aria-hidden="true"></i>`;
-      const acts = ro ? "" : view === "진행" ? `${sep}<button type="button" class="ar-btn" data-pgst="${esc(r.pid)}" data-to="보관">보관으로</button>`
-        : view === "보관" ? `${sep}<button type="button" class="ar-btn" data-pgst="${esc(r.pid)}" data-to="진행">진행으로</button><button type="button" class="ar-btn" data-pgst="${esc(r.pid)}" data-to="완료">완료로</button>`
-          : `${sep}<button type="button" class="ar-btn" data-pgst="${esc(r.pid)}" data-to="진행">진행으로</button><button type="button" class="ar-btn" data-pgst="${esc(r.pid)}" data-to="보관">보관으로</button>`;
+      const acts = ro ? "" : view === "진행" ? `${sep}<button type="button" class="ar-btn back" data-pgst="${esc(r.pid)}" data-to="보관">보관으로</button>`
+        : view === "보관" ? `${sep}<button type="button" class="ar-btn back" data-pgst="${esc(r.pid)}" data-to="진행">진행으로</button><button type="button" class="ar-btn go" data-pgst="${esc(r.pid)}" data-to="완료">완료로</button>`
+          : `${sep}<button type="button" class="ar-btn back" data-pgst="${esc(r.pid)}" data-to="진행">진행으로</button><button type="button" class="ar-btn go" data-pgst="${esc(r.pid)}" data-to="보관">보관으로</button>`;
       const meta = [r.start ? `시작 ${mdd(r.start)}` : "시작일 모름", r.stageDay ? `단계 ${mdd(r.stageDay)}` : "", r.end && view !== "진행" ? `${view} ${mdd(r.end)}` : "", r.from ? `출발 ${esc(r.from)}` : ""].filter(Boolean).join(" · ");
       return `<div class="srow prow"><div class="sline l1"><span class="no">${i + 1}</span><span class="nmw n50 ${gradeClass(gradeOf({ entries: r.ents })) || "grade-good"}">${r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.name)}</a>` : esc(r.name)}${r.route ? ` <small class="ins">${esc(r.route)}</small>` : ""}</span><span class="rt">${acts}</span></div>
         <div class="sline prow-steps">${steps}</div>

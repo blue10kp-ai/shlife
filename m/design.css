@@ -1372,3 +1372,6 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 .prow .dc.on.resp { background: #6a3fb5; color: #fff; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .prow .dc.on.resp { background: #8f6ae0; color: #14101f; } }
 :root[data-theme="dark"] .prow .dc.on.resp { background: #8f6ae0; color: #14101f; }
+
+/* v463(2026-11-19 사용자 지시): 계약진행 줄 버튼 = 왼쪽 파랑, 오른쪽 녹색 */
+#salesView .sline.l1 .ar-btn.go { color: var(--ok, #1d7a46); border-color: currentColor; }
