@@ -251,6 +251,16 @@
   window.PAGES = window.PAGES || {};
   window.APP = { rerender: route, align: alignTables };
   window.addEventListener('hashchange', route);
-  if (window.DRIVE) DRIVE.onChange(function () { if (!DRIVE.on()) { location.reload(); return; } userBox(); });
+  // 다크/라이트: 내 설정 파일(theme)에 저장된 값이 있으면 그것을 따름 (없으면 기본 다크)
+  var syncTheme = function () {
+    if (!(window.DRIVE && DRIVE.on() && DRIVE.readMyPrefs)) return;
+    DRIVE.readMyPrefs().then(function (p) {
+      var t = p && p.theme; if (t !== 'dark' && t !== 'light') return;
+      var cur = 'dark'; try { cur = localStorage.getItem('shfc.theme') || 'dark'; } catch (e) {}
+      if (cur !== t) { try { localStorage.setItem('shfc.theme', t); } catch (e) {} if (window.shfcTheme) window.shfcTheme(t); }
+    }).catch(function () {});
+  };
+  if (window.DRIVE) DRIVE.onChange(function () { if (!DRIVE.on()) { location.reload(); return; } userBox(); syncTheme(); });
+  syncTheme();
   route();
 })();

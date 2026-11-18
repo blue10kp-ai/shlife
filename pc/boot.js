@@ -16,7 +16,7 @@
     };
   }
   // 화면 코드는 버전 번호(VER)로 캐시를 쓴다(예전에는 매번 시간값을 붙여 매번 새로 받았음). 화면 코드를 바꾸면 VER를 올린다.
-  var VER = '2026-11-17s19';
+  var VER = '2026-11-18s20';
   // 설치(홈 화면·앱 설치) 준비: 서비스워커(화면 파일은 네트워크 먼저, js·css·아이콘은 ?v=N 저장본) — 설치준비.md 기준
   try { if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) navigator.serviceWorker.register('sw.js').catch(function () { /* 설치 기능만 빠짐 */ }); } catch (e) { /* 무시 */ }
   function preloadScripts() {   // 데이터를 받는 동안 화면 코드를 미리 받아 둔다(내용은 아직 실행하지 않음)

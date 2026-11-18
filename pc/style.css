@@ -330,3 +330,97 @@ td.nm .churn{margin-left:0}
 .logo-nm{line-height:1.1}
 .logo small{margin-top:0}.logo small b{color:#fff;font-weight:700}
 .logo{grid-template-columns:auto 1fr}.logo-ico{grid-row:1}
+
+/* ===== 다크 모드 (v425: 기본값, 설정에서 끄고 켬) ===== */
+html[data-theme="dark"]{--bg:#0F1217;--card:#171B22;--ink:#E8EBF0;--mut:#9AA3B2;--line:#2A303A;--acc:#3B6FD0;--side:#0B0E13;color-scheme:dark}
+html[data-theme="dark"] nav a.on i{background:#171B22}
+html[data-theme="dark"] nav a.soon{color:#9AA3B2}
+html[data-theme="dark"] nav a small{color:#9AA3B2}
+html[data-theme="dark"] .foot{color:#9AA3B2}
+html[data-theme="dark"] .tabs button{border:1px solid #2A303A;background:#171B22}
+html[data-theme="dark"] th,html[data-theme="dark"] td{border-bottom:1px solid #2A303A}
+html[data-theme="dark"] tr.tot td{background:#3A3220}
+html[data-theme="dark"] .up{color:#4CC282}
+html[data-theme="dark"] .dn{color:#EF7A6C}
+html[data-theme="dark"] .soonbox{background:#171B22;border:2px dashed #3A4250}
+html[data-theme="dark"] .pick select,html[data-theme="dark"] .filters select,html[data-theme="dark"] .filters input[type=search]{border:1px solid #2A303A;background:#171B22}
+html[data-theme="dark"] .warn{background:#3A3220;border:1px solid #8A6D1D;color:#E6C34A}
+html[data-theme="dark"] .al{border-bottom:1px solid #2A303A}
+html[data-theme="dark"] .soonlist{background:#1B2028;border:1px dashed #3A4250}
+html[data-theme="dark"] .btn{border:1px solid #2A303A;background:#171B22}
+html[data-theme="dark"] tr.gray td{background:#1E242D;color:#9AA3B2}
+html[data-theme="dark"] tr.pick-row:hover td{background:#1E242D}
+html[data-theme="dark"] tr.selrow td{background:#22314F!important}
+html[data-theme="dark"] .chip{border:1px solid #2A303A;background:#171B22}
+html[data-theme="dark"] .drawer{background:#171B22}
+html[data-theme="dark"] .memo{background:#1B2028}
+html[data-theme="dark"] .kv{border-bottom:1px solid #2A303A}
+html[data-theme="dark"] td.wrapc{color:#9AA3B2}
+html[data-theme="dark"] .testbar{color:#E6C34A;background:#3A3220;border:1px dashed #8A6D1D}
+html[data-theme="dark"] .cv.ok{color:#4CC282}
+html[data-theme="dark"] .cv.no{color:#9AA3B2}
+html[data-theme="dark"] a.dl{color:#7FAEF0}
+html[data-theme="dark"] .fee-sum .kv{background:#1B2028}
+html[data-theme="dark"] .kv.big{background:#1E2A44}
+html[data-theme="dark"] .fee-doc{background:#171B22}
+html[data-theme="dark"] .sxg{border:1px solid #2A303A}
+html[data-theme="dark"] .sxg .sx{border-bottom:1px solid #2A303A;border-right:1px solid #2A303A}
+html[data-theme="dark"] .fd-h{background:#1E2A44}
+html[data-theme="dark"] table.fd tr.sub td{background:#3A3220}
+html[data-theme="dark"] .fd-tot div{background:#1B2028}
+html[data-theme="dark"] .sol-filter{background:#22314F}
+html[data-theme="dark"] .sol-filter select{background:#171B22}
+html[data-theme="dark"] .sol-btn{background:#171B22;color:#E8EBF0}
+html[data-theme="dark"] table.sol-info th,html[data-theme="dark"] table.sol-sum th,html[data-theme="dark"] table.sol-t th,html[data-theme="dark"] table.sol-tot th{border-bottom:1px solid #2A303A;color:#E8EBF0}
+html[data-theme="dark"] table.sol-info td,html[data-theme="dark"] table.sol-sum td,html[data-theme="dark"] table.sol-t td,html[data-theme="dark"] table.sol-tot td{border-bottom:1px solid #2A303A;background:#171B22}
+html[data-theme="dark"] .sol-hint{color:#7FAEF0}
+html[data-theme="dark"] .chip.haeng{color:#E0A04A}
+html[data-theme="dark"] .sol-tot{background:#171B22}
+html[data-theme="dark"] .sol-tot .net b{color:#7FAEF0}
+html[data-theme="dark"] section.sol table tr.sub td{color:#E8EBF0}
+html[data-theme="dark"] .uchk{background:#171B22}
+html[data-theme="dark"] .upill.p-due{background:#3A3220}
+html[data-theme="dark"] .ue-row input{border:1px solid #2A303A}
+html[data-theme="dark"] .ue-row select{border:1px solid #2A303A}
+html[data-theme="dark"] .ck{border:2px dashed #3A4250}
+html[data-theme="dark"] .ef input,html[data-theme="dark"] .ef textarea,html[data-theme="dark"] .ef select{border:1px solid #2A303A;background:#171B22}
+html[data-theme="dark"] .g-bad{color:#E0A04A}
+html[data-theme="dark"] .g-shit{color:#EF7A6C}
+html[data-theme="dark"] .fg .fr.fe input,html[data-theme="dark"] .fg .fr.fe select{border:1px solid #2A303A;background:#171B22}
+html[data-theme="dark"] .gtog button{border:1px solid #2A303A;background:#171B22}
+html[data-theme="dark"] .memobox,html[data-theme="dark"] .cadd textarea,html[data-theme="dark"] .tl textarea{border:1px solid #2A303A}
+html[data-theme="dark"] .sv{color:#4CC282}
+html[data-theme="dark"] .tl.cons .cx{color:#9AA3B2}
+html[data-theme="dark"] .tl.cons .cx:hover{color:#EF7A6C}
+html[data-theme="dark"] .tl.cons .cdate{color:#9AA3B2}
+html[data-theme="dark"] .gdot i{border:2px solid #2A303A}
+html[data-theme="dark"] .pickbtn{border:1px solid #2A303A;background:#171B22}
+html[data-theme="dark"] .pickbtn:hover{background:#1E2A44}
+html[data-theme="dark"] tr.pdfrow:hover td{background:#1E2A44}
+html[data-theme="dark"] td.cr select{border:1px solid #2A303A}
+html[data-theme="dark"] td.cr input{border:1px solid #2A303A}
+html[data-theme="dark"] .calpick{border:1px solid #2A303A}
+html[data-theme="dark"] .calpick .cp-head{color:#9AA3B2}
+html[data-theme="dark"] .warnTxt{color:#E0A04A}
+html[data-theme="dark"] .warnTxt{color:#E0A04A}
+html[data-theme="dark"] .churn.gone{color:#EF7A6C}
+html[data-theme="dark"] .skb{background:linear-gradient(90deg,#1E242D,#2A303A,#1E242D);background-size:200% 100%}
+html[data-theme="dark"] .cars-e .car-del{color:#EF7A6C}
+html[data-theme="dark"] nav a.on{background:var(--acc)}
+html[data-theme="dark"] .tabs button.on{background:var(--acc);border-color:var(--acc)}
+html[data-theme="dark"] .chip.on{background:var(--acc);border-color:var(--acc)}
+html[data-theme="dark"] .drawer h3{color:var(--acc)}
+html[data-theme="dark"] .uweek>.t{color:var(--acc)}
+html[data-theme="dark"] .btn.pri{background:var(--acc);border-color:var(--acc)}
+html[data-theme="dark"] .drawer .link{color:var(--acc)}
+html[data-theme="dark"] a.pdfl{color:var(--acc)}
+html[data-theme="dark"] .inslink{color:var(--acc)}
+html[data-theme="dark"] .inslink:focus-visible{outline:2px solid var(--acc)}
+html[data-theme="dark"] .side{border-right:1px solid #1B2028}
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:#171B22;color:#E8EBF0;border-color:#2A303A}
+html[data-theme="dark"] ::placeholder{color:#6B7482}
+html[data-theme="dark"] svg [fill="#5A667E"]{fill:#9AA3B2}
+html[data-theme="dark"] svg [stroke="#E1E4EC"],html[data-theme="dark"] svg [stroke="#C3CAD8"]{stroke:#2A303A}
+html[data-theme="dark"] svg [fill="#14213D"]{fill:#E8EBF0}
+html[data-theme="dark"] [style*="#5A667E"]{color:#9AA3B2!important}
+html[data-theme="dark"] [style*="#999"]{color:#9AA3B2!important}

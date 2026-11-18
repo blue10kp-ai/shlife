@@ -25,7 +25,7 @@
     return { items: DEFAULT.map(function (x) { return Object.assign({}, x); }), done: {} };
   })();
   var state = { sub: '', filter: 'all', draft: null };
-  var SUBS = [['perm', '권한·공유 현황'], ['common', '공통 설정(M과 공유)'], ['sms', '문자 문구(M과 공유)'], ['start', '시작 화면'], ['updates', '업데이트 일정']];
+  var SUBS = [['perm', '권한·공유 현황'], ['common', '공통 설정(M과 공유)'], ['sms', '문자 문구(M과 공유)'], ['start', '시작 화면'], ['theme', '화면(다크 모드)'], ['updates', '업데이트 일정']];
   var pageTitle = function () { return window.SETTINGS_ADMIN && window.SETTINGS_ADMIN() ? '관리자' : '설정'; };
   var pageHead = function (sub) { return '<h1>' + pageTitle() + '</h1><p class="sub">' + sub + '</p><div class="tabs">' + SUBS.map(function (x) { return '<button class="' + (state.sub === x[0] ? 'on' : '') + '" data-sub="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>'; };
   var cs = { data: null, err: '', busy: false, msg: '', cals: null, calMsg: '', calBusy: false, calTried: false };   // 공통 설정(Drive)
@@ -157,6 +157,26 @@
         .catch(function (e) { stMsg = '이 브라우저에는 저장했지만 개인 설정 파일에는 저장하지 못했습니다: ' + (e && e.message || e); rr(); });
     };
   }
+  // ---- 화면(다크 모드): 기본은 다크. 끄면 밝은 화면. 이 브라우저(shfc.theme)와 내 설정 파일(theme)에 저장 — 신한FC m과 같은 값 (2026-11-18 사용자 지시)
+  var thMsg = '';
+  var themeNow = function () { return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; };
+  function themeHtml() {
+    var h = pageHead('화면을 어둡게(다크 모드) 쓸지 고릅니다. 기본은 다크이고, 신한FC m과 같은 값을 씁니다.');
+    return h + '<section><h2>화면</h2><label style="display:block;margin:6px 0"><input type="checkbox" id="thDark"' + (themeNow() === 'dark' ? ' checked' : '') + '> <b>다크 모드</b> <span class="mut">체크하면 어두운 화면, 끄면 밝은 화면</span></label>' +
+      '<div class="ue-act"><span class="mut" id="thMsg">' + esc(thMsg) + '</span></div></section>';
+  }
+  function bindTheme(rr) {
+    var c = document.getElementById('thDark'); if (!c) return;
+    c.onchange = function () {
+      var v = c.checked ? 'dark' : 'light';
+      try { localStorage.setItem('shfc.theme', v); } catch (e) {}
+      if (window.shfcTheme) window.shfcTheme(v);
+      thMsg = (v === 'dark' ? '다크 모드로 바꿨습니다.' : '라이트 모드로 바꿨습니다.');
+      document.getElementById('thMsg').textContent = thMsg + ((window.DRIVE && DRIVE.on()) ? ' 저장 중…' : '');
+      if (window.DRIVE && DRIVE.on()) DRIVE.writeMyPrefs({ theme: v }).then(function () { thMsg += ' (내 설정 파일에도 저장했습니다.)'; var m = document.getElementById('thMsg'); if (m) m.textContent = thMsg; })
+        .catch(function (e) { var m = document.getElementById('thMsg'); if (m) m.textContent = thMsg + ' 이 브라우저에는 저장했지만 내 설정 파일에는 저장하지 못했습니다: ' + (e && e.message || e); });
+    };
+  }
   function commonHtml() {
     var on = window.DRIVE && DRIVE.on(), d = cs.data;
     var h = '<h1>' + pageTitle() + '</h1><p class="sub">신한FC m의 관리자 › 설정과 같은 파일(shlife-설정.json)을 읽고 씁니다. 여기서 저장하면 M에도 바로 반영됩니다.</p>';
@@ -223,6 +243,7 @@
     if (state.sub === 'perm') return permHtml();
     if (state.sub === 'sms') return smsHtml();
     if (state.sub === 'start') return startHtml();
+    if (state.sub === 'theme') return themeHtml();
     if (state.sub === 'common') return commonHtml();
     if (state.sub !== 'updates') return '<h1>' + pageTitle() + '</h1><p class="sub">세부 메뉴를 선택하세요</p>' + menu;
     var t = today(), ts = ymd(t), h = '<h1>' + pageTitle() + '</h1><p class="sub">업데이트 일정 · 체크하면 오늘 날짜로 완료가 기록됩니다 (이 브라우저에 저장)</p>' + menu;
@@ -261,6 +282,7 @@
     var g0 = function (id) { return document.getElementById(id); };
     if (state.sub === 'sms') bindSms(rr);
     if (state.sub === 'start') bindStart(rr);
+    if (state.sub === 'theme') bindTheme(rr);
     if (state.sub === 'perm' && window.ADMINPERM) window.ADMINPERM.bind(rr);
     else if (state.sub === 'perm' && window.DRIVE && DRIVE.on() && !pm.data && !pm.busy && !pm.err) loadPerm();
     if (g0('pmReload')) g0('pmReload').onclick = function () { pm.data = null; pm.err = ''; loadPerm(); };

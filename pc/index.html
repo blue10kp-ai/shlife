@@ -11,7 +11,21 @@
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=4">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="신한FC PC">
-<link rel="stylesheet" href="style.css?v=9">
+<link rel="stylesheet" href="style.css?v=11">
+<script>
+/* v425(2026-11-18 프팀장 전달 사용자 지시): 다크 모드가 기본 — 첫 화면을 그리기 전에 적용. 설정 > 화면의 '다크 모드'로 켜고 끔(이 브라우저 shfc.theme + 내 설정 파일 theme, 신한FC m과 같은 값) */
+(function () {
+  var p = ''; try { p = localStorage.getItem('shfc.theme') || ''; } catch (e) { p = ''; } if (p !== 'light' && p !== 'dark') p = 'dark';
+  window.shfcTheme = function (v) {
+    if (v !== 'light' && v !== 'dark') v = 'dark';
+    document.documentElement.setAttribute('data-theme', v);
+    var tc = document.querySelectorAll('meta[name="theme-color"]');
+    for (var j = 0; j < tc.length; j++) { var m = tc[j]; if (!m.dataset.media) m.dataset.media = m.getAttribute('media') || ''; var md = m.dataset.media; m.setAttribute('media', (v === 'dark' ? /dark/.test(md) : /light/.test(md)) ? 'all' : 'not all'); }
+    return v;
+  };
+  window.shfcTheme(p);
+})();
+</script>
 </head>
 <body>
 <aside class="side">
@@ -25,7 +39,7 @@
 <script src="drive.js?v=7"></script>
 <script src="drive-data.js?v=12"></script>
 <script src="drive-share.js?v=1"></script>
-<script src="boot.js?v=22"></script>
+<script src="boot.js?v=23"></script>
 <script>(function(){var n=document.getElementById("nav"),p=document.getElementById("pcPage");function f(){var a=n.querySelector("a.on");if(!a||!p)return;var c=a.cloneNode(true);c.querySelectorAll("i,small").forEach(function(x){x.remove()});p.textContent=c.textContent.trim()}new MutationObserver(f).observe(n,{childList:true,subtree:true,attributes:true,attributeFilter:["class"]});f()})()</script>
 </body>
 </html>
