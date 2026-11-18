@@ -104,7 +104,7 @@
           const pr = progBy.get(txt(r[iIdc]));
           if (pr) {
             if (pr.상태 === "진행") { if (base === "가망" || base === "DB") base = "진행"; else setv(C, r, iProg, "Y"); }
-            else if ((pr.상태 === "보관" || pr.상태 === "삭제") && base === "가망") { base = "진행"; setv(C, r, iEx, pr.종료일 || pr.단계일 || "보관"); }
+            else if ((pr.상태 === "보관" || pr.상태 === "삭제" || pr.상태 === "완료") && base === "가망") { base = "진행"; setv(C, r, iEx, pr.종료일 || pr.단계일 || "보관"); }
             if (pr.단계 && pr.단계 !== "고객등록" && STAGE_NEW_OLD[pr.단계] != null) setv(C, r, iBiz, STAGE_NEW_OLD[pr.단계]);
           }
           if (cls === "직접모집" && !insOnly && !txt(r[iBiz])) setv(C, r, iBiz, "계약"); // 영업단계 칩의 '계약': 옛 영업단계 칸이 없어져도 고객분류가 직접모집이면 계약으로 읽음(2026-11-17 사용자 "추천대로")
