@@ -1325,3 +1325,9 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 .org-top .org-top-sp.r { display: flex; justify-content: flex-end; }
 .org-back { margin: 8px 0 4px; }
 .org-back .org-back-btn { height: 36px; padding: 0 16px; font-size: 15px; font-weight: 600; }
+
+/* v445: '[' 띠는 없애고 카드 왼쪽 파랑 굵은 테두리만 남김 */
+.ev-card.linked::before { display: none !important; }
+.ev-card.linked.multi { border-left-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+.team-btns { display: flex; gap: 8px; margin-top: 8px; }
