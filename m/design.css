@@ -1331,3 +1331,8 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 .ev-card.linked.multi { border-left-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 
 .team-btns { display: flex; gap: 8px; margin-top: 8px; }
+
+/* v448: 일정 수정의 종일 체크 */
+.ev-form .fld.chk { display: flex; align-items: center; gap: 10px; }
+.ev-form .fld.chk input[type="checkbox"] { width: 20px; height: 20px; flex: none; }
+.ev-form [data-ad-only][hidden], .ev-form [data-tm-only][hidden] { display: none !important; }
