@@ -1984,7 +1984,7 @@
   function addrWithMap(v) {
     const a = String(v || "").trim();
     if (!a) return "";
-    return `<div class="val-row"><span class="val">${esc(a)}</span><span class="acts"><a class="act-btn" href="https://map.kakao.com/link/search/${encodeURIComponent(a)}" target="_blank" rel="noopener noreferrer" aria-label="지도에서 보기" title="지도에서 보기"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg><span>지도</span></a></span></div>`;
+    return `<div class="val-row"><span class="val">${esc(a)}</span><span class="acts"><a class="map-btn" href="https://map.kakao.com/link/search/${encodeURIComponent(a)}" target="_blank" rel="noopener noreferrer" title="카카오맵에서 이 주소 보기">지도보기</a></span></div>`;
   }
   function valueWithActions(k, v) {
     let btns = "";

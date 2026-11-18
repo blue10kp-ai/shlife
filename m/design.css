@@ -1352,3 +1352,6 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 #dayList .ev-card, #dayList .ev-card * { -webkit-tap-highlight-color: transparent; }
 #dayList .ev-card:not(.editing) .ev-top, #dayList .ev-card:not(.editing) .ev-line2 { -webkit-user-select: none; user-select: none; }
 #dayList .ev-card .ev-top:active, #dayList .ev-card .ev-line2:active { background: none; }
+
+/* v454: 고객 정보 주소 끝의 [지도보기] */
+.kv .map-btn { flex: none; display: inline-flex; align-items: center; height: 26px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--accent); font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; }
