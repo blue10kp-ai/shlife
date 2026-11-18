@@ -4805,8 +4805,9 @@
   (() => { // v408(2026-11-17 사용자 지시): 일정 화면을 좌우로 밀면 Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월
     const v = $("scheduleView"); if (!v) return;
     let sx = 0, sy = 0, st = 0, ok = false;
-    v.addEventListener("touchstart", (e) => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; st = Date.now(); ok = !(e.target.closest && e.target.closest("input, textarea, select, .ev-form, #schedAddBox, .week-scroll")); }, { passive: true });
-    v.addEventListener("touchend", (e) => {
+    // v459(2026-11-19 사용자 지시): 일정 카드 위가 아니라 빈 바탕(화면 아래 남는 곳)을 밀어도 되게 화면 전체에서 받음 (위 막대·아래 메뉴·팝업 위는 제외)
+    document.addEventListener("touchstart", (e) => { const t = e.touches[0]; sx = t.clientX; sy = t.clientY; st = Date.now(); ok = !v.hidden && !(e.target.closest && e.target.closest("input, textarea, select, .ev-form, #schedAddBox, .week-scroll, #mainNav, header, .topbar, .modal, .ai-sheet, [role='dialog']")); }, { passive: true });
+    document.addEventListener("touchend", (e) => {
       if (!ok) return; const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
       if (Date.now() - st > 700 || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6) return;
       const b = $(dx < 0 ? "schedNext" : "schedPrev"); if (b) b.click();
