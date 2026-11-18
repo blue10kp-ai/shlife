@@ -1375,3 +1375,17 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 
 /* v463(2026-11-19 사용자 지시): 계약진행 줄 버튼 = 왼쪽 파랑, 오른쪽 녹색 */
 #salesView .sline.l1 .ar-btn.go { color: var(--ok, #1d7a46); border-color: currentColor; }
+
+/* v465: 팀관리 > 팀원정보 */
+.tm-bar { display: flex; align-items: center; gap: 6px; margin: 8px 0 10px; }
+.tm-bar .org-back-btn { height: 34px; padding: 0 10px; font-size: 14px; font-weight: 600; flex: none; }
+.tm-bar select { flex: 1; min-width: 0; height: 34px; padding: 0 8px; font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t1); }
+.tm-bar .ev-edit { flex: none; }
+.tm-info { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 7px 10px; margin: 0; font-size: 14.5px; line-height: 1.45; }
+.tm-info dt { color: var(--t3); font-size: 12.5px; padding-top: 2px; }
+.tm-info dd { margin: 0; color: var(--t1); min-width: 0; overflow-wrap: anywhere; }
+.tm-info .tm-none { color: var(--t3); }
+.tm-info.editing { gap: 6px 10px; }
+.tm-info.editing dt { padding-top: 9px; }
+.tm-info input, .tm-info select, .tm-info textarea { width: 100%; box-sizing: border-box; padding: 7px 8px; font: inherit; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t1); }
+.tm-info textarea { resize: vertical; min-height: 64px; }

@@ -2271,8 +2271,84 @@
   function openTeam() {
     if (!isAdmin()) return;
     show("teamView");
-    $("teamView").innerHTML = `<div class="card"><h3 class="sec-title">팀관리</h3><div class="team-btns"><button type="button" class="ev-edit" data-team-org>조직도</button></div></div>`;
+    $("teamView").innerHTML = `<div class="card"><h3 class="sec-title">팀관리</h3><div class="team-btns"><button type="button" class="ev-edit" data-team-org>조직도</button><button type="button" class="ev-edit" data-team-info>팀원정보</button></div></div>`;
   }
+  // v465(2026-11-19 사용자 지시): 팀관리 > [팀원정보]. 관리자만. 관리자 드라이브의 Claude/팀 폴더에 있는 팀원 파일을 그때그때 읽어 보여 주고(기기에 내용을 남기지 않음), 기본 항목을 고쳐 같은 파일에 저장
+  //   위 드롭다운 = 팀원(직급순 → 사번순), 처음에는 로그인한 본인이 선택됨
+  const TM_DIR = "Claude/팀", TM_FILE = "팀원(초안).json";
+  const TM_RANK = { ESL: 0, SL: 1, FC: 2 };
+  const TM_FIELDS = [["단계", "sel"], ["직급", "text"], ["신분", "text"], ["입사일", "date"], ["연락처", "tel"], ["이메일", "email"], ["주소", "text"], ["통신사", "text"], ["도입자", "text"], ["메모", "area"]];
+  let tmDoc = null, tmDir = null, tmSel = "", tmEdit = false;
+  const tmRank = (p) => { const r = TM_RANK[String(p.직급 || "").trim().toUpperCase()]; return r == null ? 9 : r; };
+  const tmPeople = () => ((tmDoc && tmDoc.사람) || []).slice().sort((a, b) => tmRank(a) - tmRank(b) || String(a.사번 || "").localeCompare(String(b.사번 || "")) || String(a.이름 || "").localeCompare(String(b.이름 || ""), "ko"));
+  async function openTeamInfo() {
+    if (!isAdmin()) return;
+    show("teamView");
+    const box = $("teamView");
+    box.innerHTML = `<p class="hint pad">팀원 정보를 불러오는 중…</p>`;
+    try {
+      tmEdit = false;
+      tmDir = await stFindPath(TM_DIR);
+      tmDoc = tmDir ? await stReadJsonIn(tmDir, TM_FILE) : null;
+      if (!tmDoc || !Array.isArray(tmDoc.사람) || !tmDoc.사람.length) { box.innerHTML = `<div class="card"><h3 class="sec-title">팀원정보</h3><div class="tm-bar"><button type="button" class="ev-edit org-back-btn" data-tm-back>‹ 팀관리</button></div><p class="hint">팀원 파일을 찾지 못했습니다(내 드라이브 > Claude > 팀 > ${esc(TM_FILE)}).</p></div>`; return; }
+      const ppl = tmPeople(), em = me(), nm = await myFcName();
+      const mine = ppl.find((x) => em && String(x.이메일 || "").toLowerCase() === em) || ppl.find((x) => nm && x.이름 === nm) || ppl[0];
+      if (!ppl.some((x) => String(x.사번) === tmSel)) tmSel = String(mine.사번);
+      renderTeamInfo(); window.scrollTo(0, 0);
+    } catch (e) { box.innerHTML = ""; handleError(e); openTeam(); }
+  }
+  function renderTeamInfo() {
+    const box = $("teamView"), ppl = tmPeople(), p = ppl.find((x) => String(x.사번) === tmSel) || ppl[0];
+    if (!box || !p) return;
+    const stages = Array.isArray(tmDoc.단계) && tmDoc.단계.length ? tmDoc.단계 : ["후보자", "교육생", "팀원", "퇴직"];
+    const opts = ppl.map((x) => `<option value="${esc(String(x.사번))}" ${String(x.사번) === String(p.사번) ? "selected" : ""}>${esc(x.이름)} · ${esc(x.직급 || "-")} · ${esc(String(x.사번))}</option>`).join("");
+    const view = (k) => {
+      const v = String(p[k] == null ? "" : p[k]);
+      if (!v) return `<span class="tm-none">-</span>`;
+      if (k === "연락처") return `<a href="tel:${esc(v.replace(/[^0-9+]/g, ""))}">${esc(v)}</a>`;
+      if (k === "주소") return `${esc(v)} ${mapBtn(v)}`;
+      return esc(v).replace(/\n/g, "<br>");
+    };
+    const edit = (k, t) => {
+      const v = String(p[k] == null ? "" : p[k]);
+      if (t === "sel") return `<select data-tmf="${k}">${(stages.includes(v) ? stages : [v, ...stages]).map((o) => `<option ${o === v ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+      if (t === "area") return `<textarea data-tmf="${k}" rows="3">${esc(v)}</textarea>`;
+      return `<input data-tmf="${k}" type="${t}" value="${esc(v)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off">`;
+    };
+    const acts = tmEdit ? `<button type="button" class="ev-edit" data-tm-cancel>취소</button><button type="button" class="ev-edit ev-done" data-tm-save>저장</button>` : `<button type="button" class="ev-edit" data-tm-edit>수정</button>`;
+    box.innerHTML = `<div class="card tm-wrap"><h3 class="sec-title">팀원정보</h3>
+      <div class="tm-bar"><button type="button" class="ev-edit org-back-btn" data-tm-back>‹ 팀관리</button><select data-tm-sel aria-label="팀원 고르기(직급순, 사번순)" ${tmEdit ? "disabled" : ""}>${opts}</select>${acts}</div>
+      <dl class="tm-info${tmEdit ? " editing" : ""}"><dt>이름</dt><dd><b>${esc(p.이름)}</b></dd><dt>사번</dt><dd>${esc(String(p.사번))}</dd>
+      ${TM_FIELDS.map(([k, t]) => `<dt>${k}</dt><dd>${tmEdit ? edit(k, t) : view(k)}</dd>`).join("")}</dl></div>`;
+  }
+  async function saveTeamInfo(btn) {
+    const box = $("teamView"), vals = {};
+    box.querySelectorAll("[data-tmf]").forEach((el) => { vals[el.dataset.tmf] = String(el.value || "").trim(); });
+    btn.disabled = true; btn.textContent = "저장 중";
+    try {
+      const fresh = await stReadJsonIn(tmDir, TM_FILE); // 저장 직전에 최신 파일을 다시 읽어 그 사람의 바뀐 칸만 고침
+      const q = fresh && Array.isArray(fresh.사람) ? fresh.사람.find((x) => String(x.사번) === tmSel) : null;
+      if (!q) throw new Error("팀원 파일에서 이 사람을 찾지 못했습니다");
+      let n = 0;
+      Object.keys(vals).forEach((k) => { if (String(q[k] == null ? "" : q[k]) !== vals[k]) { q[k] = vals[k]; n++; } });
+      if (n) { const d = new Date(), z = (x) => String(x).padStart(2, "0"); q.수정일시 = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; await stWriteJsonIn(tmDir, TM_FILE, fresh); }
+      tmDoc = fresh; tmEdit = false; renderTeamInfo(); toast(n ? "저장했습니다" : "바뀐 것이 없습니다");
+    } catch (e) { btn.disabled = false; btn.textContent = "저장"; handleError(e); }
+  }
+  document.addEventListener("click", (ev) => {
+    const t = ev.target && ev.target.closest && ev.target.closest("[data-team-info],[data-tm-back],[data-tm-edit],[data-tm-cancel],[data-tm-save]");
+    if (!t) return;
+    if (t.hasAttribute("data-team-info")) { openTeamInfo(); return; }
+    if (t.hasAttribute("data-tm-back")) { if (tmEdit && !confirm("저장하지 않은 수정을 버릴까요?")) return; tmEdit = false; tmDoc = null; openTeam(); window.scrollTo(0, 0); return; }
+    if (t.hasAttribute("data-tm-edit")) { tmEdit = true; renderTeamInfo(); return; }
+    if (t.hasAttribute("data-tm-cancel")) { tmEdit = false; renderTeamInfo(); return; }
+    saveTeamInfo(t);
+  });
+  document.addEventListener("change", (ev) => {
+    const t = ev.target && ev.target.closest && ev.target.closest("[data-tm-sel]");
+    if (!t) return;
+    tmSel = t.value; renderTeamInfo();
+  });
   async function openDash() { show("dashView"); renderDash(); }
   async function renderDash() {
     const box = $("dashView"); if (!box) return;
@@ -4229,7 +4305,7 @@
     const iconBox = `<div class="help-icon"><img src="icon.svg?v=3" width="72" height="72" alt="신한FC m 앱 아이콘"><div><b>앱 아이콘 안내</b><p>고객의 보장을 지키는 <b>방패</b> 안에, 계약과 실적이 꾸준히 <b>오르는 화살표</b>를 담았습니다. 보험 설계사의 일(고객을 지키고, 함께 성장하는 것)을 한 그림으로 줄였습니다.</p><p>연한 하늘색 바탕과 파란 선은 신뢰감 있고 차분한 업무용 앱의 느낌을 주고, 굵은 윤곽선 방패는 작은 홈 화면 아이콘에서도 또렷하게 보이도록 단순하게 만들었습니다. 신한FC m(모바일)에서는 아래 메뉴 맨 왼쪽의 이 아이콘을 누르면 AI 도우미가 열리고, PC 화면 왼쪽 위에는 "신한FC"로 표시됩니다.</p></div></div>`;
     const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
     const grp = (t) => `<h3 class="help-grp">${t}</h3>`; // 하단 메뉴 순서대로 묶음: AI · 일정 · (고객) · 영업 · 설정/관리자
-    const s_team = sec("팀관리 (관리자)", ["<b>관리자</b>로 로그인하면 아래 메뉴 <b>영업 오른쪽</b>에 <b>팀관리</b>가 생깁니다. 지금은 <b>[조직도]</b> 버튼만 있고(설정에 있던 조직도를 옮겼습니다), 내용은 정해지는 대로 채웁니다."]);
+    const s_team = sec("팀관리 (관리자)", ["<b>관리자</b>로 로그인하면 아래 메뉴 <b>영업 오른쪽</b>에 <b>팀관리</b>가 생깁니다. <b>[조직도]</b>와 <b>[팀원정보]</b> 버튼이 있고(설정에 있던 조직도를 옮겼습니다), 내용은 정해지는 대로 채웁니다."]);
     const s_start = sec("시작 화면", ["<b>처음 보일 화면</b>: 설정 화면의 '화면' 카드 가운데 칸(시작 화면)에서 일정 · 고객(기본) · 영업 중 하나를 고르면 바로 저장되고, 다음에 앱을 열 때부터 적용됩니다. 같은 카드 왼쪽 칸은 ‘시작하면 AI 도우미 바로 열기’, 오른쪽 칸은 ‘오른손 모드’입니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '화면' 카드 왼쪽 칸을 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
     const s_ai = sec("AI 도우미", ["<b>2026-11-19부터 AI 버튼(아래 메뉴 맨 왼쪽 아이콘·떠 있는 버튼)은 우선 숨겼습니다.</b> 다시 보이게 할 때까지 아래 설명은 참고용입니다.", "<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 위 말처럼 규칙으로 알아듣는 말은 이 폰 안에서만 처리하고 밖으로 보내지 않습니다. 규칙으로 못 알아들은 말만 Gemini(외부 AI)에 '무슨 뜻인지'를 묻는데, 그때 고객 이름은 [고객1] 같은 자리표시로, 주민번호·전화·계좌·이메일·주소 같은 숫자·주소는 [숫자]·[주소]로 가려서 보내고 답을 받은 뒤 앱 안에서 되돌립니다. 말만해요 설정에 Gemini 키가 없거나 연결이 안 되면 규칙만 쓰며, 확인 카드에 ‘AI가 해석’이라고 표시되고 [실행]을 눌러야 처리됩니다."]);
     const s_task = sec("구글 할 일 (일정 화면)", ["<b>[일정으로]</b>: 할 일 줄의 [일정으로]를 누르면 그 할 일을 캘린더 일정으로 옮기고 할 일은 지웁니다. 일정에서 [할 일로] 옮길 때 메모에 적힌 <b>예전 시간</b>(‘시간: 09:00~10:00’)이 있으면 그 시간으로, 없으면 <b>종일 일정</b>으로 만듭니다. 날짜는 마감일(없으면 보고 있는 날), 캘린더는 원래 있던 캘린더(없으면 기본 캘린더)이고, 장소·메모·작성자·고객 연결도 이어집니다.", "<b>할 일 제목에 등록된 고객 이름이 있으면</b> 그 할 일 줄 아래에 <b>일정과 똑같은 고객 카드</b>(이름·생년월일·연락처·주소·미팅장소·상담기록, 이름을 누르면 고객 정보)가 붙습니다. <b>종일 일정</b>도 캘린더와 상관없이 이름으로 고객을 찾습니다. 같은 이름이 여러 명이면 [선택]으로 한 명을 고르고(나중에 [다시 선택]), 관계없으면 [해당 없음]([되돌리기]로 다시 연결). 고른 값은 할 일 메모의 ‘고객연결: …’ 줄에 저장되어 모든 기기에서 같게 보입니다.", "<b>관리자</b>는 할 일을 추가·수정할 때 <b>사용자</b>를 고를 수 있습니다(기본 = 본인). 구글 할 일은 로그인한 계정의 것이라, 다른 사용자를 고르면 할 일 메모 맨 윗줄에 ‘작성: 이름’이 적히고 목록에는 ‘- 이름’으로 보입니다(본인으로 되돌리면 그 줄이 지워짐).", "<b>모든 일정</b> 카드(종일이 아니어도)에는 <b>[할 일로]</b> 버튼이 있습니다(시간이 있는 일정은 할 일 메모에 시간이 적힙니다). 누르면 그 날짜가 마감인 구글 할 일(기본 목록)을 만들고 캘린더 일정은 지웁니다. 장소·메모는 할 일의 메모로 옮겨집니다. 지운 일정은 화면을 새로 고치기 전까지 [원위치]로 되살릴 수 있습니다(만든 할 일은 그대로 남음).", "그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
@@ -4260,7 +4336,8 @@
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>팀관리 메뉴의 [조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 영업 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 영업 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: 아래 메뉴 <b>팀관리</b>의 [조직도]를 누르면(2026-11-19에 설정에서 옮김) 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/영업 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, grp("검색"), s_srch, grp("고객 정보"), s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
+    const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: 이름 · 사번 · 단계 · 직급 · 신분 · 입사일 · 연락처(누르면 전화) · 이메일 · 주소([지도]) · 통신사 · 도입자 · 메모.", "<b>[수정]</b>을 누르면 이름·사번을 뺀 항목을 고칠 수 있고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, grp("검색"), s_srch, grp("고객 정보"), s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
