@@ -7034,7 +7034,7 @@
   }
   // 따행 필터: 활동대상(기본) → 접촉현황(방문완료 칸 값 유무) → 따행분류. totals는 활동대상 기준 전체(SOL 조회와 같은 73·16·57), classes는 접촉현황 필터 후의 분류별 건수
   function ddaFilter(baseRows, bMode, st) {
-    const afterAct = baseRows.filter((r) => !bMode || !st.dact || r.dda.target !== false);
+    const afterAct = baseRows.filter((r) => !bMode || !st.dact || r.arch || r.dda.target !== false); // v415: 보관(따행상태 보관·삭제)은 활동대상이 아니어도 보관 목록에 보임 — 전에는 건수만 나오고 목록이 비었음
     const afterCt = afterAct.filter((r) => !st.dct || (st.dct === "done" ? !!r.dda.done : !r.dda.done));
     const cc = new Map(); afterCt.forEach((r) => { if (r.dda.cls) cc.set(r.dda.cls, (cc.get(r.dda.cls) || 0) + 1); });
     return {
