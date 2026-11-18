@@ -1355,3 +1355,12 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 
 /* v454: 고객 정보 주소 끝의 [지도보기] */
 .kv .map-btn { flex: none; display: inline-flex; align-items: center; height: 26px; padding: 0 9px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--accent); font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; }
+
+/* v456: [지도보기]는 주소가 나오는 모든 곳에서 같은 모양 */
+.map-btn { flex: none; display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--accent); font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; vertical-align: middle; }
+.ev-loc .map-btn { margin-left: 4px; }
+.sline.l4 .map-btn { margin-left: 6px; height: 20px; }
+.put-row .ev-acts { display: inline-flex; gap: 4px; flex: none; }
+
+/* v457: 지도보기 = 이모티콘 */
+.map-btn { padding: 0 6px; font-size: 15px; line-height: 1; }

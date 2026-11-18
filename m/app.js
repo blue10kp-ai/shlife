@@ -1981,10 +1981,12 @@
   const LAND_COLS = /^(자택|집|직장|회사)\s*전화(번호)?$/;
   const MOBILE_RE = /01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}/;
   // 주소 옆 위치 아이콘: 누르면 카카오맵에서 그 주소를 검색한 지도가 새 창으로 열림 (누를 때만 주소가 카카오로 전달됨)
+  // v456(2026-11-19 사용자 지시): 주소가 나오는 곳은 모두 끝에 [지도보기] (카카오맵에서 그 주소 검색, 우편번호 [12345]는 떼고 보냄)
+  const mapBtn = (v) => { const a = String(v || "").trim().replace(/^\[[^\]]*\]\s*/, ""); return a ? `<a class="map-btn" href="https://map.kakao.com/link/search/${encodeURIComponent(a)}" target="_blank" rel="noopener noreferrer" title="카카오맵에서 이 주소 보기" aria-label="지도보기">🗺️</a>` : ""; };
   function addrWithMap(v) {
     const a = String(v || "").trim();
     if (!a) return "";
-    return `<div class="val-row"><span class="val">${esc(a)}</span><span class="acts"><a class="map-btn" href="https://map.kakao.com/link/search/${encodeURIComponent(a)}" target="_blank" rel="noopener noreferrer" title="카카오맵에서 이 주소 보기">지도보기</a></span></div>`;
+    return `<div class="val-row"><span class="val">${esc(a)}</span><span class="acts">${mapBtn(a)}</span></div>`;
   }
   function valueWithActions(k, v) {
     let btns = "";
@@ -5537,7 +5539,7 @@
         <dl class="ev-info">
           ${c.birth ? `<dt>생년월일</dt><dd>${esc(c.birth)}${g ? ` (${esc(g)})` : ""}</dd>` : ""}
           ${phone ? (() => { const num = (String(phone).match(MOBILE_RE) || [phone])[0], dg = String(num).replace(/[^\d+]/g, ""); return `<dt>연락처</dt><dd class="put-row" data-cn="${esc(c.name)}" data-cfc="${esc(memoFcOf(c))}"><span><a class="nowrap" href="tel:${esc(dg)}">${esc(phone)}</a></span><span class="ev-acts"><a class="ev-act" href="tel:${esc(dg)}">전화</a><a class="ev-act" href="${esc(smsHref(dg, ""))}">문자</a></span></dd>`; })() : ""}
-          ${addr ? `<dt>주소</dt><dd class="put-row"><span>${esc(addr)}</span>${putBtn(i, j, "addr")}</dd>` : ""}
+          ${addr ? `<dt>주소</dt><dd class="put-row"><span>${esc(addr)}</span><span class="ev-acts">${mapBtn(addr)}${putBtn(i, j, "addr")}</span></dd>` : ""}
           <dt id="mpl${i}-${j}" hidden>미팅장소</dt><dd id="mp${i}-${j}" class="put-row" hidden></dd>
         </dl>
         <div id="cs${i}-${j}">${smemoOfCust(c)}</div></div>`;
@@ -5552,7 +5554,7 @@
         : it.pinned ? "" : `<button type="button" class="ev-edit" data-ignore="${i}">해당 없음</button>`) : ""}</div>
       <div class="ev-btnrow" id="evBtns${i}" hidden><button type="button" class="ev-edit" data-evedit="${i}">수정</button><button type="button" class="ev-edit ev-del" data-evdel="${i}">삭제</button></div>
       ${it.ignored ? `<p class="hint ev-hid">검색된 고객 ${it.all.length}명을 숨겼어요</p>` : ""}
-      <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}><svg class="pin" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(e.location)}</p>
+      <p class="hint ev-loc" id="loc${i}" ${e.location ? "" : "hidden"}><svg class="pin" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(e.location)} ${mapBtn(e.location)}</p>
       <div id="evForm${i}"></div>
       ${it.custs.map((c, j) => custBlockHtml(c, i, j, !it.pinned, it.pinned)).join("")}</div>`;
   }
@@ -5628,7 +5630,7 @@
     const mp = meetingOf(c, x);
     if (mp) {
       const dd = $(`mp${i}-${j}`);
-      dd.innerHTML = `<span>${esc(mp)}</span>${putBtn(i, j, "mp")}`;
+      dd.innerHTML = `<span>${esc(mp)}</span><span class="ev-acts">${mapBtn(mp)}${putBtn(i, j, "mp")}</span>`;
       dd.hidden = false; $(`mpl${i}-${j}`).hidden = false;
     }
     const box = $(`cs${i}-${j}`); // 상담기록 줄: 불러온 목록으로 다시 그림(쓰던 글이 있으면 그대로 둠)
@@ -5695,7 +5697,7 @@
       await gcalPatch(it.e.calId, it.e.eventId, { location: text });
       it.e.location = text;
       const loc = $("loc" + i);
-      loc.innerHTML = `<svg class="pin" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(text)}`; loc.hidden = false;
+      loc.innerHTML = `<svg class="pin" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="vertical-align:-2px;margin-right:4px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>${esc(text)} ${mapBtn(text)}`; loc.hidden = false;
       toast("일정 장소에 입력했습니다.");
       if (!it.pinned) { await pickCustomer(it, c, btn); return; }
       btn.textContent = "입력됨";
@@ -7383,7 +7385,7 @@
         ${prodLines.map((p) => `<div class="sline prod"><span class="si pd">${esc(p.name)}${isD ? "" : st}</span><span class="si fe">${esc(p.fee ? wonText(p.fee) : "")}</span></div>`).join("")}
         <div class="sline l2">${it("", r.cdLabel || "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span></div>
         <div class="sline l3">${it("", "직업", esc(r.job))}${it("", "모집", esc(r.recFc))}${arHtml}</div>
-        <div class="sline l4">${it("ad", "", esc(r.addr))}</div>
+        <div class="sline l4">${it("ad", "", esc(r.addr))}${mapBtn(r.addr)}</div>
         ${times ? `<div class="sline sub ok">${times}</div>` : ""}${detail}${r.ref || !r.custId ? "" : smemoHtml(r.holder, smemoFc(r.custId, r.fc || r.srcFc), isRO(r.fc || r.srcFc))}</div>`;
     }).join("") + `</div>`;
   }
