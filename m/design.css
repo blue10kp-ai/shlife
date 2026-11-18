@@ -1277,3 +1277,13 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 /* v424: 자료 기간 [3개월] [1년] — 평소엔 기본 색, 선택되면 파랑(강조색) */
 .rpt .rpt-span { background: var(--surface); color: var(--t1); border: 1px solid var(--line); font-weight: 500; box-shadow: none; }
 .rpt .rpt-span.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; box-shadow: none; }
+/* v429: 일정 고객 카드의 상담기록 줄 */
+.ev-cust .smemo { margin-top: 6px; }
+.smemo .sm-in .mic-btn { flex: none; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--t2); padding: 0; }
+.smemo .sm-in .mic-btn.rec { color: var(--bad); border-color: var(--bad); }
+/* v430: 일정 추가 — 맨 위 [일정] [할 일] 선택 */
+.ev-add .ev-kind { display: flex; width: 100%; margin: 0 0 8px; padding: 2px; border-radius: 10px; }
+.ev-add .ev-kind button { flex: 1; height: 30px; font-size: 14px; border-radius: 8px; }
+.ev-add .ev-kind button.on { background: var(--accent); color: var(--accent-ink); box-shadow: none; font-weight: 600; }
+.ev-add [hidden] { display: none !important; }
+.ev-add textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t1); font-size: 15px; font-family: inherit; }
