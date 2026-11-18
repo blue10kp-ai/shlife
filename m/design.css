@@ -1304,6 +1304,24 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 
 /* v439: 고객과 묶인 일정 = 왼쪽 '[' 띠 (초록 var(--ok), 라이트·다크 공통 토큰). 동명이인 미선택은 옅게 */
 .ev-card.linked { position: relative; }
-.ev-card.linked::before { content: ""; position: absolute; left: 5px; top: 10px; bottom: 10px; width: 9px; border: 3px solid var(--ok); border-right: 0; border-radius: 5px 0 0 5px; pointer-events: none; }
+.ev-card.linked::before { content: ""; position: absolute; left: 5px; top: 10px; bottom: 10px; width: 9px; border: 3px solid var(--accent); border-right: 0; border-radius: 5px 0 0 5px; pointer-events: none; }
 .ev-card.linked.multi::before { opacity: .45; }
 .ev-card.linked.editing::before, .ev-card.linked.deleted::before { display: none; }
+
+/* v440: 할 일 수정 줄 간격 + 띠 색 = 전화 버튼 글자색(--accent) */
+.task-card .task-ed { gap: 8px; }
+.task-card .task-ed .task-owner { max-width: 112px; }
+.task-card .task-ed .task-date { margin-right: 4px; }
+
+/* v442: AI 버튼(아래 메뉴 아이콘·떠 있는 버튼)은 우선 숨김 */
+.mainnav .nav-ai, .ai-fab { display: none !important; }
+
+/* v443: 묶인 일정 — 카드 왼쪽 테두리도 같은 파랑(--accent)으로 굵게, '[' 띠도 더 굵게 */
+.ev-card.linked { border-left: 4px solid var(--accent); }
+.ev-card.linked::before { left: 9px; width: 10px; border-width: 4px; border-right: 0; border-color: var(--accent); }
+.ev-card.linked.editing, .ev-card.linked.deleted { border-left-width: 1px; border-left-color: var(--line); }
+
+/* v444: 조직도 — 제목 줄 아래에 뒤로가기(‹ 관리자)를 크게 */
+.org-top .org-top-sp.r { display: flex; justify-content: flex-end; }
+.org-back { margin: 8px 0 4px; }
+.org-back .org-back-btn { height: 36px; padding: 0 16px; font-size: 15px; font-weight: 600; }

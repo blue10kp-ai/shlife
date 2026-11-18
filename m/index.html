@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=4">
   <link rel="stylesheet" href="style.css?v=150">
   <link rel="stylesheet" href="tokens.css?v=117">
-  <link rel="stylesheet" href="design.css?v=353">
+  <link rel="stylesheet" href="design.css?v=358">
   <script>
   /* v425(2026-11-18 사용자 지시): 다크 모드가 기본 — 첫 화면을 그리기 전에 미리 적용(폰이 라이트여도 밝게 번쩍이지 않게). 설정 > 화면 > 다크 모드에서 바꾸면 그 값(shlife.theme)을 따름. 같은 규칙을 app.js의 themeApply가 이어받음 */
   (function () {
@@ -120,6 +120,7 @@
     <section id="salesView" class="view" hidden></section>
     <section id="introView" class="view" hidden></section>
     <section id="dashView" class="view" hidden></section>
+    <section id="teamView" class="view" hidden></section>
 
     <section id="adminView" class="view" hidden>
       <div id="adminBody"></div>
@@ -137,6 +138,7 @@
     <button type="button" data-section="schedule"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>일정</button>
     <button type="button" data-section="customer"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span>고객</button>
     <button type="button" data-section="sales"><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2M2 13h20"/></svg></span>영업</button>
+    <button type="button" data-section="team" id="navTeam" hidden><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 3-5.5 6.5-5.5s6.5 1.9 6.5 5.5M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c2.2.6 3.5 2.3 3.5 5.2"/></svg></span>팀관리</button>
     <button type="button" data-section="admin" id="navAdmin" hidden><span class="ni"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></svg></span><span id="navAdminLabel">설정</span></button>
   </nav>
 
@@ -179,6 +181,6 @@
   <script async src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async></script>
   <script src="config.js?v=118"></script>
-  <script src="app.js?v=439"></script>
+  <script src="app.js?v=444"></script>
 </body>
 </html>
