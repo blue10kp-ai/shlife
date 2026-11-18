@@ -1200,4 +1200,20 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 .sched-nav .sched-rt { position: static; transform: none; order: 3; flex: none; margin: 0 0 0 8px; }
 .sched-nav #schedPrev { margin-left: auto; }
 .sched-nav #schedNext { margin-right: auto; }
-.sched-nav .sched-seg { display: inline-flex; align-items: center; gap: 12px; }
+.sched-nav { padding-left: 12px; } .sched-nav::before { content: none; display: none; } /* v409: 날짜(‹ 날짜 ›)는 버튼을 뺀 남은 칸의 가운데 */
+.sched-nav .sched-seg { display: inline-flex; align-items: center; gap: 12px; background: transparent; padding: 0; border-radius: 0; } /* v409: 초기화·추가 사이 빈칸은 화면 바탕색 그대로 */
+/* v410: AI 버튼 끌어 옮기기 */
+.ai-fab { touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.ai-fab.dragging { opacity: .8; transform: scale(1.06); transition: none; }
+/* v411: 영업 고객별 메모 칸 */
+.srow .smemo { display: block; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.smemo .sm-last, .smemo .sm-hist > summary, .smemo .sm-hist > div { font-size: 13px; line-height: 18px; color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.smemo .sm-hist > summary { cursor: pointer; list-style: none; }
+.smemo .sm-hist > summary::-webkit-details-marker { display: none; }
+.smemo .sm-hist[open] > summary, .smemo .sm-hist > div { white-space: normal; }
+.smemo .sm-hist > div { padding-top: 2px; color: var(--t3, var(--t2)); }
+.smemo .sm-d { display: inline-block; min-width: 38px; margin-right: 6px; font-size: 12px; color: var(--t3, var(--t2)); font-variant-numeric: tabular-nums; }
+.smemo .sm-in { display: flex; gap: 6px; align-items: center; margin-top: 4px; }
+.smemo .sm-in input { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--t1); font-size: 14px; }
+.smemo .sm-save { flex: none; height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--accent); font-size: 13px; font-weight: 600; }
+.smemo .sm-save:disabled { color: var(--t3, var(--t2)); opacity: .6; }

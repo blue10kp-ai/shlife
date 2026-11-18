@@ -220,7 +220,7 @@
           const pr = progBy.get(txt(r[iIdc]));
           if (pr) {
             if (pr.상태 === "진행") { if (base === "가망" || base === "DB") base = "진행"; else setv(C, r, iProg, "Y"); }
-            else if ((pr.상태 === "보관" || pr.상태 === "삭제") && base === "가망") { base = "진행"; setv(C, r, iEx, pr.종료일 || pr.단계일 || "보관"); }
+            else if ((pr.상태 === "보관" || pr.상태 === "삭제" || pr.상태 === "완료") && base === "가망") { base = "진행"; setv(C, r, iEx, pr.종료일 || pr.단계일 || "보관"); }
             if (pr.단계 && pr.단계 !== "고객등록" && STAGE_NEW_OLD[pr.단계] != null) setv(C, r, iBiz, STAGE_NEW_OLD[pr.단계]);
           }
           if (cls === "직접모집" && !insOnly && !txt(r[iBiz])) setv(C, r, iBiz, "계약"); // 영업단계 칩의 '계약': 옛 영업단계 칸이 없어져도 고객분류가 직접모집이면 계약으로 읽음(2026-11-17 사용자 "추천대로")
@@ -430,7 +430,7 @@
   // ---------- 다크 모드 선택 (v408, 2026-11-17 사용자 지시) ----------
   // 설정 > 화면의 [다크 모드] 체크. 고르지 않으면 폰 설정(시스템)을 따르고, 고르면 이 기기에서 그 모양으로 고정. 스타일의 '다크' 미디어 규칙을 켜고 끄는 방식이라 모든 화면에 함께 적용
   const THEME_KEY = "shlife.theme";
-  const themePref = () => { try { return localStorage.getItem(THEME_KEY) || ""; } catch (e) { return ""; } };
+  const themePref = () => { try { return localStorage.getItem(THEME_KEY) || "dark"; } catch (e) { return "dark"; } }; // v414(2026-11-18 사용자 지시): 고른 적 없으면 다크 모드가 기본
   const darkMQ = (() => { try { return matchMedia("(prefers-color-scheme: dark)"); } catch (e) { return null; } })();
   const themeIsDark = () => { const p = themePref(); return p ? p === "dark" : !!(darkMQ && darkMQ.matches); };
   const themeOrig = new WeakMap();
@@ -487,7 +487,8 @@
       <label class="d3"><span>시작 화면</span><select id="startPage" aria-label="시작 화면">${START_PAGES.map(([k, l]) => `<option value="${k}" ${cur.page === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="d3"><span>오른손 모드</span><span class="d3c"><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}> 켜기</span></label>
     </div>
-    <label class="wake-opt"><input type="checkbox" class="cb" id="darkMode" ${themeIsDark() ? "checked" : ""}> <span><b>다크 모드</b> <small>체크하면 어두운 화면, 끄면 밝은 화면(이 기기에만 저장)</small></span></label>
+    <label class="wake-opt"><input type="checkbox" class="cb" id="salesMemoOpt" ${smemoOn() ? "checked" : ""}> <span><b>영업 메모 칸</b> <small>영업 화면의 고객마다 맨 아래에 최근 메모와 입력칸(상담기록에 저장)</small></span></label>
+    <label class="wake-opt"><input type="checkbox" class="cb" id="darkMode" ${themeIsDark() ? "checked" : ""}> <span><b>다크 모드</b> <small>기본은 다크, 끄면 밝은 화면(이 기기에만 저장)</small></span></label>
     <label class="wake-opt"><input type="checkbox" class="cb" id="wakeMode" ${wakeOn() ? "checked" : ""}> <span><b>“몰리야”로 AI 부르기</b> <small>시험용 · 앱 화면이 열려 있는 동안만 마이크로 듣습니다(안드로이드 크롬). 이 기기에만 저장</small></span></label></div>`;
   };
   document.addEventListener("change", (ev) => {
@@ -4206,18 +4207,19 @@
     const grp = (t) => `<h3 class="help-grp">${t}</h3>`; // 하단 메뉴 순서대로 묶음: AI · 일정 · (고객) · 영업 · 설정/관리자
     const s_start = sec("시작 화면", ["<b>처음 보일 화면</b>: 설정 화면의 '화면' 카드 가운데 칸(시작 화면)에서 일정 · 고객(기본) · 영업 중 하나를 고르면 바로 저장되고, 다음에 앱을 열 때부터 적용됩니다. 같은 카드 왼쪽 칸은 ‘시작하면 AI 도우미 바로 열기’, 오른쪽 칸은 ‘오른손 모드’입니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '화면' 카드 왼쪽 칸을 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
     const s_ai = sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 위 말처럼 규칙으로 알아듣는 말은 이 폰 안에서만 처리하고 밖으로 보내지 않습니다. 규칙으로 못 알아들은 말만 Gemini(외부 AI)에 '무슨 뜻인지'를 묻는데, 그때 고객 이름은 [고객1] 같은 자리표시로, 주민번호·전화·계좌·이메일·주소 같은 숫자·주소는 [숫자]·[주소]로 가려서 보내고 답을 받은 뒤 앱 안에서 되돌립니다. 말만해요 설정에 Gemini 키가 없거나 연결이 안 되면 규칙만 쓰며, 확인 카드에 ‘AI가 해석’이라고 표시되고 [실행]을 눌러야 처리됩니다."]);
-    const s_task = sec("구글 할 일 (일정 화면)", ["그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
-    const s_nm = sec("일정 제목 → 고객 찾기 (2026-11-17)", ["일정 화면을 <b>좌우로 밀면</b> Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월로 넘어갑니다.", "<b>2026-11-18부터 시작하는 일정</b>은 일정 제목에 <b>‘이름 + 고객’</b>이 있을 때만(예: ‘김현성 고객 미팅’, 붙여 쓴 ‘김현성고객’ 포함) 그 이름의 기존 고객 카드가 일정에 붙습니다. 이름만 적힌 일정(예: ‘김현성 미팅’)에는 고객 카드가 붙지 않고, 등록된 고객에 없는 이름이면 아무것도 붙이지 않습니다. 같은 이름의 고객이 여럿이면 지금처럼 [선택]으로 고릅니다. 일정에서 고객을 새로 만들거나 고치지는 않습니다(한 줄 메모, 주소·미팅장소 ‘입력’ 버튼은 그대로).", "<b>2026-11-17까지의 지난 일정</b>은 예전 방식대로 제목에 고객 이름만 있어도 고객 카드가 붙습니다."]);
+    const s_task = sec("구글 할 일 (일정 화면)", ["<b>종일 일정</b> 카드에는 <b>[할 일로]</b> 버튼이 있습니다. 누르면 그 날짜가 마감인 구글 할 일(기본 목록)을 만들고 캘린더 일정은 지웁니다. 장소·메모는 할 일의 메모로 옮겨집니다. 지운 일정은 화면을 새로 고치기 전까지 [원위치]로 되살릴 수 있습니다(만든 할 일은 그대로 남음).", "그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
+    const s_nm = sec("일정 제목 → 고객 찾기 (2026-11-17)", ["일정 화면을 <b>좌우로 밀면</b> Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월로 넘어갑니다.", "일정 제목에 <b>등록된 고객 이름</b>이 있으면(‘고객’ 글자가 없어도, 날짜와 상관없이) 그 고객 카드가 일정에 붙고, 카드에서 장소 ‘입력’을 할 수 있습니다. 같은 이름의 고객이 여럿이면 [선택]으로 고르고, 상관없는 고객이면 [무시]로 숨깁니다. 등록된 고객에 없는 이름이면 아무것도 붙이지 않습니다. (2026-11-18: 하루 동안 쓰던 ‘이름 + 고객’ 규칙은 풀었습니다.)"]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드의 <b>비영업</b> 버튼을 눌러 영업일정으로 바꾼 일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
     const s_addev = sec("일정 추가 (일정 화면)", ["일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). <b>초기화</b> 버튼(추가의 왼쪽)은 그날 영업일정을 모두 비영업일정으로 바꾸고, 동명이인 지정·고객 정보로 넣은 일정 장소도 되돌립니다(영업일정이나 처리한 일정이 있는 날에만 보임). 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
     const s_sub = sec("영업 서브메뉴", ["영업 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>자료</b>를 눌러 바꿉니다. <b>자료</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 따행/이관/DB(여러 개 선택) · 보관 포함 · 년월을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘영업 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘영업 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 자료는 영업에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
     const s_stage = sec("영업단계 칩 (이관 · DB)", ["이관·DB 목록의 고객 줄 오른쪽에 <b>통화 · AP · PC · 계약</b> 칩이 있고, 그 고객의 지금 영업단계인 칩만 색이 들어옵니다. 칩을 누르면 고객 시트의 ‘영업단계’ 칸에 누른 칩의 글자가 저장됩니다(칸이 없으면 새로 만듭니다). 이미 색이 켜진 칩을 다시 누르면 ‘고객의 영업상태를 제거하시겠습니까?’ 확인 뒤 빈칸이 됩니다."]);
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
-    const s_wake = sec("“몰리야”로 AI 부르기 (시험용)", ["오른쪽 아래에 떠 있는 <b>몰리(두더지) 선 그림 버튼</b>을 누르면 AI 창이 열립니다(아래 메뉴 맨 왼쪽 AI 버튼과 같음). 반투명이라 밑의 내용이 비쳐 보입니다. 말만해요 안에서는 그 자리를 비워 두므로 나오지 않습니다.", "설정 > 화면의 <b>“몰리야”로 AI 부르기</b>를 켜면, 이 기기에서 앱 화면이 열려 있는 동안 마이크로 듣다가 <b>‘몰리야’</b>라고 부르면 AI 창이 뜹니다. ‘몰리야 내일 일정 알려줘’처럼 이어 말하면 그 말이 바로 AI에 들어가고, 이름만 부르면 AI 창의 마이크가 켜집니다.", "듣는 동안 화면 위에 작은 <b>‘몰리 듣는 중’</b> 표시가 나오고, 누르면 바로 꺼집니다. 화면이 꺼지거나 다른 앱으로 가면 듣지 않고, AI 창이나 다른 음성 입력을 쓰는 동안에도 멈춥니다. 안드로이드 크롬에서만 되며(아이폰 사파리는 거의 안 됨), 음성은 크롬이 구글 서버로 보내 글자로 바꿉니다. 상담 중에는 꺼 두세요. 설정은 이 기기에만 저장됩니다."]);
-    const s_theme = sec("다크 모드", ["설정 > 화면의 <b>다크 모드</b>를 체크하면 어두운 화면, 끄면 밝은 화면으로 이 기기에서 고정됩니다. 한 번도 고르지 않았으면 폰 설정(시스템)을 따릅니다."]);
+    const s_wake = sec("“몰리야”로 AI 부르기 (시험용)", ["오른쪽 아래에 떠 있는 <b>몰리(두더지) 선 그림 버튼</b>을 누르면 AI 창이 열립니다(아래 메뉴 맨 왼쪽 AI 버튼과 같음). 반투명이라 밑의 내용이 비쳐 보입니다. 누르면 AI 창이 열리면서 <b>바로 듣기(마이크)</b>가 켜져 말하면 됩니다. 버튼을 <b>꾹 눌러 끌면</b> 원하는 자리로 옮겨지고, 그 자리는 이 기기에 기억됩니다. 말만해요 안에서는 그 자리를 비워 두므로 나오지 않습니다.", "설정 > 화면의 <b>“몰리야”로 AI 부르기</b>를 켜면, 이 기기에서 앱 화면이 열려 있는 동안 마이크로 듣다가 <b>‘몰리야’</b>라고 부르면 AI 창이 뜹니다. ‘몰리야 내일 일정 알려줘’처럼 이어 말하면 그 말이 바로 AI에 들어가고, 이름만 부르면 AI 창의 마이크가 켜집니다.", "듣는 동안 화면 위에 작은 <b>‘몰리 듣는 중’</b> 표시가 나오고, 누르면 바로 꺼집니다. 화면이 꺼지거나 다른 앱으로 가면 듣지 않고, AI 창이나 다른 음성 입력을 쓰는 동안에도 멈춥니다. 안드로이드 크롬에서만 되며(아이폰 사파리는 거의 안 됨), 음성은 크롬이 구글 서버로 보내 글자로 바꿉니다. 상담 중에는 꺼 두세요. 설정은 이 기기에만 저장됩니다."]);
+    const s_theme = sec("다크 모드", ["설정 > 화면의 <b>다크 모드</b>를 체크하면 어두운 화면, 끄면 밝은 화면으로 이 기기에서 고정됩니다. 한 번도 고르지 않았으면 <b>다크 모드가 기본</b>입니다(2026-11-18부터)."]);
     const s_dsh = sec("대시보드 (2026-11-17)", ["아래 메뉴 <b>AI 오른쪽 [대시보드]</b>입니다. 위 오른쪽에서 보는 범위(FC)를 고릅니다(기본은 본인, 내 권한으로 보이는 FC만).", "<b>숫자 카드</b>: 이달 목표 착수(목표 중 단계가 시작된 건 / 전체), 6개월 평균 업적(월초보험료, 업적 자료 기준), 최근 수수료(가장 최근 달 실지급), 계약진행 인원. 업적·수수료 카드는 민감정보 허용 계정이 그 자료를 읽을 수 있을 때만 보입니다.", "<b>이달목표 막대</b>: 이관·DB는 통화·AP·PC·계약·미착수, 따행은 방문완료·설문발송·설문응답·쿠폰발송·미방문, 계약진행은 고객등록·전화·AP·PC·계약별 건수입니다. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다. 맨 아래는 <b>소개 랭킹</b> 상위 3명입니다."]);
     const s_in = sec("소개 (2026-11-17)", ["<b>고객 정보 > 수정</b>의 <b>소개</b>: <b>소개 · 아님 · 모름</b> 중 고르고, <b>소개</b>이면 소개자 이름을 적습니다. 같은 FC의 등록 고객 후보(이름·출생 두 자리·유입경로)가 나오고, 고르면 <b>등록 고객과 연결</b>(소개고객ID 저장), 고르지 않거나 후보에 없으면 <b>이름만 남기기</b>(소개자명 저장)입니다. 다시 누르면 풀리고 이름을 비우면 지워집니다. 소개만 고치면 ‘직접 수정’ 표시는 붙지 않습니다.", "<b>소개자 트로피</b>: 소개해 준 고객 이름 앞에 1~2명 동, 3~4명 은, 5명 이상 금 트로피가 붙습니다(소개고객ID를 세어 계산, 고객 정보 머리·고객 검색 결과·소개찾기에 나옵니다).", "<b>소개찾기</b>(고객 화면 GBS 옆 버튼): 등록 고객 전부를 대상으로 ‘등록고객 N명 중 M명 확인’을 보여 줍니다. <b>소개고객부터</b>는 고객마다 [소개자 찾기](창에서 이름 검색 → 고객 고르기 · 이미 적힌 이름 · 이름만 · 소개 아님 · 모름), <b>소개자부터</b>는 소개자를 먼저 고른 뒤 그분이 소개한 고객을 체크해 한 번에 연결, <b>랭킹</b>은 소개한 수 순서로 보여 주며 고객이 아닌 소개자는 ‘미등록’으로 묶고 [고객으로 연결]로 한 번에 고객ID에 이어 줍니다. 묶음 <b>지역·성별·직업·직장·유입 시기·가족(같은 주소)·유입경로</b>를 겹쳐 눌러 같은 사람끼리 묶어 볼 수 있고, ‘확인한 고객도 보기’를 켜면 이미 확인한 고객도 나옵니다.", "<b>새 고객 확인</b>: 지난번 접속 뒤 입력된 내 FC 고객이 있으면 로그인 때 소개찾기 화면이 먼저 뜹니다. 고객마다 [소개자 찾기], 모두 끝내려면 <b>나머지는 소개 없음</b>, 미루려면 <b>나중에</b>(다음 접속 때 다시 뜹니다). 처음 접속한 기기는 기준 시각만 기록하고 묻지 않습니다(기존 고객은 소개찾기에서 점검)."]);
-    const s_pg = sec("영업 > 계약진행 (2026-11-17)", ["영업 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
+    const s_smemo = sec("영업 메모 칸 (2026-11-18)", ["설정 > 화면의 <b>영업 메모 칸</b>을 켜면 영업 화면(이달목표의 이관·따행·DB, 계약진행)의 고객마다 맨 아래에 <b>가장 최근 메모</b>와 <b>한 줄 입력칸</b>이 나옵니다. 메모가 여러 개면 최근 메모를 누르면 이전 메모(5개까지)가 펼쳐집니다.", "적고 [저장](또는 키보드 완료)을 누르면 일정 화면의 한 줄 메모처럼 <b>상담기록</b>에 저장되어 고객 정보 > 상담 탭에서도 보입니다. 켜고 끈 설정은 내 설정 파일(드라이브)에 저장되어 다른 기기에서도 같습니다."]);
+    const s_pg = sec("영업 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "영업 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
     const s_login = sec("로그인 (공통 로그인)", ["한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
@@ -4233,7 +4235,7 @@
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>[조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 영업 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 영업 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: ‘FC 사용 설정’ 제목 옆 [조직도]를 누르면 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/영업 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, grp("검색"), s_srch, grp("고객 정보"), s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, grp("검색"), s_srch, grp("고객 정보"), s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
@@ -4681,7 +4683,7 @@
   // 일정 제목에 '이름 + 고객'(예: "김현성 고객 미팅", 붙여 쓴 "김현성고객" 포함)이 있을 때만 그 이름의 기존 고객을 찾는다(v403, 2026-11-17 확정안 2절). 목록에 없으면 아무것도 붙이지 않고, 이름만 적힌 일정에는 고객 카드가 붙지 않는다. 같은 이름이 여러 명이면 모두(최근 등록 순) → 일정 카드의 [선택]
   const NAME_RULE_FROM = new Date(2026, 10, 18); // v406(2026-11-17 사용자 "지난 일정 유지"): 이 날(2026-11-18)부터 시작하는 일정만 '이름 + 고객' 규칙. 그 전 일정은 예전처럼 이름만 있어도 찾음
   function matchCustomers(title, records, contracts, start) {
-    const nt = norm(title), strict = !start || +start >= +NAME_RULE_FROM;
+    const nt = norm(title), strict = false; // v410: 11-18부터의 '이름+고객' 규칙을 풀고 예전처럼 이름만으로 찾음 (NAME_RULE_FROM은 기록용)
     const fcs = new Set(records.map((r) => norm(r.fc)).filter(Boolean));
     const names = [...new Set(records.map((r) => baseName(r.name)))].filter((n) => norm(n).length >= 2 && nt.includes(norm(n) + (strict ? "고객" : "")));
     if (!names.length) return [];
@@ -4787,7 +4789,7 @@
   function scheduleShell() {
     return `<div class="sched-top"><div class="sched-modes">${[["day", "Today"], ["week", "Week"], ["month", "Month"]].map(([m, l]) =>
       `<button type="button" data-sm="${m}" class="${schedMode === m ? "on" : ""}">${l}</button>`).join("")}</div></div>
-      <div class="sched-nav"><span class="sched-rt"><span class="sched-seg"><button type="button" class="link-btn" id="pickReset" hidden>초기화</button><button type="button" class="link-btn" id="schedAdd" aria-label="일정 추가" title="일정 추가">추가</button></span></span><button type="button" id="schedPrev" aria-label="이전"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <div class="sched-nav"><span class="sched-rt"><span class="sched-seg"><button type="button" class="link-btn" id="pickReset">초기화</button><button type="button" class="link-btn" id="schedAdd" aria-label="일정 추가" title="일정 추가">추가</button></span></span><button type="button" id="schedPrev" aria-label="이전"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
         <button type="button" id="schedLabel" class="sched-label"></button>
         <button type="button" id="schedNext" aria-label="다음"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button></div>
       <div id="schedAddBox" hidden></div>
@@ -4842,7 +4844,7 @@
   async function renderSchedule() {
     const req = ++schedReq;
     notifyWhereNow(); // 날짜를 넘기면 말만해요에 보고 있는 날짜를 알림
-    { const pr0 = $("pickReset"); if (pr0) pr0.hidden = true; }
+    { const pr0 = $("pickReset"); if (pr0) { pr0.hidden = false; pr0.dataset.done = ""; pr0.onclick = () => toast("이 날은 초기화할 내용이 없습니다."); } } // v409: 초기화 버튼은 항상 보임
     schedHold = Infinity; // 그리는 동안은 스크롤 위치를 저장하지 않음 (다 그린 뒤 schedApplyResume이 풀어 줌)
     const body = $("schedBody");
     let from, to, label;
@@ -4940,7 +4942,7 @@
     } catch (er) { console.warn("sales mark saved on this device only", er.message); return false; } // 수정 권한이 없는 캘린더 등: 이 기기에만
   }
   const isTeamEvent = (e) => salesOf(e); // 거리·예상 시간 (영업일정만)
-  const isInfoEvent = (e) => !e.allDay && (schedInfoIds.has(e.cal.id) || schedSalesIds.has(e.cal.id)); // 고객 정보
+  const isInfoEvent = (e) => schedInfoIds.has(e.cal.id) || schedSalesIds.has(e.cal.id); // 고객 정보 (v410: 종일 일정도 고객 찾기)
 
   // 동명이인 확인: 일정에 주소를 입력한 고객으로 지정 (이 기기에 저장, '초기화'로 지움)
   const PICK_KEY = "shlife.eventPick";
@@ -5175,6 +5177,7 @@
     // 초기화: 동명이인 지정을 지우고, 고객 주소·미팅장소로 '입력'해 둔 일정 장소도 지움
     let dayItems = [];
     pr.onclick = async () => {
+      if (!pr.dataset.done) return toast("이 날은 초기화할 내용이 없습니다.");
       const filled = dayItems.filter((it) => it.e.location && it.all.some((c) =>
         [currentValue(c, ["주소"]), meetingOf(c)].map((v) => String(v || "").trim()).filter(Boolean).includes(it.e.location.trim())));
       const pinned = dayItems.filter((it) => it.e.pick);
@@ -5222,7 +5225,7 @@
     dayItems = items;
     { // 처리한 일이 하나라도 있으면 복귀 버튼 표시
       const done = items.some((it) => salesOf(it.e) || it.pinned || it.ignored || (it.e.location && it.all.some((c) => [currentValue(c, ["주소"]), meetingOf(c)].map((v) => String(v || "").trim()).filter(Boolean).includes(it.e.location.trim()))));
-      if (pr) pr.hidden = !done;
+      if (pr) { pr.hidden = false; pr.dataset.done = done ? "1" : ""; } // v409: 항상 보이고, 처리한 일이 없으면 눌러도 안내만
     }
     items.forEach((it) => { it.cust = it.custs[0] || null; });
     const list = $("dayList");
@@ -5392,7 +5395,7 @@
   function dayCardHtml(it, i) {
     const e = it.e;
     return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head"><span class="ev-time">${esc(timeText(e))}</span></div>
-        ${e.allDay ? "" : salesOf(e) ? '<button type="button" class="ev-edit ev-sales" data-evunsales title="누르면 비영업일정으로 바꿉니다">영업</button>' : `<button type="button" class="ev-edit ev-confirm" data-evconfirm="${i}" title="누르면 영업일정으로 바꿉니다">비영업</button>`}<button type="button" class="ev-edit" data-evedit="${i}">수정</button><button type="button" class="ev-edit ev-del" data-evdel="${i}">삭제</button>
+        ${e.allDay ? `<button type="button" class="ev-edit ev-totask" data-evtask="${i}" title="이 종일 일정을 구글 할 일로 옮깁니다">할 일로</button>` : salesOf(e) ? '<button type="button" class="ev-edit ev-sales" data-evunsales title="누르면 비영업일정으로 바꿉니다">영업</button>' : `<button type="button" class="ev-edit ev-confirm" data-evconfirm="${i}" title="누르면 영업일정으로 바꿉니다">비영업</button>`}<button type="button" class="ev-edit" data-evedit="${i}">수정</button><button type="button" class="ev-edit ev-del" data-evdel="${i}">삭제</button>
         <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
       <div class="ev-line2"><span class="ev-title-l"><span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}${e.author ? " · 작성 " + esc(e.author) : ""}</span></span>${it.all.length ? (it.ignored
         ? `<button type="button" class="ev-edit" data-unignore="${i}">되돌리기</button>`
@@ -5440,6 +5443,35 @@
     if (us) us.addEventListener("click", async () => { us.disabled = true; us.textContent = "저장 중"; await setSalesMark(it.e, "0"); renderSchedule(); }); // 다시 비영업일정으로
     card.querySelector("[data-evedit]").addEventListener("click", () => toggleEventForm(it, i));
     card.querySelector("[data-evdel]").addEventListener("click", (ev) => deleteEvent(it, ev.currentTarget));
+    const tk = card.querySelector("[data-evtask]");
+    if (tk) tk.addEventListener("click", () => eventToTask(it, tk));
+  }
+  // v412(2026-11-18 사용자 지시): 종일 일정 → 구글 할 일. 그 날짜가 마감인 할 일(기본 목록)을 만들고, 만들어지면 캘린더 일정은 지움
+  // (지운 일정은 카드의 '원위치'로 되살릴 수 있음 — 새로 고치기 전까지. 만든 할 일은 화면 위 할 일 카드에서 지우거나 완료)
+  async function eventToTask(it, btn) {
+    const e = it.e, card = btn.closest(".ev-card");
+    if (!e.allDay) return;
+    if (!confirm(`'${e.title}' 종일 일정을 구글 할 일로 옮길까요?` + String.fromCharCode(10) + `${ymdStr(e.start)} 마감인 할 일을 만들고, 이 일정은 캘린더에서 지웁니다.`)) return;
+    btn.disabled = true; btn.textContent = "옮기는 중";
+    let made = false;
+    try {
+      if (!storedTasksToken()) await requestTasksToken(""); // 할 일 연결이 안 돼 있으면 한 번 연결
+      const notes = [e.location ? "장소: " + e.location : "", e.desc ? e.desc.replace(/<[^>]+>/g, " ").trim() : "", `(캘린더 '${e.cal.name}' 종일 일정에서 옮김)`].filter(Boolean).join("\n");
+      await gtasks("/lists/%40default/tasks", { method: "POST", body: JSON.stringify({ title: e.title, notes, due: ymdStr(e.start) + "T00:00:00.000Z" }) });
+      made = true;
+      await ensureGWrite();
+      await gcalDelete(e.calId, e.eventId);
+      if (card) card.classList.add("deleted");
+      btn.textContent = "할 일로 옮김";
+      const db = card && card.querySelector("[data-evdel]"); if (db) { db.dataset.restore = "1"; db.textContent = "원위치"; } // 일정만 되살리기(할 일은 그대로)
+      toast("할 일로 옮겼습니다. 일정은 '원위치'로 되살릴 수 있습니다.");
+      const tb = $("taskBox"); if (tb && schedDate) loadDayTasks(tb, schedDate, schedReq); // 위쪽 할 일 카드 새로
+    } catch (err) {
+      btn.disabled = false; btn.textContent = "할 일로";
+      const m = err.message === "TASKS_AUTH" ? "할 일 연결이 필요합니다. 다시 눌러 주세요." : err.message === "TASKS_API_OFF" ? "구글 할 일(Tasks) 기능이 꺼져 있어 만들 수 없습니다." : err.message === "GOOGLE_AUTH" ? "구글 연결이 끊겼습니다. 다시 눌러 주세요." : err.message;
+      toast(made ? "할 일은 만들었지만 일정을 지우지 못했습니다: " + m : m);
+      if (made) { btn.disabled = true; btn.textContent = "할 일 만듦"; }
+    }
   }
   function fillCust(it, c, i, j) {
     const x = c.extra || {};
@@ -5855,9 +5887,38 @@
   if (!EMBED) {
     const fab = document.createElement("button");
     fab.type = "button"; fab.id = "aiFab"; fab.className = "ai-fab"; fab.setAttribute("aria-label", "AI 도우미 열기(몰리)");
-    fab.innerHTML = `<svg viewBox="0 0 48 48" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="14" cy="14" r="4.2"/><circle cx="34" cy="14" r="4.2"/><path d="M10.6 22.5a13.4 13.4 0 1 0 26.8 0c0-2.6-.8-5-2.1-7.1M12.7 15.4a13.3 13.3 0 0 0-2.1 7.1"/><path d="M15.2 15.6A13.3 13.3 0 0 1 32.8 15.6"/><circle cx="19" cy="23" r="1.3" fill="currentColor" stroke="none"/><circle cx="29" cy="23" r="1.3" fill="currentColor" stroke="none"/><ellipse cx="24" cy="28.6" rx="4.4" ry="3.1"/><path d="M22.6 32.1v2.6M25.4 32.1v2.6"/><path d="M8 27.5l-4.5-.8M8.4 30.4l-4.2 1M40 27.5l4.5-.8M39.6 30.4l4.2 1"/></svg>`;
-    fab.addEventListener("click", () => { if (typeof aiOpen === "function") aiOpen(); });
+    fab.innerHTML = `<svg viewBox="0 0 48 48" width="38" height="38" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 42V25C13 15.5 17.8 10.2 24.6 10.2S36.4 15.5 36.4 25V42"/><path d="M10.5 42h28.4"/><path d="M18.6 11.6C19 7.6 30.2 7.4 30.6 11.4"/><circle cx="24.6" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="21" cy="19.4" r="1.25" fill="currentColor" stroke="none"/><circle cx="28.4" cy="19.4" r="1.25" fill="currentColor" stroke="none"/><ellipse cx="24.7" cy="24" rx="3.9" ry="2.8"/><ellipse cx="24.7" cy="22.9" rx="1.3" ry=".9" fill="currentColor" stroke="none"/><path d="M13 29.5C9.2 27.6 7 23.6 7.4 19.6c.3-2 2.6-2 3 0 .5 2.6 1.4 4.6 2.6 5.6"/><path d="M36.4 28.5c2.2 1.2 2.6 4 .4 5.6"/></svg>`;
+    // v410(2026-11-18 사용자 지시): 버튼을 꾹 끌어 원하는 자리로 옮기면 그 자리를 이 기기에 기억(화면 크기 비율로 저장해 가로·세로가 바뀌어도 화면 안에 둠)
+    const FAB_KEY = "shlife.fabPos";
+    const fabLoad = () => { try { const o = JSON.parse(localStorage.getItem(FAB_KEY) || "null"); return o && isFinite(o.x) && isFinite(o.y) ? o : null; } catch (e) { return null; } };
+    const fabPlace = (o) => {
+      if (!o) { fab.style.left = fab.style.top = fab.style.right = fab.style.bottom = ""; return; }
+      const w = fab.offsetWidth || 56, h = fab.offsetHeight || 56, W = innerWidth, H = innerHeight;
+      fab.style.left = Math.max(4, Math.min(W - w - 4, o.x * W)) + "px";
+      fab.style.top = Math.max(4, Math.min(H - h - 4, o.y * H)) + "px";
+      fab.style.right = fab.style.bottom = "auto";
+    };
+    let drag = null, dragged = false;
+    fab.addEventListener("pointerdown", (e) => { const r = fab.getBoundingClientRect(); drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, ox: r.left, oy: r.top }; dragged = false; });
+    fab.addEventListener("pointermove", (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+      if (!dragged && Math.hypot(dx, dy) < 8) return;
+      if (!dragged) { dragged = true; try { fab.setPointerCapture(e.pointerId); } catch (x) { /* 무시 */ } fab.classList.add("dragging"); }
+      fabPlace({ x: (drag.ox + dx) / innerWidth, y: (drag.oy + dy) / innerHeight });
+    });
+    const fabEnd = () => {
+      if (!drag) return; drag = null; fab.classList.remove("dragging");
+      if (!dragged) return;
+      const r = fab.getBoundingClientRect(), o = { x: r.left / innerWidth, y: r.top / innerHeight };
+      try { localStorage.setItem(FAB_KEY, JSON.stringify(o)); } catch (e) { /* 이번에만 그 자리 */ }
+    };
+    fab.addEventListener("pointerup", fabEnd); fab.addEventListener("pointercancel", fabEnd);
+    fab.addEventListener("click", (e) => { if (dragged) { dragged = false; e.preventDefault(); return; } if (typeof aiOpen !== "function") return; wakeStop(); aiOpen(); setTimeout(() => { const b = $("aiMic"); if (b && aiIsOpen && !micRec) b.click(); }, 350); }); // v413(2026-11-18 사용자 지시): 누르면 AI 창을 열고 바로 듣기(마이크) 시작
+    fab.addEventListener("dblclick", (e) => e.preventDefault());
     document.body.appendChild(fab);
+    fabPlace(fabLoad());
+    window.addEventListener("resize", () => fabPlace(fabLoad()));
   }
   // ---------- “몰리야”로 AI 부르기 (v407 시험용, 2026-11-17 사용자 지시) ----------
   // 설정에서 켠 기기에서만, 앱 화면이 앞에 있고 AI 창·다른 음성 입력이 쓰이지 않을 때 브라우저 음성 인식으로 계속 듣다가 '몰리야'가 들리면 AI 창을 띄움.
@@ -6534,7 +6595,8 @@
     return progCache;
   }
   const PG_STAGES = [["고객등록", "new"], ["전화", "send"], ["AP", "resp"], ["PC", "cpn"], ["계약", "done"]];
-  const PG_VIEWS = ["진행", "보관", "삭제", "완료"];
+  const PG_VIEWS = ["진행", "보관", "완료"]; // v411(2026-11-18 사용자 지시): '삭제'를 '완료'로 합침 — 예전에 삭제로 둔 줄(상태=삭제)도 완료에 보임
+  const pgView = (r) => (r.status === "삭제" ? "완료" : r.status);
   function progRows(data, fc) {
     const out = [];
     ((data.prog && data.prog.rows) || []).forEach((p) => {
@@ -6548,25 +6610,77 @@
     out.sort((a, b) => dateKey(b.start || "0").localeCompare(dateKey(a.start || "0")) || a.name.localeCompare(b.name, "ko")); // 시작일 최신 먼저(시작일 모르는 줄은 아래), 같은 날은 이름순
     return out;
   }
+  // ---------- 영업 고객별 메모 칸 (v411, 2026-11-18 사용자 지시) ----------
+  // 설정 > 화면의 [영업 메모 칸]을 켜면 영업(이달목표·계약진행)의 고객마다 맨 아래에 최근 메모(상담기록)와 한 줄 입력칸이 나옴.
+  // 저장하면 일정 화면의 한 줄 메모처럼 고객추가정보의 '상담기록'에 들어가 고객 정보 > 상담 탭에서도 보임. 켜고 끔은 내 설정 파일(드라이브)에 저장
+  const smemoOn = () => !!(myPrefs && myPrefs.salesMemo);
+  const SMEMO = { x: null, at: 0, map: new Map() };
+  async function smemoPrep() { // 영업 화면을 그리기 전에 상담기록 파일을 한 번 읽어 둠(1분 안에는 다시 읽지 않음)
+    if (!smemoOn()) return;
+    if (SMEMO.x && Date.now() - SMEMO.at < 60000) return;
+    try { SMEMO.x = await readExtra(); } catch (e) { SMEMO.x = null; }
+    SMEMO.at = Date.now(); SMEMO.map = new Map();
+  }
+  const smemoFc = (custId, fb) => { const ents = (SALES.data && SALES.data.custById && SALES.data.custById.get(custId)) || []; return (ents.length && memoFcOf({ entries: ents })) || fb || ""; };
+  function smemoList(fc, name) {
+    const k = fc + "|" + name;
+    if (!SMEMO.map.has(k)) SMEMO.map.set(k, SMEMO.x ? readConsults(SMEMO.x.wb, fc, name) : []);
+    return SMEMO.map.get(k);
+  }
+  function smemoHtml(name, fc, ro) {
+    if (!smemoOn() || !name) return "";
+    const list = smemoList(fc, name), last = list[0];
+    const md = (d) => esc(String(d || "").slice(5, 10));
+    const view = last ? (list.length > 1
+      ? `<details class="sm-hist"><summary><span class="sm-d">${md(last.date)}</span>${esc(last.text)}</summary>${list.slice(1, 6).map((r) => `<div><span class="sm-d">${md(r.date)}</span>${esc(r.text)}</div>`).join("")}</details>`
+      : `<div class="sm-last"><span class="sm-d">${md(last.date)}</span>${esc(last.text)}</div>`) : "";
+    const inp = ro ? "" : `<div class="sm-in"><input type="text" maxlength="200" placeholder="메모 (상담기록에 저장)" autocomplete="off" enterkeyhint="done" data-smin aria-label="${esc(name)} 메모"><button type="button" class="sm-save" data-smsave="${esc(name)}" data-smfc="${esc(fc)}" disabled>저장</button></div>`;
+    return view || inp ? `<div class="sline smemo">${view}${inp}</div>` : "";
+  }
+  async function smemoSave(btn) {
+    const box = btn.closest(".smemo"), inp = box && box.querySelector("[data-smin]");
+    const text = inp ? inp.value.trim() : "", name = btn.dataset.smsave, fc = btn.dataset.smfc;
+    if (!text || !name) return;
+    if (isRO(fc)) return toast("보기 전용 권한이라 저장할 수 없습니다.");
+    btn.disabled = true; btn.textContent = "저장 중"; inp.disabled = true;
+    try {
+      const list = await saveConsults(fc, name, [{ text, when: new Date() }], []);
+      SMEMO.map.set(fc + "|" + name, list); SMEMO.at = 0; // 다음에 그릴 때 파일을 새로 읽음
+      inp.value = "";
+      toast("상담기록에 저장했습니다.");
+      renderSales(true);
+    } catch (e) { btn.disabled = false; btn.textContent = "저장"; inp.disabled = false; saveError(e); }
+  }
+  document.addEventListener("input", (ev) => { const m = ev.target.closest && ev.target.closest("#salesView [data-smin]"); if (!m) return; const b = m.parentElement.querySelector("[data-smsave]"); if (b && b.textContent === "저장") b.disabled = !m.value.trim(); });
+  document.addEventListener("keydown", (ev) => { const m = ev.target.closest && ev.target.closest("#salesView [data-smin]"); if (m && ev.key === "Enter" && !ev.isComposing) { ev.preventDefault(); const b = m.parentElement.querySelector("[data-smsave]"); if (b && !b.disabled) b.click(); } });
+  document.addEventListener("click", (ev) => { const b = ev.target.closest && ev.target.closest("#salesView [data-smsave]"); if (b && !b.disabled) smemoSave(b); });
+  document.addEventListener("change", async (ev) => {
+    if (!ev.target || ev.target.id !== "salesMemoOpt") return;
+    const on = ev.target.checked, cb = ev.target;
+    cb.disabled = true;
+    try { const p = { ...(await loadMyPrefs()) }; p.salesMemo = on; await saveMyPrefs(p); SMEMO.at = 0; toast(on ? "영업 화면에 고객별 메모 칸을 보입니다." : "영업 화면의 메모 칸을 숨겼습니다."); }
+    catch (e) { cb.checked = !on; handleError(e); }
+    finally { cb.disabled = false; }
+  });
   function progRowsHtml(rows, view) {
     const mdd = (v) => (v ? esc(String(v).slice(5, 10)) : "");
     return `<div class="slist">` + rows.map((r, i) => {
       const ro = isRO(r.fc), idx = PG_STAGES.findIndex(([lab]) => lab === r.stage);
       const steps = PG_STAGES.map(([lab, cls], k) => `<button type="button" class="dc ${cls} ${k === idx ? "on" : k < idx ? "off past" : "off"}${ro ? " lock" : ""}" data-pgs="${esc(r.pid)}" data-v="${lab}" aria-pressed="${k === idx ? "true" : "false"}">${lab}</button>`).join("");
       const sep = `<i class="ar-sep" aria-hidden="true"></i>`;
-      const acts = ro ? "" : view === "진행" || view === "완료" ? `${sep}<button type="button" class="ar-btn" data-pgst="${esc(r.pid)}" data-to="보관">보관으로</button>`
-        : view === "보관" ? `${sep}<button type="button" class="ar-btn back" data-pgst="${esc(r.pid)}" data-to="진행">진행으로</button><button type="button" class="ar-btn del" data-pgst="${esc(r.pid)}" data-to="삭제">삭제로</button>`
+      const acts = ro ? "" : view === "진행" ? `${sep}<button type="button" class="ar-btn" data-pgst="${esc(r.pid)}" data-to="보관">보관으로</button>`
+        : view === "보관" ? `${sep}<button type="button" class="ar-btn back" data-pgst="${esc(r.pid)}" data-to="진행">진행으로</button><button type="button" class="ar-btn" data-pgst="${esc(r.pid)}" data-to="완료">완료로</button>`
           : `${sep}<button type="button" class="ar-btn back" data-pgst="${esc(r.pid)}" data-to="진행">진행으로</button><button type="button" class="ar-btn" data-pgst="${esc(r.pid)}" data-to="보관">보관으로</button>`;
       const meta = [r.start ? `시작 ${mdd(r.start)}` : "시작일 모름", r.stageDay ? `단계 ${mdd(r.stageDay)}` : "", r.end && view !== "진행" ? `${view} ${mdd(r.end)}` : "", r.from ? `출발 ${esc(r.from)}` : ""].filter(Boolean).join(" · ");
       return `<div class="srow prow"><div class="sline l1"><span class="no">${i + 1}</span><span class="nmw n50 ${gradeClass(gradeOf({ entries: r.ents })) || "grade-good"}">${r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.name)}</a>` : esc(r.name)}${r.route ? ` <small class="ins">${esc(r.route)}</small>` : ""}</span><span class="rt">${acts}</span></div>
         <div class="sline prow-steps">${steps}</div>
-        <div class="sline l3"><span class="si">${meta}</span>${r.prod ? `<span class="si pd">${esc(r.prod)}</span>` : ""}</div></div>`;
+        <div class="sline l3"><span class="si">${meta}</span>${r.prod ? `<span class="si pd">${esc(r.prod)}</span>` : ""}</div>${smemoHtml(r.name, smemoFc(r.custId, r.fc), ro)}</div>`;
     }).join("") + `</div>`;
   }
   function renderProgPage(box, data, fcSel, userHtml, fcHtml) {
     const all = progRows(data, fcSel), view = SALES.pgv && PG_VIEWS.includes(SALES.pgv) ? SALES.pgv : "진행";
-    const cnt = Object.fromEntries(PG_VIEWS.map((v) => [v, all.filter((r) => r.status === v).length]));
-    const rows = all.filter((r) => r.status === view);
+    const cnt = Object.fromEntries(PG_VIEWS.map((v) => [v, all.filter((r) => pgView(r) === v).length]));
+    const rows = all.filter((r) => pgView(r) === view);
     const bar = `<span class="prog-bar" role="group" aria-label="계약진행 보기">${PG_VIEWS.map((v) => `<button type="button" data-pgv="${v}" class="${v === view ? "on" : ""}">${v} ${cnt[v]}</button>`).join("")}</span>`;
     box.innerHTML = `<div class="sales-top"><div class="sline2 sl3${userHtml || fcHtml ? "" : " center"}"><div class="ymnav"><b>계약진행</b></div><span class="sl-rt">${userHtml}${fcHtml}</span></div></div>
       <div id="salesBody"><div class="sales-info"><span>${rows.length}명</span>${bar}</div>` +
@@ -6593,7 +6707,6 @@
       if (to === "계약") { nx.상태 = "완료"; nx.종료일 = today; } else if (nx.상태 === "완료") { nx.상태 = "진행"; nx.종료일 = ""; }
     } else {
       if ((p["상태"] || "진행") === to) return;
-      if (to === "삭제" && !confirm(`${row.name} 고객의 이 계약진행을 삭제할까요?\n목록에서 안 보이게 되고(자료는 지워지지 않아요), 삭제 칩에서 다시 볼 수 있어요.`)) return;
       nx.상태 = to; nx.종료일 = to === "진행" ? "" : today; result = to === "진행" ? "원복" : to; msg = `${row.name} 고객을 ${to === "진행" ? "진행으로 되돌렸습니다" : to + "(으)로 옮겼습니다"}`;
     }
     const prev = pgApply(row, nx, result);
@@ -6977,7 +7090,7 @@
         <div class="sline l2">${it("", r.cdLabel || "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span></div>
         <div class="sline l3">${it("", "직업", esc(r.job))}${it("", "모집", esc(r.recFc))}${arHtml}</div>
         <div class="sline l4">${it("ad", "", esc(r.addr))}</div>
-        ${times ? `<div class="sline sub ok">${times}</div>` : ""}${detail}</div>`;
+        ${times ? `<div class="sline sub ok">${times}</div>` : ""}${detail}${r.ref || !r.custId ? "" : smemoHtml(r.holder, smemoFc(r.custId, r.fc || r.srcFc), isRO(r.fc || r.srcFc))}</div>`;
     }).join("") + `</div>`;
   }
   // ---- 영업단계 칩(이관 목록): 통화 · AP · PC · 계약. 지금 값인 칩만 색이 들어오고, 누르면 그 고객의 '영업단계' 칸에 칩 글자를 저장 ----
@@ -7501,6 +7614,7 @@
       if (req !== salesReq) return;
       await loadMyPrefs().catch(() => {});
       await refreshSalesExtra();
+      await smemoPrep(); // v411: 메모 칸을 켠 경우만 상담기록 파일을 읽음
       // v394(2026-11-17, 확정안 5-3·5-4): 이관상태·따행상태 칸이 있는 파일은 '목표' 상태 기준 목록(달 이동 없음, 이번 달 것이 위·지난 목표가 아래)
       { const hasTrState = data.contracts.some((c) => c.row && "이관상태" in c.row), hasFoState = (data.follow ? data.follow.rows : []).some((f) => "따행상태" in f);
         SALES.stateTab = (SALES.tab === "transfer" && hasTrState) || (SALES.tab === "dda" && hasFoState);
@@ -7827,7 +7941,7 @@
       return;
     }
     const fold = ev.target.closest(".srow.fold");
-    if (fold && !ev.target.closest("a, button, input, label, .sbtns, .sline.l1")) { // 칩이 있는 이름 줄은 접힘/펼침 제외 // 따행 행 접힘/펼침 (전화·문자 버튼과 이름 링크는 제외)
+    if (fold && !ev.target.closest("a, button, input, label, .sbtns, .sline.l1, .smemo")) { // 칩이 있는 이름 줄은 접힘/펼침 제외 // 따행 행 접힘/펼침 (전화·문자 버튼과 이름 링크는 제외)
       const k = fold.dataset.fold, on = fold.classList.toggle("open");
       if (on) SALES.open.add(k); else SALES.open.delete(k);
       return;
