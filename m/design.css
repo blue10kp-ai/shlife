@@ -1347,3 +1347,8 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 /* v450: 할 일 줄 — 버튼이 셋이라 제목을 먼저 넓게, 버튼은 자리가 없으면 아랫줄 오른쪽 */
 .task-card .task-item:not(.editing) label { flex: 1 1 210px; }
 .task-card .task-item:not(.editing) .task-acts { margin-left: auto; }
+
+/* v451: 일정 카드를 터치할 때 바탕이 반짝이지 않게 */
+#dayList .ev-card, #dayList .ev-card * { -webkit-tap-highlight-color: transparent; }
+#dayList .ev-card:not(.editing) .ev-top, #dayList .ev-card:not(.editing) .ev-line2 { -webkit-user-select: none; user-select: none; }
+#dayList .ev-card .ev-top:active, #dayList .ev-card .ev-line2:active { background: none; }
