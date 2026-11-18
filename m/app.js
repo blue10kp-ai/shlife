@@ -4212,10 +4212,10 @@
     const grp = (t) => `<h3 class="help-grp">${t}</h3>`; // 하단 메뉴 순서대로 묶음: AI · 일정 · (고객) · 영업 · 설정/관리자
     const s_start = sec("시작 화면", ["<b>처음 보일 화면</b>: 설정 화면의 '화면' 카드 가운데 칸(시작 화면)에서 일정 · 고객(기본) · 영업 중 하나를 고르면 바로 저장되고, 다음에 앱을 열 때부터 적용됩니다. 같은 카드 왼쪽 칸은 ‘시작하면 AI 도우미 바로 열기’, 오른쪽 칸은 ‘오른손 모드’입니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '화면' 카드 왼쪽 칸을 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
     const s_ai = sec("AI 도우미", ["<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 위 말처럼 규칙으로 알아듣는 말은 이 폰 안에서만 처리하고 밖으로 보내지 않습니다. 규칙으로 못 알아들은 말만 Gemini(외부 AI)에 '무슨 뜻인지'를 묻는데, 그때 고객 이름은 [고객1] 같은 자리표시로, 주민번호·전화·계좌·이메일·주소 같은 숫자·주소는 [숫자]·[주소]로 가려서 보내고 답을 받은 뒤 앱 안에서 되돌립니다. 말만해요 설정에 Gemini 키가 없거나 연결이 안 되면 규칙만 쓰며, 확인 카드에 ‘AI가 해석’이라고 표시되고 [실행]을 눌러야 처리됩니다."]);
-    const s_task = sec("구글 할 일 (일정 화면)", ["<b>관리자</b>는 할 일을 추가·수정할 때 <b>사용자</b>를 고를 수 있습니다(기본 = 본인). 구글 할 일은 로그인한 계정의 것이라, 다른 사용자를 고르면 할 일 메모 맨 윗줄에 ‘작성: 이름’이 적히고 목록에는 ‘- 이름’으로 보입니다(본인으로 되돌리면 그 줄이 지워짐).", "<b>모든 일정</b> 카드(종일이 아니어도)에는 <b>[할 일로]</b> 버튼이 있습니다(시간이 있는 일정은 할 일 메모에 시간이 적힙니다). 누르면 그 날짜가 마감인 구글 할 일(기본 목록)을 만들고 캘린더 일정은 지웁니다. 장소·메모는 할 일의 메모로 옮겨집니다. 지운 일정은 화면을 새로 고치기 전까지 [원위치]로 되살릴 수 있습니다(만든 할 일은 그대로 남음).", "그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
+    const s_task = sec("구글 할 일 (일정 화면)", ["<b>할 일 제목에 등록된 고객 이름이 있으면</b> 그 할 일 줄 아래에 고객 이름(누르면 고객 정보)이 나옵니다(일정과 같은 규칙). 같은 이름이 여러 명이면 [선택]으로 한 명을 고르고(나중에 [다시 선택]), 관계없으면 [해당 없음]([되돌리기]로 다시 연결). 고른 값은 할 일 메모의 ‘고객연결: …’ 줄에 저장되어 모든 기기에서 같게 보입니다.", "<b>관리자</b>는 할 일을 추가·수정할 때 <b>사용자</b>를 고를 수 있습니다(기본 = 본인). 구글 할 일은 로그인한 계정의 것이라, 다른 사용자를 고르면 할 일 메모 맨 윗줄에 ‘작성: 이름’이 적히고 목록에는 ‘- 이름’으로 보입니다(본인으로 되돌리면 그 줄이 지워짐).", "<b>모든 일정</b> 카드(종일이 아니어도)에는 <b>[할 일로]</b> 버튼이 있습니다(시간이 있는 일정은 할 일 메모에 시간이 적힙니다). 누르면 그 날짜가 마감인 구글 할 일(기본 목록)을 만들고 캘린더 일정은 지웁니다. 장소·메모는 할 일의 메모로 옮겨집니다. 지운 일정은 화면을 새로 고치기 전까지 [원위치]로 되살릴 수 있습니다(만든 할 일은 그대로 남음).", "그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
     const s_nm = sec("일정 제목 → 고객 찾기 (2026-11-17)", ["일정 화면을 <b>좌우로 밀면</b> Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월로 넘어갑니다.", "일정 제목에 <b>등록된 고객 이름</b>이 있으면(‘고객’ 글자가 없어도, 날짜와 상관없이) 그 고객 카드가 일정에 붙고, 카드에서 장소 ‘입력’을 할 수 있습니다. 같은 이름의 고객이 여럿이면 [선택]으로 고르고, 상관없는 고객이면 [무시]로 숨깁니다. 등록된 고객에 없는 이름이면 아무것도 붙이지 않습니다. (2026-11-18: 하루 동안 쓰던 ‘이름 + 고객’ 규칙은 풀었습니다.)"]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드의 <b>비영업</b> 버튼을 눌러 영업일정으로 바꾼 일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
-    const s_addev = sec("일정 추가 (일정 화면)", ["<b>관리자</b>는 이미 있는 일정을 <b>[수정]</b>할 때도 맨 아래 <b>작성자</b>를 바꿀 수 있습니다(고르는 사람은 지금 일정 화면에 보이는 캘린더에 나오는 사람만, 본인으로 되돌리면 작성자 표시가 지워짐). 할 일 [수정]의 <b>사용자</b>도 같은 사람들 중에서 고릅니다.", "<b>2026-11-18부터</b> 추가 칸 맨 위에서 <b>[일정]</b>과 <b>[할 일]</b>을 먼저 고릅니다. <b>일정</b>은 제목·캘린더·날짜·종일/시간·장소(관리자는 작성자), <b>할 일</b>은 제목·<b>마감일</b>·메모(관리자는 <b>사용자</b>도 고름)만 입력하고 [할 일 등록]을 누르면 구글 할 일(기본 목록)에 그 날짜가 마감인 할 일이 만들어집니다(처음 한 번은 할 일 연결 창이 뜰 수 있음).", "일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). <b>초기화</b> 버튼(추가의 왼쪽)은 그날 영업일정을 모두 비영업일정으로 바꾸고, 동명이인 지정·고객 정보로 넣은 일정 장소도 되돌립니다(영업일정이나 처리한 일정이 있는 날에만 보임). 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
+    const s_addev = sec("일정 추가 (일정 화면)", ["<b>일정이 고객과 묶여 있으면</b>(이름이 맞는 고객이 카드 아래에 붙은 경우) 카드 왼쪽에 <b>초록색 ‘[’ 띠</b>가 보입니다. 같은 이름이 여러 명이라 아직 한 명을 고르지 않았으면 띠가 옅게 보입니다.", "<b>일정 카드의 [할 일로]·[영업/비영업]·[수정]·[삭제] 버튼은 평소에 접혀 있습니다.</b> 일정 칸(시간·제목 줄)을 터치하면 한 줄 아래 오른쪽 끝으로 펼쳐지고, 한 번 더 터치하면 접힙니다.", "<b>관리자</b>는 이미 있는 일정을 <b>[수정]</b>할 때도 맨 아래 <b>작성자</b>를 바꿀 수 있습니다(고르는 사람은 내가 쓸 수 있는(공유받은) 캘린더를 가진 사람만, 본인으로 되돌리면 작성자 표시가 지워짐). 할 일 [수정]의 <b>사용자</b>도 같은 사람들 중에서 고릅니다.", "<b>2026-11-18부터</b> 추가 칸 맨 위에서 <b>[일정]</b>과 <b>[할 일]</b>을 먼저 고릅니다. <b>일정</b>은 제목·캘린더·날짜·종일/시간·장소(관리자는 작성자), <b>할 일</b>은 제목·<b>마감일</b>·메모(관리자는 <b>사용자</b>도 고름)만 입력하고 [할 일 등록]을 누르면 구글 할 일(기본 목록)에 그 날짜가 마감인 할 일이 만들어집니다(처음 한 번은 할 일 연결 창이 뜰 수 있음).", "일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). <b>초기화</b> 버튼(추가의 왼쪽)은 그날 영업일정을 모두 비영업일정으로 바꾸고, 동명이인 지정·고객 정보로 넣은 일정 장소도 되돌립니다(영업일정이나 처리한 일정이 있는 날에만 보임). 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
     const s_sub = sec("영업 서브메뉴", ["영업 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>자료</b>를 눌러 바꿉니다. <b>자료</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 유형(따행/이관/DB, 여러 개) · <b>단계</b>(신규·계약·완료·지옥, 여러 개 — 계약은 DB의 계약 고객) · <b>기간</b>(년월 하나)을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 기간의 <b>[3개월]</b>·<b>[1년]</b>은 이번 달까지의 그 기간으로 <b>누르는 즉시 보고서</b>를 보여 줍니다(진행을 누르지 않아도 됨). 이관은 이관일, 따행은 대상년월이 기간 안인 고객입니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘영업 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘영업 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 자료는 영업에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
     const s_stage = sec("영업단계 칩 (이관 · DB)", ["이관·DB 목록의 고객 줄 오른쪽에 <b>통화 · AP · PC · 계약</b> 칩이 있고, 그 고객의 지금 영업단계인 칩만 색이 들어옵니다. 칩을 누르면 고객 시트의 ‘영업단계’ 칸에 누른 칩의 글자가 저장됩니다(칸이 없으면 새로 만듭니다). 이미 색이 켜진 칩을 다시 누르면 ‘고객의 영업상태를 제거하시겠습니까?’ 확인 뒤 빈칸이 됩니다."]);
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
@@ -4223,7 +4223,7 @@
     const s_theme = sec("다크 모드", ["설정 > 화면의 <b>다크 모드</b>를 체크하면 어두운 화면, 끄면 밝은 화면으로 이 기기에서 고정됩니다. 한 번도 고르지 않았으면 <b>다크 모드가 기본</b>입니다(2026-11-18부터, 폰의 밝은·어두운 설정과 상관없음). 고른 값은 내 설정 파일(드라이브)에 저장되어 다른 기기에서도 같게 따르고, 이 기기에는 화면 깜빡임을 막으려고 같이 기억합니다. 로그인 화면도 같은 값을 따릅니다. 말만해요 안에서 열면 말만해요의 설정(다크/라이트)을 따르고, 말만해요에서 바꾸면 바로 바뀝니다(이 앱에는 저장하지 않음)."]);
     const s_dsh = sec("대시보드 (2026-11-17)", ["아래 메뉴 <b>AI 오른쪽 [대시보드]</b>입니다. 위 오른쪽에서 보는 범위(FC)를 고릅니다(기본은 본인, 내 권한으로 보이는 FC만).", "<b>숫자 카드</b>: 이달 목표 착수(목표 중 단계가 시작된 건 / 전체), 6개월 평균 업적(월초보험료, 업적 자료 기준), 최근 수수료(가장 최근 달 실지급), 계약진행 인원. 업적·수수료 카드는 민감정보 허용 계정이 그 자료를 읽을 수 있을 때만 보입니다.", "<b>이달목표 막대</b>: 이관·DB는 통화·AP·PC·계약·미착수, 따행은 방문완료·설문발송·설문응답·쿠폰발송·미방문, 계약진행은 고객등록·전화·AP·PC·계약별 건수입니다. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다. 맨 아래는 <b>소개 랭킹</b> 상위 3명입니다."]);
     const s_in = sec("소개 (2026-11-17)", ["<b>고객 정보 > 수정</b>의 <b>소개</b>: <b>소개 · 아님 · 모름</b> 중 고르고, <b>소개</b>이면 소개자 이름을 적습니다. 같은 FC의 등록 고객 후보(이름·출생 두 자리·유입경로)가 나오고, 고르면 <b>등록 고객과 연결</b>(소개고객ID 저장), 고르지 않거나 후보에 없으면 <b>이름만 남기기</b>(소개자명 저장)입니다. 다시 누르면 풀리고 이름을 비우면 지워집니다. 소개만 고치면 ‘직접 수정’ 표시는 붙지 않습니다.", "<b>소개자 트로피</b>: 소개해 준 고객 이름 앞에 1~2명 동, 3~4명 은, 5명 이상 금 트로피가 붙습니다(소개고객ID를 세어 계산, 고객 정보 머리·고객 검색 결과·소개찾기에 나옵니다).", "<b>소개찾기</b>(고객 화면 GBS 옆 버튼): 등록 고객 전부를 대상으로 ‘등록고객 N명 중 M명 확인’을 보여 줍니다. <b>소개고객부터</b>는 고객마다 [소개자 찾기](창에서 이름 검색 → 고객 고르기 · 이미 적힌 이름 · 이름만 · 소개 아님 · 모름), <b>소개자부터</b>는 소개자를 먼저 고른 뒤 그분이 소개한 고객을 체크해 한 번에 연결, <b>랭킹</b>은 소개한 수 순서로 보여 주며 고객이 아닌 소개자는 ‘미등록’으로 묶고 [고객으로 연결]로 한 번에 고객ID에 이어 줍니다. 묶음 <b>지역·성별·직업·직장·유입 시기·가족(같은 주소)·유입경로</b>를 겹쳐 눌러 같은 사람끼리 묶어 볼 수 있고, ‘확인한 고객도 보기’를 켜면 이미 확인한 고객도 나옵니다.", "<b>새 고객 확인</b>: 지난번 접속 뒤 입력된 내 FC 고객이 있으면 로그인 때 소개찾기 화면이 먼저 뜹니다. 고객마다 [소개자 찾기], 모두 끝내려면 <b>나머지는 소개 없음</b>, 미루려면 <b>나중에</b>(다음 접속 때 다시 뜹니다). 처음 접속한 기기는 기준 시각만 기록하고 묻지 않습니다(기존 고객은 소개찾기에서 점검)."]);
-    const s_smemo = sec("영업 상담기록 칸 (2026-11-18)", ["영업 화면(이달목표의 이관·따행·DB, 계약진행)의 고객 줄 맨 아래에 <b>가장 최근 상담기록 한 줄</b>이 나오고, 그 오른쪽에 <b>[수정]</b> · <b>[삭제]</b>가 있습니다. 수정하면 처음 날짜·시간은 그대로이고 내용만 바뀌며, 삭제는 확인을 거쳐 엑셀에서 지워집니다. 최근 1년 안의 상담기록이 2건 이상이면 오른쪽 끝에 <b>[더보기]</b>가 생겨 전체를 팝업으로 볼 수 있습니다(보기 전용).", "<b>일정 화면의 고객 카드</b>도 같은 상담기록 줄입니다: 카드 맨 아래 최근 상담기록 한 줄과 [수정]·[삭제]·[더보기], 고객 정보 칸(주소 등 글자가 있는 곳)을 터치하면 위에 추가칸(마이크 포함)과 최근 6개월 상담기록이 펼쳐지고 한 번 더 터치하면 접힙니다.", "고객 정보가 있는 줄(버튼·링크가 아닌 곳)을 <b>한 번 터치</b>하면 아래로 상담기록 칸이 펼쳐집니다. <b>맨 위 줄은 상담기록 추가칸</b>([저장]을 누르면 일정 화면의 한 줄 메모처럼 상담기록에 저장되어 고객 정보 > 상담 탭에서도 보임)이고, 그 아래에 <b>최근 6개월 안의 상담기록이 날짜와 함께</b> 나옵니다(각 기록에 [수정]·[삭제], 6개월보다 오래된 것은 ‘6개월 이전 N건 더보기’로 팝업). <b>한 번 더 터치</b>하면 위로 올라가며 사라지고 최근 상담기록 한 줄만 남습니다. (예전 설정의 ‘영업 메모 칸’ 옵션은 없앴고 항상 사용합니다.)"]);
+    const s_smemo = sec("영업 상담기록 칸 (2026-11-18)", ["영업 화면(이달목표의 이관·따행·DB, 계약진행)의 고객 줄 맨 아래에 <b>가장 최근 상담기록 한 줄</b>이 나오고, 그 오른쪽에 <b>[수정]</b> · <b>[삭제]</b>가 있습니다. 수정하면 처음 날짜·시간은 그대로이고 내용만 바뀌며, 삭제는 확인을 거쳐 엑셀에서 지워집니다. 최근 1년 안의 상담기록이 2건 이상이면 오른쪽 끝에 <b>[더보기]</b>가 생겨 전체를 팝업으로 볼 수 있습니다(보기 전용).", "<b>일정 화면의 고객 카드</b>도 같은 상담기록 줄입니다: 카드 맨 아래 최근 상담기록 <b>최대 5줄(날짜와 함께)</b>과 [수정]·[삭제]·[더보기], 고객 정보 칸(주소 등 글자가 있는 곳)을 터치하면 위에 추가칸(마이크 포함)과 최근 6개월 상담기록이 펼쳐지고 한 번 더 터치하면 접힙니다.", "고객 정보가 있는 줄(버튼·링크가 아닌 곳)을 <b>한 번 터치</b>하면 아래로 상담기록 칸이 펼쳐집니다. <b>맨 위 줄은 상담기록 추가칸</b>([저장]을 누르면 일정 화면의 한 줄 메모처럼 상담기록에 저장되어 고객 정보 > 상담 탭에서도 보임)이고, 그 아래에 <b>최근 6개월 안의 상담기록이 날짜와 함께</b> 나옵니다(각 기록에 [수정]·[삭제], 6개월보다 오래된 것은 ‘6개월 이전 N건 더보기’로 팝업). <b>한 번 더 터치</b>하면 위로 올라가며 사라지고 최근 상담기록 한 줄만 남습니다. (예전 설정의 ‘영업 메모 칸’ 옵션은 없앴고 항상 사용합니다.)"]);
     const s_pg = sec("영업 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "영업 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
@@ -4561,7 +4561,7 @@
   const calName = (c) => calAlias(c.id, String(c.summaryOverride || c.summary || "").trim());
   async function calendarList() {
     return ((await gcal("/users/me/calendarList?minAccessRole=reader&maxResults=250")).items || [])
-      .map((c) => ({ id: c.id, name: calName(c), color: c.backgroundColor, primary: !!c.primary }));
+      .map((c) => ({ id: c.id, name: calName(c), color: c.backgroundColor, primary: !!c.primary, role: c.accessRole }));
   }
   // 일정에 보일 캘린더
   //   관리자: 관리자 설정에서 고른 캘린더 (모든 사용자의 기본값)
@@ -5024,7 +5024,7 @@
     await Promise.all(lists.map(async (l) => {
       const q = `?showCompleted=true&showHidden=true&maxResults=100&dueMin=${encodeURIComponent(min)}&dueMax=${encodeURIComponent(max)}`;
       const r = await gtasks("/lists/" + encodeURIComponent(l.id) + "/tasks" + q);
-      (r.items || []).forEach((t) => { if (t.due) all.push({ id: t.id, listId: l.id, list: l.title || "", title: t.title || "(제목 없음)", done: t.status === "completed", due: String(t.due).slice(0, 10), owner: taskOwnerOf(t.notes) }); });
+      (r.items || []).forEach((t) => { if (t.due) all.push({ id: t.id, listId: l.id, list: l.title || "", title: t.title || "(제목 없음)", done: t.status === "completed", due: String(t.due).slice(0, 10), owner: taskOwnerOf(t.notes), pick: taskPickOf(t.notes) }); });
     }));
     return all.filter((t) => t.due >= ymdStr(from) && t.due < ymdStr(to)).sort((a, b) => a.due.localeCompare(b.due) || a.title.localeCompare(b.title, "ko"));
   }
@@ -5035,7 +5035,7 @@
       let tok = "", n = 0;
       do {
         const r = await gtasks("/lists/" + encodeURIComponent(l.id) + "/tasks?showCompleted=false&showHidden=true&maxResults=100" + (tok ? "&pageToken=" + encodeURIComponent(tok) : ""));
-        (r.items || []).forEach((t) => { if (t.status !== "completed" && !t.deleted && String(t.title || "").trim()) all.push({ id: t.id, listId: l.id, list: l.title || "", title: t.title || "(제목 없음)", done: false, owner: taskOwnerOf(t.notes), due: t.due ? String(t.due).slice(0, 10) : "" }); });
+        (r.items || []).forEach((t) => { if (t.status !== "completed" && !t.deleted && String(t.title || "").trim()) all.push({ id: t.id, listId: l.id, list: l.title || "", title: t.title || "(제목 없음)", done: false, owner: taskOwnerOf(t.notes), pick: taskPickOf(t.notes), due: t.due ? String(t.due).slice(0, 10) : "" }); });
         tok = r.nextPageToken || "";
       } while (tok && ++n < 20);
     }));
@@ -5045,13 +5045,21 @@
   // v431(2026-11-18 사용자 지시): 구글 할 일은 로그인한 구글 계정 것이라 '사용자'는 메모 맨 윗줄의 '작성: 이름'으로 기록(구글 할 일 앱에서도 보임). 관리자가 추가·수정할 때 사용자를 고르고, 본인으로 두면 이 줄은 없음
   const taskOwnerOf = (notes) => { const m = /^작성:[ \t]*(.+)$/m.exec(String(notes || "")); return m ? m[1].trim() : ""; };
   const taskNotesWith = (notes, name) => { const rest = String(notes || "").replace(/^작성:.*(\r?\n)?/m, "").replace(/^\s+/, ""); return name ? "작성: " + name + (rest ? "\n" + rest : "") : rest; };
+  // v437(2026-11-18 사용자 지시): 할 일 제목의 이름으로 고객 찾기 → 동명이인 선택·해당 없음은 할 일 메모의 '고객연결: 키' 줄에 저장(모든 기기 공유, 구글 할 일 앱에서도 보임)
+  const taskPickOf = (notes) => { const m = /^고객연결:[ \t]*(.+)$/m.exec(String(notes || "")); return m ? m[1].trim() : ""; };
+  const taskNotesPick = (notes, key) => { const rest = String(notes || "").replace(/^고객연결:.*(\r?\n)?/m, "").replace(/\s+$/, ""); return key ? (rest ? rest + "\n" : "") + "고객연결: " + key : rest; };
   const taskMyEmail = () => String(account().username).toLowerCase();
   const taskSelfOpt = () => `<option value="${esc(taskMyEmail())}" selected>${esc((permNamesCache || {})[taskMyEmail()] || taskMyEmail().split("@")[0])} (관리자)</option>`;
-  function fillTaskUsers(sel, curName, onlyCals) { // 관리자: 본인 + 등록된 사용자 (일정 추가의 작성자와 같은 사람들)
-    readPerms().then((pm) => {
+  // v436(2026-11-18 사용자 지시): 사용자·작성자 선택지는 '그 캘린더에 쓸 수 있는 사람'만. 구글 캘린더 공유 목록(ACL)은 지금 받은 권한 범위로는 읽을 수 없어서(403),
+  // 대신 '내 캘린더 목록에서 내가 쓸 수 있는(owner·writer) 캘린더의 주인'을 씀(개인 캘린더의 id = 그 사람 이메일). 목록을 못 받으면 본인만.
+  async function writablePeople() {
+    try { return new Set((await calendarList()).filter((c) => c.role === "owner" || c.role === "writer").map((c) => String(c.id).toLowerCase())); } catch (e) { return new Set(); }
+  }
+  function fillTaskUsers(sel, curName) { // 관리자: 본인 + 등록된 사용자 (일정 추가의 작성자와 같은 사람들)
+    Promise.all([readPerms(), writablePeople()]).then(([pm, wp]) => {
       if (!sel) return;
       const my = taskMyEmail(), nm = (em) => (pm.names || {})[em] || em.split("@")[0];
-      Object.keys(pm.users || {}).filter((em) => em !== my && !/@email\.pending$/.test(em) && (!onlyCals || onlyCals.some((cn) => cn.includes(nm(em))))).sort((a, b) => nm(a).localeCompare(nm(b), "ko"))
+      Object.keys(pm.users || {}).filter((em) => em !== my && !/@email\.pending$/.test(em) && wp.has(String(em).toLowerCase())).sort((a, b) => nm(a).localeCompare(nm(b), "ko"))
         .forEach((em) => sel.insertAdjacentHTML("beforeend", `<option value="${esc(em)}">${esc(nm(em))}</option>`));
       if (curName) { const o = [...sel.options].find((x) => x.textContent === curName); if (o) sel.value = o.value; else { sel.insertAdjacentHTML("beforeend", `<option value="__cur">${esc(curName)}</option>`); sel.value = "__cur"; } }
     }).catch(() => {});
@@ -5066,7 +5074,50 @@
     return n;
   }
   let taskShowList = true, taskReload = null;
-  const taskItemHtml = (t, grp) => `<li class="task-item${t.done ? " done" : ""}"${grp ? ` data-tgrp="${grp}"` : ""} data-tid="${esc(t.listId)}|${esc(t.id)}" data-ttitle="${esc(t.title)}" data-tdue="${esc(t.due || "")}" data-towner="${esc(t.owner || "")}"><label><input type="checkbox" class="cb" data-task="${esc(t.listId)}|${esc(t.id)}" ${t.done ? "checked" : ""}>${grp === "late" && t.due ? ` <span class="task-due">${esc(t.due.slice(5))}</span>` : ""} <span class="task-title">${esc(t.title)}</span>${(t.owner || taskOwnerCal) ? ` <span class="ev-cal">- ${esc(t.owner || taskOwnerCal)}</span>` : ""}</label>${t.list && taskShowList ? `<span class="hint task-list-name">${esc(t.list)}</span>` : ""}<span class="task-acts"><button type="button" class="ev-edit task-act" data-tedit>수정</button><button type="button" class="ev-edit ev-del task-act" data-tdel>삭제</button></span></li>`;
+  const taskItemHtml = (t, grp) => `<li class="task-item${t.done ? " done" : ""}"${grp ? ` data-tgrp="${grp}"` : ""} data-tid="${esc(t.listId)}|${esc(t.id)}" data-ttitle="${esc(t.title)}" data-tdue="${esc(t.due || "")}" data-towner="${esc(t.owner || "")}" data-tpick="${esc(t.pick || "")}"><label><input type="checkbox" class="cb" data-task="${esc(t.listId)}|${esc(t.id)}" ${t.done ? "checked" : ""}>${grp === "late" && t.due ? ` <span class="task-due">${esc(t.due.slice(5))}</span>` : ""} <span class="task-title">${esc(t.title)}</span>${(t.owner || taskOwnerCal) ? ` <span class="ev-cal">- ${esc(t.owner || taskOwnerCal)}</span>` : ""}</label>${t.list && taskShowList ? `<span class="hint task-list-name">${esc(t.list)}</span>` : ""}<span class="task-acts"><button type="button" class="ev-edit task-act" data-tedit>수정</button><button type="button" class="ev-edit ev-del task-act" data-tdel>삭제</button></span></li>`;
+  // 할 일 제목에 든 이름으로 등록 고객 찾기(일정과 같은 규칙): 고객 이름(누르면 고객 정보) + 동명이인이면 [선택] + [해당 없음]
+  const TASK_CUST = new Map();
+  async function taskCustFill(box, req) {
+    const lis = [...box.querySelectorAll(".task-item")]; if (!lis.length) return;
+    let records = [], contracts = [];
+    try { [records, contracts] = await Promise.all([loadLists(), loadContracts().catch(() => [])]); } catch (e) { return; }
+    if (req !== schedReq) return;
+    lis.forEach((li) => {
+      const tid = li.dataset.tid, pk = li.dataset.tpick || "";
+      const all = matchCustomers(li.dataset.ttitle || "", records, contracts, new Date());
+      if (!all.length) return;
+      TASK_CUST.set(tid, all);
+      let custs = all, pinned = false;
+      const ignored = pk === IGNORE_KEY;
+      if (ignored) custs = [];
+      else if (pk) {
+        let one = all.filter((c) => custKey(c) === pk);
+        if (!one.length) { const old = all.filter((c) => custKeyOld(c) === pk); if (old.length === 1) one = old; }
+        if (one.length) { custs = one.slice(0, 1); pinned = true; }
+      }
+      const multi = custs.length > 1;
+      const one = (c) => {
+        const k = all.indexOf(c), yy = String(c.birth || "").replace(/\D/g, "").slice(0, 4), types = [...new Set(c.entries.map((x) => x.type))];
+        return `<span class="tc"><button type="button" class="ev-name task-cn" data-tcust="${k}"><span class="cname ${gradeClass(gradeOf(c))}">${esc(c.name)}</span>${multi && /^(19|20)\d\d$/.test(yy) ? ` <small class="hint">${yy}년생</small>` : ""} ${types.map((t) => `<span class="tag t-${esc(t)}">${esc(typeLabel(t))}</span>`).join("")}<span class="chev">›</span></button>${multi ? `<button type="button" class="pick-btn" data-tpick="${k}">선택</button>` : ""}</span>`;
+      };
+      const acts = ignored ? `<button type="button" class="pick-btn" data-tunign>되돌리기</button>` : `${pinned ? `<button type="button" class="pick-btn" data-tunpick>다시 선택</button>` : ""}<button type="button" class="pick-btn" data-tign>해당 없음</button>`;
+      li.insertAdjacentHTML("beforeend", `<div class="task-cust">${ignored ? `<small class="hint">고객 연결 안 함</small>` : custs.map(one).join("")}${acts}</div>`);
+    });
+  }
+  document.addEventListener("click", async (ev) => {
+    const b = ev.target && ev.target.closest && ev.target.closest(".task-cust button");
+    if (!b) return;
+    const li = b.closest(".task-item"); if (!li) return;
+    const all = TASK_CUST.get(li.dataset.tid) || [];
+    if (b.hasAttribute("data-tcust")) { const c = all[+b.dataset.tcust]; if (c) openCustomer(c); return; }
+    const key = b.hasAttribute("data-tpick") ? custKey(all[+b.dataset.tpick]) : b.hasAttribute("data-tign") ? IGNORE_KEY : ""; // [다시 선택]·[되돌리기] = 연결 값 지움
+    b.disabled = true;
+    try {
+      const path = taskPath(li.dataset.tid), cur = await gtasks(path), nn = taskNotesPick(cur.notes, key);
+      await gtasks(path, { method: "PATCH", body: JSON.stringify({ notes: nn || null }) });
+      if (taskReload) taskReload();
+    } catch (e) { b.disabled = false; taskErr(e); }
+  });
   // 하루 보기 맨 위 '할 일' 카드
   async function loadDayTasks(box, d, req) {
     if (!box) return;
@@ -5085,6 +5136,7 @@
       taskShowList = new Set([...list, ...late, ...nodue].map((t) => t.listId)).size > 1;
       taskReload = () => loadDayTasks(box, d, schedReq);
       box.innerHTML = total ? `<div class="card task-card"><h3 class="sec-title">할 일 <small class="hint task-cnt">${list.filter((t) => !t.done).length + late.length + nodue.length}/${total}</small></h3>${list.length ? `<ul class="task-list">${list.map((t) => taskItemHtml(t)).join("")}</ul>` : ""}${grpHtml("late", "밀린 할 일", late)}${grpHtml("nodue", "날짜 없음", nodue)}</div>` : "";
+      if (total) taskCustFill(box, req);
     } catch (e) {
       if (req !== schedReq) return;
       box.innerHTML = e.message === "TASKS_AUTH" ? taskConnectHtml("할 일 연결 시간이 지났거나 할 일 권한을 허용하지 않았습니다. 다시 연결해 주세요.")
@@ -5409,7 +5461,7 @@
   function smemoOfCust(c) {
     const fc = memoFcOf(c), list = (c.extra && c.extra.consults) || [];
     SMEMO_C.set(fc + "|" + c.name, c);
-    return smemoHtml(c.name, fc, isRO(fc), list);
+    return smemoHtml(c.name, fc, isRO(fc), list, 5);
   }
   function custBlockHtml(c, i, j, multi, pinned) {
     const phone = (c.entries.find((x) => x.phone) || {}).phone || "";
@@ -5430,9 +5482,10 @@
   }
   function dayCardHtml(it, i) {
     const e = it.e;
-    return `<div class="card ev-card" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head"><span class="ev-time">${esc(timeText(e))}</span></div>
-        <button type="button" class="ev-edit ev-totask" data-evtask="${i}" title="이 일정을 구글 할 일로 옮깁니다">할 일로</button>${e.allDay ? "" : salesOf(e) ? '<button type="button" class="ev-edit ev-sales" data-evunsales title="누르면 비영업일정으로 바꿉니다">영업</button>' : `<button type="button" class="ev-edit ev-confirm" data-evconfirm="${i}" title="누르면 영업일정으로 바꿉니다">비영업</button>`}<button type="button" class="ev-edit" data-evedit="${i}">수정</button><button type="button" class="ev-edit ev-del" data-evdel="${i}">삭제</button>
+    const linked = it.custs && it.custs.length && !it.ignored; // v439: 고객과 묶인 일정은 왼쪽에 색 띠
+    return `<div class="card ev-card${linked ? " linked" + (it.custs.length > 1 ? " multi" : "") : ""}" id="ev${i}"><div class="ev-top">${calDot(e)}<div class="ev-head"><span class="ev-time">${esc(timeText(e))}</span></div>
         <span class="ev-edit-acts" id="evActs${i}" hidden><button type="button" class="ev-edit" data-f-cancel>취소</button><button type="button" class="ev-edit ev-done" data-f-save>완료</button></span></div>
+      <div class="ev-btnrow" id="evBtns${i}" hidden><button type="button" class="ev-edit ev-totask" data-evtask="${i}" title="이 일정을 구글 할 일로 옮깁니다">할 일로</button>${e.allDay ? "" : salesOf(e) ? '<button type="button" class="ev-edit ev-sales" data-evunsales title="누르면 비영업일정으로 바꿉니다">영업</button>' : `<button type="button" class="ev-edit ev-confirm" data-evconfirm="${i}" title="누르면 영업일정으로 바꿉니다">비영업</button>`}<button type="button" class="ev-edit" data-evedit="${i}">수정</button><button type="button" class="ev-edit ev-del" data-evdel="${i}">삭제</button></div>
       <div class="ev-line2"><span class="ev-title-l"><span class="ev-title">${esc(e.title)}</span> <span class="ev-cal">- ${esc(e.cal.name)}${e.author ? " · 작성 " + esc(e.author) : ""}</span></span>${it.all.length ? (it.ignored
         ? `<button type="button" class="ev-edit" data-unignore="${i}">되돌리기</button>`
         : `<button type="button" class="ev-edit" data-ignore="${i}">해당 없음</button>`) : ""}</div>
@@ -5656,11 +5709,11 @@
     box.querySelector("[data-a-cancel]").addEventListener("click", closeSchedAdd);
     q("title").focus();
     if (q("tauthor")) fillTaskUsers(q("tauthor"), ""); // v431: 할 일의 사용자(관리자)
-    if (q("author")) { // v382(2026-11-17 사용자 지시): 관리자는 작성자를 사용자 중에서 고름(기본 = 관리자 본인)
-      readPerms().then((pm) => {
+    if (q("author")) { // v382(2026-11-17 사용자 지시): 관리자는 작성자를 사용자 중에서 고름(기본 = 관리자 본인). v436: 내가 쓸 수 있는 캘린더의 사람만
+      Promise.all([readPerms(), writablePeople()]).then(([pm, wp]) => {
         const sel = q("author"); if (!sel) return;
         const my = String(account().username).toLowerCase(), nm = (em) => (pm.names || {})[em] || em.split("@")[0];
-        Object.keys(pm.users || {}).filter((em) => em !== my && !/@email\.pending$/.test(em)).sort((a, b) => nm(a).localeCompare(nm(b), "ko"))
+        Object.keys(pm.users || {}).filter((em) => em !== my && !/@email\.pending$/.test(em) && wp.has(String(em).toLowerCase())).sort((a, b) => nm(a).localeCompare(nm(b), "ko"))
           .forEach((em) => sel.insertAdjacentHTML("beforeend", `<option value="${esc(em)}">${esc(nm(em))}</option>`));
       }).catch(() => {});
     }
@@ -5714,6 +5767,7 @@
     const box = $("evForm" + i), acts = $("evActs" + i);
     if (!on) { box.innerHTML = ""; const tl = $("ev" + i).querySelector(".ev-title-l"); if (tl && tl.dataset.orig != null) { tl.innerHTML = tl.dataset.orig; delete tl.dataset.orig; } } // 제목 입력칸을 원래 제목으로
     acts.hidden = !on;
+    if (on) { const br = $("evBtns" + i); if (br) br.hidden = true; }
     document.querySelectorAll("#dayList [data-evedit], #dayList [data-evdel]").forEach((b) => { b.hidden = on; });
     $("ev" + i).classList.toggle("editing", on);
   }
@@ -5735,7 +5789,7 @@
       </div>`;
     { // v432(2026-11-18 사용자 지시): 관리자는 일정을 수정할 때 작성자도 바꿈(기본 = 지금 작성자, 없으면 본인)
       const asel = box.querySelector('[data-f="author"]');
-      if (asel) { const me = asel.selectedOptions[0].textContent.replace(/ \(관리자\)$/, ""); fillTaskUsers(asel, e.author && e.author !== me ? e.author : "", schedCals.map((c) => String(c.name || ""))); }
+      if (asel) { const me = asel.selectedOptions[0].textContent.replace(/ \(관리자\)$/, ""); fillTaskUsers(asel, e.author && e.author !== me ? e.author : ""); }
     }
     setEventEditing(i, true);
     { // 수정 모드에 들어가면 카드 위의 일정 제목이 바로 수정 칸이 됨
@@ -6707,7 +6761,8 @@
   }
   const SMEMO_OPEN = new Set(); // 입력칸이 열려 있는 고객(이름|FC) — 다시 그려도 유지
   const SMEMO_C = new Map(); // 일정 화면: 이름|FC → 고객 카드(저장 뒤 c.extra.consults를 같이 고치려고)
-  function smemoHtml(name, fc, ro, given) {
+  function smemoHtml(name, fc, ro, given, max) {
+    max = max || 1; // 일정 화면은 5: 닫혀 있을 때 최근 상담기록을 날짜와 함께 최대 5줄
     if (!smemoOn() || !name) return "";
     const list = given || smemoList(fc, name), last = list[0], k = fc + "|" + name;
     const md = (d) => esc(String(d || "").slice(5, 10));
@@ -6718,7 +6773,8 @@
     const btns = (r) => ro ? "" : `<button type="button" class="sm-mini" data-smedit ${attrOf(r)}>수정</button><button type="button" class="sm-mini del" data-smdel ${attrOf(r)}>삭제</button>`;
     const editRow = (r) => ro ? "" : `<div class="sm-edit" hidden><input type="text" maxlength="200" value="${esc(r.text)}" autocomplete="off" enterkeyhint="done" data-smeditin aria-label="${esc(name)} 상담기록 수정"><button type="button" class="sm-save" data-smeditsave ${attrOf(r)}>저장</button><button type="button" class="sm-mini" data-smeditcancel>취소</button></div>`;
     // 닫혀 있을 때: 최근 상담기록 한 줄 (펼치면 아래 목록에 들어 있으므로 숨김)
-    const top = last ? `<div class="sm-rec top"><div class="sm-rv sm-last"><span class="sm-d">${md(last.date)}</span><span class="sm-t">${esc(last.text)}</span>${btns(last)}${recentN > 1 ? `<button type="button" class="sm-more" data-smmore="${esc(name)}" data-smfc="${esc(fc)}" aria-label="${esc(name)} 상담기록 ${list.length}건 모두 보기">더보기</button>` : ""}</div>${editRow(last)}</div>` : "";
+    const moreBtn = `<button type="button" class="sm-more" data-smmore="${esc(name)}" data-smfc="${esc(fc)}" aria-label="${esc(name)} 상담기록 ${list.length}건 모두 보기">더보기</button>`;
+    const top = list.slice(0, max).map((r, n, a) => `<div class="sm-rec top"><div class="sm-rv sm-last"><span class="sm-d">${md(r.date)}</span><span class="sm-t">${esc(r.text)}</span>${btns(r)}${n === a.length - 1 && (max > 1 ? list.length > max : recentN > 1) ? moreBtn : ""}</div>${editRow(r)}</div>`).join("");
     const add = ro ? "" : `<div class="sm-in"><input type="text" maxlength="200" placeholder="상담기록 추가" autocomplete="off" enterkeyhint="done" data-smin aria-label="${esc(name)} 상담기록 추가"><button type="button" class="mic-btn" data-smmic aria-label="음성으로 입력(녹음)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button><button type="button" class="sm-save" data-smsave="${esc(name)}" data-smfc="${esc(fc)}" disabled>저장</button></div>`;
     const recs = six.length ? `<div class="sm-recs">${six.map((r) => `<div class="sm-rec"><div class="sm-rv li"><span class="sm-d">${esc(String(r.date || "").slice(0, 10))}</span><span class="sm-tx">${esc(r.text).replace(/\n/g, "<br>")}</span>${btns(r)}</div>${editRow(r)}</div>`).join("")}</div>` : ""; // v422: 기록이 없을 때 안내문구는 두지 않음
     const older = list.length - six.length;
@@ -6731,7 +6787,7 @@
     const k = fc + "|" + name;
     SMEMO.map.set(k, list); SMEMO.at = Date.now();
     const c = SMEMO_C.get(k); if (c) c.extra = { ...(c.extra || {}), consults: list };
-    if (sm && sm.closest("#scheduleView")) { sm.outerHTML = smemoHtml(name, fc, isRO(fc), list); return; }
+    if (sm && sm.closest("#scheduleView")) { sm.outerHTML = smemoHtml(name, fc, isRO(fc), list, 5); return; }
     renderSales(true);
   }
   async function smemoSave(btn) {
@@ -6784,6 +6840,12 @@
       smemoAfter(sm, fc, name, list);
     } catch (e) { btn.disabled = false; btn.textContent = "삭제"; saveError(e); }
   }
+  // v438(2026-11-18 사용자 지시): 일정 카드의 [할 일로]·[영업/비영업]·[수정]·[삭제]는 평소엔 접어 두고, 일정 칸(시간·제목 줄)을 터치하면 한 줄 아래 오른쪽 끝으로 펼침
+  document.addEventListener("click", (ev) => {
+    const card = ev.target.closest && ev.target.closest("#dayList .ev-card");
+    if (!card || !ev.target.closest(".ev-top, .ev-line2") || ev.target.closest("a, button, input, select, textarea, label") || card.classList.contains("editing")) return;
+    const r = card.querySelector(".ev-btnrow"); if (r) r.hidden = !r.hidden;
+  });
   // 일정 화면: 고객 카드의 정보 칸(버튼·링크가 아닌 곳)을 터치하면 같은 방식으로 펼침/접힘
   document.addEventListener("click", (ev) => {
     const cu = ev.target.closest && ev.target.closest("#scheduleView .ev-cust");

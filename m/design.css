@@ -1289,3 +1289,21 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 .ev-add textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t1); font-size: 15px; font-family: inherit; }
 /* v431: 할 일 사용자 선택(관리자) */
 .task-card .task-owner { height: 26px; max-width: 110px; padding: 0 4px; border: 1px solid var(--line); border-radius: var(--r-ctl, 8px); background: var(--surface); color: var(--t1, inherit); font: inherit; font-size: 12px; }
+
+/* v437: 할 일 줄 아래 고객 연결 */
+.task-card .task-item { flex-wrap: wrap; }
+.task-card .task-cust { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 2px 0 2px 26px; font-size: 13px; }
+.task-card .task-cust .tc { display: inline-flex; align-items: center; gap: 6px; }
+.task-card .task-cust .task-cn { padding: 0; }
+
+/* v438: 일정 카드 버튼 줄(터치하면 펼침) + 상담기록 여러 줄 */
+.ev-card .ev-btnrow { display: flex; justify-content: flex-end; gap: 6px; padding: 4px 0 2px; }
+.ev-card .ev-btnrow[hidden] { display: none; }
+#dayList .ev-card .ev-top, #dayList .ev-card .ev-line2 { cursor: pointer; }
+.smemo .sm-rec.top + .sm-rec.top .sm-last { margin-top: 0; padding-top: 2px; border-top: 0; }
+
+/* v439: 고객과 묶인 일정 = 왼쪽 '[' 띠 (초록 var(--ok), 라이트·다크 공통 토큰). 동명이인 미선택은 옅게 */
+.ev-card.linked { position: relative; }
+.ev-card.linked::before { content: ""; position: absolute; left: 5px; top: 10px; bottom: 10px; width: 9px; border: 3px solid var(--ok); border-right: 0; border-radius: 5px 0 0 5px; pointer-events: none; }
+.ev-card.linked.multi::before { opacity: .45; }
+.ev-card.linked.editing::before, .ev-card.linked.deleted::before { display: none; }
