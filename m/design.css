@@ -1367,3 +1367,8 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 
 /* v458: 지도 = 글자 버튼 */
 .map-btn { padding: 0 8px; font-size: 12px; line-height: normal; }
+
+/* v462(2026-11-19 사용자 지시): 계약진행 AP 단계 색을 또렷하게(연보라가 회색처럼 보여서) */
+.prow .dc.on.resp { background: #6a3fb5; color: #fff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .prow .dc.on.resp { background: #8f6ae0; color: #14101f; } }
+:root[data-theme="dark"] .prow .dc.on.resp { background: #8f6ae0; color: #14101f; }
