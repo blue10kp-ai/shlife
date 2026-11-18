@@ -1237,3 +1237,27 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 .sm-pop { background: rgba(0, 0, 0, .55); z-index: 1000; } /* 아래 메뉴·AI 버튼까지 덮음 */
 /* v419: 자료 기간 버튼 */
 .rpt .rpt-span.on { background: var(--raised); color: var(--t1); font-weight: 600; box-shadow: 0 0 0 1px var(--line); }
+/* v420: 영업 상담기록 — 줄을 터치하면 입력칸이 아래로 내려오고, 다시 터치하면 올라가며 사라짐 / 수정·삭제 */
+.srow .smemo { margin-top: 0; padding-top: 0; border-top: 0; }
+.smemo .sm-last { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); gap: 5px; }
+.smemo .sm-mini { flex: none; height: 22px; padding: 0 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--t2); font-size: 12px; font-weight: 500; line-height: 1; }
+.smemo .sm-mini.del { color: var(--bad, #d6504c); }
+.smemo .sm-edit { display: flex; gap: 5px; align-items: center; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.smemo .sm-edit[hidden] { display: none; }
+.smemo .sm-edit input { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--t1); font-size: 14px; }
+.smemo .sm-slide { display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden; transition: grid-template-rows .24s ease, opacity .2s ease, visibility 0s linear .24s; }
+.smemo .sm-slide.open { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition: grid-template-rows .24s ease, opacity .2s ease, visibility 0s; }
+.smemo .sm-slide-i { overflow: hidden; min-height: 0; }
+.smemo .sm-slide .sm-in { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); }
+@media (prefers-reduced-motion: reduce) { .smemo .sm-slide, .smemo .sm-slide.open { transition: none; } }
+/* v421: 펼침 = 맨 위 추가칸 + 최근 6개월 상담기록(날짜와 함께), 닫힘 = 최근 한 줄 */
+.smemo [hidden] { display: none !important; }
+.smemo.open > .sm-rec.top { display: none; }
+.smemo .sm-rec .sm-rv { display: flex; align-items: center; gap: 5px; }
+.smemo .sm-rv.li { align-items: flex-start; padding: 6px 0; border-top: 1px dashed var(--line); font-size: 13px; line-height: 18px; color: var(--t2); }
+.smemo .sm-rv.li .sm-d { min-width: 74px; margin: 0; padding-top: 0; }
+.smemo .sm-rv.li .sm-tx { flex: 1; min-width: 0; word-break: break-all; color: var(--t1); }
+.smemo .sm-recs { margin-top: 2px; }
+.smemo .sm-recs .sm-edit { margin-top: 4px; padding-top: 4px; border-top: 0; }
+.smemo .sm-none { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--t3, var(--t2)); }
+.smemo .sm-more.wide { width: 100%; height: 26px; margin-top: 4px; }

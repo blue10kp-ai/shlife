@@ -487,7 +487,6 @@
       <label class="d3"><span>시작 화면</span><select id="startPage" aria-label="시작 화면">${START_PAGES.map(([k, l]) => `<option value="${k}" ${cur.page === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="d3"><span>오른손 모드</span><span class="d3c"><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}> 켜기</span></label>
     </div>
-    <label class="wake-opt"><input type="checkbox" class="cb" id="salesMemoOpt" ${smemoOn() ? "checked" : ""}> <span><b>영업 메모 칸</b> <small>영업 화면의 고객마다 맨 아래에 최근 메모와 입력칸(상담기록에 저장)</small></span></label>
     <label class="wake-opt"><input type="checkbox" class="cb" id="darkMode" ${themeIsDark() ? "checked" : ""}> <span><b>다크 모드</b> <small>기본은 다크, 끄면 밝은 화면(이 기기에만 저장)</small></span></label>
     <label class="wake-opt"><input type="checkbox" class="cb" id="wakeMode" ${wakeOn() ? "checked" : ""}> <span><b>“몰리야”로 AI 부르기</b> <small>시험용 · 앱 화면이 열려 있는 동안만 마이크로 듣습니다(안드로이드 크롬). 이 기기에만 저장</small></span></label></div>`;
   };
@@ -4218,7 +4217,7 @@
     const s_theme = sec("다크 모드", ["설정 > 화면의 <b>다크 모드</b>를 체크하면 어두운 화면, 끄면 밝은 화면으로 이 기기에서 고정됩니다. 한 번도 고르지 않았으면 <b>다크 모드가 기본</b>입니다(2026-11-18부터)."]);
     const s_dsh = sec("대시보드 (2026-11-17)", ["아래 메뉴 <b>AI 오른쪽 [대시보드]</b>입니다. 위 오른쪽에서 보는 범위(FC)를 고릅니다(기본은 본인, 내 권한으로 보이는 FC만).", "<b>숫자 카드</b>: 이달 목표 착수(목표 중 단계가 시작된 건 / 전체), 6개월 평균 업적(월초보험료, 업적 자료 기준), 최근 수수료(가장 최근 달 실지급), 계약진행 인원. 업적·수수료 카드는 민감정보 허용 계정이 그 자료를 읽을 수 있을 때만 보입니다.", "<b>이달목표 막대</b>: 이관·DB는 통화·AP·PC·계약·미착수, 따행은 방문완료·설문발송·설문응답·쿠폰발송·미방문, 계약진행은 고객등록·전화·AP·PC·계약별 건수입니다. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다. 맨 아래는 <b>소개 랭킹</b> 상위 3명입니다."]);
     const s_in = sec("소개 (2026-11-17)", ["<b>고객 정보 > 수정</b>의 <b>소개</b>: <b>소개 · 아님 · 모름</b> 중 고르고, <b>소개</b>이면 소개자 이름을 적습니다. 같은 FC의 등록 고객 후보(이름·출생 두 자리·유입경로)가 나오고, 고르면 <b>등록 고객과 연결</b>(소개고객ID 저장), 고르지 않거나 후보에 없으면 <b>이름만 남기기</b>(소개자명 저장)입니다. 다시 누르면 풀리고 이름을 비우면 지워집니다. 소개만 고치면 ‘직접 수정’ 표시는 붙지 않습니다.", "<b>소개자 트로피</b>: 소개해 준 고객 이름 앞에 1~2명 동, 3~4명 은, 5명 이상 금 트로피가 붙습니다(소개고객ID를 세어 계산, 고객 정보 머리·고객 검색 결과·소개찾기에 나옵니다).", "<b>소개찾기</b>(고객 화면 GBS 옆 버튼): 등록 고객 전부를 대상으로 ‘등록고객 N명 중 M명 확인’을 보여 줍니다. <b>소개고객부터</b>는 고객마다 [소개자 찾기](창에서 이름 검색 → 고객 고르기 · 이미 적힌 이름 · 이름만 · 소개 아님 · 모름), <b>소개자부터</b>는 소개자를 먼저 고른 뒤 그분이 소개한 고객을 체크해 한 번에 연결, <b>랭킹</b>은 소개한 수 순서로 보여 주며 고객이 아닌 소개자는 ‘미등록’으로 묶고 [고객으로 연결]로 한 번에 고객ID에 이어 줍니다. 묶음 <b>지역·성별·직업·직장·유입 시기·가족(같은 주소)·유입경로</b>를 겹쳐 눌러 같은 사람끼리 묶어 볼 수 있고, ‘확인한 고객도 보기’를 켜면 이미 확인한 고객도 나옵니다.", "<b>새 고객 확인</b>: 지난번 접속 뒤 입력된 내 FC 고객이 있으면 로그인 때 소개찾기 화면이 먼저 뜹니다. 고객마다 [소개자 찾기], 모두 끝내려면 <b>나머지는 소개 없음</b>, 미루려면 <b>나중에</b>(다음 접속 때 다시 뜹니다). 처음 접속한 기기는 기준 시각만 기록하고 묻지 않습니다(기존 고객은 소개찾기에서 점검)."]);
-    const s_smemo = sec("영업 메모 칸 (2026-11-18)", ["설정 > 화면의 <b>영업 메모 칸</b>을 켜면 영업 화면(이달목표의 이관·따행·DB, 계약진행)의 고객마다 맨 아래에 <b>가장 최근 메모</b>와 <b>한 줄 입력칸</b>이 나옵니다. <b>최근 1년 안의 상담기록이 2건 이상</b>이면 그 줄 오른쪽 끝의 <b>[더보기]</b>를 누르면 팝업으로 전체 상담기록을 볼 수 있습니다(보기 전용, 바깥이나 [닫기]를 누르면 닫힘).", "적고 [저장](또는 키보드 완료)을 누르면 일정 화면의 한 줄 메모처럼 <b>상담기록</b>에 저장되어 고객 정보 > 상담 탭에서도 보입니다. 켜고 끈 설정은 내 설정 파일(드라이브)에 저장되어 다른 기기에서도 같습니다."]);
+    const s_smemo = sec("영업 상담기록 칸 (2026-11-18)", ["영업 화면(이달목표의 이관·따행·DB, 계약진행)의 고객 줄 맨 아래에 <b>가장 최근 상담기록 한 줄</b>이 나오고, 그 오른쪽에 <b>[수정]</b> · <b>[삭제]</b>가 있습니다. 수정하면 처음 날짜·시간은 그대로이고 내용만 바뀌며, 삭제는 확인을 거쳐 엑셀에서 지워집니다. 최근 1년 안의 상담기록이 2건 이상이면 오른쪽 끝에 <b>[더보기]</b>가 생겨 전체를 팝업으로 볼 수 있습니다(보기 전용).", "고객 정보가 있는 줄(버튼·링크가 아닌 곳)을 <b>한 번 터치</b>하면 아래로 상담기록 칸이 펼쳐집니다. <b>맨 위 줄은 상담기록 추가칸</b>([저장]을 누르면 일정 화면의 한 줄 메모처럼 상담기록에 저장되어 고객 정보 > 상담 탭에서도 보임)이고, 그 아래에 <b>최근 6개월 안의 상담기록이 날짜와 함께</b> 나옵니다(각 기록에 [수정]·[삭제], 6개월보다 오래된 것은 ‘6개월 이전 N건 더보기’로 팝업). <b>한 번 더 터치</b>하면 위로 올라가며 사라지고 최근 상담기록 한 줄만 남습니다. (예전 설정의 ‘영업 메모 칸’ 옵션은 없앴고 항상 사용합니다.)"]);
     const s_pg = sec("영업 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "영업 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
@@ -6613,7 +6612,7 @@
   // ---------- 영업 고객별 메모 칸 (v411, 2026-11-18 사용자 지시) ----------
   // 설정 > 화면의 [영업 메모 칸]을 켜면 영업(이달목표·계약진행)의 고객마다 맨 아래에 최근 메모(상담기록)와 한 줄 입력칸이 나옴.
   // 저장하면 일정 화면의 한 줄 메모처럼 고객추가정보의 '상담기록'에 들어가 고객 정보 > 상담 탭에서도 보임. 켜고 끔은 내 설정 파일(드라이브)에 저장
-  const smemoOn = () => !!(myPrefs && myPrefs.salesMemo);
+  const smemoOn = () => true; // v420(2026-11-18 사용자 지시): 설정 옵션을 없애고 항상 사용
   const SMEMO = { x: null, at: 0, map: new Map() };
   async function smemoPrep() { // 영업 화면을 그리기 전에 상담기록 파일을 한 번 읽어 둠(1분 안에는 다시 읽지 않음)
     if (!smemoOn()) return;
@@ -6627,18 +6626,25 @@
     if (!SMEMO.map.has(k)) SMEMO.map.set(k, SMEMO.x ? readConsults(SMEMO.x.wb, fc, name) : []);
     return SMEMO.map.get(k);
   }
+  const SMEMO_OPEN = new Set(); // 입력칸이 열려 있는 고객(이름|FC) — 다시 그려도 유지
   function smemoHtml(name, fc, ro) {
     if (!smemoOn() || !name) return "";
-    const list = smemoList(fc, name), last = list[0];
+    const list = smemoList(fc, name), last = list[0], k = fc + "|" + name;
     const md = (d) => esc(String(d || "").slice(5, 10));
-    // v417(2026-11-18 사용자 지시): 최근 상담기록 한 줄, 더 있으면 오른쪽 끝 [더보기] → 팝업(보기 전용)으로 전체
-    // v418(2026-11-18 사용자 지시): [더보기]는 최근 1년 안의 상담기록이 2건 이상일 때만
-    const yAgo = new Date(); yAgo.setFullYear(yAgo.getFullYear() - 1);
-    const cut = (yAgo.getFullYear() * 10000 + (yAgo.getMonth() + 1) * 100 + yAgo.getDate()) * 10000;
-    const recentN = list.filter((r) => r.key >= cut).length;
-    const view = last ? `<div class="sm-last"><span class="sm-d">${md(last.date)}</span><span class="sm-t">${esc(last.text)}</span>${recentN > 1 ? `<button type="button" class="sm-more" data-smmore="${esc(name)}" data-smfc="${esc(fc)}" aria-label="${esc(name)} 상담기록 ${list.length}건 모두 보기">더보기</button>` : ""}</div>` : "";
-    const inp = ro ? "" : `<div class="sm-in"><input type="text" maxlength="200" placeholder="메모 (상담기록에 저장)" autocomplete="off" enterkeyhint="done" data-smin aria-label="${esc(name)} 메모"><button type="button" class="sm-save" data-smsave="${esc(name)}" data-smfc="${esc(fc)}" disabled>저장</button></div>`;
-    return view || inp ? `<div class="sline smemo">${view}${inp}</div>` : "";
+    const keyAgo = (m) => { const d = new Date(); d.setMonth(d.getMonth() - m); return (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) * 10000; };
+    const recentN = list.filter((r) => r.key >= keyAgo(12)).length; // [더보기]는 최근 1년 안에 2건 이상일 때만
+    const six = list.filter((r) => r.key >= keyAgo(6)); // v421(2026-11-18 사용자 지시): 펼치면 최근 6개월 상담기록
+    const attrOf = (r) => `data-smname="${esc(name)}" data-smfc="${esc(fc)}" data-smk="${r.key}" data-smo="${esc(r.text)}"`;
+    const btns = (r) => ro ? "" : `<button type="button" class="sm-mini" data-smedit ${attrOf(r)}>수정</button><button type="button" class="sm-mini del" data-smdel ${attrOf(r)}>삭제</button>`;
+    const editRow = (r) => ro ? "" : `<div class="sm-edit" hidden><input type="text" maxlength="200" value="${esc(r.text)}" autocomplete="off" enterkeyhint="done" data-smeditin aria-label="${esc(name)} 상담기록 수정"><button type="button" class="sm-save" data-smeditsave ${attrOf(r)}>저장</button><button type="button" class="sm-mini" data-smeditcancel>취소</button></div>`;
+    // 닫혀 있을 때: 최근 상담기록 한 줄 (펼치면 아래 목록에 들어 있으므로 숨김)
+    const top = last ? `<div class="sm-rec top"><div class="sm-rv sm-last"><span class="sm-d">${md(last.date)}</span><span class="sm-t">${esc(last.text)}</span>${btns(last)}${recentN > 1 ? `<button type="button" class="sm-more" data-smmore="${esc(name)}" data-smfc="${esc(fc)}" aria-label="${esc(name)} 상담기록 ${list.length}건 모두 보기">더보기</button>` : ""}</div>${editRow(last)}</div>` : "";
+    const add = ro ? "" : `<div class="sm-in"><input type="text" maxlength="200" placeholder="상담기록 추가" autocomplete="off" enterkeyhint="done" data-smin aria-label="${esc(name)} 상담기록 추가"><button type="button" class="sm-save" data-smsave="${esc(name)}" data-smfc="${esc(fc)}" disabled>저장</button></div>`;
+    const recs = six.length ? `<div class="sm-recs">${six.map((r) => `<div class="sm-rec"><div class="sm-rv li"><span class="sm-d">${esc(String(r.date || "").slice(0, 10))}</span><span class="sm-tx">${esc(r.text).replace(/\n/g, "<br>")}</span>${btns(r)}</div>${editRow(r)}</div>`).join("")}</div>` : `<div class="sm-none">최근 6개월 상담기록이 없습니다</div>`;
+    const older = list.length - six.length;
+    const more = older > 0 ? `<button type="button" class="sm-more wide" data-smmore="${esc(name)}" data-smfc="${esc(fc)}">6개월 이전 ${older}건 더보기</button>` : "";
+    const open = SMEMO_OPEN.has(k);
+    return `<div class="sline smemo${open ? " open" : ""}">${top}<div class="sm-slide${open ? " open" : ""}" data-smkey="${esc(k)}"><div class="sm-slide-i">${add}${recs}${more}</div></div></div>`;
   }
   async function smemoSave(btn) {
     const box = btn.closest(".smemo"), inp = box && box.querySelector("[data-smin]");
@@ -6648,7 +6654,7 @@
     btn.disabled = true; btn.textContent = "저장 중"; inp.disabled = true;
     try {
       const list = await saveConsults(fc, name, [{ text, when: new Date() }], []);
-      SMEMO.map.set(fc + "|" + name, list); SMEMO.at = 0; // 다음에 그릴 때 파일을 새로 읽음
+      SMEMO.map.set(fc + "|" + name, list); SMEMO.at = Date.now(); // 저장하며 돌려받은 최신 목록을 바로 씀(파일을 다시 읽지 않음) // 다음에 그릴 때 파일을 새로 읽음
       inp.value = "";
       toast("상담기록에 저장했습니다.");
       renderSales(true);
@@ -6659,6 +6665,46 @@
   document.addEventListener("click", (ev) => {
     const b = ev.target.closest && ev.target.closest("#salesView [data-smsave]"); if (b && !b.disabled) smemoSave(b);
     const m = ev.target.closest && ev.target.closest("#salesView [data-smmore]"); if (m) smemoView(m.dataset.smmore, m.dataset.smfc);
+    const ed = ev.target.closest && ev.target.closest("#salesView [data-smedit]"); if (ed) { const rec = ed.closest(".sm-rec"); rec.querySelector(".sm-rv").hidden = true; const e = rec.querySelector(".sm-edit"); e.hidden = false; const i = e.querySelector("input"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+    const ec = ev.target.closest && ev.target.closest("#salesView [data-smeditcancel]"); if (ec) { const rec = ec.closest(".sm-rec"); rec.querySelector(".sm-edit").hidden = true; rec.querySelector(".sm-rv").hidden = false; }
+    const es = ev.target.closest && ev.target.closest("#salesView [data-smeditsave]"); if (es && !es.disabled) smemoEditSave(es);
+    const dl = ev.target.closest && ev.target.closest("#salesView [data-smdel]"); if (dl && !dl.disabled) smemoDelete(dl);
+  });
+  const smemoWhen = (key) => { const day = Math.floor(key / 10000), hm = key % 10000; return new Date(Math.floor(day / 10000), (Math.floor(day / 100) % 100) - 1, day % 100, Math.floor(hm / 100), hm % 100); }; // 수정해도 처음 날짜·시간 그대로
+  async function smemoEditSave(btn) {
+    const box = btn.closest(".sm-rec"), inp = box.querySelector("[data-smeditin]");
+    const text = inp.value.trim(), name = btn.dataset.smname, fc = btn.dataset.smfc, key = +btn.dataset.smk, old = btn.dataset.smo;
+    if (!text) return toast("내용을 입력해 주세요.");
+    if (text === old) { box.querySelector(".sm-edit").hidden = true; box.querySelector(".sm-rv").hidden = false; return; }
+    if (isRO(fc)) return toast("보기 전용 권한이라 수정할 수 없습니다.");
+    btn.disabled = true; btn.textContent = "저장 중"; inp.disabled = true;
+    try {
+      const list = await saveConsults(fc, name, [{ text, when: smemoWhen(key) }], [{ key, text: old }]);
+      SMEMO.map.set(fc + "|" + name, list); SMEMO.at = Date.now(); // 저장하며 돌려받은 최신 목록을 바로 씀(파일을 다시 읽지 않음)
+      toast("상담기록을 수정했습니다.");
+      renderSales(true);
+    } catch (e) { btn.disabled = false; btn.textContent = "저장"; inp.disabled = false; saveError(e); }
+  }
+  async function smemoDelete(btn) {
+    const name = btn.dataset.smname, fc = btn.dataset.smfc, key = +btn.dataset.smk, old = btn.dataset.smo;
+    if (isRO(fc)) return toast("보기 전용 권한이라 삭제할 수 없습니다.");
+    if (!confirm(`${name} 고객의 이 상담기록을 삭제할까요?\n\n${old}\n\n(엑셀에서 지워지며, 되돌릴 수 없어요)`)) return;
+    btn.disabled = true; btn.textContent = "삭제 중";
+    try {
+      const list = await saveConsults(fc, name, [], [{ key, text: old }]);
+      SMEMO.map.set(fc + "|" + name, list); SMEMO.at = Date.now(); // 저장하며 돌려받은 최신 목록을 바로 씀(파일을 다시 읽지 않음)
+      toast("상담기록을 삭제했습니다.");
+      renderSales(true);
+    } catch (e) { btn.disabled = false; btn.textContent = "삭제"; saveError(e); }
+  }
+  // 고객 줄(정보 칸)을 터치하면 상담기록 입력칸이 아래로 내려오고, 한 번 더 터치하면 올라가며 사라짐 (버튼·링크·입력칸을 누른 것은 제외)
+  document.addEventListener("click", (ev) => {
+    const row = ev.target.closest && ev.target.closest("#salesView .srow");
+    if (!row || ev.target.closest("a, button, input, label, select, .sbtns, .smemo")) return;
+    const sl = row.querySelector(".sm-slide"); if (!sl) return;
+    const on = sl.classList.toggle("open"), k = sl.dataset.smkey;
+    sl.closest(".smemo").classList.toggle("open", on);
+    if (on) SMEMO_OPEN.add(k); else SMEMO_OPEN.delete(k);
   });
   function smemoView(name, fc) { // 상담기록 전체 보기(보기 전용 팝업): 바깥·[닫기]·뒤로(Esc)로 닫음
     const old = document.getElementById("smemoPop"); if (old) old.remove();
@@ -6674,14 +6720,6 @@
     box.addEventListener("click", (e) => { if (e.target === box || e.target.closest("[data-smclose]")) close(); });
     document.addEventListener("keydown", onKey);
   }
-  document.addEventListener("change", async (ev) => {
-    if (!ev.target || ev.target.id !== "salesMemoOpt") return;
-    const on = ev.target.checked, cb = ev.target;
-    cb.disabled = true;
-    try { const p = { ...(await loadMyPrefs()) }; p.salesMemo = on; await saveMyPrefs(p); SMEMO.at = 0; toast(on ? "영업 화면에 고객별 메모 칸을 보입니다." : "영업 화면의 메모 칸을 숨겼습니다."); }
-    catch (e) { cb.checked = !on; handleError(e); }
-    finally { cb.disabled = false; }
-  });
   function progRowsHtml(rows, view) {
     const mdd = (v) => (v ? esc(String(v).slice(5, 10)) : "");
     return `<div class="slist">` + rows.map((r, i) => {
