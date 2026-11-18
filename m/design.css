@@ -1336,3 +1336,14 @@ html[data-view="customerView"] .ai-fab, html[data-view="introView"] .ai-fab { bo
 .ev-form .fld.chk { display: flex; align-items: center; gap: 10px; }
 .ev-form .fld.chk input[type="checkbox"] { width: 20px; height: 20px; flex: none; }
 .ev-form [data-ad-only][hidden], .ev-form [data-tm-only][hidden] { display: none !important; }
+
+/* v449: 할 일 줄 아래 = 일정과 같은 고객 카드 */
+.task-card .task-cust { display: block; padding: 0 0 4px; font-size: inherit; }
+.task-card .task-cust .task-cust-acts { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.task-card .task-cust .ev-cust { margin-top: 2px; }
+.task-card .task-cust .put-btn { display: none; }
+.task-card .task-cust.linked { border-left: 4px solid var(--accent); padding-left: 8px; }
+
+/* v450: 할 일 줄 — 버튼이 셋이라 제목을 먼저 넓게, 버튼은 자리가 없으면 아랫줄 오른쪽 */
+.task-card .task-item:not(.editing) label { flex: 1 1 210px; }
+.task-card .task-item:not(.editing) .task-acts { margin-left: auto; }
