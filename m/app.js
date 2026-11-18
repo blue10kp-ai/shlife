@@ -430,10 +430,12 @@
   // ---------- 다크 모드 선택 (v408, 2026-11-17 사용자 지시) ----------
   // 설정 > 화면의 [다크 모드] 체크. 고르지 않으면 폰 설정(시스템)을 따르고, 고르면 이 기기에서 그 모양으로 고정. 스타일의 '다크' 미디어 규칙을 켜고 끄는 방식이라 모든 화면에 함께 적용
   const THEME_KEY = "shlife.theme";
-  const themePref = () => { try { return localStorage.getItem(THEME_KEY) || "dark"; } catch (e) { return "dark"; } }; // v414(2026-11-18 사용자 지시): 고른 적 없으면 다크 모드가 기본
+  // v428(2026-11-18 말만해요 규칙): 말만해요 안(embed)에서는 주소의 &theme=dark|light 를 그대로 따르고(앱 자체 설정보다 우선, 저장하지 않음), 말만해요 설정에서 바꾸면 postMessage(blue10kp-theme)로 알려 줌
+  let embedTheme = (() => { try { const q = new URLSearchParams(location.search), t = q.get("theme"); return q.get("embed") === "1" && (t === "dark" || t === "light") ? t : ""; } catch (e) { return ""; } })();
+  const themePref = () => embedTheme || (() => { try { return localStorage.getItem(THEME_KEY) || "dark"; } catch (e) { return "dark"; } })(); // v414(2026-11-18 사용자 지시): 고른 적 없으면 다크 모드가 기본
   const darkMQ = (() => { try { return matchMedia("(prefers-color-scheme: dark)"); } catch (e) { return null; } })();
   const themeIsDark = () => { const p = themePref(); return p ? p === "dark" : !!(darkMQ && darkMQ.matches); };
-  const themeOrig = new WeakMap();
+  const themeOrig = window.__themeOrig || new WeakMap(); // index.html 머리에서 미리 적용하며 적어 둔 원래 값을 이어 씀
   function themeApply() {
     const p = themePref();
     if (p) document.documentElement.dataset.theme = p; else delete document.documentElement.dataset.theme;
@@ -456,9 +458,13 @@
   window.addEventListener("load", themeApply);
   document.addEventListener("change", (ev) => {
     if (!ev.target || ev.target.id !== "darkMode") return;
-    try { localStorage.setItem(THEME_KEY, ev.target.checked ? "dark" : "light"); } catch (e) { /* 이번에만 적용 */ }
+    const v = ev.target.checked ? "dark" : "light";
+    if (embedTheme) { embedTheme = v; themeApply(); toast("말만해요 안에서는 말만해요 설정을 따릅니다(이번에만 바뀜)."); return; } // embed 중에는 저장하지 않음
+    try { localStorage.setItem(THEME_KEY, v); } catch (e) { /* 이번에만 적용 */ }
     themeApply();
     toast(ev.target.checked ? "다크 모드로 바꿨습니다." : "라이트 모드로 바꿨습니다.");
+    // v427(2026-11-18 프팀장 전달 사용자 지시): 기기 밖에서도 같게 — 내 설정 파일(Drive)에 저장하고, localStorage는 화면 깜빡임을 막는 빠른 캐시
+    (async () => { try { const pr = { ...(await loadMyPrefs()) }; pr.theme = v; await saveMyPrefs(pr); } catch (e) { console.warn("theme save", e && e.message); } })();
   });
   // ---------- 화면 전환 ----------
   // 오른손 모드: 설정에서 켜면(이 폰에만 저장) 하단 메뉴·탭·선택 버튼을 오른쪽으로 모음 (모양은 design.css의 .rh)
@@ -487,7 +493,7 @@
       <label class="d3"><span>시작 화면</span><select id="startPage" aria-label="시작 화면">${START_PAGES.map(([k, l]) => `<option value="${k}" ${cur.page === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="d3"><span>오른손 모드</span><span class="d3c"><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}> 켜기</span></label>
     </div>
-    <label class="wake-opt"><input type="checkbox" class="cb" id="darkMode" ${themeIsDark() ? "checked" : ""}> <span><b>다크 모드</b> <small>기본은 다크, 끄면 밝은 화면(이 기기에만 저장)</small></span></label>
+    <label class="wake-opt"><input type="checkbox" class="cb" id="darkMode" ${themeIsDark() ? "checked" : ""}> <span><b>다크 모드</b> <small>기본은 다크, 끄면 밝은 화면(내 설정 파일에 저장되어 다른 기기에서도 같음)</small></span></label>
     <label class="wake-opt"><input type="checkbox" class="cb" id="wakeMode" ${wakeOn() ? "checked" : ""}> <span><b>“몰리야”로 AI 부르기</b> <small>시험용 · 앱 화면이 열려 있는 동안만 마이크로 듣습니다(안드로이드 크롬). 이 기기에만 저장</small></span></label></div>`;
   };
   document.addEventListener("change", (ev) => {
@@ -4210,11 +4216,11 @@
     const s_nm = sec("일정 제목 → 고객 찾기 (2026-11-17)", ["일정 화면을 <b>좌우로 밀면</b> Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월로 넘어갑니다.", "일정 제목에 <b>등록된 고객 이름</b>이 있으면(‘고객’ 글자가 없어도, 날짜와 상관없이) 그 고객 카드가 일정에 붙고, 카드에서 장소 ‘입력’을 할 수 있습니다. 같은 이름의 고객이 여럿이면 [선택]으로 고르고, 상관없는 고객이면 [무시]로 숨깁니다. 등록된 고객에 없는 이름이면 아무것도 붙이지 않습니다. (2026-11-18: 하루 동안 쓰던 ‘이름 + 고객’ 규칙은 풀었습니다.)"]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드의 <b>비영업</b> 버튼을 눌러 영업일정으로 바꾼 일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
     const s_addev = sec("일정 추가 (일정 화면)", ["일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). <b>초기화</b> 버튼(추가의 왼쪽)은 그날 영업일정을 모두 비영업일정으로 바꾸고, 동명이인 지정·고객 정보로 넣은 일정 장소도 되돌립니다(영업일정이나 처리한 일정이 있는 날에만 보임). 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
-    const s_sub = sec("영업 서브메뉴", ["영업 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>자료</b>를 눌러 바꿉니다. <b>자료</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 유형(따행/이관/DB, 여러 개) · <b>단계</b>(신규·완료·지옥, 여러 개) · <b>기간</b>(년월 하나)을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 기간의 <b>[3개월]</b>·<b>[1년]</b>은 이번 달까지의 그 기간으로 <b>누르는 즉시 보고서</b>를 보여 줍니다(진행을 누르지 않아도 됨). 이관은 이관일, 따행은 대상년월이 기간 안인 고객입니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘영업 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘영업 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 자료는 영업에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
+    const s_sub = sec("영업 서브메뉴", ["영업 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>자료</b>를 눌러 바꿉니다. <b>자료</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 유형(따행/이관/DB, 여러 개) · <b>단계</b>(신규·계약·완료·지옥, 여러 개 — 계약은 DB의 계약 고객) · <b>기간</b>(년월 하나)을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 기간의 <b>[3개월]</b>·<b>[1년]</b>은 이번 달까지의 그 기간으로 <b>누르는 즉시 보고서</b>를 보여 줍니다(진행을 누르지 않아도 됨). 이관은 이관일, 따행은 대상년월이 기간 안인 고객입니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘영업 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘영업 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 자료는 영업에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
     const s_stage = sec("영업단계 칩 (이관 · DB)", ["이관·DB 목록의 고객 줄 오른쪽에 <b>통화 · AP · PC · 계약</b> 칩이 있고, 그 고객의 지금 영업단계인 칩만 색이 들어옵니다. 칩을 누르면 고객 시트의 ‘영업단계’ 칸에 누른 칩의 글자가 저장됩니다(칸이 없으면 새로 만듭니다). 이미 색이 켜진 칩을 다시 누르면 ‘고객의 영업상태를 제거하시겠습니까?’ 확인 뒤 빈칸이 됩니다."]);
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_wake = sec("“몰리야”로 AI 부르기 (시험용)", ["오른쪽 아래에 떠 있는 <b>몰리(두더지) 선 그림 버튼</b>을 누르면 AI 창이 열립니다(아래 메뉴 맨 왼쪽 AI 버튼과 같음). 반투명이라 밑의 내용이 비쳐 보입니다. 누르면 AI 창이 열리면서 <b>바로 듣기(마이크)</b>가 켜져 말하면 됩니다. 버튼을 <b>꾹 눌러 끌면</b> 원하는 자리로 옮겨지고, 그 자리는 이 기기에 기억됩니다. 말만해요 안에서는 그 자리를 비워 두므로 나오지 않습니다.", "설정 > 화면의 <b>“몰리야”로 AI 부르기</b>를 켜면, 이 기기에서 앱 화면이 열려 있는 동안 마이크로 듣다가 <b>‘몰리야’</b>라고 부르면 AI 창이 뜹니다. ‘몰리야 내일 일정 알려줘’처럼 이어 말하면 그 말이 바로 AI에 들어가고, 이름만 부르면 AI 창의 마이크가 켜집니다.", "듣는 동안 화면 위에 작은 <b>‘몰리 듣는 중’</b> 표시가 나오고, 누르면 바로 꺼집니다. 화면이 꺼지거나 다른 앱으로 가면 듣지 않고, AI 창이나 다른 음성 입력을 쓰는 동안에도 멈춥니다. 안드로이드 크롬에서만 되며(아이폰 사파리는 거의 안 됨), 음성은 크롬이 구글 서버로 보내 글자로 바꿉니다. 상담 중에는 꺼 두세요. 설정은 이 기기에만 저장됩니다."]);
-    const s_theme = sec("다크 모드", ["설정 > 화면의 <b>다크 모드</b>를 체크하면 어두운 화면, 끄면 밝은 화면으로 이 기기에서 고정됩니다. 한 번도 고르지 않았으면 <b>다크 모드가 기본</b>입니다(2026-11-18부터)."]);
+    const s_theme = sec("다크 모드", ["설정 > 화면의 <b>다크 모드</b>를 체크하면 어두운 화면, 끄면 밝은 화면으로 이 기기에서 고정됩니다. 한 번도 고르지 않았으면 <b>다크 모드가 기본</b>입니다(2026-11-18부터, 폰의 밝은·어두운 설정과 상관없음). 고른 값은 내 설정 파일(드라이브)에 저장되어 다른 기기에서도 같게 따르고, 이 기기에는 화면 깜빡임을 막으려고 같이 기억합니다. 로그인 화면도 같은 값을 따릅니다. 말만해요 안에서 열면 말만해요의 설정(다크/라이트)을 따르고, 말만해요에서 바꾸면 바로 바뀝니다(이 앱에는 저장하지 않음)."]);
     const s_dsh = sec("대시보드 (2026-11-17)", ["아래 메뉴 <b>AI 오른쪽 [대시보드]</b>입니다. 위 오른쪽에서 보는 범위(FC)를 고릅니다(기본은 본인, 내 권한으로 보이는 FC만).", "<b>숫자 카드</b>: 이달 목표 착수(목표 중 단계가 시작된 건 / 전체), 6개월 평균 업적(월초보험료, 업적 자료 기준), 최근 수수료(가장 최근 달 실지급), 계약진행 인원. 업적·수수료 카드는 민감정보 허용 계정이 그 자료를 읽을 수 있을 때만 보입니다.", "<b>이달목표 막대</b>: 이관·DB는 통화·AP·PC·계약·미착수, 따행은 방문완료·설문발송·설문응답·쿠폰발송·미방문, 계약진행은 고객등록·전화·AP·PC·계약별 건수입니다. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다. 맨 아래는 <b>소개 랭킹</b> 상위 3명입니다."]);
     const s_in = sec("소개 (2026-11-17)", ["<b>고객 정보 > 수정</b>의 <b>소개</b>: <b>소개 · 아님 · 모름</b> 중 고르고, <b>소개</b>이면 소개자 이름을 적습니다. 같은 FC의 등록 고객 후보(이름·출생 두 자리·유입경로)가 나오고, 고르면 <b>등록 고객과 연결</b>(소개고객ID 저장), 고르지 않거나 후보에 없으면 <b>이름만 남기기</b>(소개자명 저장)입니다. 다시 누르면 풀리고 이름을 비우면 지워집니다. 소개만 고치면 ‘직접 수정’ 표시는 붙지 않습니다.", "<b>소개자 트로피</b>: 소개해 준 고객 이름 앞에 1~2명 동, 3~4명 은, 5명 이상 금 트로피가 붙습니다(소개고객ID를 세어 계산, 고객 정보 머리·고객 검색 결과·소개찾기에 나옵니다).", "<b>소개찾기</b>(고객 화면 GBS 옆 버튼): 등록 고객 전부를 대상으로 ‘등록고객 N명 중 M명 확인’을 보여 줍니다. <b>소개고객부터</b>는 고객마다 [소개자 찾기](창에서 이름 검색 → 고객 고르기 · 이미 적힌 이름 · 이름만 · 소개 아님 · 모름), <b>소개자부터</b>는 소개자를 먼저 고른 뒤 그분이 소개한 고객을 체크해 한 번에 연결, <b>랭킹</b>은 소개한 수 순서로 보여 주며 고객이 아닌 소개자는 ‘미등록’으로 묶고 [고객으로 연결]로 한 번에 고객ID에 이어 줍니다. 묶음 <b>지역·성별·직업·직장·유입 시기·가족(같은 주소)·유입경로</b>를 겹쳐 눌러 같은 사람끼리 묶어 볼 수 있고, ‘확인한 고객도 보기’를 켜면 이미 확인한 고객도 나옵니다.", "<b>새 고객 확인</b>: 지난번 접속 뒤 입력된 내 FC 고객이 있으면 로그인 때 소개찾기 화면이 먼저 뜹니다. 고객마다 [소개자 찾기], 모두 끝내려면 <b>나머지는 소개 없음</b>, 미루려면 <b>나중에</b>(다음 접속 때 다시 뜹니다). 처음 접속한 기기는 기준 시각만 기록하고 묻지 않습니다(기존 고객은 소개찾기에서 점검)."]);
     const s_smemo = sec("영업 상담기록 칸 (2026-11-18)", ["영업 화면(이달목표의 이관·따행·DB, 계약진행)의 고객 줄 맨 아래에 <b>가장 최근 상담기록 한 줄</b>이 나오고, 그 오른쪽에 <b>[수정]</b> · <b>[삭제]</b>가 있습니다. 수정하면 처음 날짜·시간은 그대로이고 내용만 바뀌며, 삭제는 확인을 거쳐 엑셀에서 지워집니다. 최근 1년 안의 상담기록이 2건 이상이면 오른쪽 끝에 <b>[더보기]</b>가 생겨 전체를 팝업으로 볼 수 있습니다(보기 전용).", "고객 정보가 있는 줄(버튼·링크가 아닌 곳)을 <b>한 번 터치</b>하면 아래로 상담기록 칸이 펼쳐집니다. <b>맨 위 줄은 상담기록 추가칸</b>([저장]을 누르면 일정 화면의 한 줄 메모처럼 상담기록에 저장되어 고객 정보 > 상담 탭에서도 보임)이고, 그 아래에 <b>최근 6개월 안의 상담기록이 날짜와 함께</b> 나옵니다(각 기록에 [수정]·[삭제], 6개월보다 오래된 것은 ‘6개월 이전 N건 더보기’로 팝업). <b>한 번 더 터치</b>하면 위로 올라가며 사라지고 최근 상담기록 한 줄만 남습니다. (예전 설정의 ‘영업 메모 칸’ 옵션은 없앴고 항상 사용합니다.)"]);
@@ -4228,7 +4234,7 @@
     const s_srch = sec("전체검색 · 고객검색", ["<b>위쪽 전체검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호뿐 아니라 고객 메모, 상담기록, 오늘 기준 1년 전~1개월 뒤 일정(제목·장소)에서도 찾습니다. 결과는 아래에서 올라오는 창에 고객(어디서 찾았는지 표시)과 일정으로 나뉘어 나오고, 누르면 고객 정보(상담기록에서 찾았으면 상담 탭) 또는 그날 일정으로 이동합니다.", "<b>고객 화면의 고객검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호로 고객만 찾는 기존 검색입니다. 한 명만 나오면 바로 고객 정보가 열립니다.", "검색칸이 비어 있을 때의 글자(전체검색·고객검색)는 오른쪽에 보입니다."]);
     const s_cov = sec("보장 요약 (고객 정보 > 분석 탭)", ["분석 탭 맨 위에 사망 · 3대진단(암·뇌·심) · 수술 · 입원 · 간병을 간단히 보여 줍니다. 스마트보장분석이 있으면 ‘전체 보험사에 가입된 보장 요약입니다.’, 신한라이프 상세보장내용만 있으면 ‘신한라이프에 가입된 보장 요약입니다.’라고 위에 적고, 맨 아래에 어느 문서의 몇 월 며칠 기준인지 나옵니다.", "‘미가입’은 가입한 보장이 없다는 뜻이고, ‘확인 안 됨’은 원본 문서에서 그 항목을 읽지 못했다는 뜻입니다. 이 값은 고객 등록·업데이트 때 미리 만들어 고객 시트의 ‘보장요약’ 칸에 저장해 둔 것을 읽기만 하므로 분석 탭을 열 때 계산하지 않습니다."]);
     const s_cmp = sec("고객 구분 · 유입경로 말 (2026-11-17)", ["화면의 말이 <b>직접모집</b>(예전 ‘계약·본인’), <b>이관고객</b>(예전 ‘이관’), <b>계약진행</b>(예전 ‘진행’), <b>가망</b>으로 바뀌었습니다. 고객 정보의 <b>유입경로</b>는 <b>신규유입 · 이관유입 · DB유입</b> 세 가지이고 처음 한 번 정해지면 바뀌지 않아 <b>읽기만</b> 합니다(예전 ‘계약·지인·소개’ 값은 신규유입으로 보입니다). 소개는 유입경로가 아니라 <b>소개자</b> 칸으로 따로 둡니다.", "데이터가 새 칸 이름(주민번호·고객분류·이관상태·따행상태·계약진행 표 등)으로 바뀌는 중에는 앱이 <b>새 칸이 있으면 새 칸, 없으면 옛 칸</b>을 읽고, 저장은 옛 칸과 새 칸 <b>둘 다</b>에 합니다(이관보관·이관상태, 따행보관·따행상태, 진행제외·영업단계와 계약진행 표, DB제외·DB상태, 후번호와 주민번호). 따행 <b>방문완료</b>는 방문완료일만 보고, 따행 <b>대상</b>은 따행상태(목표, 빈칸이면 활동기한이 안 끝난 줄)로 셉니다. 상령일(생년월일+6개월)과 납입완료 예정(최초계약일+납입기간)은 칸이 없어도 계산해서 보여 줍니다."]);
-    const s_prog = sec("보관 (이동 · 원복)", ["<b>2026-11-18부터 이달목표의 이관·따행</b>은 위 칩이 <b>신규 · 완료 · 지옥</b>입니다(예전 ‘이관/따행 · 보관’). 신규 줄은 <b>[완료]</b>, 완료 줄은 <b>[신규로] [지옥으로]</b>, 지옥 줄은 <b>[신규로] [완료로]</b>로 옮깁니다. 예전에 보관한 고객은 완료에, 삭제한 고객은 지옥에 보입니다. 파일에는 지금처럼 목표 · 보관 · 삭제로 저장됩니다(이력에 남음). DB 탭은 그대로(신규 · 계약 · 보관 · 삭제)입니다.", "영업 > 이달목표 목록 줄의 오른쪽 버튼 글자는 상태에 따라 달라집니다. 신규 목록 줄은 <b>보관으로</b>, 보관 목록 줄은 <b>신규로</b>(원래 목록으로)와 <b>삭제로</b>(DB), 삭제 목록 줄은 <b>신규로</b>와 <b>보관으로</b>입니다. 아래 설명의 ‘이동·원복’은 각각 ‘보관으로·신규로’를 뜻합니다.", "고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 영업 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다. DB DB 목록 위 칩은 <b>신규 / 계약 / 보관</b> 순서이고(신규 검정 · 계약 초록 · 보관 파랑), <b>보관</b>을 누르면 빨간 <b>삭제</b> 칩이 더해집니다. 계약 고객이 된 DB 고객은 고객 시트의 ‘DB상태’가 ‘계약’이 되고 계약 칩에서 봅니다. <b>삭제</b> 목록은 가장 최근에 삭제한 고객이 맨 위에 나오며 줄의 <b>복구</b>를 누르면 보관으로 돌아갑니다. 보관 목록에는 원복 오른쪽에 <b>삭제</b> 버튼도 있습니다: 확인 뒤 누르면 자료는 지우지 않고 고객 시트의 ‘DB상태’ 칸(신규·보관·삭제 중 하나, 빈칸은 신규)에 ‘삭제’만 표시해, 보관 목록에서도 안 보이게 합니다(6초 안에 [되돌리기] 가능).", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 고객 화면 [이관] 목록에서는 <b>이달 N / 보관 M</b> 칩(이달 이관 고객 수)과 줄의 이동·원복으로 그 고객의 <b>이달 이관 계약만</b> 한꺼번에 보관하거나 원복합니다(이관일자가 이번 달인 계약 = 이달목표 > 이관에 나오는 계약, 지난 달 이관·담당이 다른 FC 계약은 그대로). 이달 이관 계약이 없는 이관 고객에는 버튼이 없습니다. 고객 정보 화면 탭 줄 오른쪽에도 보관할 수 있는 목록마다 <b>보관으로 이동</b>/<b>원복</b> 버튼이 나옵니다(여러 개면 ‘진행 보관’·‘DB 보관’·‘이관 보관’처럼 앞에 목록 이름). 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
+    const s_prog = sec("보관 (이동 · 원복)", ["<b>2026-11-18부터 이달목표의 이관·따행</b>은 위 칩이 <b>신규 · 완료 · 지옥</b>입니다(예전 ‘이관/따행 · 보관’). 신규 줄은 <b>[완료]</b>, 완료 줄은 <b>[신규로] [지옥으로]</b>, 지옥 줄은 <b>[신규로] [완료로]</b>로 옮깁니다. 예전에 보관한 고객은 완료에, 삭제한 고객은 지옥에 보입니다. 파일에는 지금처럼 목표 · 보관 · 삭제로 저장됩니다(이력에 남음). DB 탭도 같은 말로 <b>신규 · 계약 · 보관 · 지옥</b>입니다(예전 ‘삭제’ = 지옥, 보관 줄의 [삭제로] = [지옥으로]).", "영업 > 이달목표 목록 줄의 오른쪽 버튼 글자는 상태에 따라 달라집니다. 신규 목록 줄은 <b>보관으로</b>, 보관 목록 줄은 <b>신규로</b>(원래 목록으로)와 <b>지옥으로</b>(DB), 지옥 목록 줄은 <b>신규로</b>와 <b>보관으로</b>입니다. 아래 설명의 ‘이동·원복’은 각각 ‘보관으로·신규로’를 뜻합니다.", "고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 영업 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다. DB DB 목록 위 칩은 <b>신규 / 계약 / 보관</b> 순서이고(신규 검정 · 계약 초록 · 보관 파랑), <b>보관</b>을 누르면 빨간 <b>지옥</b> 칩이 더해집니다. 계약 고객이 된 DB 고객은 고객 시트의 ‘DB상태’가 ‘계약’이 되고 계약 칩에서 봅니다. <b>지옥</b> 목록은 가장 최근에 지옥으로 보낸 고객이 맨 위에 나오며 줄의 <b>복구</b>를 누르면 보관으로 돌아갑니다. 보관 목록에는 원복 오른쪽에 <b>지옥으로</b> 버튼도 있습니다: 확인 뒤 누르면 자료는 지우지 않고 고객 시트의 ‘DB상태’ 칸(신규·보관·삭제 중 하나, 빈칸은 신규)에 ‘삭제’(=지옥)만 표시해, 보관 목록에서도 안 보이게 합니다(6초 안에 [되돌리기] 가능).", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 고객 화면 [이관] 목록에서는 <b>이달 N / 보관 M</b> 칩(이달 이관 고객 수)과 줄의 이동·원복으로 그 고객의 <b>이달 이관 계약만</b> 한꺼번에 보관하거나 원복합니다(이관일자가 이번 달인 계약 = 이달목표 > 이관에 나오는 계약, 지난 달 이관·담당이 다른 FC 계약은 그대로). 이달 이관 계약이 없는 이관 고객에는 버튼이 없습니다. 고객 정보 화면 탭 줄 오른쪽에도 보관할 수 있는 목록마다 <b>보관으로 이동</b>/<b>원복</b> 버튼이 나옵니다(여러 개면 ‘진행 보관’·‘DB 보관’·‘이관 보관’처럼 앞에 목록 이름). 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
     const s_rh = sec("오른손 모드", ["'화면' 카드 오른쪽 칸입니다. 하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용되고, 관리자 조직도에서 볼 수 있게 기록됩니다."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>[조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 영업 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 영업 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: ‘FC 사용 설정’ 제목 옆 [조직도]를 누르면 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/영업 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
@@ -4613,6 +4619,7 @@
       const d = await resolveMyDir(false);
       const p = d ? await stReadJsonIn(d, MY_FILE) : null;
       if (p) { myPrefs = p; try { localStorage.setItem(myCacheKey(), JSON.stringify(p)); } catch (e) { /* 무시 */ } }
+      if (!embedTheme && p && (p.theme === "dark" || p.theme === "light") && themePref() !== p.theme) { try { localStorage.setItem(THEME_KEY, p.theme); } catch (e) { /* 무시 */ } themeApply(); const c = document.getElementById("darkMode"); if (c) c.checked = p.theme === "dark"; } // Drive에 저장된 다크/라이트가 있으면 그것을 따름
     } catch (e) { console.error(e); }
     return myPrefs || {};
   }
@@ -6640,7 +6647,7 @@
     // 닫혀 있을 때: 최근 상담기록 한 줄 (펼치면 아래 목록에 들어 있으므로 숨김)
     const top = last ? `<div class="sm-rec top"><div class="sm-rv sm-last"><span class="sm-d">${md(last.date)}</span><span class="sm-t">${esc(last.text)}</span>${btns(last)}${recentN > 1 ? `<button type="button" class="sm-more" data-smmore="${esc(name)}" data-smfc="${esc(fc)}" aria-label="${esc(name)} 상담기록 ${list.length}건 모두 보기">더보기</button>` : ""}</div>${editRow(last)}</div>` : "";
     const add = ro ? "" : `<div class="sm-in"><input type="text" maxlength="200" placeholder="상담기록 추가" autocomplete="off" enterkeyhint="done" data-smin aria-label="${esc(name)} 상담기록 추가"><button type="button" class="sm-save" data-smsave="${esc(name)}" data-smfc="${esc(fc)}" disabled>저장</button></div>`;
-    const recs = six.length ? `<div class="sm-recs">${six.map((r) => `<div class="sm-rec"><div class="sm-rv li"><span class="sm-d">${esc(String(r.date || "").slice(0, 10))}</span><span class="sm-tx">${esc(r.text).replace(/\n/g, "<br>")}</span>${btns(r)}</div>${editRow(r)}</div>`).join("")}</div>` : `<div class="sm-none">최근 6개월 상담기록이 없습니다</div>`;
+    const recs = six.length ? `<div class="sm-recs">${six.map((r) => `<div class="sm-rec"><div class="sm-rv li"><span class="sm-d">${esc(String(r.date || "").slice(0, 10))}</span><span class="sm-tx">${esc(r.text).replace(/\n/g, "<br>")}</span>${btns(r)}</div>${editRow(r)}</div>`).join("")}</div>` : ""; // v422: 기록이 없을 때 안내문구는 두지 않음
     const older = list.length - six.length;
     const more = older > 0 ? `<button type="button" class="sm-more wide" data-smmore="${esc(name)}" data-smfc="${esc(fc)}">6개월 이전 ${older}건 더보기</button>` : "";
     const open = SMEMO_OPEN.has(k);
@@ -7137,8 +7144,8 @@
       const lastD = isD ? DCHIPS.reduce((acc, [f], i) => (r.dda[f] ? i : acc), -1) : -1;
       const chips = stageChips ? stageChips : isD ? DCHIPS.map(([f, lab, cls], i) => `<button type="button" class="dc ${cls} ${i === lastD ? "on" : r.dda[f] ? "off past" : "off"}${lock ? " lock" : ""}" data-chip="${f}" data-key="${esc(r.key)}" aria-pressed="${r.dda[f] ? "true" : "false"}">${lab}</button>`).join("") : "";
       // [이동]/[원복]: 담당이 다른 FC 계약(참고)·계약ID 없는 계약·보기 전용은 없음. 계약 고객이 된 DB 고객은 '계약'(자동 보관)
-      const arDay = r.arch && r.archDay ? `<span class="r-day">${r.db ? (r.del ? "삭제" : "보관") : r.del ? "지옥" : "완료"} ${esc(dshow(r.archDay).slice(5, 10))}</span>` : "";
-      const arBtn = r.db && r.del ? (r.ref || !r.key || isRO(r.fc) ? "" : `<i class="ar-sep" aria-hidden="true"></i><button type="button" class="ar-btn back" data-ardelnew="${esc(r.key)}" aria-label="${esc(r.holder)} 신규로 이동">신규로</button><button type="button" class="ar-btn" data-ardelx="${esc(r.key)}" aria-label="${esc(r.holder)} 보관으로 이동">보관으로</button>`) : r.db && r.arch && r.dbAuto ? `<i class="ar-sep" aria-hidden="true"></i><span class="ar-auto">계약</span>` : (r.ref || !r.key || isRO(r.fc) || r.arch === undefined) ? "" : `<i class="ar-sep" aria-hidden="true"></i>${r.db ? `<button type="button" class="ar-btn${r.arch ? " back" : ""}" data-arx="${esc(r.key)}" aria-label="${esc(r.holder)} ${r.arch ? "신규로 이동" : "보관으로 이동"}">${r.arch ? "신규로" : "보관으로"}</button>${r.arch ? `<button type="button" class="ar-btn del" data-ardel="${esc(r.key)}" aria-label="${esc(r.holder)} 삭제로 이동">삭제로</button>` : ""}`
+      const arDay = r.arch && r.archDay ? `<span class="r-day">${r.db ? (r.del ? "지옥" : "보관") : r.del ? "지옥" : "완료"} ${esc(dshow(r.archDay).slice(5, 10))}</span>` : "";
+      const arBtn = r.db && r.del ? (r.ref || !r.key || isRO(r.fc) ? "" : `<i class="ar-sep" aria-hidden="true"></i><button type="button" class="ar-btn back" data-ardelnew="${esc(r.key)}" aria-label="${esc(r.holder)} 신규로 이동">신규로</button><button type="button" class="ar-btn" data-ardelx="${esc(r.key)}" aria-label="${esc(r.holder)} 보관으로 이동">보관으로</button>`) : r.db && r.arch && r.dbAuto ? `<i class="ar-sep" aria-hidden="true"></i><span class="ar-auto">계약</span>` : (r.ref || !r.key || isRO(r.fc) || r.arch === undefined) ? "" : `<i class="ar-sep" aria-hidden="true"></i>${r.db ? `<button type="button" class="ar-btn${r.arch ? " back" : ""}" data-arx="${esc(r.key)}" aria-label="${esc(r.holder)} ${r.arch ? "신규로 이동" : "보관으로 이동"}">${r.arch ? "신규로" : "보관으로"}</button>${r.arch ? `<button type="button" class="ar-btn del" data-ardel="${esc(r.key)}" aria-label="${esc(r.holder)} 지옥으로 이동">지옥으로</button>` : ""}`
         : !r.arch ? `<button type="button" class="ar-btn" data-arx="${esc(r.key)}" data-to="done" aria-label="${esc(r.holder)} 완료로 이동">완료</button>` // v416: 이관·따행 = 신규 · 완료 · 지옥
         : `<button type="button" class="ar-btn back" data-arx="${esc(r.key)}" data-to="new" aria-label="${esc(r.holder)} 신규로 이동">신규로</button>${r.del ? `<button type="button" class="ar-btn" data-arx="${esc(r.key)}" data-to="done" aria-label="${esc(r.holder)} 완료로 이동">완료로</button>` : r.canHell ? `<button type="button" class="ar-btn del" data-arx="${esc(r.key)}" data-to="hell" aria-label="${esc(r.holder)} 지옥으로 이동">지옥으로</button>` : ""}`}`;
       const arHtml = arDay ? `<span class="ar-act">${arDay}</span>` : "";
@@ -7346,12 +7353,12 @@
     undoToast(`${name} 고객을 원복했습니다`, () => { exclApply("db", ents, true, after); toast("다시 보관했습니다."); });
   }
   function dbDelete(name, entries, after) { // v363: 보관 목록에서도 숨김(자료는 지우지 않고 'DB삭제' 칸에 '삭제'만 표시)
-    if (!confirm(`${name} 고객을 삭제할까요?
+    if (!confirm(`${name} 고객을 지옥으로 보낼까요?
 보관 목록에서도 안 보이게 됩니다.
-(자료는 지워지지 않고 '삭제' 표시만 남아요.)`)) return;
+(자료는 지워지지 않고 지옥 표시만 남아요. 지옥 칩에서 다시 볼 수 있어요.)`)) return;
     const ents = dbEnts(entries); if (!ents) return;
     exclApply("dbdel", ents, true, after);
-    undoToast(`${name} 고객을 삭제했습니다`, () => { exclApply("dbdel", ents, false, after); toast("삭제를 취소했습니다."); });
+    undoToast(`${name} 고객을 지옥으로 보냈습니다`, () => { exclApply("dbdel", ents, false, after); toast("지옥 이동을 취소했습니다."); });
   }
   const PROG_ASK = (name) => ARCH_ASK(name);
   // 진행 목록·고객 정보에서 쓰는 공통 동작: 확인 → (화면 바로 바뀜, 저장은 뒤에서) → 6.5초 되돌리기
@@ -7732,7 +7739,7 @@
       baseRows = isDbTab ? baseRows.filter((r) => dbv === "del" ? r.del : dbv === "ctr" ? r.ctr : dbv === "arch" ? r.dbOff && !r.del && !r.ctr : !r.dbOff) : baseRows.filter((r) => (arState === "del" ? r.arch && r.del : arState ? r.arch && !r.del : !r.arch)); // v416: 신규 / 완료 / 지옥 // [이관/따행/DB N] [보관 M] (DB는 [삭제 K] 포함) 칩으로 바꿔 봄
       if (dbv === "del") { const dk = (r) => tsDigits(r.delDay) || "99999999999999"; baseRows.sort((a, b) => dk(b).localeCompare(dk(a)) || a.holder.localeCompare(b.holder, "ko")); } // 삭제 목록: 가장 최근에 삭제한 고객이 맨 위(일시 내림차순, 방금 삭제해 이력이 아직 없으면 맨 위)
       const arLabel = SALES.tab === "transfer" ? "이관" : SALES.tab === "dda" ? "따행" : "DB";
-      const arBar = isDbTab ? `<span class="prog-bar" role="group" aria-label="DB 보기"><button type="button" data-dbv="new" class="${dbv === "new" ? "on" : ""}">신규 ${arCnt.on}</button><button type="button" data-dbv="ctr" class="${dbv === "ctr" ? "on" : ""}">계약 ${arCnt.ctr}</button><button type="button" data-dbv="arch" class="${dbv === "arch" ? "on" : ""}">보관 ${arCnt.off}</button>${dbv === "arch" || dbv === "del" ? `<button type="button" data-dbv="del" class="${dbv === "del" ? "on" : ""}">삭제 ${arCnt.del}</button>` : ""}</span>` : `<span class="prog-bar" role="group" aria-label="${arLabel} 보기"><button type="button" data-arview="on" class="${arState ? "" : "on"}">신규 ${arCnt.on}</button><button type="button" data-arview="off" class="${arState === true ? "on" : ""}">완료 ${arCnt.off}</button><button type="button" data-arview="del" class="${arState === "del" ? "on" : ""}">지옥 ${arCnt.del}</button></span>`;
+      const arBar = isDbTab ? `<span class="prog-bar" role="group" aria-label="DB 보기"><button type="button" data-dbv="new" class="${dbv === "new" ? "on" : ""}">신규 ${arCnt.on}</button><button type="button" data-dbv="ctr" class="${dbv === "ctr" ? "on" : ""}">계약 ${arCnt.ctr}</button><button type="button" data-dbv="arch" class="${dbv === "arch" ? "on" : ""}">보관 ${arCnt.off}</button>${dbv === "arch" || dbv === "del" ? `<button type="button" data-dbv="del" class="${dbv === "del" ? "on" : ""}">지옥 ${arCnt.del}</button>` : ""}</span>` : `<span class="prog-bar" role="group" aria-label="${arLabel} 보기"><button type="button" data-arview="on" class="${arState ? "" : "on"}">신규 ${arCnt.on}</button><button type="button" data-arview="off" class="${arState === true ? "on" : ""}">완료 ${arCnt.off}</button><button type="button" data-arview="del" class="${arState === "del" ? "on" : ""}">지옥 ${arCnt.del}</button></span>`;
       // 따행: 활동대상 → 접촉현황 → 따행분류 (SOL 조회 조건과 같은 기준: 대상년월 · 활동대상 기본)
       const bMode = SALES.tab === "dda" && baseRows.some((r) => r.follow);
       let allRows = baseRows, ddaTotals = null, classes = [];
@@ -7757,8 +7764,8 @@
       box.innerHTML = top(SALES.fcHtml) +
         `<div id="salesBody">${SALES.tab === "dda" ? `<div class="sales-info"><span>${arState === "del" ? "지옥 " : arState ? "완료 " : ""}${rows.length}명</span><span class="dfl dfl-in"><span class="dfg"><b class="dfk">설문</b><label><input type="checkbox" data-df="send" ${df.send ? "checked" : ""}> 발송</label><label><input type="checkbox" data-df="resp" ${df.resp ? "checked" : ""}> 응답</label></span><i class="dsep" aria-hidden="true"></i><span class="dfg"><label><input type="checkbox" data-df="coupon" ${df.coupon ? "checked" : ""}> 쿠폰</label></span><i class="dsep" aria-hidden="true"></i><span class="dfg">${nfBox("call", "전화")}${nfBox("sms", "문자")}</span></span>${arBar}</div>` : `<div class="sales-info${dbv === "arch" || dbv === "del" ? " db4" : ""}"><span>${SALES.tab === "dda" ? (bMode ? `${(SALES.dct || SALES.dcls || dfOn) ? `필터 ${rows.length}명` : `표시 ${rows.length}명`}` : `전체 ${allRows.length}명(미완료 ${allRows.filter((r) => !(r.dda && r.dda.done)).length}명)${dfOn ? ` · 필터 ${rows.length}명` : ""}`) : (SALES.tab === "valueup" ? `${dbv === "del" ? "삭제 " : dbv === "ctr" ? "계약 " : arState ? "보관 " : ""}${rows.length}명` : `${arState ? "보관 " : ""}${rows.length}건 · ${holders}명`)}${marked ? ` · 시도 ✓ ${marked}` : ""}${SALES.tab === "dda" ? ` <span class="hint">(시도 ✓ 기준 ${ymLabel(ym)})</span>` : ""}</span>${SALES.tab === "valueup" ? `<span class="sinfo-r"><span class="nfl">${nfBox("call", "전화")}${nfBox("sms", "문자")}</span>${arBar}</span>` : ""}${SALES.tab === "transfer" ? `<span class="sinfo-r"><span class="nfl">${nfBox("call", "전화")}${nfBox("sms", "문자")}</span>${arBar}${refN ? `<label class="ref-toggle"><input type="checkbox" id="salesRef" ${SALES.showRef ? "checked" : ""}> 참고 포함(${refN})</label>` : ""}</span>` : ""}</div>`}` +
         
-        (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : SALES.tab === "valueup" ? (dbv === "new" ? "신규 DB" : "DB") : "따행"}${dbv === "del" ? " 삭제" : dbv === "ctr" ? " 계약" : isDbTab ? (arState ? " 보관" : "") : arState === "del" ? " 지옥" : arState ? " 완료" : " 신규"} 고객이 없습니다.${nfOn ? " (전화·문자 필터를 확인해 주세요)" : ""}</p>`) +
-        (SALES.tab === "valueup" ? "" : `<p class="hint pad">전화·문자는 버튼을 누른 '시도'만 기록됩니다(실제 통화·발송 여부는 알 수 없음).${readQueue().length ? ` 아직 저장 안 된 기록 ${readQueue().length}건은 앱이 다시 열리면 반영합니다.` : ""}</p>`) + `</div>`;
+        (rows.length ? salesRowsHtml(rows, mark, ctx, SALES.open) : `<p class="hint pad">${SALES.tab === "transfer" ? ymLabel(ym) + " " : ""}${fcSel ? fcSel + " " : ""}${SALES.tab === "transfer" ? "이관" : SALES.tab === "valueup" ? (dbv === "new" ? "신규 DB" : "DB") : "따행"}${dbv === "del" ? " 지옥" : dbv === "ctr" ? " 계약" : isDbTab ? (arState ? " 보관" : "") : arState === "del" ? " 지옥" : arState ? " 완료" : " 신규"} 고객이 없습니다.${nfOn ? " (전화·문자 필터를 확인해 주세요)" : ""}</p>`) +
+        (SALES.tab === "valueup" || !readQueue().length ? "" : `<p class="hint pad">아직 저장 안 된 기록 ${readQueue().length}건은 앱이 다시 열리면 반영합니다.</p>`) /* v422: '시도' 안내문구는 없앰 */ + `</div>`;
       box._rows = rows; box._mark = mark;
       if (anchor) salesRestore(anchor); else if (!keep) window.scrollTo(0, 0);
     } catch (e) { if (req === salesReq) { $("salesBody").innerHTML = ""; handleError(e); } }
@@ -7766,9 +7773,9 @@
   // ---------- 영업 > 자료: 조건 보고서 (v360, 2026-11-16 사용자 지시) ----------
   // 사용자(내 권한 범위) · 따행/이관/DB(복수) · 보관 포함 · 년월 → 건수를 보여 준 뒤 [진행] → 보고서를 화면에 보여 주고 아래에 엑셀·PDF 다운, PDF 열람, 이메일(자신에게)
   // 고객 정보는 이 기기 안에서만 만들고 어디에도 올리지 않음(이메일·공유는 사용자가 직접 누를 때만)
-  const RPT = { opt: "", types: { dda: true, transfer: true, valueup: true }, st: { new: true, done: false, hell: false }, span: 1, y: 0, m: 0, built: null, data: null, opts: [], cache: null };
-  const RPT_S = [["new", "신규"], ["done", "완료"], ["hell", "지옥"]];
-  const rptStOf = (type, r) => (r.del ? "hell" : (type === "valueup" ? r.dbOff : r.arch) ? "done" : "new"); // DB: 보관·계약 = 완료, 삭제 = 지옥
+  const RPT = { opt: "", types: { dda: true, transfer: true, valueup: true }, st: { new: true, ctr: false, done: false, hell: false }, span: 1, y: 0, m: 0, built: null, data: null, opts: [], cache: null };
+  const RPT_S = [["new", "신규"], ["ctr", "계약"], ["done", "완료"], ["hell", "지옥"]]; // v424: 계약 = DB의 계약 고객(DB 탭의 [계약] 칩과 같음, 이관·따행에는 없음)
+  const rptStOf = (type, r) => (r.del ? "hell" : type === "valueup" && r.ctr ? "ctr" : (type === "valueup" ? r.dbOff : r.arch) ? "done" : "new"); // DB: 계약 = 계약, 보관 = 완료, 삭제 = 지옥
   const RPT_T = [["dda", "따행"], ["transfer", "이관"], ["valueup", "DB"]];
   const RPT_COLS = ["구분", "FC", "이름", "피보", "상품", "보험료", "기준일", "계약일", "생일", "연락처", "직업", "주소", "모집FC", "상태", "진행", "단계"];
   async function rptOptions(data) {
@@ -7786,7 +7793,7 @@
       opts = [...new Set([myFc, ...salesExtra])].filter((f) => f && fcs.includes(f)).map((f) => ({ id: f, label: f, fcs: [f] }));
     }
     if (!opts.length && fcs.length) opts = [{ id: fcs[0], label: fcs[0], fcs: [fcs[0]] }];
-    if (opts.length > 1) opts.push({ id: "__all", label: "전체", fcs: [...new Set(opts.flatMap((o) => o.fcs))] });
+    if (opts.length > 1) opts.unshift({ id: "__all", label: "전체", fcs: [...new Set(opts.flatMap((o) => o.fcs))] }); // v426(2026-11-18 사용자 지시): '전체'가 맨 위
     return opts;
   }
   const rptYm = () => RPT.y + pad2(RPT.m);
@@ -7820,7 +7827,7 @@
     if (r.prods && r.prods.length > 1) { prod = r.prods.map((p) => p.name).join(" / "); fee = r.prods.reduce((s, p) => s + (typeof nz(p.fee) === "number" ? nz(p.fee) : 0), 0); }
     const prog = type === "dda" ? ((DCHIPS.slice().reverse().find(([f]) => r.dda && r.dda[f]) || [])[1] || "") : (r.stage || "");
     const sk = rptStOf(type, r), sd = type === "valueup" ? (r.del ? dshow(r.delDay) : r.dbAuto ? "" : dshow(r.dbDay)) : dshow(r.archDay);
-    const arch = sk === "new" ? "신규" : (sk === "hell" ? "지옥" : type === "valueup" && r.dbAuto ? "완료(계약)" : "완료") + (sd ? " " + sd : "");
+    const arch = sk === "new" ? "신규" : sk === "ctr" ? "계약" : (sk === "hell" ? "지옥" : "완료") + (sd ? " " + sd : "");
     return { 구분: RPT_T.find((t) => t[0] === type)[1], FC: r.srcFc || "", 이름: r.holder || "", 피보: r.ins || "", 상품: prod, 보험료: fee, 기준일: type === "transfer" ? dshow(r.idate) : type === "valueup" ? dshow(r.cdate) : (r.follow && r.follow["대상년월"] ? ymLabel(ymOfFollow(r.follow["대상년월"])) : ymLab),
       계약일: type === "valueup" ? "" : dshow(r.cdate), 생일: dshow(r.bday), 연락처: r.phoneText || r.phone || "", 직업: r.job || "", 주소: r.addr || "", 모집FC: r.recFc || "", 상태: r.status || "", 진행: prog, 단계: arch };
   }
@@ -7884,7 +7891,7 @@
       <div class="rpt-row"><span class="rpt-k">단계</span><span class="rpt-chk">${RPT_S.map(([k, l]) => `<label><input type="checkbox" data-rs="${k}"${RPT.st[k] ? " checked" : ""}> ${l}</label>`).join("")}</span></div>
       <div class="rpt-row"><span class="rpt-k">기간</span><span class="rpt-ym"><select id="rptY" aria-label="년">${ys.map((y) => `<option value="${y}"${y === RPT.y ? " selected" : ""}>${y}년</option>`).join("")}</select><select id="rptM" aria-label="월">${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}"${i + 1 === RPT.m ? " selected" : ""}>${i + 1}월</option>`).join("")}</select><button type="button" class="ev-edit rpt-span${RPT.span === 3 ? " on" : ""}" data-rpt="m3" aria-pressed="${RPT.span === 3}">3개월</button><button type="button" class="ev-edit rpt-span${RPT.span === 12 ? " on" : ""}" data-rpt="y1" aria-pressed="${RPT.span === 12}">1년</button></span></div>
       <div class="rpt-go"><span id="rptCount" class="rpt-count"></span><button type="button" class="ev-edit ev-done" id="rptGo" data-rpt="go">진행</button></div>
-      <p class="hint">기간: 고른 달 하나, 또는 [3개월]·[1년](이번 달까지, 누르면 바로 보고서). 이관은 이관일이, 따행은 대상년월이 기간 안인 고객이고, DB는 기간과 상관없이 지금 DB 고객 전체입니다. 단계: 신규 = 이달목표의 신규, 완료 = 완료(DB는 보관·계약), 지옥 = 지옥(DB는 삭제).</p></div><div id="rptOut"></div>`;
+      <p class="hint">기간: 고른 달 하나, 또는 [3개월]·[1년](이번 달까지, 누르면 바로 보고서). 이관은 이관일이, 따행은 대상년월이 기간 안인 고객이고, DB는 기간과 상관없이 지금 DB 고객 전체입니다. 단계: 신규 = 이달목표의 신규, 계약 = DB의 계약 고객(이관·따행에는 없음), 완료 = 완료(DB는 보관), 지옥 = 지옥(DB는 삭제).</p></div><div id="rptOut"></div>`;
   }
   function rptCounts() {
     const el = $("rptCount"); if (!el) return;
@@ -7902,7 +7909,7 @@
       const opts = await rptOptions(data); if (req !== salesReq) return;
       RPT.data = data; RPT.opts = opts; RPT.cache = null; RPT.built = null;
       if (!RPT.y) { const n = new Date(); RPT.y = n.getFullYear(); RPT.m = n.getMonth() + 1; }
-      if (!opts.some((o) => o.id === RPT.opt)) RPT.opt = (opts[0] || {}).id || "";
+      if (!opts.some((o) => o.id === RPT.opt)) RPT.opt = (opts.find((o) => o.id !== "__all") || opts[0] || {}).id || ""; // 처음 고르는 값은 지금처럼 본인(전체는 맨 위에 있지만 기본은 아님)
       box.innerHTML = rptFormHtml(); rptCounts();
     } catch (e) { if (req === salesReq) { box.innerHTML = ""; handleError(e); } }
   }
@@ -8212,6 +8219,10 @@
       return;
     }
     if (ev.data.type === "blue10kp-go") window.blue10kpGo(ev.data);
+    if (ev.data.type === "blue10kp-theme" && (ev.data.theme === "dark" || ev.data.theme === "light")) { // 말만해요 설정에서 모드를 바꿈: 열려 있는 앱도 바로 다시 칠함(저장하지 않음)
+      embedTheme = ev.data.theme; themeApply();
+      const c = document.getElementById("darkMode"); if (c) c.checked = embedTheme === "dark";
+    }
   });
 
   // 서비스워커: 앱 설치(홈 화면에 추가) 조건. 실패해도 앱은 그대로 동작
@@ -8320,6 +8331,7 @@
     }
     setTimeout(() => { if (!goReq) checkNewCustomers(); }, 2500); // 로그인 때 새 고객 확인
     setTimeout(wakeStart, 4000); // '몰리야' 듣기(설정에서 켠 기기만)
+    setTimeout(() => { loadMyPrefs().catch(() => {}); }, 1500); // 내 설정(다크/라이트 포함)을 일찍 읽어 둠
     if (!isAdmin()) syncStartShared();
     if (readStartPref().ai && !EMBED) setTimeout(aiOpen, 400); // 설정 > 시작 화면 > AI 도우미 바로 열기
     setTimeout(askContactNote, 1500); // 전화·문자 중에 앱이 닫혔다가 다시 열린 경우
