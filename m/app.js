@@ -2397,7 +2397,7 @@
   function openTeam() {
     if (!isAdmin()) return;
     show("teamView");
-    $("teamView").innerHTML = `<div class="card"><h3 class="sec-title">팀관리</h3><div class="team-btns"><button type="button" class="ev-edit" data-team-org>조직도</button><button type="button" class="ev-edit" data-team-info>팀원정보</button><button type="button" class="ev-edit" data-team-cand>후보자정보</button></div></div>`;
+    $("teamView").innerHTML = `<div class="card"><div class="team-head"><h3 class="sec-title">팀관리</h3><div class="team-btns"><button type="button" class="ev-edit" data-team-org>조직도</button><button type="button" class="ev-edit" data-team-info>팀원정보</button><button type="button" class="ev-edit" data-team-cand>후보자정보</button></div></div></div>`;
   }
   // v465(2026-11-19 사용자 지시): 팀관리 > [팀원정보]. 관리자만. 관리자 드라이브의 Claude/팀 폴더에 있는 팀원 파일을 그때그때 읽어 보여 주고(기기에 내용을 남기지 않음), 기본 항목을 고쳐 같은 파일에 저장
   //   위 드롭다운 = 팀원(직급순 → 사번순), 처음에는 로그인한 본인이 선택됨
@@ -2405,8 +2405,22 @@
   const TM_RANK = { ESL: 0, SL: 1, FC: 2 };
   // v468(2026-11-19 사용자 지시): 이름·사번·직급은 위 드롭다운에 있어 줄에서 뺌, 단계·신분 삭제, 맨 위 주민번호, 연락처 앞에 통신사, 메모 밑 구분선 뒤 사이트 계정(비번)
   //   줄 = [라벨, [[파일의 칸 이름, 입력 종류, 입력칸 안내]…]]. 종류 secret = 가려서 보여 주고 [보기]·[복사]
-  const TM_ROWS = [["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["도입자", [["도입자", "text", ""]]], ["입사일", [["입사일", "date", ""]]], ["메모", [["메모", "area", ""]]]];
-  const TM_LOCK = new Set(["주민번호", "입사일", "도입자"]);
+  const TM_ROWS = [["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["도입자", [["도입자", "text", ""]]], ["소개자", [["소개자", "text", "도입자에게 소개한 사람"]]], ["입사일", [["입사일", "date", ""]]], ["메모", [["메모", "area", ""]]]];
+  const TM_LOCK = new Set(["주민번호", "입사일"]);
+  // v485(2026-11-19 사용자 지시): 도입자는 팀원 중에서 고르고 '도입자사번'으로 연결(화면에는 이름). 사번이 없는 사람(팀원이 아닌 사람)은 바로 아래 '소개자' 칸에 글자로 적음
+  const introName = (p, list) => { const t = (list || []).find((x) => String(x.사번) === String(p.도입자사번 || "")); return t ? String(t.이름 || "") : String(p.도입자 || ""); };
+  function introSel(attr, p, list) {
+    const cur = String(p.도입자사번 || ""), inTeam = !!cur && (list || []).some((x) => String(x.사번) === cur), ext = inTeam ? "" : String(p.도입자 || "");
+    const os = (list || []).filter((x) => !p.사번 || String(x.사번) !== String(p.사번)).slice().sort((a, b) => String(a.이름 || "").localeCompare(String(b.이름 || ""), "ko"));
+    return `<select data-${attr}="도입자사번" aria-label="도입자"><option value=""${inTeam || ext ? "" : " selected"}>없음</option>${ext ? `<option value="__keep__" selected>${esc(ext)} (팀 밖)</option>` : ""}${os.map((x) => `<option value="${esc(String(x.사번))}"${inTeam && String(x.사번) === cur ? " selected" : ""}>${esc(x.이름 || "")}</option>`).join("")}</select>`;
+  }
+  function introFix(vals, list) { // 고른 사번 → 도입자 이름도 함께. '팀 밖' 그대로면 건드리지 않음
+    if (!("도입자사번" in vals)) return vals;
+    if (vals.도입자사번 === "__keep__") { delete vals.도입자사번; return vals; }
+    const t = (list || []).find((x) => String(x.사번) === vals.도입자사번);
+    vals.도입자 = t ? String(t.이름 || "") : "";
+    return vals;
+  }
   const TM_ACCTS = [["Sol FC", [["SolFC비번", "text", "비번"]]], ["신한이지", [["신한이지아이디", "text", "아이디"], ["신한이지비번", "text", "비번"]]], ["지식인", [["지식인비번", "text", "비번"]]], ["보험연수원", [["보험연수원아이디", "text", "아이디"], ["보험연수원비번", "text", "비번"]]]];
   let tmDoc = null, tmDir = null, tmSel = "", tmEdit = false;
   const tmRank = (p) => { const r = TM_RANK[String(p.직급 || "").trim().toUpperCase()]; return r == null ? 9 : r; };
@@ -2434,6 +2448,7 @@
     const val = (k) => String(p[k] == null ? "" : p[k]);
     const view = ([k, t]) => {
       const v = val(k);
+      if (k === "도입자") { const n = introName(p, ppl); return n ? esc(n) : ""; }
       if (!v) return "";
       if (t === "secret") return `<span class="tm-sec"><span class="tm-secv">${esc(v)}</span><button type="button" class="map-btn copy-btn" data-copy="${esc(v)}" data-copy-msg="복사했습니다">복사</button></span>`;
       if (k === "주소") return `${esc(v)} ${mapBtn(v)}`;
@@ -2441,6 +2456,7 @@
     };
     const edit = ([k, t, ph]) => {
       const v = val(k);
+      if (k === "도입자") return introSel("tmf", p, ppl);
       if (k === "통신사") { const base = ["SKT", "KT", "LG U+", "SKT 알뜰폰", "KT 알뜰폰", "LG U+ 알뜰폰"], os = v && !base.includes(v) ? [v, ...base] : base; return `<select data-tmf="통신사" class="tm-narrow" aria-label="통신사"><option value=""${v ? "" : " selected"}>통신사</option>${os.map((o) => `<option${o === v ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`; } /* v478: 통신사는 고르기(고객 정보 수정과 같은 목록) */
       if (t === "area") return `<textarea data-tmf="${k}" rows="1">${esc(v)}</textarea>`;
       return `<input data-tmf="${k}" type="${t === "secret" ? "text" : t}" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"${k === "통신사" ? ' class="tm-narrow"' : ""}>`;
@@ -2465,7 +2481,7 @@
   });
   async function saveTeamInfo(btn) {
     const box = $("teamView"), vals = {};
-    box.querySelectorAll("[data-tmf]").forEach((el) => { vals[el.dataset.tmf] = String(el.value || "").trim(); });
+    box.querySelectorAll("[data-tmf]").forEach((el) => { vals[el.dataset.tmf] = String(el.value || "").trim(); }); introFix(vals, (tmDoc && tmDoc.사람) || []);
     btn.disabled = true; btn.textContent = "저장 중";
     try {
       const fresh = await stReadJsonIn(tmDir, TM_FILE); // 저장 직전에 최신 파일을 다시 읽어 그 사람의 바뀐 칸만 고침
@@ -2489,11 +2505,11 @@
   // v481(2026-11-19 사용자 지시): 팀관리 > [후보자정보]. 관리자만. 후보자는 Claude/팀 폴더의 후보자 파일에 따로 두고(나중에 팀원정보로 옮길 예정이라 이름·주민번호·통신사·연락처·이메일·주소 칸 이름은 팀원 파일과 같게),
   //   기본 정보 + 짧은 질문 6개 + 상세 자기소개서 3개를 보여 주고 그 자리에서 고쳐 저장
   const CD_FILE = "후보자(초안).json";
-  const CD_ROWS = [["이름", [["이름", "text", ""]]], ["영문이름", [["영문이름", "text", ""]]], ["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["고등학교", [["고등학교", "text", "졸업 연도"]]], ["최종학력", [["최종학력", "text", "학교 · 졸업 연도"]]], ["병역", [["병역", "text", "입대 년월"]]], ["결혼여부", [["결혼여부", "text", "기념일"]]], ["자녀여부", [["자녀여부", "text", ""]]], ["종교", [["종교", "text", ""]]], ["취미", [["취미", "text", ""]]], ["특기", [["특기", "text", ""]]]];
+  const CD_ROWS = [["이름", [["이름", "text", ""]]], ["사번", [["사번", "text", "나오면 입력"]]], ["도입자", [["도입자", "text", ""]]], ["소개자", [["소개자", "text", "도입자에게 소개한 사람"]]], ["영문이름", [["영문이름", "text", ""]]], ["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["고등학교", [["고등학교", "text", "졸업 연도"]]], ["최종학력", [["최종학력", "text", "학교 · 졸업 연도"]]], ["병역", [["병역", "text", "입대 년월"]]], ["결혼여부", [["결혼여부", "text", "기념일"]]], ["자녀여부", [["자녀여부", "text", ""]]], ["종교", [["종교", "text", ""]]], ["취미", [["취미", "text", ""]]], ["특기", [["특기", "text", ""]]]];
   const CD_QS = [["자기소개1", "1. 본인 자신을 30글자 이내로 표현해 보세요."], ["자기소개2", "2. 10년 후의 나의 모습은?"], ["자기소개3", "3. 신한라이프가 당신을 뽑아야 하는 이유는?"], ["자기소개4", "4. 본인의 좌우명은?"], ["자기소개5", "5. 본인의 슬럼프 극복 방법은 무엇인가요?"], ["자기소개6", "6. 현재의 꿈은 무엇인가요?"]];
   const CD_ESSAYS = [["자소서1", "1. 성장 배경과 자신의 가치관(인생관)"], ["자소서2", "2. 본인이 생각하는 본인의 장단점"], ["자소서3", "3. 지원 동기 및 향후 Vision과 꿈"]];
-  let cdDoc = null, cdSel = "", cdEdit = false;
-  const cdPeople = () => ((cdDoc && cdDoc.사람) || []).slice().sort((a, b) => String(a.이름 || "").localeCompare(String(b.이름 || ""), "ko"));
+  let cdDoc = null, cdSel = "", cdEdit = false, cdTeam = [];
+  const cdPeople = () => ((cdDoc && cdDoc.사람) || []).filter((x) => !x.전환일시).sort((a, b) => String(a.이름 || "").localeCompare(String(b.이름 || ""), "ko"));
   const cdHead = (mid, acts) => `<h3 class="sec-title">후보자정보</h3><div class="tm-bar"><button type="button" class="ev-edit org-back-btn" data-cd-back>‹ 팀관리</button>${mid || '<span class="tm-sp" aria-hidden="true"></span>'}${acts || ""}</div>`;
   async function openCandInfo() {
     if (!isAdmin()) return;
@@ -2504,7 +2520,8 @@
       cdEdit = false;
       tmDir = await stFindPath(TM_DIR);
       cdDoc = tmDir ? await stReadJsonIn(tmDir, CD_FILE) : null;
-      if (!cdDoc || !Array.isArray(cdDoc.사람) || !cdDoc.사람.length) { box.innerHTML = `<div class="card">${cdHead()}<p class="hint">등록된 후보자가 없습니다(내 드라이브 > Claude > 팀 > ${esc(CD_FILE)}).</p></div>`; return; }
+      { const tj = tmDir ? await stReadJsonIn(tmDir, TM_FILE).catch(() => null) : null; cdTeam = (tj && Array.isArray(tj.사람) && tj.사람) || []; }
+      if (!cdDoc || !Array.isArray(cdDoc.사람) || !cdPeople().length) { box.innerHTML = `<div class="card">${cdHead()}<p class="hint">팀원으로 전환하지 않은 후보자가 없습니다(내 드라이브 > Claude > 팀 > ${esc(CD_FILE)}).</p></div>`; return; }
       const ppl = cdPeople();
       if (!ppl.some((x) => String(x.id) === cdSel)) cdSel = String(ppl[0].id);
       renderCandInfo(); window.scrollTo(0, 0);
@@ -2516,6 +2533,7 @@
     const val = (k) => String(p[k] == null ? "" : p[k]);
     const view = ([k, t]) => {
       const v = val(k);
+      if (k === "도입자") { const n = introName(p, cdTeam); return n ? esc(n) : ""; }
       if (!v) return "";
       if (t === "secret") return `<span class="tm-sec"><span class="tm-secv">${esc(v)}</span><button type="button" class="map-btn copy-btn" data-copy="${esc(v)}" data-copy-msg="복사했습니다">복사</button></span>`;
       if (k === "주소") return `${esc(v)} ${mapBtn(v)}`;
@@ -2523,6 +2541,7 @@
     };
     const edit = ([k, t, ph]) => {
       const v = val(k);
+      if (k === "도입자") return introSel("cdf", p, cdTeam);
       if (k === "통신사") { const base = ["SKT", "KT", "LG U+", "SKT 알뜰폰", "KT 알뜰폰", "LG U+ 알뜰폰"], os = v && !base.includes(v) ? [v, ...base] : base; return `<select data-cdf="통신사" class="tm-narrow" aria-label="통신사"><option value=""${v ? "" : " selected"}>통신사</option>${os.map((o) => `<option${o === v ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`; }
       return `<input data-cdf="${k}" type="${t === "secret" ? "text" : t}" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">`;
     };
@@ -2536,11 +2555,61 @@
     box.innerHTML = `<div class="card tm-wrap">${cdHead(`<select data-cd-sel aria-label="후보자 고르기" ${cdEdit ? "disabled" : ""}>${opts}</select>`, acts)}
       <dl class="tm-info cd-info${cdEdit ? " editing" : ""}">${CD_ROWS.map(rowHtml).join("")}</dl>
       <hr class="tm-hr"><h4 class="cd-h">짧은 질문</h4><div class="cd-qa${cdEdit ? " editing" : ""}">${CD_QS.map(qa).join("")}</div>
-      <hr class="tm-hr"><h4 class="cd-h">상세 자기소개서</h4><div class="cd-qa${cdEdit ? " editing" : ""}">${CD_ESSAYS.map(qa).join("")}</div></div>`;
+      <hr class="tm-hr"><h4 class="cd-h">상세 자기소개서</h4><div class="cd-qa${cdEdit ? " editing" : ""}">${CD_ESSAYS.map(qa).join("")}</div>
+      ${cdEdit ? "" : `<hr class="tm-hr"><div class="cd-conv"><span class="hint">${val("사번") ? "사번 " + esc(val("사번")) + " · 팀원정보에 등록합니다" : "사번을 먼저 넣어야 전환할 수 있습니다"}</span><button type="button" class="ev-edit ev-done" data-cd-conv${val("사번") ? "" : " disabled"}>팀원 전환</button></div>`}</div>`;
+  }
+  // v484(2026-11-19 사용자 지시): [팀원 전환] — 사번이 있어야 하고, 확인 화면(입사일·직급·도입자) 뒤 팀원 파일에 등록. 단계는 후보자 → 팀원 둘뿐(교육생 단계 없음).
+  //   후보자 기록(자기소개 등)은 모두 팀원 파일로 옮기고, 후보자 파일에는 지우지 않고 '전환일시'만 적어 목록에서 빠지게 함
+  function candConvertAsk(p) {
+    const old = document.getElementById("cdConvPop"); if (old) old.remove();
+    const d = new Date(), z = (x) => String(x).padStart(2, "0"), today = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+    const box = document.createElement("div");
+    box.id = "cdConvPop"; box.className = "modal";
+    box.innerHTML = `<div class="modal-box cd-conv-box" role="dialog" aria-modal="true" aria-label="팀원 전환"><h3 class="sec-title">팀원 전환</h3>
+      <p class="lead"><b>${esc(p.이름 || "")}</b> · 사번 ${esc(String(p.사번 || ""))}</p>
+      <label class="fld"><span>입사일</span><input type="date" data-cv="입사일" value="${today}"></label>
+      <label class="fld"><span>직급</span><select data-cv="직급"><option selected>FC</option><option>SL</option><option>ESL</option></select></label>
+      <label class="fld"><span>도입자</span>${introSel("cv", p, cdTeam)}</label>
+      <p class="hint">팀원정보에 등록하고 후보자 목록에서는 빠집니다. 후보자 기록은 지우지 않고 남겨 둡니다.</p>
+      <div class="file-actions"><button type="button" class="secondary" data-cv-cancel>취소</button><button type="button" class="primary" data-cv-ok>전환</button></div></div>`;
+    document.body.appendChild(box);
+    box.addEventListener("click", async (e) => {
+      if (e.target === box || e.target.closest("[data-cv-cancel]")) { box.remove(); return; }
+      const ok = e.target.closest("[data-cv-ok]"); if (!ok) return;
+      const get = (k) => String(box.querySelector(`[data-cv="${k}"]`).value || "").trim();
+      ok.disabled = true; ok.textContent = "전환 중";
+      try { await candConvert(String(p.id), introFix({ 입사일: get("입사일"), 직급: get("직급"), 도입자사번: get("도입자사번") }, cdTeam)); box.remove(); }
+      catch (err) { ok.disabled = false; ok.textContent = "전환"; if (/^CONV:/.test(String(err.message))) toast(String(err.message).slice(5)); else handleError(err); }
+    });
+  }
+  async function candConvert(id, extra) {
+    const cands = await stReadJsonIn(tmDir, CD_FILE), team = await stReadJsonIn(tmDir, TM_FILE); // 저장 직전에 두 파일을 다시 읽음
+    const c = cands && Array.isArray(cands.사람) ? cands.사람.find((x) => String(x.id) === id) : null;
+    if (!c) throw new Error("CONV:후보자 파일에서 이 사람을 찾지 못했습니다");
+    if (!team || !Array.isArray(team.사람)) throw new Error("CONV:팀원 파일을 읽지 못했습니다");
+    const no = String(c.사번 || "").trim();
+    if (!/^\d{8}$/.test(no)) throw new Error("CONV:사번은 숫자 8자리여야 합니다");
+    if (!extra.입사일) throw new Error("CONV:입사일을 넣어 주세요");
+    const d = new Date(), z = (x) => String(x).padStart(2, "0"), now = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
+    const dup = team.사람.find((x) => String(x.사번) === no);
+    if (dup && String(dup.후보자id || "") !== id) throw new Error("CONV:팀원정보에 같은 사번이 이미 있습니다");
+    if (!dup) { // 팀원 파일에 먼저 등록(이미 등록됐는데 후보자 표시만 못 한 경우는 건너뜀)
+      const np = { 사번: no, 이름: c.이름 || "", 단계: "팀원", 단계근거: "후보자정보에서 팀원 전환", 입사일: extra.입사일, 퇴직일: "", 직급: extra.직급 || "FC", 도입자: "도입자사번" in extra ? extra.도입자 : (c.도입자 || ""), 도입자사번: "도입자사번" in extra ? extra.도입자사번 : (c.도입자사번 || "") };
+      Object.keys(c).forEach((k) => { if (!["id", "사번", "이름", "도입자", "도입자사번", "등록일시", "수정일시", "전환일시"].includes(k)) np[k] = c[k]; });
+      if (np.메모 == null) np.메모 = "";
+      np.후보자id = id; np.전환일시 = now; np.수정일시 = now;
+      team.사람.push(np);
+      await stWriteJsonIn(tmDir, TM_FILE, team);
+    }
+    c.전환일시 = now; if ("도입자사번" in extra) { c.도입자사번 = extra.도입자사번; c.도입자 = extra.도입자; }
+    await stWriteJsonIn(tmDir, CD_FILE, cands);
+    cdDoc = null; cdEdit = false; tmSel = no;
+    toast(`${c.이름 || ""} 님을 팀원으로 전환했습니다`);
+    await openTeamInfo();
   }
   async function saveCandInfo(btn) {
     const box = $("teamView"), vals = {};
-    box.querySelectorAll("[data-cdf]").forEach((el) => { vals[el.dataset.cdf] = String(el.value || "").trim(); });
+    box.querySelectorAll("[data-cdf]").forEach((el) => { vals[el.dataset.cdf] = String(el.value || "").trim(); }); introFix(vals, cdTeam);
     btn.disabled = true; btn.textContent = "저장 중";
     try {
       const fresh = await stReadJsonIn(tmDir, CD_FILE);
@@ -2553,8 +2622,9 @@
     } catch (e) { btn.disabled = false; btn.textContent = "저장"; handleError(e); }
   }
   document.addEventListener("click", (ev) => {
-    const t = ev.target && ev.target.closest && ev.target.closest("[data-team-cand],[data-cd-back],[data-cd-edit],[data-cd-cancel],[data-cd-save]");
+    const t = ev.target && ev.target.closest && ev.target.closest("[data-team-cand],[data-cd-back],[data-cd-edit],[data-cd-cancel],[data-cd-save],[data-cd-conv]");
     if (!t) return;
+    if (t.hasAttribute("data-cd-conv")) { const cp = cdPeople().find((x) => String(x.id) === cdSel); if (cp) candConvertAsk(cp); return; }
     if (t.hasAttribute("data-team-cand")) { openCandInfo(); return; }
     if (t.hasAttribute("data-cd-back")) { if (cdEdit && !confirm("저장하지 않은 수정을 버릴까요?")) return; cdEdit = false; cdDoc = null; openTeam(); window.scrollTo(0, 0); return; }
     if (t.hasAttribute("data-cd-edit")) { cdEdit = true; renderCandInfo(); return; }
@@ -3841,12 +3911,33 @@
     try { await Promise.all([loadAdminState(), loadSettings()]); orgOpen.clear(); openOrg(); }
     catch (e) { orgFromTeam = false; $("adminBody").innerHTML = ""; handleError(e); openTeam(); }
   }
+  // v485(2026-11-19 사용자 지시): 조직도는 '도입자' 기준. 팀원 파일의 도입자사번을 따라 그 사람 밑에 두고, 도입자가 팀원(이 앱 사용자)에 없으면 관리자 바로 밑.
+  //   여기서는 화면의 초안만 바꾸고, 권한이 걸려 있으므로 실제 적용은 지금처럼 아래 [저장]을 눌러 확인창을 거친 뒤에만 함
+  async function orgApplyIntro() {
+    const draft = orgDraft; if (!draft || !isAdmin()) return;
+    let team = null;
+    try { const dir = await stFindPath(TM_DIR); team = dir ? await stReadJsonIn(dir, TM_FILE) : null; } catch (e) { return; }
+    if (orgDraft !== draft || !team || !Array.isArray(team.사람)) return;
+    const root = orgRoot(), names = (adminState.perms || {}).names || {}, adm = (CFG.admins || []).map((a) => a.toLowerCase());
+    const emOf = (q) => { const e = String(q.이메일 || "").toLowerCase(); if (e && adm.includes(e)) return root; if (e && draft[e]) return e; return Object.keys(draft).find((x) => names[x] && names[x] === q.이름) || ""; };
+    const byNo = new Map(team.사람.map((q) => [String(q.사번), q]));
+    let n = 0;
+    team.사람.forEach((q) => {
+      const em = emOf(q); if (!em || em === root || !draft[em]) return;
+      const ip = byNo.get(String(q.도입자사번 || "")), pe = ip ? emOf(ip) : "";
+      const par = pe && pe !== em && (pe === root || draft[pe]) ? pe : root;
+      if (draft[em].parent !== par) { draft[em].parent = par; n++; }
+    });
+    Object.keys(draft).forEach((em) => { const seen = new Set([em]); let q = draft[em].parent; while (q && q !== root) { if (seen.has(q)) { draft[em].parent = root; break; } seen.add(q); q = (draft[q] || {}).parent; } }); // 돌고 도는 연결은 관리자 밑으로
+    if (n) { renderOrg(); toast(`도입자 기준으로 ${n}명의 자리를 맞췄습니다. 아래 [저장]을 눌러야 적용됩니다`); }
+  }
   function openOrg() {
     const d0 = orgNorm((adminState.perms || {}).org), d = (adminState.perms || {}).orgVer >= 2 ? d0 : orgFromV1(d0), sens = ((adminState.perms || {}).sensitive || []).map((e) => String(e).toLowerCase());
     Object.keys(d).forEach((em) => { d[em].sens = sens.includes(em); }); // v329: 민감정보 접근 = 권한 파일 sensitive (계정 카드 체크와 같은 값)
     orgSaved = JSON.stringify(d); orgDraft = JSON.parse(orgSaved);
     orgTitles = {}; [orgRoot(), ...Object.keys(d)].forEach((em) => { orgTitles[em] = titleOf(adminState.perms, em); }); orgTitlesSaved = JSON.stringify(orgTitles);
     renderOrg(); window.scrollTo(0, 0);
+    orgApplyIntro();
     orgStartCache = null; orgLoadStarts();
   }
   document.addEventListener("click", async (ev) => {
@@ -4558,11 +4649,12 @@
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>팀관리 메뉴의 [조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 영업 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 영업 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: 아래 메뉴 <b>팀관리</b>의 [조직도]를 누르면(2026-11-19에 설정에서 옮김) 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/영업 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>통신사 · 연락처 · 이메일 · 주소 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(주민번호 · 입사일 · 도입자는 고치지 않음, 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
+    const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>통신사 · 연락처 · 이메일 · 주소 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(주민번호 · 입사일은 고치지 않음. <b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
-    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. 후보자는 나중에 팀원정보로 옮길 예정입니다."]);
+    const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·영업 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
+    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 사번을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌립니다. 누르면 확인 화면에서 <b>입사일(기본 오늘) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "<b>[올리기]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }

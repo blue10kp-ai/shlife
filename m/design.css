@@ -1460,3 +1460,17 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .cd-qa .cd-a { margin-top: 2px; font-size: 15px; line-height: 1.55; color: var(--t1); white-space: pre-wrap; overflow-wrap: anywhere; }
 .cd-qa.editing textarea.cd-a { display: block; width: 100%; box-sizing: border-box; min-height: 24px; padding: 0; border: 0; border-bottom: 1px dashed var(--t3); border-radius: 0; background: transparent; font: inherit; font-size: 16px; line-height: 1.5; resize: none; field-sizing: content; overflow: hidden; outline: none; box-shadow: none; -webkit-appearance: none; appearance: none; }
 .cd-qa.editing textarea.cd-a:focus { border-bottom: 1px solid var(--accent); }
+
+/* v484: 후보자정보 맨 아래 [팀원 전환] + 확인 화면 */
+.cd-conv { display: flex; align-items: center; gap: 8px; }
+.cd-conv .hint { flex: 1; min-width: 0; margin: 0; font-size: 12.5px; }
+.cd-conv .ev-edit { flex: none; height: 34px; min-height: 34px; padding: 0 12px; font-size: 14px; font-weight: 600; }
+.cd-conv .ev-edit[disabled] { opacity: .45; cursor: not-allowed; }
+.cd-conv-box { width: min(360px, 100%); }
+.cd-conv-box .lead { margin: 4px 0 10px; }
+
+/* v486(2026-11-19 사용자 지시): 팀관리 = 제목과 버튼을 한 줄로, 버튼 글자 키움 */
+.team-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.team-head .sec-title { margin: 0; flex: none; }
+.team-head .team-btns { margin: 0; gap: 6px; flex: 1; min-width: 0; justify-content: flex-end; flex-wrap: wrap; }
+.team-head .team-btns .ev-edit { height: 36px; min-height: 36px; padding: 0 11px; font-size: 15px; font-weight: 600; line-height: 34px; }
