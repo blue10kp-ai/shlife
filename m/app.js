@@ -2164,12 +2164,15 @@
       { page: 1, f: "accH", xs: [512, 546], y: 666, size: 16 }, { page: 1, f: "accMin", xs: [608, 642], y: 666, size: 16 },
       { page: 1, f: "story", x: 124, y: 714, size: 11.5 },
       { page: 1, f: "todY", x: 236, y: 1201, size: 13 }, { page: 1, f: "todM", x: 308, y: 1201, size: 13 }, { page: 1, f: "todD", x: 355, y: 1201, size: 13 },
-      { page: 3, f: "todY", x: 116, y: 1160, size: 13 }, { page: 3, f: "todM", x: 228, y: 1160, size: 13 }, { page: 3, f: "todD", x: 320, y: 1160, size: 13 }
+      { page: 3, f: "todY", x: 116, y: 1160, size: 13 }, { page: 3, f: "todM", x: 228, y: 1160, size: 13 }, { page: 3, f: "todD", x: 320, y: 1160, size: 13 },
+      { page: 1, f: "chkIn", x: 142, y: 627, size: 13 }, { page: 1, f: "chkOut", x: 217, y: 627, size: 13 }, // v499: 세부유형 입원·통원 체크
+      { page: 1, f: "hosp", x: 584, y: 752, size: 9.5 }, { page: 1, f: "dept", x: 770, y: 752, size: 11 } // 최초 내원 병원 / 진료과
     ],
     "KB손해보험": [ // 2026-11-19 김정인 고객 건 양식(인보험용, 1쪽)으로 잡음. 사고일시에 시·분 칸 없음
       { page: 1, f: "accY", xs: [188, 217, 246, 274], y: 664, size: 16 }, { page: 1, f: "accM", xs: [324, 348], y: 664, size: 16 }, { page: 1, f: "accD", xs: [400, 424], y: 664, size: 16 },
       { page: 1, f: "story", x: 178, y: 714, size: 11 },
-      { page: 1, f: "todY", xs: [188, 217, 246, 274], y: 1226, size: 16 }, { page: 1, f: "todM", xs: [324, 348], y: 1226, size: 16 }, { page: 1, f: "todD", xs: [400, 424], y: 1226, size: 16 }
+      { page: 1, f: "todY", xs: [188, 217, 246, 274], y: 1226, size: 16 }, { page: 1, f: "todM", xs: [324, 348], y: 1226, size: 16 }, { page: 1, f: "todD", xs: [400, 424], y: 1226, size: 16 },
+      { page: 1, f: "hosp", x: 552, y: 694, size: 10 }, { page: 1, f: "dept", x: 690, y: 694, size: 11 } // v499: 병원명 / 진료과
     ]
   };
   let clmFontP = null;
@@ -2201,16 +2204,58 @@
     }
     return n;
   }
-  function clmAsk(targets, hspN) { // 만들기 전에 사고일시·사고경위·작성일을 받음
+  // v499(2026-11-19 사용자 지시 "Gemini로 읽기"): 병원서류(영수증·세부내역·진단서 등)를 Gemini에 보내 사고일·시각·경위·병원·진료과·입원/통원을 읽어 입력창에 미리 채움
+  //   [보험금청구서 제작 시작]을 누를 때만 보냄. 키는 말만해요 설정 파일(aiGeminiConfig). 주민번호·계좌는 묻지도 적지도 않음
+  const b64 = (blob) => new Promise((r, j) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(",")[1] || ""); fr.onerror = j; fr.readAsDataURL(blob); });
+  async function cvJpeg(src, w, h, max) { const k = Math.min(1, max / Math.max(w, h)), c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round(h * k); const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height); return new Promise((r) => c.toBlob(r, "image/jpeg", 0.85)); }
+  async function hspParts(hsp, bufs) { // Gemini에 보낼 조각: PDF는 그대로, 사진·TIF는 긴 변 1800px JPEG (최대 10장)
+    const parts = []; let imgs = 0;
+    for (let i = 0; i < hsp.length && imgs < 10; i++) {
+      const f = hsp[i], buf = bufs[i];
+      try {
+        if (isPdfFile(f)) { if (buf.byteLength <= 15 * 1024 * 1024) { parts.push({ inline_data: { mime_type: "application/pdf", data: await b64(new Blob([buf])) } }); imgs++; } continue; }
+        if (/\.tiff?$/i.test(f.name) || f.mime === "image/tiff") { for (const c of await tifPages(buf)) { if (imgs >= 10) break; parts.push({ inline_data: { mime_type: "image/jpeg", data: await b64(await cvJpeg(c, c.width, c.height, 1800)) } }); imgs++; } continue; }
+        if (docsIsImg(f) && !/\.heic$/i.test(f.name)) { const bm = await createImageBitmap(new Blob([buf], { type: f.mime || "image/jpeg" })); parts.push({ inline_data: { mime_type: "image/jpeg", data: await b64(await cvJpeg(bm, bm.width, bm.height, 1800)) } }); imgs++; }
+      } catch (e) { console.warn("Gemini에 못 보낸 병원서류", f.name, e); }
+    }
+    return parts;
+  }
+  async function clmReadHosp(hsp, bufs) { // → { accDate, accTime, story, hosp, dept, kind } / { noKey: true } / null(실패)
+    const cfg = await aiGeminiConfig(); if (!cfg) return { noKey: true };
+    const parts = await hspParts(hsp, bufs); if (!parts.length) return null;
+    const prompt = "너는 보험금 청구서를 대신 적는 보험 설계사의 도우미다. 첨부한 병원 서류(진료비 영수증·계산서, 세부산정내역, 진단서, 처방전 등)를 읽고 아래 JSON 하나로만 답하라(설명 금지).\n" +
+      '{"accDate":"YYYY-MM-DD","accTime":"HH:MM 또는 빈 문자열","story":"사고(내원) 경위 한 줄, 25자 이내","hosp":"병원 이름","dept":"진료과","kind":"통원|입원|빈 문자열"}\n' +
+      "accDate = 이번 진료의 시작일(진료기간·입원일·내원일 중 가장 이른 날). accTime = 서류에 내원·접수 시각이 있을 때만. story = 서류의 처치·검사·시술·진료과를 바탕으로 '무릎 통증으로 정형외과 통원 치료'처럼 짧게. hosp = 영수증 머리·도장의 병원 이름 그대로. kind = 영수증의 외래/입원 구분.\n" +
+      "서류에서 확인되지 않는 값은 지어내지 말고 빈 문자열로 둬라. 주민등록번호·계좌번호·환자 이름은 답에 넣지 마라.";
+    try {
+      const body = JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, ...parts] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } });
+      let res = null;
+      for (const mdl of [...new Set([cfg.model, "gemini-flash-latest", "gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemini-3.1-flash-lite"])]) { // 설정의 모델이 없어졌거나(404) 붐비면(429·500·503) 다음 모델로
+        res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(mdl) + ":generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.key }, body });
+        if (![404, 429, 500, 503].includes(res.status)) break;
+        console.warn("Gemini", mdl, res.status, "→ 다음 모델");
+      }
+      if (!res.ok) { console.warn("Gemini 병원서류 읽기 실패", res.status, (await res.text().catch(() => "")).slice(0, 200)); return null; }
+      const d = await res.json(), c0 = (d.candidates || [])[0] || {}, tx = ((c0.content || {}).parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("");
+      if (!tx.trim()) { console.warn("Gemini 병원서류 읽기: 빈 답", cfg.model, c0.finishReason || "", JSON.stringify(d).slice(0, 300)); return null; }
+      const j = JSON.parse(tx.replace(/^```json\s*|\s*```$/g, ""));
+      const ok = (re, v) => (re.test(String(v || "")) ? String(v) : "");
+      return { accDate: ok(/^\d{4}-\d{2}-\d{2}$/, j.accDate), accTime: ok(/^\d{2}:\d{2}$/, j.accTime), story: String(j.story || "").replace(/\d{6}-?\d{7}/g, "").slice(0, 40).trim(), hosp: String(j.hosp || "").slice(0, 30).trim(), dept: String(j.dept || "").slice(0, 15).trim(), kind: /입원/.test(j.kind) ? "입원" : /통원|외래/.test(j.kind) ? "통원" : "" };
+    } catch (e) { console.warn("Gemini 병원서류 읽기 실패", e); return null; }
+  }
+  function clmAsk(targets, hspN, pre) { // 만들기 전에 사고일시·사고경위·작성일을 받음
     return new Promise((done) => {
       const old = document.getElementById("clmPop"); if (old) old.remove();
-      const z = (x) => String(x).padStart(2, "0"), d = new Date(), today = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`, last = current.clmVals || {};
+      const z = (x) => String(x).padStart(2, "0"), d = new Date(), today = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`, rd = pre && !pre.noKey ? pre : null, last = rd ? { ...(current.clmVals || {}), ...Object.fromEntries(Object.entries(rd).filter(([, v]) => v)) } : current.clmVals || {};
+      const aiNote = !pre ? "병원서류를 읽지 못해 빈칸으로 둡니다. 직접 넣어 주세요." : pre.noKey ? "Gemini 키가 없어 병원서류를 읽지 못했습니다(말만해요 설정). 직접 넣어 주세요." : "Gemini가 병원서류를 읽어 채운 값입니다. 맞는지 확인하고 고쳐 주세요.";
       const known = targets.map((t) => clmCompany(t.name)).filter((c) => CLM_FORMS[c]), unknown = targets.filter((t) => !CLM_FORMS[clmCompany(t.name)]).map((t) => clmCompany(t.name) || "보험사 모름");
       const box = document.createElement("div"); box.id = "clmPop"; box.className = "modal";
       box.innerHTML = `<div class="modal-box cd-conv-box" role="dialog" aria-modal="true" aria-label="보험금청구서 만들기"><h3 class="sec-title">보험금청구서 만들기</h3>
         <p class="lead">청구서 ${targets.length}개 · 병원서류 ${hspN}개를 붙입니다(영수증 → 세부내역 → 나머지).</p>
         <div class="clm-pop-row"><label class="fld"><span>사고일</span><input type="date" data-cp="accDate" value="${esc(last.accDate || "")}"></label><label class="fld"><span>시각(있으면)</span><input type="time" data-cp="accTime" value="${esc(last.accTime || "")}"></label></div>
+        <p class="hint clm-ai">${esc(aiNote)}</p>
         <label class="fld"><span>사고경위</span><input type="text" data-cp="story" maxlength="40" placeholder="예: 무릎 통증으로 정형외과 통원 치료" value="${esc(last.story || "")}"></label>
+        <div class="clm-pop-row"><label class="fld"><span>병원</span><input type="text" data-cp="hosp" maxlength="30" value="${esc(last.hosp || "")}"></label><label class="fld clm-dept"><span>진료과</span><input type="text" data-cp="dept" maxlength="15" value="${esc(last.dept || "")}"></label><label class="fld clm-kind"><span>구분</span><select data-cp="kind"><option value=""${last.kind ? "" : " selected"}>-</option><option${last.kind === "통원" ? " selected" : ""}>통원</option><option${last.kind === "입원" ? " selected" : ""}>입원</option></select></label></div>
         <label class="fld"><span>작성일</span><input type="date" data-cp="today" value="${esc(today)}"></label>
         <p class="hint">${known.length ? `손글씨체로 적는 양식: ${esc([...new Set(known)].join(", "))}.` : ""}${unknown.length ? ` 칸 위치를 모르는 양식(${esc([...new Set(unknown)].join(", "))})은 글자 없이 합칩니다.` : ""}</p>
         <div class="file-actions"><button type="button" class="secondary" data-cp-cancel>취소</button><button type="button" class="primary" data-cp-ok>만들기</button></div></div>`;
@@ -2219,30 +2264,34 @@
         if (e.target === box || e.target.closest("[data-cp-cancel]")) { box.remove(); done(null); return; }
         if (!e.target.closest("[data-cp-ok]")) return;
         const get = (k) => String(box.querySelector(`[data-cp="${k}"]`).value || "").trim();
-        const v = { accDate: get("accDate"), accTime: get("accTime"), story: get("story"), today: get("today") || today };
+        const v = { accDate: get("accDate"), accTime: get("accTime"), story: get("story"), hosp: get("hosp"), dept: get("dept"), kind: get("kind"), today: get("today") || today };
         if (!v.accDate && !confirm("사고일이 비어 있습니다. 그대로 만들까요?")) return;
-        current.clmVals = { accDate: v.accDate, accTime: v.accTime, story: v.story };
+        current.clmVals = { accDate: v.accDate, accTime: v.accTime, story: v.story, hosp: v.hosp, dept: v.dept, kind: v.kind };
         const [ay, am, ad] = v.accDate ? v.accDate.split("-") : ["", "", ""], [th, tm] = v.accTime ? v.accTime.split(":") : ["", ""], [ty, tmo, td] = v.today.split("-");
-        box.remove(); done({ accY: ay, accM: am, accD: ad, accH: th, accMin: tm, story: v.story, todY: ty, todM: tmo, todD: td });
+        box.remove(); done({ accY: ay, accM: am, accD: ad, accH: th, accMin: tm, story: v.story, hosp: v.hosp, dept: v.dept, chkIn: v.kind === "입원" ? "V" : "", chkOut: v.kind === "통원" ? "V" : "", todY: ty, todM: tmo, todD: td });
       });
     });
   }
-  async function clmBuild(btn) {
+  async function clmBuild() {
+    const bset = (t) => { current.clmBusy = t; const b = $("tabBody") && $("tabBody").querySelector("[data-clm-build]"); if (b) { b.textContent = t || clmBuildLabel(); b.disabled = !!t; } }; // 진행 중에 화면을 다시 그려도 버튼 글자·잠김이 이어지게
     const cust = current.cust, targets = clmTargets(), hsp = (current.hspList || []).slice().sort((a, b) => hspOrder(a) - hspOrder(b) || a.name.localeCompare(b.name, "ko"));
     if (!targets.length || !hsp.length) return toast("보험사 청구서와 병원서류가 모두 있어야 만들 수 있습니다");
-    const vals = await clmAsk(targets, hsp.length); if (!vals) return;
-    const old = btn.textContent; btn.disabled = true;
+    if (current.clmBusy) return;
+    bset("준비 중…");
     const made = [], skipped = new Set(), failed = []; let filled = 0;
     try {
-      btn.textContent = "PDF 도구 불러오는 중…";
-      await rptLoad("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js");
-      btn.textContent = "병원서류 받는 중…";
+      bset("병원서류 받는 중…");
       const hbuf = [];
       for (const f of hsp) hbuf.push(await stGet0(f.id));
+      bset("병원서류 읽는 중(Gemini)…");
+      const pre = await clmReadHosp(hsp, hbuf);
+      const vals = await clmAsk(targets, hsp.length, pre); if (!vals) { bset(""); return; }
+      bset("PDF 도구 불러오는 중…");
+      await rptLoad("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js");
       const dir = await recDir(true), have = new Set((await docsList(dir)).map((f) => f.name));
       let k = 0;
       for (const t of targets) {
-        k++; btn.textContent = `만드는 중 ${k}/${targets.length}`;
+        k++; bset(`만드는 중 ${k}/${targets.length}`);
         try {
           const doc = await PDFLib.PDFDocument.create();
           const tbuf = await stGet0(t.id);
@@ -2262,7 +2311,7 @@
         } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(t.name); }
       }
     } catch (e) { handleError(e); }
-    btn.disabled = false; btn.textContent = old;
+    current.clmBusy = "";
     if (current.cust !== cust) return;
     current.recPend = made.reverse().concat(current.recPend || []);
     current.recNote = [made.length ? `${made.length}개 만듦${made.length > filled ? ` (${made.length - filled}개는 칸 위치를 몰라 글자 없이)` : ""}` : "", failed.length ? `${failed.length}개 실패` : "", skipped.size ? `병원서류 ${skipped.size}개는 붙이지 못함(PDF·사진·TIF만 가능)` : ""].filter(Boolean).join(", ");
@@ -2305,7 +2354,7 @@
       const rnote = current.recNote || ""; current.recNote = "";
       const delX = (kind, i, f) => (ro ? "" : `<button type="button" class="clm-del" data-${kind}-del="${i}" aria-label="${esc(f.name)} 삭제">×</button>`); // v496: 파일마다 ×(드라이브 휴지통)
       const hspHtml = `<div class="card clm-card hsp-card"${ro ? "" : ' data-drop="hsp"'}><div class="docs-head"><span class="docs-cnt">병원서류 ${hlist.length}개${hnote ? ` · ${esc(hnote)}` : ""}</span>${ro ? "" : '<button type="button" class="ev-edit" data-hsp-add>병원서류 업로드</button><input type="file" id="hspFile" accept=".pdf,image/*" multiple hidden>'}</div>
-        ${hlist.length ? `<div class="clm-files hsp-files">${hlist.map((f, i) => `<div class="clm-frow"><button type="button" class="clm-file" data-hsp-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button>${delX("hsp", i, f)}</div>`).join("")}</div>` : `<p class="hint">올린 병원서류가 없습니다.${ro ? "" : " [병원서류 업로드]로 영수증·진료비 세부내역·진단서 등(PDF·사진)을 올리거나 이 칸에 끌어다 놓으면 ‘보험금청구 › 병원서류’ 폴더에 저장됩니다."}</p>`}${!ro && hlist.length && list.length ? `<div class="clm-build"><button type="button" class="primary" data-clm-build>${esc(clmBuildLabel())}</button></div>` : ""}</div>`;
+        ${hlist.length ? `<div class="clm-files hsp-files">${hlist.map((f, i) => `<div class="clm-frow"><button type="button" class="clm-file" data-hsp-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button>${delX("hsp", i, f)}</div>`).join("")}</div>` : `<p class="hint">올린 병원서류가 없습니다.${ro ? "" : " [병원서류 업로드]로 영수증·진료비 세부내역·진단서 등(PDF·사진)을 올리거나 이 칸에 끌어다 놓으면 ‘보험금청구 › 병원서류’ 폴더에 저장됩니다."}</p>`}${!ro && hlist.length && list.length ? `<div class="clm-build"><button type="button" class="primary" data-clm-build${current.clmBusy ? " disabled" : ""}>${esc(current.clmBusy || clmBuildLabel())}</button></div>` : ""}</div>`;
       // v497: 맨 아래 '보험금청구 기록' 칸 — 만든 청구서(보험금청구 › 보험금청구 기록 폴더), 날짜별, [다운로드] · ×
       const rday = (f) => { const m = String(f.name).match(/^(\d{4})(\d{2})(\d{2})\b/); return m ? `${m[1]}-${m[2]}-${m[3]}` : String(f.mod).slice(0, 10); };
       const rdays = [...new Set(rlist.map(rday))].sort().reverse();
@@ -2352,7 +2401,7 @@
       return;
     }
     if (t.hasAttribute("data-clm-add") || t.hasAttribute("data-hsp-add")) { const inp = $(t.hasAttribute("data-hsp-add") ? "hspFile" : "clmFile"); if (inp) { inp.value = ""; inp.click(); } return; }
-    if (t.hasAttribute("data-clm-build")) { if (!isRO(current.fc)) clmBuild(t); return; }
+    if (t.hasAttribute("data-clm-build")) { if (!isRO(current.fc)) clmBuild(); return; }
     if (t.hasAttribute("data-rec-open") || t.hasAttribute("data-rec-dl")) { const g = (current.recList || [])[+(t.dataset.recOpen || t.dataset.recDl)]; if (g) { if (t.hasAttribute("data-rec-dl")) clmDownload(g, t); else docsView(g); } return; }
     if (t.hasAttribute("data-rec-del")) { // v497: 만든 청구서 삭제(드라이브 휴지통)
       const g = (current.recList || [])[+t.dataset.recDel];
@@ -5027,7 +5076,7 @@
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·영업 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
-    const s_clm = sec("청구 탭 (고객 정보, 2026-11-19)", ["처음 쓰는 고객은 청구 탭에 <b>[보험금 청구 시작]</b>이 나옵니다. 누르면 이 고객 폴더에 <b>보험금청구</b> 폴더와 그 안에 <b>보험금청구서 · 병원서류</b> 폴더를 만듭니다.", "<b>[청구서 업로드]</b>로 보험사 보험금청구서(PDF·사진, 여러 개)를 올리면 보험금청구서 폴더에 저장됩니다. 파일 이름에 보험사 이름(예: 메리츠화재, 삼성생명)이 있으면 그 보험사를 찾아 <b>‘날짜 - FC - 고객 - 보험사 보험금청구서’</b>로 이름을 맞춥니다.", "올린 청구서는 <b>보험사마다 한 줄</b>로 묶여 보이고, 보험사 이름 앞 <b>체크박스</b>로 청구할 보험사를 고릅니다. 파일 이름을 누르면 엽니다.", "보험사를 못 찾은 파일은 <b>보험사 모름</b> 줄에 나오며, 옆의 고르기에서 보험사를 고르면 파일 이름에 보험사가 들어가도록 바뀝니다.", "보험금청구서 칸 아래 <b>병원서류</b> 칸의 <b>[병원서류 업로드]</b>로 영수증·진료비 세부내역·진단서 등(PDF·사진, 여러 개)을 올리면 <b>보험금청구 › 병원서류</b> 폴더에 ‘날짜 - FC - 고객 - 원래 이름’으로 저장되고, 이름을 누르면 엽니다.", "두 칸 모두 버튼 대신 파일을 <b>칸 안에 끌어다 놓아도</b> 올라갑니다(PC). 파일 이름 오른쪽 <b>×</b>를 누르면 확인 뒤 삭제합니다(구글 드라이브 휴지통으로 옮겨짐).", "병원서류를 올리면 그 칸 아래에 <b>[보험금청구서 제작 시작]</b>이 나옵니다. 누르면 보험사 청구서마다(체크한 보험사가 있으면 그 보험사만, 없으면 전부) 뒤에 병원서류를 <b>영수증·계산서 → 세부내역 → 나머지</b> 순으로 붙여 PDF를 만듭니다. 사진·팩스 TIF(여러 쪽 포함)는 한 쪽씩 A4 세로에 회색조로 들어가고, 가로로 긴 서류는 돌려서 꽉 차게 넣습니다.", "만든 파일은 <b>보험금청구 › 보험금청구 기록</b> 폴더에 ‘날짜 - FC - 고객 - 보험금청구서 1 - 보험사’처럼 저장되고, 맨 아래 <b>보험금청구 기록</b> 칸에 날짜별로 나옵니다. 이름을 누르면 열고, <b>[다운로드]</b>로 기기에 받고, <b>×</b>로 삭제(휴지통)합니다.", "[보험금청구서 제작 시작]을 누르면 먼저 <b>사고일·시각·사고경위·작성일(오늘)</b>을 묻습니다. 칸 위치를 아는 양식(지금은 <b>메리츠화재 · KB손해보험</b>)은 그 칸에 손글씨체로 적고, 모르는 양식은 글자 없이 합칩니다. 양식 판이 바뀌면 글자가 칸에서 어긋날 수 있으니 만든 PDF를 열어 확인하세요.", "진단명·병원 칸, 서명, 주민번호·계좌는 앱이 적지 않습니다. 팩스 잡티 지우기도 PC의 보험금청구 작업에서 합니다."]);
+    const s_clm = sec("청구 탭 (고객 정보, 2026-11-19)", ["처음 쓰는 고객은 청구 탭에 <b>[보험금 청구 시작]</b>이 나옵니다. 누르면 이 고객 폴더에 <b>보험금청구</b> 폴더와 그 안에 <b>보험금청구서 · 병원서류</b> 폴더를 만듭니다.", "<b>[청구서 업로드]</b>로 보험사 보험금청구서(PDF·사진, 여러 개)를 올리면 보험금청구서 폴더에 저장됩니다. 파일 이름에 보험사 이름(예: 메리츠화재, 삼성생명)이 있으면 그 보험사를 찾아 <b>‘날짜 - FC - 고객 - 보험사 보험금청구서’</b>로 이름을 맞춥니다.", "올린 청구서는 <b>보험사마다 한 줄</b>로 묶여 보이고, 보험사 이름 앞 <b>체크박스</b>로 청구할 보험사를 고릅니다. 파일 이름을 누르면 엽니다.", "보험사를 못 찾은 파일은 <b>보험사 모름</b> 줄에 나오며, 옆의 고르기에서 보험사를 고르면 파일 이름에 보험사가 들어가도록 바뀝니다.", "보험금청구서 칸 아래 <b>병원서류</b> 칸의 <b>[병원서류 업로드]</b>로 영수증·진료비 세부내역·진단서 등(PDF·사진, 여러 개)을 올리면 <b>보험금청구 › 병원서류</b> 폴더에 ‘날짜 - FC - 고객 - 원래 이름’으로 저장되고, 이름을 누르면 엽니다.", "두 칸 모두 버튼 대신 파일을 <b>칸 안에 끌어다 놓아도</b> 올라갑니다(PC). 파일 이름 오른쪽 <b>×</b>를 누르면 확인 뒤 삭제합니다(구글 드라이브 휴지통으로 옮겨짐).", "병원서류를 올리면 그 칸 아래에 <b>[보험금청구서 제작 시작]</b>이 나옵니다. 누르면 보험사 청구서마다(체크한 보험사가 있으면 그 보험사만, 없으면 전부) 뒤에 병원서류를 <b>영수증·계산서 → 세부내역 → 나머지</b> 순으로 붙여 PDF를 만듭니다. 사진·팩스 TIF(여러 쪽 포함)는 한 쪽씩 A4 세로에 회색조로 들어가고, 가로로 긴 서류는 돌려서 꽉 차게 넣습니다.", "만든 파일은 <b>보험금청구 › 보험금청구 기록</b> 폴더에 ‘날짜 - FC - 고객 - 보험금청구서 1 - 보험사’처럼 저장되고, 맨 아래 <b>보험금청구 기록</b> 칸에 날짜별로 나옵니다. 이름을 누르면 열고, <b>[다운로드]</b>로 기기에 받고, <b>×</b>로 삭제(휴지통)합니다.", "[보험금청구서 제작 시작]을 누르면 올린 병원서류를 <b>Gemini(외부 AI)</b>로 읽어 <b>사고일·시각·사고경위·병원·진료과·입원/통원</b>을 미리 채운 입력창이 뜹니다(작성일은 오늘). 서류 그림이 Google로 보내지므로 말만해요 설정의 Gemini 키가 필요하고, 키가 없거나 못 읽으면 빈칸으로 뜹니다. 읽은 값은 틀릴 수 있으니 꼭 확인하고 고친 뒤 [만들기]를 누르세요.", "입력창의 값은 칸 위치를 아는 양식(지금은 <b>메리츠화재 · KB손해보험</b>)의 칸에 손글씨체로 적히고(메리츠화재는 입원·통원 체크와 병원·진료과 칸도), 모르는 양식은 글자 없이 합칩니다. 양식 판이 바뀌면 글자가 칸에서 어긋날 수 있으니 만든 PDF를 열어 확인하세요.", "진단명·병원 칸, 서명, 주민번호·계좌는 앱이 적지 않습니다. 팩스 잡티 지우기도 PC의 보험금청구 작업에서 합니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
@@ -7137,14 +7186,16 @@
     console.info("[AI→Gemini 보내는 글]", m.text); // 확인용: 이름·민감 숫자가 가려졌는지
     let j;
     try {
-      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(cfg.model) + ":generateContent", {
-        method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.key },
-        body: JSON.stringify({ systemInstruction: { parts: [{ text: AI_GEM_PROMPT(today, AI_DOW[now.getDay()]) }] }, contents: [{ role: "user", parts: [{ text: m.text }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } })
-      });
-      if (!res.ok) return null;
+      const body = JSON.stringify({ systemInstruction: { parts: [{ text: AI_GEM_PROMPT(today, AI_DOW[now.getDay()]) }] }, contents: [{ role: "user", parts: [{ text: m.text }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } });
+      let res = null;
+      for (const mdl of [...new Set([cfg.model, "gemini-flash-latest", "gemini-3.8-flash", "gemini-flash-lite-latest", "gemini-3.1-flash-lite"])]) { // v499: 설정 모델(gemini-2.5-flash)이 새 사용자에게 막혀(404) 말만해요 AI가 멈춰 있었음 → 없거나 붐비면 다음 모델
+        res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(mdl) + ":generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.key }, body });
+        if (![404, 429, 500, 503].includes(res.status)) break;
+      }
+      if (!res || !res.ok) return null;
       const d = await res.json();
-      const txt = (((d.candidates || [])[0] || {}).content || {}).parts;
-      j = JSON.parse(String((txt && txt[0] && txt[0].text) || "").replace(/^```json\s*|\s*```$/g, ""));
+      const txt = ((((d.candidates || [])[0] || {}).content || {}).parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("");
+      j = JSON.parse(txt.replace(/^```json\s*|\s*```$/g, ""));
     } catch (e) { return null; }
     if (!j || typeof j !== "object") return null;
     const dm = String(j.date || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);

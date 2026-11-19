@@ -1536,3 +1536,8 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 /* v498: 보험금청구서 만들기 입력창 */
 .clm-pop-row { display: flex; gap: 8px; }
 .clm-pop-row .fld { flex: 1; min-width: 0; }
+
+/* v499: 입력창 병원·진료과·구분 */
+.clm-pop-row .clm-dept { flex: 0 0 30%; }
+.clm-pop-row .clm-kind { flex: 0 0 64px; }
+.clm-ai { margin: 2px 0 6px; font-size: 12px; }
