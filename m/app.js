@@ -2404,7 +2404,13 @@
       if (conf) return isApply(sh.ids, isVals("conf", conf.dataset.isConf), "저장했습니다.");
     }
   });
-  document.addEventListener("input", (ev) => { const t = ev.target; if (t && t.id === "isQ" && IS.sheet) { IS.sheet.q = t.value; const pos = t.selectionStart; renderIntro(); const i = $("isQ"); if (i) { i.focus(); try { i.setSelectionRange(pos, pos); } catch (e) { /* 무시 */ } } } });
+  document.addEventListener("input", (ev) => { // v493: 입력칸은 그대로 두고 아래 목록만 바꿈(화면 전체를 다시 그리면 한글 조합이 'ㅈㅓㅇ'처럼 깨짐)
+    const t = ev.target; if (!(t && t.id === "isQ" && IS.sheet)) return;
+    IS.sheet.q = t.value;
+    const sug = t.parentNode && t.parentNode.querySelector(".intro-sug"); if (!sug) return;
+    const tmp = document.createElement("div"); tmp.innerHTML = isSheetHtml();
+    const nsug = tmp.querySelector(".intro-sug"); if (nsug) sug.innerHTML = nsug.innerHTML;
+  });
   document.addEventListener("change", (ev) => { const t = ev.target; if (!t || !$("introView") || $("introView").hidden) return; if (t.id === "isFc") { IS.fc = t.value; renderIntro(); } else if (t.id === "isAll") { IS.all = t.checked; renderIntro(); } });
   document.addEventListener("click", (ev) => {
     const b = ev.target.closest && ev.target.closest("#introBtn"); if (b) return openIntro();
