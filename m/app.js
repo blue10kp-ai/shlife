@@ -1762,7 +1762,9 @@
       const linked = cust.entries.map((e) => { const f = e.fields.find(([k]) => k.trim() === "폴더"); return f ? norm(f[1]) : ""; }).filter(Boolean);
       const allFolders = await loadCustomerFolders();
       const byLink = linked.length ? allFolders.filter((f) => linked.includes(norm(f.name))) : [];
-      const byName = byLink.length ? byLink : allFolders.filter((f) => names.has(norm(custPart(f.name))));
+      const cids = cust.entries.map((e) => idOf(e)).filter(Boolean); // v494: '폴더' 칸이 비어 있으면 폴더 이름 끝의 고객ID('이름 (생년월일) - C01249')로 찾음
+      const byId = !byLink.length && cids.length ? allFolders.filter((f) => cids.some((id) => String(f.name).endsWith(" - " + id))) : [];
+      const byName = byLink.length ? byLink : byId.length ? byId : allFolders.filter((f) => names.has(norm(custPart(f.name))));
       // 같은 이름이 여러 FC에 있으면 이 고객의 담당 FC 폴더만
       const fcs = cust.entries.map((e) => e.fc).filter(Boolean);
       const sameFc = byName.filter((f) => f.fc && fcs.includes(f.fc));
@@ -2060,6 +2062,109 @@
     const inp = ev.target; if (!inp || inp.id !== "docsFile" || !inp.files || !inp.files.length) return;
     docsAddFiles([...inp.files], $("docsUpBtn"));
   });
+  // v494(2026-11-19 사용자 지시): 고객 정보 > [청구] 탭. 고객 폴더 > 보험금청구 > 보험금청구서 폴더에 보험사 청구서를 올리고, 파일 이름에서 보험사를 찾아 보험사마다 체크박스로 보여 줌
+  const CLM_DIR = "보험금청구", CLM_SUB = "보험금청구서", CLM_RE = /(^|\/)보험금청구\//;
+  const CLM_CO = [ // [표시 이름, 파일 이름에서 찾을 말(띄어쓰기 무시)] — 긴 말부터
+    ["삼성생명", ["삼성생명"]], ["한화생명", ["한화생명"]], ["교보생명", ["교보생명", "교보"]], ["신한라이프", ["신한라이프", "신한생명", "오렌지라이프"]], ["흥국생명", ["흥국생명"]], ["동양생명", ["동양생명"]], ["미래에셋생명", ["미래에셋생명", "미래에셋"]],
+    ["NH농협생명", ["농협생명", "NH생명"]], ["KB라이프", ["KB라이프", "KB생명", "푸르덴셜"]], ["DB생명", ["DB생명"]], ["ABL생명", ["ABL생명", "ABL"]], ["메트라이프", ["메트라이프", "MetLife"]], ["라이나생명", ["라이나생명", "라이나"]], ["AIA생명", ["AIA생명", "AIA"]],
+    ["처브라이프", ["처브라이프"]], ["하나생명", ["하나생명"]], ["KDB생명", ["KDB생명"]], ["푸본현대생명", ["푸본현대생명", "푸본현대"]], ["iM라이프", ["iM라이프", "DGB생명"]], ["IBK연금보험", ["IBK연금"]], ["BNP파리바카디프생명", ["카디프"]],
+    ["삼성화재", ["삼성화재"]], ["현대해상", ["현대해상"]], ["DB손해보험", ["DB손해보험", "DB손보", "동부화재"]], ["KB손해보험", ["KB손해보험", "KB손보"]], ["메리츠화재", ["메리츠화재", "메리츠"]], ["한화손해보험", ["한화손해보험", "한화손보"]],
+    ["롯데손해보험", ["롯데손해보험", "롯데손보"]], ["흥국화재", ["흥국화재"]], ["MG손해보험", ["MG손해보험", "MG손보"]], ["NH농협손해보험", ["농협손해보험", "농협손보", "NH손보"]], ["하나손해보험", ["하나손해보험", "하나손보"]], ["AIG손해보험", ["AIG손해보험", "AIG"]],
+    ["캐롯손해보험", ["캐롯"]], ["우체국보험", ["우체국"]]
+  ];
+  const clmNorm = (t) => String(t || "").replace(/\s+/g, "").toUpperCase();
+  function clmCompany(name) { // 파일 이름 → 보험사 (못 찾으면 "")
+    const n = clmNorm(name); let best = "", len = 0;
+    CLM_CO.forEach(([co, keys]) => keys.forEach((k) => { const kk = clmNorm(k); if (kk.length > len && n.includes(kk)) { best = co; len = kk.length; } }));
+    return best;
+  }
+  const clmOnTab = (cust) => current && current.cust === cust && !$("customerView").hidden && !!$("tabs").querySelector('button.on[data-tab="claim"]');
+  async function clmFolder(parentId, name, make) {
+    const r = await gdQuery("'" + qv(parentId) + "' in parents and name='" + qv(name) + "' and mimeType='" + GD_FOLDER + "' and trashed=false");
+    if (r.length) return { id: r[0].id };
+    if (!make) return null;
+    const mk = await gdFetch(GDAPI + "/files?fields=id&supportsAllDrives=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, mimeType: GD_FOLDER, parents: [parentId] }) });
+    return { id: mk.id };
+  }
+  async function clmDir(make) { // 고객 폴더 > 보험금청구 > 보험금청구서 ({id}) — 없으면 make일 때만 만듦
+    if (current.clmDir) return current.clmDir;
+    const folder = current.folders[0]; if (!folder) return null;
+    const top = await clmFolder(folder.id, CLM_DIR, make); if (!top) return null;
+    const sub = await clmFolder(top.id, CLM_SUB, make); if (!sub) return null;
+    return (current.clmDir = sub);
+  }
+  const clmPrefix = () => { const d = new Date(); return [`${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`, current.fc || myFcName() || "", baseName(current.cust && current.cust.name)].filter(Boolean).join(" - "); };
+  const clmStdName = (co, ext) => `${clmPrefix()} - ${co} 보험금청구서${ext || ""}`;
+  async function renderClaim(note) {
+    const body = $("tabBody"), cust = current.cust, ro = isRO(current.fc);
+    if (!GD) { body.innerHTML = '<div class="card"><p class="hint">보험금 청구는 구글 드라이브에서만 쓸 수 있습니다.</p></div>'; return; }
+    if (!current.folders[0]) { body.innerHTML = '<div class="card"><p class="hint">이 고객의 폴더가 없어 보험금 청구를 시작할 수 없습니다.</p></div>'; return; }
+    if (!current.clmList) body.innerHTML = '<p class="hint pad">보험금 청구 자료를 확인하는 중…</p>';
+    try {
+      const dir = await clmDir(false);
+      if (!clmOnTab(cust)) return;
+      if (!dir) { // 아직 준비 안 된 고객: [보험금 청구 시작]
+        body.innerHTML = `<div class="card clm-card"><p class="hint">아직 보험금 청구를 시작하지 않은 고객입니다.${ro ? "" : " [보험금 청구 시작]을 누르면 이 고객 폴더에 ‘보험금청구 › 보험금청구서’ 폴더를 만듭니다."}</p>${ro ? "" : '<button type="button" class="ev-edit clm-start" data-clm-start>보험금 청구 시작</button>'}</div>`;
+        return;
+      }
+      let list = await docsList(dir);
+      if (!clmOnTab(cust)) return;
+      const pend = (current.clmPend || []).filter((x) => !list.some((f) => f.id === x.id)); current.clmPend = pend; list = pend.concat(list);
+      if (pend.length && !current.clmRetry) { current.clmRetry = 1; setTimeout(() => { if (clmOnTab(cust)) renderClaim(note); }, 3000); } else if (!pend.length) current.clmRetry = 0;
+      current.clmList = list;
+      const sel = current.clmSel || (current.clmSel = new Set());
+      const groups = new Map(); list.forEach((f, i) => { const co = clmCompany(f.name); if (!groups.has(co)) groups.set(co, []); groups.get(co).push([f, i]); });
+      const cos = [...groups.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b, "ko"));
+      [...sel].forEach((c) => { if (!groups.has(c)) sel.delete(c); });
+      const fileBtn = ([f, i]) => `<button type="button" class="clm-file" data-clm-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button>`;
+      const coOpts = `<option value="">보험사 고르기</option>${CLM_CO.map(([c]) => `<option>${esc(c)}</option>`).join("")}`;
+      body.innerHTML = `<div class="card clm-card"><div class="docs-head"><span class="docs-cnt">보험금청구서 ${list.length}개${cos.length ? ` · 보험사 ${cos.length}곳${sel.size ? ` 중 ${sel.size}곳 선택` : ""}` : ""}${note ? ` · ${esc(note)}` : ""}</span>${ro ? "" : '<button type="button" class="ev-edit" data-clm-add>청구서 업로드</button><input type="file" id="clmFile" accept=".pdf,image/*" multiple hidden>'}</div>
+        ${list.length ? `<ul class="clm-list">${cos.map((co) => `<li class="clm-co"><label class="clm-chk"><input type="checkbox" data-clm-sel="${esc(co)}"${sel.has(co) ? " checked" : ""}><b>${esc(co)}</b></label><div class="clm-files">${groups.get(co).map(fileBtn).join("")}</div></li>`).join("")}${groups.has("") ? groups.get("").map(([f, i]) => `<li class="clm-co clm-unk"><span class="clm-chk"><span class="clm-q">보험사 모름</span></span><div class="clm-files">${fileBtn([f, i])}${ro ? "" : `<select data-clm-co="${i}" aria-label="${esc(f.name)} 보험사 고르기">${coOpts}</select>`}</div></li>`).join("") : ""}</ul>` : `<p class="hint">올린 보험금청구서가 없습니다.${ro ? "" : " [청구서 업로드]로 보험사 청구서(PDF·사진)를 올리면 ‘보험금청구 › 보험금청구서’ 폴더에 저장되고, 파일 이름으로 보험사를 찾아 보여 줍니다."}</p>`}</div>`;
+    } catch (e) { if (clmOnTab(cust)) body.innerHTML = '<div class="card"><p class="hint">보험금 청구 자료를 불러오지 못했습니다.</p></div>'; handleError(e); }
+  }
+  async function clmAddFiles(files, btn) {
+    const cust = current.cust, ok = files.filter((f) => f.size <= DOCS_MAX), big = files.length - ok.length;
+    if (!ok.length) { toast("50MB가 넘는 파일은 올릴 수 없습니다"); return; }
+    if (btn) btn.disabled = true;
+    let done = 0; const failed = [], upl = [];
+    try {
+      const dir = await clmDir(true);
+      const have = new Set((await docsList(dir)).map((f) => f.name));
+      for (const f of ok) {
+        if (btn) btn.textContent = `올리는 중 ${done + 1}/${ok.length}`;
+        const orig = String(f.name || "파일").replace(/[\\/:*?"<>|]/g, "").trim() || "파일", em = orig.match(/(\.[A-Za-z0-9]{1,5})$/), ext = em ? em[1] : "", co = clmCompany(orig);
+        let base = co ? clmStdName(co, ext) : (/^\d{8}\b/.test(orig) ? orig : clmPrefix() + " - " + orig); // 보험사를 찾으면 'YYYYMMDD - FC - 고객 - 보험사 보험금청구서', 못 찾으면 원래 이름 앞에 날짜·FC·고객
+        const m = base.match(/^(.*?)(\.[A-Za-z0-9]{1,5})?$/); let name = base, k = 2;
+        while (have.has(name)) name = `${m[1]} (${k++})${m[2] || ""}`;
+        try { const it = await docsUpload(dir, name, f); if (it && it.id) upl.push({ id: it.id, name: it.name || name, mime: it.mimeType || f.type || "", size: f.size, mod: new Date().toISOString(), webUrl: it.webViewLink || "", thumb: "" }); have.add(name); done++; } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(f.name); }
+      }
+    } catch (e) { handleError(e); }
+    if (btn) { btn.disabled = false; btn.textContent = "청구서 업로드"; }
+    if (current.cust === cust) { current.clmList = null; current.clmPend = upl.reverse().concat(current.clmPend || []); current.clmRetry = 0; if (clmOnTab(cust)) await renderClaim([done ? `${done}개 올림` : "", failed.length ? `${failed.length}개 실패` : "", big ? `${big}개는 50MB 초과` : ""].filter(Boolean).join(", ")); }
+  }
+  document.addEventListener("click", async (ev) => {
+    const t = ev.target && ev.target.closest && ev.target.closest("#tabBody [data-clm-start], #tabBody [data-clm-add], #tabBody [data-clm-open]");
+    if (!t || !current) return;
+    if (t.hasAttribute("data-clm-start")) {
+      if (isRO(current.fc)) return;
+      t.disabled = true; t.textContent = "폴더 만드는 중…";
+      try { await clmDir(true); toast("‘보험금청구 › 보험금청구서’ 폴더를 만들었습니다"); await renderClaim(); } catch (e) { t.disabled = false; t.textContent = "보험금 청구 시작"; handleError(e); }
+      return;
+    }
+    if (t.hasAttribute("data-clm-add")) { const inp = $("clmFile"); if (inp) { inp.value = ""; inp.click(); } return; }
+    const f = (current.clmList || [])[+t.dataset.clmOpen]; if (f) docsView(f);
+  });
+  document.addEventListener("change", async (ev) => {
+    const t = ev.target; if (!t || !current) return;
+    if (t.id === "clmFile" && t.files && t.files.length) { clmAddFiles([...t.files], $("tabBody").querySelector("[data-clm-add]")); return; }
+    if (t.matches && t.matches("#tabBody [data-clm-sel]")) { const sel = current.clmSel || (current.clmSel = new Set()); t.checked ? sel.add(t.dataset.clmSel) : sel.delete(t.dataset.clmSel); const c = $("tabBody").querySelector(".clm-card .docs-cnt"); if (c) c.textContent = c.textContent.replace(/ · 보험사 (\d+)곳( 중 \d+곳 선택)?/, (a, n) => ` · 보험사 ${n}곳${sel.size ? ` 중 ${sel.size}곳 선택` : ""}`); return; }
+    if (t.matches && t.matches("#tabBody [data-clm-co]")) { // 보험사를 못 찾은 파일: 고르면 이름을 바꿔 보험사가 들어가게
+      const f = (current.clmList || [])[+t.dataset.clmCo], co = t.value; if (!f || !co || isRO(current.fc)) return;
+      const em = String(f.name).match(/(\.[A-Za-z0-9]{1,5})$/), name = clmStdName(co, em ? em[1] : "");
+      t.disabled = true;
+      try { await gdFetch(GDAPI + "/files/" + encodeURIComponent(f.id) + "?fields=id,name&supportsAllDrives=true", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }); current.clmPend = (current.clmPend || []).filter((x) => x.id !== f.id); current.clmList = null; await renderClaim(`${co}(으)로 이름 바꿈`); } catch (e) { t.disabled = false; handleError(e); }
+    }
+  });
   async function selectTab(id) {
     $("tabs").querySelectorAll("button").forEach((b) =>
       b.classList.toggle("on", b.dataset.tab === id));
@@ -2070,7 +2175,7 @@
 
     if (id === "contact") return renderContact();
     if (id === "consult") { body.innerHTML = consultHtml(); bindConsult(); return; }
-    if (id === "claim") { body.innerHTML = '<div class="card"><p class="hint">청구 기능은 준비 중입니다.</p></div>'; return; } // 보험금 청구: 나중에 따로 만듦
+    if (id === "claim") return renderClaim(); // v494: 보험금 청구
     if (id === "docs") return renderDocs();
 
     const files = filesForTab(tab);
@@ -4692,8 +4797,9 @@
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·영업 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
+    const s_clm = sec("청구 탭 (고객 정보, 2026-11-19)", ["처음 쓰는 고객은 청구 탭에 <b>[보험금 청구 시작]</b>이 나옵니다. 누르면 이 고객 폴더에 <b>보험금청구 › 보험금청구서</b> 폴더를 만듭니다.", "<b>[청구서 업로드]</b>로 보험사 보험금청구서(PDF·사진, 여러 개)를 올리면 보험금청구서 폴더에 저장됩니다. 파일 이름에 보험사 이름(예: 메리츠화재, 삼성생명)이 있으면 그 보험사를 찾아 <b>‘날짜 - FC - 고객 - 보험사 보험금청구서’</b>로 이름을 맞춥니다.", "올린 청구서는 <b>보험사마다 한 줄</b>로 묶여 보이고, 보험사 이름 앞 <b>체크박스</b>로 청구할 보험사를 고릅니다. 파일 이름을 누르면 엽니다.", "보험사를 못 찾은 파일은 <b>보험사 모름</b> 줄에 나오며, 옆의 고르기에서 보험사를 고르면 파일 이름에 보험사가 들어가도록 바뀝니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
