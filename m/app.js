@@ -2115,8 +2115,8 @@
     const d = await clmFolder(current.clmTop.id, REC_SUB, make); if (!d) return null;
     return (current.recDir = d);
   }
-  const clmTargets = () => { const list = current.clmList || [], sel = current.clmSel || new Set(); return sel.size ? list.filter((f) => sel.has(clmCompany(f.name))) : list; };
-  const clmBuildLabel = () => { const n = clmTargets().length, sel = current.clmSel || new Set(); return `보험금청구서 제작 시작 (${sel.size ? "체크한 보험사 " : ""}${n}개)`; };
+  const clmTargets = () => { const list = current.clmList || [], sel = current.clmSel || new Set(); const ord = (f) => clmCompany(f.name) || "￿"; return (sel.size ? list.filter((f) => sel.has(clmCompany(f.name))) : list).slice().sort((a, b) => ord(a).localeCompare(ord(b), "ko")); }; // v504: 화면에 보이는 보험사 순서대로
+  const clmBuildLabel = () => { const n = clmTargets().length, sel = current.clmSel || new Set(); return `보험금청구서 제작 시작 (${sel.size ? "체크한 " : ""}청구서 ${n}개 + 병원서류)`; };
   const hspOrder = (f) => (/영수|계산서/.test(f.name) ? 0 : /세부|내역|산정/.test(f.name) ? 1 : 2);
   const isPdfFile = (f) => /\.pdf$/i.test(f.name) || f.mime === "application/pdf";
   async function imgToA4(doc, buf, mime) { // 사진 한 장 → A4 세로 한 쪽
@@ -2164,7 +2164,15 @@
         for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const nx = cx + dx, ny = cy + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue; const q = ny * W + nx; if (ink[q] && !seen[q]) { seen[q] = 1; st[sp++] = q; } } }
       if (size <= 3) comp.forEach((c) => { ink[c] = 0; });
     }
-    for (let i = 0, j = 0; i < n; i++, j += 4) { const v = ink[i] ? 0 : 255; a[j] = a[j + 1] = a[j + 2] = v; a[j + 3] = 255; }
+    return ink;
+  }
+  async function bitPage(doc, ink, W, H) { // v505(2026-11-19 사용자 지시 "용량 줄이기"): 흑백 쪽을 1비트(점 하나 = 1비트)로 압축해 넣음 — PNG(컬러용)보다 훨씬 작음
+    await rptLoad("https://cdn.jsdelivr.net/npm/pako@1.0.11/dist/pako.min.js");
+    const rb = (W + 7) >> 3, bits = new Uint8Array(rb * H).fill(255); // 1 = 흰색, 0 = 검정
+    for (let y = 0; y < H; y++) { const o = y * W, r = y * rb; for (let x = 0; x < W; x++) if (ink[o + x]) bits[r + (x >> 3)] &= ~(0x80 >> (x & 7)); }
+    const ref = doc.context.register(doc.context.stream(pako.deflate(bits), { Type: "XObject", Subtype: "Image", Width: W, Height: H, ColorSpace: "DeviceGray", BitsPerComponent: 1, Filter: "FlateDecode" }));
+    const pg = doc.addPage([595.28, 841.89]), nm = pg.node.newXObject("Im", ref);
+    pg.pushOperators(PDFLib.pushGraphicsState(), PDFLib.concatTransformationMatrix(595.28, 0, 0, 841.89, 0, 0), PDFLib.drawObject(nm), PDFLib.popGraphicsState());
   }
   async function pdfToA4(doc, buf) { // 스캔 PDF 병원서류 → 쪽마다 200dpi 그림으로 그려 팩스용 정리
     await rptLoad("https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js");
@@ -2186,10 +2194,7 @@
     g.save(); g.translate(W / 2, H / 2); if (rot) g.rotate(-Math.PI / 2);
     g.drawImage(bmp, -(rot ? dh : dw) / 2, -(rot ? dw : dh) / 2, rot ? dh : dw, rot ? dw : dh); g.restore();
     const im = g.getImageData(0, 0, W, H);
-    faxClean(im.data, W, H); g.putImageData(im, 0, 0);
-    const pb = await new Promise((r) => cv.toBlob(r, "image/png")); // 흑백 두 가지 색이라 PNG가 작고 글자가 번지지 않음
-    const png = await doc.embedPng(new Uint8Array(await pb.arrayBuffer()));
-    const pg = doc.addPage([595.28, 841.89]); pg.drawImage(png, { x: 0, y: 0, width: 595.28, height: 841.89 });
+    await bitPage(doc, faxClean(im.data, W, H), W, H);
   }
   async function clmAppend(doc, f, buf, clean) { // 파일 하나를 쪽으로 붙임. clean = 병원서류(팩스용 흑백 정리), 아니면 PDF는 쪽 그대로
     if (isPdfFile(f)) { if (clean) return pdfToA4(doc, buf); const src = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true }); (await doc.copyPages(src, src.getPageIndices())).forEach((pg) => doc.addPage(pg)); return; }
@@ -2327,7 +2332,8 @@
     const cust = current.cust, targets = clmTargets(), hsp = (current.hspList || []).slice().sort((a, b) => hspOrder(a) - hspOrder(b) || a.name.localeCompare(b.name, "ko"));
     if (!targets.length || !hsp.length) return toast("보험사 청구서와 병원서류가 모두 있어야 만들 수 있습니다");
     if (current.clmBusy) return;
-    if (!confirm(`보험금청구서 ${targets.length}개를 만들까요?\n\n· 병원서류 ${hsp.length}개를 팩스 보내기 좋게 흑백으로 정리해 각 보험사 청구서 뒤에 붙입니다(영수증 → 세부내역 → 나머지).\n· 청구서 칸은 채우지 않습니다.\n· ‘보험금청구 › 보험금청구 기록’ 폴더에 저장합니다.`)) return;
+    const cos = targets.map((t) => clmCompany(t.name) || "보험사 모름");
+    if (!confirm(`보험금청구서를 한 파일로 만들까요?\n\n· 순서: ${cos.join(" → ")} 청구서 → 병원서류 ${hsp.length}개(영수증 → 세부내역 → 나머지)\n· 병원서류는 팩스 보내기 좋게 흑백으로 정리합니다. 청구서 칸은 채우지 않습니다.\n· ‘보험금청구 › 보험금청구 기록’ 폴더에 저장합니다.`)) return;
     bset("준비 중…");
     const made = [], skipped = new Set(), failed = [];
     try {
@@ -2339,30 +2345,31 @@
       await rptLoad("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js");
       const hdoc = await PDFLib.PDFDocument.create();
       for (let i = 0; i < hsp.length; i++) { bset(`병원서류 정리 중 ${i + 1}/${hsp.length}`); await new Promise((r) => setTimeout(r, 30)); try { await clmAppend(hdoc, hsp[i], hbuf[i], true); } catch (e) { console.warn(hsp[i].name, e); skipped.add(hsp[i].name); } }
+      // v504(2026-11-19 사용자 지시): 인쇄하기 좋게 한 파일로 — 보험사 청구서들(위 칸 순서) → 정리한 병원서류 한 벌
       const dir = await recDir(true), have = new Set((await docsList(dir)).map((f) => f.name));
+      const doc = await PDFLib.PDFDocument.create(), used = [];
       let k = 0;
       for (const t of targets) {
-        k++; bset(`만드는 중 ${k}/${targets.length}`);
-        try {
-          const doc = await PDFLib.PDFDocument.create();
-          const tbuf = await stGet0(t.id);
-          try { await clmAppend(doc, t, tbuf); } catch (e) { if (e.message === "SKIP") throw new Error(t.name + ": 청구서는 PDF나 사진이어야 합니다"); throw e; } // 청구서는 그대로
-          if (hdoc.getPageCount()) (await doc.copyPages(hdoc, hdoc.getPageIndices())).forEach((pg) => doc.addPage(pg)); // 정리한 병원서류
-          const bytes = await doc.save();
-          const co = clmCompany(t.name) || "보험사 모름";
-          let name = `${clmYmd()} - 보험금청구서 ${k} - ${co}.pdf`, n = 2; // v502: 짧게(고객 폴더 안이라 FC·고객은 뺌, 내려받을 때 앞에 고객 이름을 붙임)
-          while (have.has(name)) name = `${clmYmd()} - 보험금청구서 ${k} - ${co} (${n++}).pdf`;
-          const it = await docsUpload(dir, name, new File([bytes], name, { type: "application/pdf" }));
-          have.add(name);
-          if (it && it.id) made.push({ id: it.id, name: it.name || name, mime: "application/pdf", size: bytes.length, mod: new Date().toISOString(), webUrl: it.webViewLink || "", thumb: "" });
-        } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(t.name); }
+        k++; bset(`청구서 붙이는 중 ${k}/${targets.length}`);
+        try { await clmAppend(doc, t, await stGet0(t.id), true); used.push(clmCompany(t.name) || "보험사 모름"); } // v505: 청구서도 팩스용 흑백으로 그려 넣음(용량 줄이기)
+        catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(t.name); }
+      }
+      if (used.length) {
+        if (hdoc.getPageCount()) (await doc.copyPages(hdoc, hdoc.getPageIndices())).forEach((pg) => doc.addPage(pg)); // 정리한 병원서류
+        bset("저장 중…");
+        const bytes = await doc.save();
+        const base = `${clmYmd()} - 보험금청구서 - ${[...new Set(used)].join("·")}`;
+        let name = base + ".pdf", n = 2;
+        while (have.has(name)) name = `${base} (${n++}).pdf`;
+        const it = await docsUpload(dir, name, new File([bytes], name, { type: "application/pdf" }));
+        if (it && it.id) made.push({ id: it.id, name: it.name || name, mime: "application/pdf", size: bytes.length, mod: new Date().toISOString(), webUrl: it.webViewLink || "", thumb: "" });
       }
     } catch (e) { handleError(e); }
     current.clmBusy = "";
     if (current.cust !== cust) return;
     current.recPend = made.reverse().concat(current.recPend || []);
-    current.recNote = [made.length ? `${made.length}개 만듦` : "", failed.length ? `${failed.length}개 실패` : "", skipped.size ? `병원서류 ${skipped.size}개는 붙이지 못함(PDF·사진·TIF만 가능)` : ""].filter(Boolean).join(", ");
-    if (made.length) toast(`보험금청구서 ${made.length}개를 만들었습니다`);
+    current.recNote = [made.length ? "1개 만듦" : "", failed.length ? `청구서 ${failed.length}개는 붙이지 못함` : "", skipped.size ? `병원서류 ${skipped.size}개는 붙이지 못함(PDF·사진·TIF만 가능)` : ""].filter(Boolean).join(", ");
+    if (made.length) toast("보험금청구서를 한 파일로 만들었습니다");
     if (clmOnTab(cust)) await renderClaim();
   }
   async function clmDownload(f, btn) {
@@ -2406,7 +2413,7 @@
       const rday = (f) => { const m = String(f.name).match(/^(\d{4})(\d{2})(\d{2})\b/); return m ? `${m[1]}-${m[2]}-${m[3]}` : String(f.mod).slice(0, 10); };
       const rdays = [...new Set(rlist.map(rday))].sort().reverse();
       const recHtml = `<div class="card clm-card rec-card"><div class="docs-head"><span class="docs-cnt">보험금청구 기록 ${rlist.length}개${rnote ? ` · ${esc(rnote)}` : ""}</span></div>
-        ${rlist.length ? rdays.map((d) => `<div class="rec-day">${esc(d)}</div><div class="clm-files">${rlist.map((f, i) => [f, i]).filter(([f]) => rday(f) === d).map(([f, i]) => `<div class="clm-frow"><button type="button" class="clm-file" data-rec-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button><button type="button" class="ev-edit rec-dl" data-rec-dl="${i}">다운로드</button>${delX("rec", i, f)}</div>`).join("")}</div>`).join("") : `<p class="hint">만든 보험금청구서가 없습니다. 병원서류를 올린 뒤 [보험금청구서 제작 시작]을 누르면 보험사 청구서마다 병원서류를 붙인 PDF를 만들어 여기에 보여 줍니다.</p>`}</div>`;
+        ${rlist.length ? rdays.map((d) => `<div class="rec-day">${esc(d)}</div><div class="clm-files">${rlist.map((f, i) => [f, i]).filter(([f]) => rday(f) === d).map(([f, i]) => `<div class="clm-frow"><button type="button" class="clm-file" data-rec-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button><button type="button" class="ev-edit rec-dl" data-rec-dl="${i}">다운로드</button>${delX("rec", i, f)}</div>`).join("")}</div>`).join("") : `<p class="hint">만든 보험금청구서가 없습니다. 병원서류를 올린 뒤 [보험금청구서 제작 시작]을 누르면 보험사 청구서들과 병원서류를 한 파일로 합친 PDF를 만들어 여기에 보여 줍니다.</p>`}</div>`;
       const sel = current.clmSel || (current.clmSel = new Set());
       const groups = new Map(); list.forEach((f, i) => { const co = clmCompany(f.name); if (!groups.has(co)) groups.set(co, []); groups.get(co).push([f, i]); });
       const cos = [...groups.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b, "ko"));
@@ -5123,7 +5130,7 @@
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·영업 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
-    const s_clm = sec("청구 탭 (고객 정보, 2026-11-19)", ["처음 쓰는 고객은 청구 탭에 <b>[보험금 청구 시작]</b>이 나옵니다. 누르면 이 고객 폴더에 <b>보험금청구</b> 폴더와 그 안에 <b>보험금청구서 · 병원서류</b> 폴더를 만듭니다.", "<b>[청구서 업로드]</b>로 보험사 보험금청구서(PDF·사진, 여러 개)를 올리면 보험금청구서 폴더에 저장됩니다. 파일 이름에 보험사 이름(예: 메리츠화재, 삼성생명)이 있으면 그 보험사를 찾아 <b>‘날짜 - 보험사’</b>(예: 20261119 - 메리츠화재.pdf)로 짧게 이름을 바꿉니다. 보험사를 못 찾으면 ‘날짜 - 청구서’가 됩니다.", "올린 청구서는 <b>보험사마다 한 줄</b>로 묶여 보이고, 보험사 이름 앞 <b>체크박스</b>로 청구할 보험사를 고릅니다. 파일 이름을 누르면 엽니다.", "보험사를 못 찾은 파일은 <b>보험사 모름</b> 줄에 나오며, 옆의 고르기에서 보험사를 고르면 파일 이름에 보험사가 들어가도록 바뀝니다.", "보험금청구서 칸 아래 <b>병원서류</b> 칸의 <b>[병원서류 업로드]</b>로 영수증·진료비 세부내역·진단서 등(PDF·사진, 여러 개)을 올리면 <b>보험금청구 › 병원서류</b> 폴더에 ‘날짜 - 서류 종류’(예: 20261119 - 영수증.jpg, 종류를 모르면 ‘병원서류’)로 짧게 저장되고, 이름을 누르면 엽니다.", "두 칸 모두 버튼 대신 파일을 <b>칸 안에 끌어다 놓아도</b> 올라갑니다(PC). 파일 이름 오른쪽 <b>×</b>를 누르면 확인 뒤 삭제합니다(구글 드라이브 휴지통으로 옮겨짐).", "병원서류를 올리면 그 칸 아래에 <b>[보험금청구서 제작 시작]</b>이 나옵니다. 누르면 보험사 청구서마다(체크한 보험사가 있으면 그 보험사만, 없으면 전부) 뒤에 병원서류를 <b>영수증·계산서 → 세부내역 → 나머지</b> 순으로 붙여 PDF를 만듭니다. 사진·팩스 TIF(여러 쪽 포함)·스캔 PDF는 한 쪽씩 A4 세로에 흑백으로 정리돼 들어가고, 가로로 긴 서류는 돌려서 꽉 차게 넣습니다.", "만든 파일은 <b>보험금청구 › 보험금청구 기록</b> 폴더에 ‘날짜 - 보험금청구서 1 - 보험사’처럼 저장되고(내려받으면 앞에 고객 이름이 붙음), 맨 아래 <b>보험금청구 기록</b> 칸에 날짜별로 나옵니다. 이름을 누르면 열고, <b>[다운로드]</b>로 기기에 받고, <b>×</b>로 삭제(휴지통)합니다.", "[보험금청구서 제작 시작]을 누르면 병원서류를 <b>팩스 보내기 좋게 흑백(검정·흰색)</b>으로 정리합니다. 누런 바탕·그림자·회색 음영은 희게, 글자는 검게 하고 외톨이 잡티를 지웁니다(마침표·쉼표는 남김). 스캔 PDF도 쪽마다 같은 방식으로 정리합니다.", "청구서 칸(사고일시·경위·날짜 등)은 채우지 않고 청구서 그대로 앞에 둡니다. 직접 적거나 PC의 보험금청구 작업에서 채우세요."]);
+    const s_clm = sec("청구 탭 (고객 정보, 2026-11-19)", ["처음 쓰는 고객은 청구 탭에 <b>[보험금 청구 시작]</b>이 나옵니다. 누르면 이 고객 폴더에 <b>보험금청구</b> 폴더와 그 안에 <b>보험금청구서 · 병원서류</b> 폴더를 만듭니다.", "<b>[청구서 업로드]</b>로 보험사 보험금청구서(PDF·사진, 여러 개)를 올리면 보험금청구서 폴더에 저장됩니다. 파일 이름에 보험사 이름(예: 메리츠화재, 삼성생명)이 있으면 그 보험사를 찾아 <b>‘날짜 - 보험사’</b>(예: 20261119 - 메리츠화재.pdf)로 짧게 이름을 바꿉니다. 보험사를 못 찾으면 ‘날짜 - 청구서’가 됩니다.", "올린 청구서는 <b>보험사마다 한 줄</b>로 묶여 보이고, 보험사 이름 앞 <b>체크박스</b>로 청구할 보험사를 고릅니다. 파일 이름을 누르면 엽니다.", "보험사를 못 찾은 파일은 <b>보험사 모름</b> 줄에 나오며, 옆의 고르기에서 보험사를 고르면 파일 이름에 보험사가 들어가도록 바뀝니다.", "보험금청구서 칸 아래 <b>병원서류</b> 칸의 <b>[병원서류 업로드]</b>로 영수증·진료비 세부내역·진단서 등(PDF·사진, 여러 개)을 올리면 <b>보험금청구 › 병원서류</b> 폴더에 ‘날짜 - 서류 종류’(예: 20261119 - 영수증.jpg, 종류를 모르면 ‘병원서류’)로 짧게 저장되고, 이름을 누르면 엽니다.", "두 칸 모두 버튼 대신 파일을 <b>칸 안에 끌어다 놓아도</b> 올라갑니다(PC). 파일 이름 오른쪽 <b>×</b>를 누르면 확인 뒤 삭제합니다(구글 드라이브 휴지통으로 옮겨짐).", "병원서류를 올리면 그 칸 아래에 <b>[보험금청구서 제작 시작]</b>이 나옵니다. 누르면 <b>보험사 청구서들(체크한 보험사가 있으면 그 보험사만, 없으면 전부) → 병원서류(영수증·계산서 → 세부내역 → 나머지)</b> 순서로 인쇄하기 좋게 <b>한 파일</b>을 만듭니다. 사진·팩스 TIF(여러 쪽 포함)·스캔 PDF는 한 쪽씩 A4 세로에 흑백으로 정리돼 들어가고, 가로로 긴 서류는 돌려서 꽉 차게 넣습니다.", "만든 파일은 <b>보험금청구 › 보험금청구 기록</b> 폴더에 ‘날짜 - 보험금청구서 - 메리츠화재·신한EZ손해보험’처럼 저장되고(내려받으면 앞에 고객 이름이 붙음), 맨 아래 <b>보험금청구 기록</b> 칸에 날짜별로 나옵니다. 이름을 누르면 열고, <b>[다운로드]</b>로 기기에 받고, <b>×</b>로 삭제(휴지통)합니다.", "[보험금청구서 제작 시작]을 누르면 병원서류를 <b>팩스 보내기 좋게 흑백(검정·흰색)</b>으로 정리합니다. 누런 바탕·그림자·회색 음영은 희게, 글자는 검게 하고 외톨이 잡티를 지웁니다(마침표·쉼표는 남김). 스캔 PDF도 쪽마다 같은 방식으로 정리합니다.", "보험사 청구서도 같은 방식으로 흑백으로 바꿔 앞에 둡니다(칸은 채우지 않음). 모든 쪽을 200dpi 1비트 흑백으로 담아 파일이 작습니다(12쪽에 1MB 안팎). 직접 적거나 PC의 보험금청구 작업에서 채우세요."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
