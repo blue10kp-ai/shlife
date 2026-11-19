@@ -1510,3 +1510,16 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .clm-files { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .clm-file { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 2px 0; font-size: 12px; color: var(--accent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .clm-files select { font-size: 12px; padding: 2px 4px; max-width: 160px; }
+
+/* v495: 청구 탭 병원서류 칸 */
+.hsp-card { margin-top: 12px; }
+.hsp-card .hsp-files { gap: 6px; }
+
+/* v496: 청구 탭 끌어놓기 · 파일 삭제 */
+.clm-card[data-drop] { transition: box-shadow .12s; }
+.clm-card.drop-on { box-shadow: inset 0 0 0 2px var(--accent); }
+.clm-frow { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.clm-frow .clm-file { flex: 1; min-width: 0; width: auto; }
+.clm-del { flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 12px; background: none; color: var(--t3, var(--t2)); font-size: 16px; line-height: 24px; cursor: pointer; }
+.clm-del:hover, .clm-del:focus-visible { background: rgba(127, 127, 127, .15); color: var(--bad, #c0392b); }
+.clm-del[disabled] { opacity: .4; }
