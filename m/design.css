@@ -1523,3 +1523,12 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .clm-del { flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 12px; background: none; color: var(--t3, var(--t2)); font-size: 16px; line-height: 24px; cursor: pointer; }
 .clm-del:hover, .clm-del:focus-visible { background: rgba(127, 127, 127, .15); color: var(--bad, #c0392b); }
 .clm-del[disabled] { opacity: .4; }
+
+/* v497: 보험금청구서 제작 · 기록 칸 */
+.clm-build { margin-top: 10px; display: flex; justify-content: flex-end; }
+.clm-build .primary { width: auto; padding: 6px 12px; font-size: 13px; }
+.clm-build .primary[disabled] { opacity: .6; }
+.rec-card { margin-top: 12px; }
+.rec-day { font-size: 12px; color: var(--t3, var(--t2)); margin: 8px 0 4px; font-variant-numeric: tabular-nums; }
+.rec-day:first-of-type { margin-top: 0; }
+.rec-card .rec-dl { flex: none; padding: 2px 8px; font-size: 12px; }
