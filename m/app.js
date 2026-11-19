@@ -1967,6 +1967,7 @@
       docsFree();
       if (current.docsSel) { const ids = new Set(list.map((f) => f.id)); [...current.docsSel].forEach((x) => { if (!ids.has(x)) current.docsSel.delete(x); }); } // v487: 여러 개 골라 삭제
       const selMode = !ro && !!current.docsSel;
+      { const ub1 = $("docsUpBtn"); if (ub1) ub1.disabled = selMode; } // v489: 자료를 고르는 중에는 [업로드]를 못 누르게
       const sizeTx = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + "MB" : n >= 1024 ? Math.round(n / 1024) + "KB" : n ? n + "B" : "");
       body.innerHTML = `<div class="card docs-card"><div class="docs-head"><span class="docs-cnt">${selMode ? `<b data-docs-seln>${current.docsSel.size}</b>개 선택` : `자료 ${list.length}개${note ? ` · ${esc(note)}` : ""}`}</span>${ro ? "" : selMode ? `<button type="button" class="ev-edit docs-delbtn" data-docs-seldel ${current.docsSel.size ? "" : "disabled"}>삭제</button><button type="button" class="ev-edit" data-docs-selcancel>취소</button>` : `${list.length ? `<button type="button" class="ev-edit" data-docs-selmode>선택</button>` : ""}<input type="file" id="docsFile" multiple hidden>`}</div>
         ${list.length ? `<ul class="docs-grid${selMode ? " selecting" : ""}">${list.map((f, i) => `<li class="docs-item${selMode && current.docsSel.has(f.id) ? " sel" : ""}" data-di="${i}"><button type="button" class="docs-thumb" data-docs-open="${i}" aria-label="${esc(f.name)} 열기">${f.thumb || docsIsImg(f) ? `<img alt="" loading="lazy" referrerpolicy="no-referrer" data-docs-img="${i}" ${f.thumb ? `src="${esc(f.thumb.replace(/=s\d+$/, "=s240"))}"` : ""}>` : ""}<span class="docs-ext"${f.thumb || docsIsImg(f) ? " hidden" : ""}>${esc(docsExt(f))}</span><span class="docs-chk" aria-hidden="true"></span></button>${ro || selMode ? "" : `<button type="button" class="docs-del" data-docs-del="${i}" aria-label="${esc(f.name)} 삭제">×</button>`}<div class="docs-nm" title="${esc(f.name)}">${esc(f.name)}</div><div class="docs-meta">${esc(String(f.mod).slice(2, 10))}${sizeTx(f.size) ? " · " + sizeTx(f.size) : ""}</div></li>`).join("")}</ul>` : `<p class="hint">올린 자료가 없습니다.${ro ? "" : " [업로드]로 사진·파일을 올리면 이 고객 폴더의 ‘자료’ 폴더에 저장됩니다."}</p>`}</div>`;
@@ -2065,6 +2066,7 @@
     const tab = CFG.tabs.find((t) => t.id === id);
     const body = $("tabBody");
     $("customerView").classList.toggle("on-docs", id === "docs"); // v488: 자료 탭 = 아래 줄 왼쪽 끝 [업로드], [수정]은 숨김
+    $("customerView").classList.toggle("no-edit", id !== "basic"); // v489(2026-11-19 사용자 지시): [수정]은 고칠 수 있는 정보 탭에서만(계약·분석·상담·청구·자료에서는 숨김)
 
     if (id === "contact") return renderContact();
     if (id === "consult") { body.innerHTML = consultHtml(); bindConsult(); return; }
@@ -2534,7 +2536,7 @@
   // v481(2026-11-19 사용자 지시): 팀관리 > [후보자정보]. 관리자만. 후보자는 Claude/팀 폴더의 후보자 파일에 따로 두고(나중에 팀원정보로 옮길 예정이라 이름·주민번호·통신사·연락처·이메일·주소 칸 이름은 팀원 파일과 같게),
   //   기본 정보 + 짧은 질문 6개 + 상세 자기소개서 3개를 보여 주고 그 자리에서 고쳐 저장
   const CD_FILE = "후보자(초안).json";
-  const CD_ROWS = [["이름", [["이름", "text", ""]]], ["사번", [["사번", "text", "나오면 입력"]]], ["도입자", [["도입자", "text", ""]]], ["소개자", [["소개자", "text", "도입자에게 소개한 사람"]]], ["영문이름", [["영문이름", "text", ""]]], ["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["고등학교", [["고등학교", "text", "졸업 연도"]]], ["최종학력", [["최종학력", "text", "학교 · 졸업 연도"]]], ["병역", [["병역", "text", "입대 년월"]]], ["결혼여부", [["결혼여부", "text", "기념일"]]], ["자녀여부", [["자녀여부", "text", ""]]], ["종교", [["종교", "text", ""]]], ["취미", [["취미", "text", ""]]], ["특기", [["특기", "text", ""]]]];
+  const CD_ROWS = [["이름", [["이름", "text", ""]]], ["사번", [["사번", "text", "나오면 입력"]]], ["입사일", [["입사일", "date", ""]]], ["도입자", [["도입자", "text", ""]]], ["소개자", [["소개자", "text", "도입자에게 소개한 사람"]]], ["영문이름", [["영문이름", "text", ""]]], ["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["고등학교", [["고등학교", "text", "졸업 연도"]]], ["최종학력", [["최종학력", "text", "학교 · 졸업 연도"]]], ["병역", [["병역", "text", "입대 년월"]]], ["결혼여부", [["결혼여부", "text", "기념일"]]], ["자녀여부", [["자녀여부", "text", ""]]], ["종교", [["종교", "text", ""]]], ["취미", [["취미", "text", ""]]], ["특기", [["특기", "text", ""]]]];
   const CD_QS = [["자기소개1", "1. 본인 자신을 30글자 이내로 표현해 보세요."], ["자기소개2", "2. 10년 후의 나의 모습은?"], ["자기소개3", "3. 신한라이프가 당신을 뽑아야 하는 이유는?"], ["자기소개4", "4. 본인의 좌우명은?"], ["자기소개5", "5. 본인의 슬럼프 극복 방법은 무엇인가요?"], ["자기소개6", "6. 현재의 꿈은 무엇인가요?"]];
   const CD_ESSAYS = [["자소서1", "1. 성장 배경과 자신의 가치관(인생관)"], ["자소서2", "2. 본인이 생각하는 본인의 장단점"], ["자소서3", "3. 지원 동기 및 향후 Vision과 꿈"]];
   let cdDoc = null, cdSel = "", cdEdit = false, cdTeam = [];
@@ -2578,6 +2580,7 @@
       const parts = cdEdit ? cells.map(edit) : cells.map(view).filter(Boolean);
       return `<dt>${lab}</dt><dd class="${cells.length > 1 ? "tm-multi" : ""}">${parts.length ? parts.join(cdEdit ? "" : '<span class="tm-gap"></span>') : '<span class="tm-none">-</span>'}</dd>`;
     };
+    const cvMiss = ["이름", "사번", "입사일"].filter((k) => !val(k).trim()); // v490(2026-11-19 사용자 지시): 필수 항목(이름·사번·입사일)이 다 들어가야 [팀원 전환]이 눌림
     const qa = ([k, q]) => `<div class="cd-q">${esc(q)}</div>${cdEdit ? `<textarea class="cd-a" data-cdf="${k}" rows="1" aria-label="${esc(q)}">${esc(val(k))}</textarea>` : `<div class="cd-a">${val(k) ? esc(val(k)) : '<span class="tm-none">-</span>'}</div>`}`;
     const opts = ppl.map((x) => `<option value="${esc(String(x.id))}" ${String(x.id) === String(p.id) ? "selected" : ""}>${esc(x.이름 || "(이름 없음)")}</option>`).join("");
     const acts = cdEdit ? `<button type="button" class="ev-edit" data-cd-cancel>취소</button><button type="button" class="ev-edit ev-done" data-cd-save>저장</button>` : `<button type="button" class="ev-edit" data-cd-edit>수정</button>`;
@@ -2585,7 +2588,7 @@
       <dl class="tm-info cd-info${cdEdit ? " editing" : ""}">${CD_ROWS.map(rowHtml).join("")}</dl>
       <hr class="tm-hr"><h4 class="cd-h">짧은 질문</h4><div class="cd-qa${cdEdit ? " editing" : ""}">${CD_QS.map(qa).join("")}</div>
       <hr class="tm-hr"><h4 class="cd-h">상세 자기소개서</h4><div class="cd-qa${cdEdit ? " editing" : ""}">${CD_ESSAYS.map(qa).join("")}</div>
-      ${cdEdit ? "" : `<hr class="tm-hr"><div class="cd-conv"><span class="hint">${val("사번") ? "사번 " + esc(val("사번")) + " · 팀원정보에 등록합니다" : "사번을 먼저 넣어야 전환할 수 있습니다"}</span><button type="button" class="ev-edit ev-done" data-cd-conv${val("사번") ? "" : " disabled"}>팀원 전환</button></div>`}</div>`;
+      ${cdEdit ? "" : `<hr class="tm-hr"><div class="cd-conv"><span class="hint">${cvMiss.length ? "필수 항목을 먼저 넣어 주세요: " + cvMiss.join(" · ") : "사번 " + esc(val("사번")) + " · 입사일 " + esc(val("입사일")) + " · 팀원정보에 등록합니다"}</span><button type="button" class="ev-edit ev-done" data-cd-conv${cvMiss.length ? " disabled" : ""}>팀원 전환</button></div>`}</div>`;
   }
   // v484(2026-11-19 사용자 지시): [팀원 전환] — 사번이 있어야 하고, 확인 화면(입사일·직급·도입자) 뒤 팀원 파일에 등록. 단계는 후보자 → 팀원 둘뿐(교육생 단계 없음).
   //   후보자 기록(자기소개 등)은 모두 팀원 파일로 옮기고, 후보자 파일에는 지우지 않고 '전환일시'만 적어 목록에서 빠지게 함
@@ -2596,7 +2599,7 @@
     box.id = "cdConvPop"; box.className = "modal";
     box.innerHTML = `<div class="modal-box cd-conv-box" role="dialog" aria-modal="true" aria-label="팀원 전환"><h3 class="sec-title">팀원 전환</h3>
       <p class="lead"><b>${esc(p.이름 || "")}</b> · 사번 ${esc(String(p.사번 || ""))}</p>
-      <label class="fld"><span>입사일</span><input type="date" data-cv="입사일" value="${today}"></label>
+      <label class="fld"><span>입사일</span><input type="date" data-cv="입사일" value="${esc(String(p.입사일 || today))}"></label>
       <label class="fld"><span>직급</span><select data-cv="직급"><option selected>FC</option><option>SL</option><option>ESL</option></select></label>
       <label class="fld"><span>도입자</span>${introSel("cv", p, cdTeam)}</label>
       <p class="hint">팀원정보에 등록하고 후보자 목록에서는 빠집니다. 후보자 기록은 지우지 않고 남겨 둡니다.</p>
@@ -2617,6 +2620,7 @@
     if (!c) throw new Error("CONV:후보자 파일에서 이 사람을 찾지 못했습니다");
     if (!team || !Array.isArray(team.사람)) throw new Error("CONV:팀원 파일을 읽지 못했습니다");
     const no = String(c.사번 || "").trim();
+    if (!String(c.이름 || "").trim()) throw new Error("CONV:이름을 먼저 넣어 주세요");
     if (!/^\d{8}$/.test(no)) throw new Error("CONV:사번은 숫자 8자리여야 합니다");
     if (!extra.입사일) throw new Error("CONV:입사일을 넣어 주세요");
     const d = new Date(), z = (x) => String(x).padStart(2, "0"), now = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
@@ -2624,7 +2628,7 @@
     if (dup && String(dup.후보자id || "") !== id) throw new Error("CONV:팀원정보에 같은 사번이 이미 있습니다");
     if (!dup) { // 팀원 파일에 먼저 등록(이미 등록됐는데 후보자 표시만 못 한 경우는 건너뜀)
       const np = { 사번: no, 이름: c.이름 || "", 단계: "팀원", 단계근거: "후보자정보에서 팀원 전환", 입사일: extra.입사일, 퇴직일: "", 직급: extra.직급 || "FC", 도입자: "도입자사번" in extra ? extra.도입자 : (c.도입자 || ""), 도입자사번: "도입자사번" in extra ? extra.도입자사번 : (c.도입자사번 || "") };
-      Object.keys(c).forEach((k) => { if (!["id", "사번", "이름", "도입자", "도입자사번", "등록일시", "수정일시", "전환일시"].includes(k)) np[k] = c[k]; });
+      Object.keys(c).forEach((k) => { if (!["id", "사번", "이름", "입사일", "도입자", "도입자사번", "등록일시", "수정일시", "전환일시"].includes(k)) np[k] = c[k]; });
       if (np.메모 == null) np.메모 = "";
       np.후보자id = id; np.전환일시 = now; np.수정일시 = now;
       team.사람.push(np);
@@ -4681,8 +4685,8 @@
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>통신사 · 연락처 · 이메일 · 주소 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(주민번호 · 입사일은 고치지 않음. <b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·영업 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
-    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 사번을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌립니다. 누르면 확인 화면에서 <b>입사일(기본 오늘) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
-    const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "자료 탭에서는 화면 아래 줄의 <b>[수정]이 사라지고 왼쪽 끝에 [업로드]</b>가 나옵니다(오른쪽 [닫기]는 그대로). <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
+    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
+    const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");

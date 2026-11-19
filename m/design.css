@@ -1489,3 +1489,7 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .cust-bar #docsUpBtn { margin-right: auto; border-color: var(--accent); color: var(--accent); }
 #customerView:not(.on-docs) #docsUpBtn { display: none !important; }
 #customerView.on-docs #editBtn, #customerView.on-docs #editBtns { display: none !important; }
+
+/* v489: [수정]은 정보 탭에서만, 자료를 고르는 중에는 [업로드] 잠금 */
+#customerView.no-edit #editBtn, #customerView.no-edit #editBtns { display: none !important; }
+.cust-bar #docsUpBtn[disabled] { opacity: .45; cursor: not-allowed; }
