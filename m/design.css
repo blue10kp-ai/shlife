@@ -1493,3 +1493,7 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 /* v489: [수정]은 정보 탭에서만, 자료를 고르는 중에는 [업로드] 잠금 */
 #customerView.no-edit #editBtn, #customerView.no-edit #editBtns { display: none !important; }
 .cust-bar #docsUpBtn[disabled] { opacity: .45; cursor: not-allowed; }
+
+/* v491: 지옥으로 보낼 때 1초 전체 화면 gif */
+.hell-fx { position: fixed; inset: 0; z-index: 99999; background: #000; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.hell-fx img { width: 100%; height: 100%; object-fit: cover; }
