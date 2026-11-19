@@ -1541,3 +1541,8 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .clm-pop-row .clm-dept { flex: 0 0 30%; }
 .clm-pop-row .clm-kind { flex: 0 0 64px; }
 .clm-ai { margin: 2px 0 6px; font-size: 12px; }
+
+/* v501: 보험사 이름 칸 넓게, 한 줄로 */
+.clm-chk { width: 136px; white-space: nowrap; }
+.clm-chk b { overflow: hidden; text-overflow: ellipsis; }
+.clm-build { justify-content: flex-start; } /* v501: 오른쪽 아래 [닫기]와 겹치지 않게 왼쪽으로 */
