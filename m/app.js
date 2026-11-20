@@ -4025,9 +4025,14 @@
   ];
 
   // 고객 폴더의 계약 PDF: "날짜 - 고객 - FC - 상품명 - 금액원.pdf"
-  const CONTRACT_PDF = /^(\d{8}) - .+? - .+? - (.+) - [\d,]+원\.pdf$/i;
+  const CONTRACT_PDF = /^(\d{8}) - .+? - .+? - (.+) - [\d,]+원(?: \(\d+\))?\.pdf$/i; // v510: 같은 이름이 겹칠 때 붙는 '(증권번호)'도 허용
   const normP = (s) => String(s || "").replace(/무배당|[\s()（）\[\]·,.\-_*]/g, "").toLowerCase();
-  function findContractPdf(date, product) {
+  function findContractPdf(date, product, link) {
+    if (link) { // v510: 계약 시트 '증권파일링크'(고객 폴더 기준 상대 경로)가 있으면 그 파일 이름으로 먼저 찾음
+      const nm = String(link).split(/[\\/]/).pop();
+      const hit = nm && current.files.find((f) => f.name === nm);
+      if (hit) return hit;
+    }
     const d = String(date || "").replace(/\D/g, "").slice(0, 8);
     const p = normP(product);
     let best = null, bestScore = 0;
@@ -4120,7 +4125,7 @@
       const val = (cols) => { for (const k of cols) if (c.row[k]) return c.row[k]; return ""; };
       const shown = CONTRACT_SHOW.map(([label, cols]) => [label, val(cols)]).filter(([, v]) => v)
         .map(([k, v]) => [k, k === "합계보험료" ? wonText(v) : v]); // 79644 / 79,644 → 79,644원
-      const pdf = findContractPdf(val(["최초계약일", "계약일"]), c.row["상품명"]);
+      const pdf = findContractPdf(val(["최초계약일", "계약일"]), c.row["상품명"], c.row["증권파일링크"]);
       const ref = isRefContract(c);
       return `<div class="card${ref ? " ref-card" : ""}">
         <div class="entry-head"><span class="tag t-${esc(c.type)}">${esc(typeLabel(c.type))}</span>
