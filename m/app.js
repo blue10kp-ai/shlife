@@ -305,8 +305,40 @@
   // JSON 읽기: 같은 파일을 여러 곳에서 읽어도 한 번만 받고(쓰기 때까지), 읽기에는 버전 확인과 엑셀 변환 왕복을 하지 않는다
   const jsonDocP = new Map();
   function readJsonDoc(id) {
-    if (!jsonDocP.has(id)) jsonDocP.set(id, stGet0(id).then((buf) => JSON.parse(new TextDecoder().decode(buf).replace(/^\uFEFF/, ""))).catch((e) => { jsonDocP.delete(id); throw e; }));
+    if (!jsonDocP.has(id)) jsonDocP.set(id, stGet0(id).then((buf) => { const doc = JSON.parse(new TextDecoder().decode(buf).replace(/^\uFEFF/, "")); const inf = jsonInfo.get(id); jsonWarnBad(inf && inf.name, doc); return doc; }).catch((e) => { jsonDocP.delete(id); throw e; }));
     return jsonDocP.get(id);
+  }
+  // v508(2026-11-20 최수진 data.json 사고): 깨진 구조의 JSON은 저장하지 않고, 읽을 때 알림
+  //   사고 경위: 앱을 연 직후(파일 목록이 오기 전) 전화·문자 기록 반영이 data.json을 엑셀로 읽음 → JSON 글자가 'Sheet1' 한 줄로 바뀜 → 그사이 목록이 와서 JSON 저장 경로로 덮어씀
+  const looksJson = (buf) => { const b = new Uint8Array(buf instanceof ArrayBuffer ? buf : (buf && buf.buffer) || []).subarray(0, 8); let i = 0; if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) i = 3; while (i < b.length && (b[i] === 0x20 || b[i] === 0x0a || b[i] === 0x0d || b[i] === 0x09)) i++; return b[i] === 0x7b; };
+  function jsonDocBad(name, doc) { // 문제가 있으면 이유 글, 없으면 ""
+    const sh = doc && doc.sheets;
+    if (!sh || typeof sh !== "object") return "시트가 없음";
+    const names = Object.keys(sh);
+    if (!names.length) return "시트가 없음";
+    if (names.some((n) => /^Sheet\d*$/i.test(n))) return "엑셀 기본 시트(Sheet1)가 들어 있음";
+    if (name === "data.json" && !sh["고객"]) return "고객 시트가 없음";
+    if (name === "data.json" && !doc.fc) return "FC 이름(fc)이 없음";
+    if (name === "고객추가정보.json" && !sh["기본"]) return "기본 시트가 없음";
+    for (const n of names) { const cols = (sh[n] && sh[n].columns) || []; if (cols.some((c) => typeof c === "string" && (c.length > 80 || /["{}]/.test(c)))) return n + " 시트의 칸 이름이 이상함"; }
+    return "";
+  }
+  const jsonRows = (doc) => Object.values((doc && doc.sheets) || {}).reduce((a, x) => a + ((x && x.rows && x.rows.length) || 0), 0);
+  const jsonWarned = new Set();
+  function jsonWarnBad(name, doc) {
+    const why = name && JSON_FILES[name] ? jsonDocBad(name, doc) : "";
+    if (!why) return;
+    console.error("데이터 파일 구조 이상", name, why);
+    const k = name + why; if (jsonWarned.has(k)) return; jsonWarned.add(k);
+    setTimeout(() => { try { toast(`데이터 파일(${name}) 하나가 깨져 있어 그 고객을 불러오지 못했습니다(${why}). 관리자에게 알려 주세요.`); } catch (e) { /* 무시 */ } }, 500);
+  }
+  const jsonNot = new Set(); // 이름을 확인해 보니 데이터 파일이 아닌 ID(설정 JSON 등)
+  async function jsonAdopt(id) { // 목록을 거치지 않은 파일 ID가 data.json·고객추가정보.json이면 JSON 파일로 등록
+    if (!GD || jsonNot.has(id)) return false;
+    const m = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=name,parents,modifiedTime&supportsAllDrives=true");
+    if (!m || !JSON_FILES[m.name]) { jsonNot.add(id); return false; }
+    if (!jsonInfo.get(id)) jsonInfo.set(id, { name: m.name, meta: null, ver: null, mod: m.modifiedTime || "", parent: (m.parents || [])[0] || "" });
+    return true;
   }
   // 데이터 갱신 시각: 읽은 FC별 data.json의 Drive 수정시각(목록 조회 때 이미 받은 값). 여러 FC면 가장 오래된 것 기준(자세히는 길게 눌러/마우스를 올려 FC별로 표시)
   const stampText = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
@@ -323,7 +355,8 @@
     items.forEach((i) => {
       const suffix = i.file && JSON_FILES[i.name];
       if (!suffix) return;
-      jsonInfo.set(i.id, { name: i.name, meta: null, ver: null, mod: i.lastModifiedDateTime || "", parent: id });
+      const old = jsonInfo.get(i.id); // v508: 다시 목록을 받아도 저장 중인 버전·줄 수 기억은 지우지 않음
+      jsonInfo.set(i.id, { name: i.name, meta: old ? old.meta : null, ver: old ? old.ver : null, rows: old ? old.rows : undefined, mod: i.lastModifiedDateTime || "", parent: id });
       virt.push({ ...i, name: "99999999" + (i.name === "data.json" ? " - JSON" : "") + suffix });
     });
     return virt.length ? virt.concat(items.filter((i) => !(i.file && JSON_FILES[i.name]))) : items;
@@ -334,11 +367,17 @@
     const info = jsonInfo.get(id);
     const [m, buf] = await Promise.all([jsonVer(id), stGet0(id)]);
     const doc = JSON.parse(new TextDecoder().decode(buf).replace(/^\uFEFF/, ""));
-    info.ver = m.version; info.meta = { fc: doc.fc, source: doc.source };
+    info.ver = m.version; info.meta = { fc: doc.fc, source: doc.source }; info.rows = jsonRows(doc);
+    const bad = jsonDocBad(info.name, doc);
+    if (bad) throw new Error(`데이터 파일(${info.name})이 깨져 있어 저장하지 않았습니다(${bad}). 관리자에게 알려 주세요.`);
     return doc;
   }
   async function jsonPutDoc(id, doc) {
     const info = jsonInfo.get(id);
+    const bad = jsonDocBad(info.name, doc);
+    if (bad) throw new Error(`데이터 파일(${info.name})을 잘못된 모양으로 저장하려 해서 멈췄습니다(${bad}). 새로고침한 뒤 다시 해 주세요.`);
+    const nRows = jsonRows(doc);
+    if (info.rows > 20 && nRows < info.rows * 0.5) throw new Error(`데이터 줄이 ${info.rows}줄에서 ${nRows}줄로 크게 줄어 저장하지 않았습니다. 새로고침한 뒤 다시 해 주세요.`);
     const [m, lock] = await Promise.all([jsonVer(id), info.name === "data.json" && info.parent ? gdFindIn(info.parent, ".반영중.lock") : null]);
     if (info.ver != null && String(m.version) !== String(info.ver)) throw new Error("다른 곳에서 먼저 수정되었습니다. 새로고침한 뒤 다시 시도해 주세요.");
     // 데이터 반영(수집) 중에는 FC 폴더에 .반영중.lock 이 있다 → 저장 직전에만 확인해 막는다(읽기는 그대로)
@@ -348,11 +387,11 @@
     const out = gdNorm(raw);
     jsonDocP.delete(id);
     if (out && out.lastModifiedDateTime) { info.mod = out.lastModifiedDateTime; renderDataStamp(); } // 저장하면 데이터 시각도 바로 갱신
-    info.ver = raw && raw.version != null ? raw.version : (await jsonVer(id)).version;
+    info.ver = raw && raw.version != null ? raw.version : (await jsonVer(id)).version; info.rows = nRows;
     return out;
   }
   async function stGet(id) {
-    if (!jsonInfo.get(id)) return stGet0(id);
+    if (!jsonInfo.get(id)) { const buf = await stGet0(id); if (!looksJson(buf) || !(await jsonAdopt(id))) return buf; }
     return XLSX.write(jsonToBook(await jsonGetDoc(id)), { type: "array", bookType: "xlsx" });
   }
   async function stPut(id, data, mime) {
@@ -363,10 +402,17 @@
   // 저장용 통합문서 읽기/쓰기: JSON이면 엑셀 파일로 바꿨다 다시 읽는 왕복 없이 시트 모양으로 바로
   async function stGetBook(id) {
     if (jsonInfo.get(id)) return jsonToBook(await jsonGetDoc(id));
-    return XLSX.read(await stGet0(id), { type: "array", cellNF: true });
+    const buf = await stGet0(id);
+    if (looksJson(buf)) { // v508: JSON 글자를 엑셀로 읽지 않음
+      if (await jsonAdopt(id)) return jsonToBook(await jsonGetDoc(id));
+      throw new Error("데이터 파일을 엑셀로 읽을 수 없습니다. 새로고침한 뒤 다시 해 주세요.");
+    }
+    return XLSX.read(buf, { type: "array", cellNF: true });
   }
   async function stPutBook(id, wb) {
-    const info = jsonInfo.get(id);
+    let info = jsonInfo.get(id);
+    if (!info && (await jsonAdopt(id))) info = jsonInfo.get(id);
+    if (info && !info.rows && info.ver == null) throw new Error("데이터 파일을 다시 읽은 뒤 저장해야 합니다. 새로고침한 뒤 다시 해 주세요.");
     if (info) return jsonPutDoc(id, bookToDoc(wb, info.meta || {}));
     return stPut0(id, XLSX.write(wb, { type: "array", bookType: "xlsx", compression: true }), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   }
