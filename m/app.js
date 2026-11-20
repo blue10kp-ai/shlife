@@ -305,7 +305,19 @@
   // JSON 읽기: 같은 파일을 여러 곳에서 읽어도 한 번만 받고(쓰기 때까지), 읽기에는 버전 확인과 엑셀 변환 왕복을 하지 않는다
   const jsonDocP = new Map();
   function readJsonDoc(id) {
-    if (!jsonDocP.has(id)) jsonDocP.set(id, stGet0(id).then((buf) => { const doc = JSON.parse(new TextDecoder().decode(buf).replace(/^\uFEFF/, "")); const inf = jsonInfo.get(id); jsonWarnBad(inf && inf.name, doc); return doc; }).catch((e) => { jsonDocP.delete(id); throw e; }));
+    if (!jsonDocP.has(id)) jsonDocP.set(id, stGet0(id).then(async (buf) => {
+      const inf = jsonInfo.get(id), name = inf && inf.name;
+      let doc = null, why = "";
+      try { doc = parseDoc(buf); } catch (e) { why = "JSON\uC73C\uB85C \uC77D\uD788\uC9C0 \uC54A\uC74C"; }
+      if (doc && name && JSON_FILES[name]) why = jsonDocBad(name, doc);
+      if (why && name && JSON_FILES[name]) { // v509: \uAE68\uC84C\uC73C\uBA74 \uC790\uB3D9 \uBCF5\uAD6C \uC2DC\uB3C4, \uBABB \uD558\uBA74 \uC54C\uB9BC(\uC608\uC804\uCC98\uB7FC)
+        const fixed = await fixBad(id, why);
+        if (fixed) { doc = fixed; rowsWatch(id, name, doc); }
+        else if (!doc) throw new Error(`\uB370\uC774\uD130 \uD30C\uC77C(${name})\uC744 \uC77D\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4(${why}).`);
+      } else if (doc && name) rowsWatch(id, name, doc);
+      if (!doc) throw new Error("\uB370\uC774\uD130 \uD30C\uC77C\uC744 \uC77D\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.");
+      return doc;
+    }).catch((e) => { jsonDocP.delete(id); throw e; }));
     return jsonDocP.get(id);
   }
   // v508(2026-11-20 최수진 data.json 사고): 깨진 구조의 JSON은 저장하지 않고, 읽을 때 알림
@@ -340,6 +352,146 @@
     if (!jsonInfo.get(id)) jsonInfo.set(id, { name: m.name, meta: null, ver: null, mod: m.modifiedTime || "", parent: (m.parents || [])[0] || "" });
     return true;
   }
+  // ===== v509(2026-11-21) 자동 백업·자동 복구 — 기준은 app\_공통\데이터파일_백업복구.md(데이터수집 PC 쪽과 같은 기준) =====
+  //   ① 저장 직전: 바로 앞 내용을 같은 폴더의 _앱백업\<파일>.YYYYMMDD-HHMMSS.저장전 으로 서버 복사(계정별 최근 10개)
+  //   ② 깨진 파일(jsonDocBad)을 읽으면: .반영중.lock·10분 안 된 .복구중.lock이 없을 때만 .복구중.lock을 걸고
+  //      깨진 내용을 _앱백업\…깨진본 으로 남긴 뒤 Drive 버전 기록(없으면 저장전 사본)에서 마지막 정상본으로 되돌림
+  //   ③ 되돌린 뒤 이 기기에서 보낸 전화·문자 기록(최근 14일)을 다시 반영(이력에 이미 있으면 건너뜀)
+  //   줄 수만 크게 준 것은 되돌리지 않고 알리기만
+  const BK_DIR = "_앱백업", BK_KEEP = 10, LOCK_FIX = ".복구중.lock", LOCK_SYNC = ".반영중.lock", LOCK_TTL = 10 * 60 * 1000;
+  const tsName = (d) => { d = d || new Date(); const p = (n) => String(n).padStart(2, "0"); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()); };
+  const bkDirP = new Map(); // 부모 폴더 ID → _앱백업 폴더 ID(Promise)
+  function bkDir(parent) {
+    if (!bkDirP.has(parent)) bkDirP.set(parent, (async () => {
+      const ex = await gdFindIn(parent, BK_DIR);
+      if (ex) return ex.id;
+      const f = await gdFetch(GDAPI + "/files?supportsAllDrives=true&fields=id", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: BK_DIR, mimeType: GD_FOLDER, parents: [parent] }) });
+      return f.id;
+    })().catch((e) => { bkDirP.delete(parent); throw e; }));
+    return bkDirP.get(parent);
+  }
+  async function bkCopy(id, info, kind) { // 지금 Drive에 있는 내용을 _앱백업으로 서버 복사(기기로 받지 않음) → 새 파일 ID
+    const dir = await bkDir(info.parent);
+    const f = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "/copy?supportsAllDrives=true&fields=id", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: info.name + "." + tsName() + "." + kind, parents: [dir], appProperties: { shlifeBackup: kind, shlifeOf: id } }) });
+    return f.id;
+  }
+  async function bkPrune(info) { // 내 계정이 만든 저장전 사본 중 최근 BK_KEEP개만 남기고 휴지통으로
+    const dir = await bkDir(info.parent);
+    const d = await gdFetch(GDAPI + "/files?pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name)&q=" + encodeURIComponent("'" + qv(dir) + "' in parents and 'me' in owners and trashed=false and name contains '" + qv(info.name) + ".'"));
+    const mine = (d.files || []).filter((f) => f.name.startsWith(info.name + ".") && f.name.endsWith(".저장전")).sort((a, b) => (a.name < b.name ? 1 : -1));
+    for (const f of mine.slice(BK_KEEP)) await stDel(f.id).catch(() => {});
+  }
+  async function lockList(parent) { // 같은 폴더의 잠금 파일(.반영중.lock·.복구중.lock)
+    const d = await gdFetch(GDAPI + "/files?pageSize=50&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,createdTime,modifiedTime)&q=" + encodeURIComponent("'" + qv(parent) + "' in parents and trashed=false and (name contains '.반영중' or name contains '.복구중')"));
+    const now = Date.now(); // 동기화가 '.복구중 (1).lock'처럼 이름을 바꿔도 같은 잠금으로 봄(데이터수집과 합의)
+    const kind = (n) => (/^\.반영중.*\.lock$/.test(n) ? LOCK_SYNC : /^\.복구중.*\.lock$/.test(n) ? LOCK_FIX : "");
+    return (d.files || []).filter((f) => kind(f.name)).map((f) => ({ ...f, name: kind(f.name), fresh: now - new Date(f.createdTime || f.modifiedTime).getTime() < LOCK_TTL }));
+  }
+  const lockBlocks = (ls) => ls.find((f) => f.name === LOCK_SYNC) || ls.find((f) => f.name === LOCK_FIX && f.fresh) || null;
+  async function lockMake(parent, info, id) {
+    const b = "shlife" + Date.now();
+    const meta = { name: LOCK_FIX, parents: [parent], mimeType: "application/json" };
+    const body = new Blob(["--" + b + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify(meta) + "\r\n--" + b + "\r\nContent-Type: application/json\r\n\r\n" +
+      JSON.stringify({ by: "앱", account: me(), file: info.name, fileId: id, at: new Date().toISOString() }) + "\r\n--" + b + "--"]);
+    return gdFetch(GDUP + "/files?uploadType=multipart&supportsAllDrives=true&fields=id,createdTime", { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body });
+  }
+  async function lockDrop(lid) {
+    try { await gdFetch(GDAPI + "/files/" + encodeURIComponent(lid) + "?supportsAllDrives=true", { method: "DELETE" }); }
+    catch (e) { await stDel(lid).catch(() => {}); }
+  }
+  const parseDoc = (buf) => JSON.parse((typeof buf === "string" ? buf : new TextDecoder().decode(buf)).replace(/^﻿/, ""));
+  async function findGood(id, info) { // 마지막 정상본 { text, at, src } — 버전 기록 먼저, 안 되면 _앱백업 저장전 사본
+    let revErr = "";
+    try {
+      const d = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "/revisions?pageSize=1000&fields=revisions(id,modifiedTime)");
+      const rv = (d.revisions || []).slice(0, -1).reverse().slice(0, 20); // 맨 끝(지금 깨진 것) 빼고 최근부터
+      for (const r of rv) {
+        try {
+          const buf = await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "/revisions/" + encodeURIComponent(r.id) + "?alt=media", null, true);
+          const doc = parseDoc(buf);
+          if (!jsonDocBad(info.name, doc)) return { buf, doc, at: r.modifiedTime, src: "버전 기록" };
+        } catch (e) { /* 다음 버전 */ }
+      }
+    } catch (e) { revErr = String(e.message || e).slice(0, 60); console.warn("버전 기록을 읽지 못함", revErr); }
+    try {
+      const dir = await bkDir(info.parent);
+      const d = await gdFetch(GDAPI + "/files?pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,createdTime)&q=" + encodeURIComponent("'" + qv(dir) + "' in parents and trashed=false and name contains '" + qv(info.name) + ".'"));
+      const bks = (d.files || []).filter((f) => f.name.startsWith(info.name + ".") && f.name.endsWith(".저장전")).sort((a, b) => (a.name < b.name ? 1 : -1)).slice(0, 10);
+      for (const f of bks) {
+        try { const buf = await stGet0(f.id); const doc = parseDoc(buf); if (!jsonDocBad(info.name, doc)) return { buf, doc, at: f.createdTime, src: "저장전 사본" }; } catch (e) { /* 다음 사본 */ }
+      }
+    } catch (e) { /* 사본 폴더 없음 */ }
+    return { fail: revErr ? "버전 기록을 읽을 권한이 없고 정상 사본도 없음" : "정상본을 찾지 못함" };
+  }
+  const fixTried = new Set();
+  async function jsonRestore(id) { // → { doc, at, src } 되돌림 / { doc, already } 누가 이미 고침 / { skip|fail: 이유 }
+    const info = jsonInfo.get(id);
+    if (!GD || !info || !info.parent) return { fail: "파일 위치를 모름" };
+    if (fixTried.has(id)) return { skip: "이번에 이미 시도함" };
+    fixTried.add(id);
+    const blk = lockBlocks(await lockList(info.parent));
+    if (blk) return { skip: blk.name === LOCK_SYNC ? "데이터 반영 중" : "다른 곳에서 복구 중" };
+    const lock = await lockMake(info.parent, info, id);
+    try {
+      const fixes = (await lockList(info.parent)).filter((f) => f.name === LOCK_FIX && f.fresh).sort((a, b) => (a.createdTime < b.createdTime ? -1 : a.createdTime > b.createdTime ? 1 : a.id < b.id ? -1 : 1));
+      if (fixes.length && fixes[0].id !== lock.id) return { skip: "다른 곳에서 복구 중" };
+      const headRev = () => gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=headRevisionId&supportsAllDrives=true").then((x) => x.headRevisionId); // 내용이 바뀌었는지(복사·메타데이터로는 안 바뀜)
+      const [v0, buf0] = await Promise.all([headRev(), stGet0(id)]);
+      let cur = null; try { cur = parseDoc(buf0); } catch (e) { /* JSON도 아님 */ }
+      if (cur && !jsonDocBad(info.name, cur)) return { doc: cur, already: true };
+      await bkCopy(id, info, "깨진본"); // 깨진 내용은 지우지 않고 남김(못 남기면 되돌리지 않음)
+      const good = await findGood(id, info);
+      if (!good.doc) return good;
+      if ((await headRev()) !== v0) return { skip: "그사이 다른 곳에서 바뀜" };
+      await gdFetch(GDUP + "/files/" + encodeURIComponent(id) + "?uploadType=media&supportsAllDrives=true&fields=id", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: new Blob([good.buf], { type: "application/json" }) });
+      await gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?supportsAllDrives=true&fields=id", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appProperties: { shlifeRestoredAt: new Date().toISOString(), shlifeRestoredBy: "앱", shlifeRestoredFrom: good.src + " " + (good.at || "") } }) }).catch(() => {});
+      info.ver = null; info.rows = undefined;
+      return { doc: good.doc, at: good.at, src: good.src };
+    } finally { await lockDrop(lock.id); }
+  }
+  // 되돌린 뒤: 이 기기에서 보낸 전화·문자 기록을 다시 반영(writeContacts는 이력에 같은 기록이 있으면 건너뜀)
+  const sentKey = () => "shlife.contactSent." + me();
+  const readSent = () => { try { return JSON.parse(localStorage.getItem(sentKey()) || "[]"); } catch (e) { return []; } };
+  function addSent(items) {
+    try {
+      const cut = Date.now() - 14 * 864e5;
+      const all = readSent().concat(items.map((i) => ({ ...i, sentAt: Date.now() }))).filter((i) => i.sentAt > cut).slice(-500);
+      localStorage.setItem(sentKey(), JSON.stringify(all));
+    } catch (e) { /* 기기 저장 불가 — 다시 반영만 못 함 */ }
+  }
+  function reapplySent(id, sinceIso) {
+    const since = sinceIso ? new Date(sinceIso).getTime() - 60000 : 0;
+    const items = readSent().filter((i) => i.fileId === id && (i.sentAt || 0) >= since);
+    if (!items.length) return;
+    setTimeout(async () => {
+      try { await writeContacts(id, items); toast(`이 기기에서 보낸 전화·문자 기록 ${items.length}건을 다시 반영했습니다.`); }
+      catch (e) { console.error("전화·문자 기록 다시 반영 실패", e); }
+    }, 2500);
+  }
+  function afterRestore(id, r) {
+    const info = jsonInfo.get(id) || {};
+    if (r.already) return;
+    setTimeout(() => { try { toast(`데이터 파일(${info.name})이 깨져 있어 ${stampText(r.at) || "이전"} 정상본으로 자동으로 되돌렸습니다(${r.src}). 깨진 내용은 ${BK_DIR} 폴더에 남겼습니다.`); } catch (e) { /* 무시 */ } }, 500);
+    reapplySent(id, r.at);
+  }
+  async function fixBad(id, why) { // 깨진 파일 → 되돌린 정상 doc 또는 null(못 되돌림 — 이유는 알림에)
+    let r;
+    try { r = await jsonRestore(id); } catch (e) { r = { fail: String(e.message || e).slice(0, 80) }; }
+    if (r && r.doc) { afterRestore(id, r); return r.doc; }
+    console.error("자동 복구 못 함", why, r);
+    const info = jsonInfo.get(id) || {};
+    const k = id + "fix"; if (!jsonWarned.has(k)) { jsonWarned.add(k); setTimeout(() => { try { toast(`데이터 파일(${info.name}) 하나가 깨져 있어 그 고객을 불러오지 못했습니다(${why}). 자동 복구도 못 했습니다(${(r && (r.skip || r.fail)) || "알 수 없음"}). 관리자에게 알려 주세요.`); } catch (e) { /* 무시 */ } }, 500); }
+    return null;
+  }
+  // 줄 수 경고: 이 기기가 지난번에 읽은 줄 수보다 절반 아래로 줄었으면 알리기만(되돌리지 않음)
+  function rowsWatch(id, name, doc) {
+    try {
+      const k = "shlife.jsonRows." + me(), o = JSON.parse(localStorage.getItem(k) || "{}") || {}, n = jsonRows(doc), was = o[id] || 0;
+      if (was > 20 && n < was * 0.5 && !jsonWarned.has(id + "rows")) { jsonWarned.add(id + "rows"); setTimeout(() => { try { toast(`데이터 파일(${name})의 줄이 ${was}줄에서 ${n}줄로 크게 줄었습니다. 이상하면 관리자에게 알려 주세요.`); } catch (e) { /* 무시 */ } }, 800); }
+      o[id] = n; localStorage.setItem(k, JSON.stringify(o));
+    } catch (e) { /* 무시 */ }
+  }
+  if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) window.__shlifeT = { jsonAdopt, readJsonDoc: (id) => readJsonDoc(id), jsonGetDoc: (id) => jsonGetDoc(id), jsonPutDoc: (id, d) => jsonPutDoc(id, d), jsonInfo, addSent, readSent }; // 로컬 시험용
   // 데이터 갱신 시각: 읽은 FC별 data.json의 Drive 수정시각(목록 조회 때 이미 받은 값). 여러 FC면 가장 오래된 것 기준(자세히는 길게 눌러/마우스를 올려 FC별로 표시)
   const stampText = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
   function renderDataStamp() {
@@ -366,10 +518,13 @@
   async function jsonGetDoc(id) { // 저장용 최신 JSON(버전 기억)
     const info = jsonInfo.get(id);
     const [m, buf] = await Promise.all([jsonVer(id), stGet0(id)]);
-    const doc = JSON.parse(new TextDecoder().decode(buf).replace(/^\uFEFF/, ""));
+    let doc = null, bad = "";
+    try { doc = parseDoc(buf); bad = jsonDocBad(info.name, doc); } catch (e) { bad = "JSON으로 읽히지 않음"; }
+    if (bad) { // v509: 깨졌으면 자동 복구 후 다시 읽기(한 번만)
+      if (!fixTried.has(id) && (await fixBad(id, bad))) { jsonDocP.delete(id); return jsonGetDoc(id); }
+      throw new Error(`데이터 파일(${info.name})이 깨져 있어 저장하지 않았습니다(${bad}). 관리자에게 알려 주세요.`);
+    }
     info.ver = m.version; info.meta = { fc: doc.fc, source: doc.source }; info.rows = jsonRows(doc);
-    const bad = jsonDocBad(info.name, doc);
-    if (bad) throw new Error(`데이터 파일(${info.name})이 깨져 있어 저장하지 않았습니다(${bad}). 관리자에게 알려 주세요.`);
     return doc;
   }
   async function jsonPutDoc(id, doc) {
@@ -378,10 +533,13 @@
     if (bad) throw new Error(`데이터 파일(${info.name})을 잘못된 모양으로 저장하려 해서 멈췄습니다(${bad}). 새로고침한 뒤 다시 해 주세요.`);
     const nRows = jsonRows(doc);
     if (info.rows > 20 && nRows < info.rows * 0.5) throw new Error(`데이터 줄이 ${info.rows}줄에서 ${nRows}줄로 크게 줄어 저장하지 않았습니다. 새로고침한 뒤 다시 해 주세요.`);
-    const [m, lock] = await Promise.all([jsonVer(id), info.name === "data.json" && info.parent ? gdFindIn(info.parent, ".반영중.lock") : null]);
+    const [m, locks] = await Promise.all([jsonVer(id), info.parent ? lockList(info.parent) : []]);
     if (info.ver != null && String(m.version) !== String(info.ver)) throw new Error("다른 곳에서 먼저 수정되었습니다. 새로고침한 뒤 다시 시도해 주세요.");
-    // 데이터 반영(수집) 중에는 FC 폴더에 .반영중.lock 이 있다 → 저장 직전에만 확인해 막는다(읽기는 그대로)
-    if (lock) throw new Error("데이터 반영 중이라 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    // 데이터 반영(수집) 중에는 FC 폴더에 .반영중.lock, 복구 중에는 .복구중.lock(10분 안 된 것)이 있다 → 저장 직전에만 확인해 막는다(읽기는 그대로)
+    const blk = lockBlocks(locks.filter((f) => f.name === LOCK_FIX || info.name === "data.json"));
+    if (blk) throw new Error(blk.name === LOCK_SYNC ? "데이터 반영 중이라 저장하지 못했습니다. 잠시 후 다시 시도해 주세요." : "데이터 파일을 복구하는 중이라 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    // v509: 저장 직전 사본(바로 앞 내용, 서버 복사). 사본을 못 만들어도 저장은 계속(버전 기록이 남음)
+    if (info.parent) { try { await bkCopy(id, info, "저장전"); bkPrune(info).catch(() => {}); } catch (e) { console.warn("저장 전 사본을 만들지 못함", e); } }
     const raw = await gdFetch(GDUP + "/files/" + encodeURIComponent(id) + "?uploadType=media&supportsAllDrives=true&fields=" + GD_FIELDS + ",version",
       { method: "PATCH", headers: { "Content-Type": "application/json" }, body: new Blob([JSON.stringify(doc)], { type: "application/json" }) });
     const out = gdNorm(raw);
@@ -5184,6 +5342,7 @@
     const s_cmp = sec("고객 구분 · 유입경로 말 (2026-11-17)", ["화면의 말이 <b>직접모집</b>(예전 ‘계약·본인’), <b>이관고객</b>(예전 ‘이관’), <b>계약진행</b>(예전 ‘진행’), <b>가망</b>으로 바뀌었습니다. 고객 정보의 <b>유입경로</b>는 <b>신규유입 · 이관유입 · DB유입</b> 세 가지이고 처음 한 번 정해지면 바뀌지 않아 <b>읽기만</b> 합니다(예전 ‘계약·지인·소개’ 값은 신규유입으로 보입니다). 소개는 유입경로가 아니라 <b>소개자</b> 칸으로 따로 둡니다.", "데이터가 새 칸 이름(주민번호·고객분류·이관상태·따행상태·계약진행 표 등)으로 바뀌는 중에는 앱이 <b>새 칸이 있으면 새 칸, 없으면 옛 칸</b>을 읽고, 저장은 옛 칸과 새 칸 <b>둘 다</b>에 합니다(이관보관·이관상태, 따행보관·따행상태, 진행제외·영업단계와 계약진행 표, DB제외·DB상태, 후번호와 주민번호). 따행 <b>방문완료</b>는 방문완료일만 보고, 따행 <b>대상</b>은 따행상태(목표, 빈칸이면 활동기한이 안 끝난 줄)로 셉니다. 상령일(생년월일+6개월)과 납입완료 예정(최초계약일+납입기간)은 칸이 없어도 계산해서 보여 줍니다."]);
     const s_prog = sec("보관 (이동 · 원복)", ["<b>[지옥으로]</b>를 누르면 옮긴 뒤 지옥문 그림이 1초 동안 화면 전체에 나옵니다.", "<b>지옥으로 보낸 계약·계약자</b>(이관·따행·DB)는 고객 <b>성향이 자동으로 Shit</b>이 됩니다. 되돌리기를 누르면 예전 성향으로 돌아가고, 다른 단계로 옮겨도 성향은 그대로 두니 필요하면 고객 정보에서 바꾸세요.", "<b>2026-11-18부터 이달목표의 이관·따행</b>은 위 칩이 <b>신규 · 완료 · 지옥</b>입니다(예전 ‘이관/따행 · 보관’). 신규 줄은 <b>[완료]</b>, 완료 줄은 <b>[신규로] [지옥으로]</b>, 지옥 줄은 <b>[신규로] [완료로]</b>로 옮깁니다. 예전에 보관한 고객은 완료에, 삭제한 고객은 지옥에 보입니다. 파일에는 지금처럼 목표 · 보관 · 삭제로 저장됩니다(이력에 남음). DB 탭도 같은 말로 <b>신규 · 계약 · 보관 · 지옥</b>입니다(예전 ‘삭제’ = 지옥, 보관 줄의 [삭제로] = [지옥으로]).", "영업 > 이달목표 목록 줄의 오른쪽 버튼 글자는 상태에 따라 달라집니다. 신규 목록 줄은 <b>보관으로</b>, 보관 목록 줄은 <b>신규로</b>(원래 목록으로)와 <b>지옥으로</b>(DB), 지옥 목록 줄은 <b>신규로</b>와 <b>보관으로</b>입니다. 아래 설명의 ‘이동·원복’은 각각 ‘보관으로·신규로’를 뜻합니다.", "고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 영업 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다. DB DB 목록 위 칩은 <b>신규 / 계약 / 보관</b> 순서이고(신규 검정 · 계약 초록 · 보관 파랑), <b>보관</b>을 누르면 빨간 <b>지옥</b> 칩이 더해집니다. 계약 고객이 된 DB 고객은 고객 시트의 ‘DB상태’가 ‘계약’이 되고 계약 칩에서 봅니다. <b>지옥</b> 목록은 가장 최근에 지옥으로 보낸 고객이 맨 위에 나오며 줄의 <b>복구</b>를 누르면 보관으로 돌아갑니다. 보관 목록에는 원복 오른쪽에 <b>지옥으로</b> 버튼도 있습니다: 확인 뒤 누르면 자료는 지우지 않고 고객 시트의 ‘DB상태’ 칸(신규·보관·삭제 중 하나, 빈칸은 신규)에 ‘삭제’(=지옥)만 표시해, 보관 목록에서도 안 보이게 합니다(6초 안에 [되돌리기] 가능).", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 고객 화면 [이관] 목록에서는 <b>이달 N / 보관 M</b> 칩(이달 이관 고객 수)과 줄의 이동·원복으로 그 고객의 <b>이달 이관 계약만</b> 한꺼번에 보관하거나 원복합니다(이관일자가 이번 달인 계약 = 이달목표 > 이관에 나오는 계약, 지난 달 이관·담당이 다른 FC 계약은 그대로). 이달 이관 계약이 없는 이관 고객에는 버튼이 없습니다. 고객 정보 화면 탭 줄 오른쪽에도 보관할 수 있는 목록마다 <b>보관으로 이동</b>/<b>원복</b> 버튼이 나옵니다(여러 개면 ‘진행 보관’·‘DB 보관’·‘이관 보관’처럼 앞에 목록 이름). 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
     const s_rh = sec("오른손 모드", ["'화면' 카드 오른쪽 칸입니다. 하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용되고, 관리자 조직도에서 볼 수 있게 기록됩니다."]);
+    const s_bk = sec("데이터 자동 백업·복구 (v509)", ["<b>자동 백업</b>: 앱이 고객 데이터 파일을 저장하기 직전에, 바로 앞 내용을 같은 폴더의 <b>_앱백업</b> 폴더에 사본으로 남깁니다. 계정마다 최근 10개만 두고 오래된 것은 휴지통으로 보냅니다. 사본은 원본과 같은 폴더 안에 있어 원본과 같은 사람만 볼 수 있습니다.", "<b>자동 복구</b>: 고객 데이터 파일이 깨져 있으면(모양이 망가짐) 앱이 Drive 버전 기록에서 가장 최근의 정상본을 찾아 자동으로 되돌리고 화면에 알립니다. 깨진 내용은 지우지 않고 _앱백업 폴더에 ‘깨진본’으로 남깁니다. 데이터 반영 중이거나 다른 곳에서 복구 중이면 손대지 않습니다.", "되돌린 뒤에는 이 기기에서 최근 14일 동안 보낸 <b>전화·문자 기록</b>을 다시 반영합니다(이미 있는 기록은 건너뜀). 다른 기기에서 한 기록이나 칩·정보 수정은 다시 반영되지 않으니, 알림이 뜨면 최근에 고친 내용을 한 번 확인해 주세요.", "줄 수만 크게 줄어든 경우는 되돌리지 않고 알리기만 합니다. 자동 복구를 못 했다는 알림이 뜨면 관리자에게 알려 주세요."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·영업 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>팀관리 메뉴의 [조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>영업 페이지 접근</b>: 영업(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 영업 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 영업 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 영업 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: 아래 메뉴 <b>팀관리</b>의 [조직도]를 누르면(2026-11-19에 설정에서 옮김) 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘영업 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/영업 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
@@ -5194,7 +5353,7 @@
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, 2026-11-19)", ["처음 쓰는 고객은 청구 탭에 <b>[보험금 청구 시작]</b>이 나옵니다. 누르면 이 고객 폴더에 <b>보험금청구</b> 폴더와 그 안에 <b>보험금청구서 · 병원서류</b> 폴더를 만듭니다.", "<b>[청구서 업로드]</b>로 보험사 보험금청구서(PDF·사진, 여러 개)를 올리면 보험금청구서 폴더에 저장됩니다. 파일 이름에 보험사 이름(예: 메리츠화재, 삼성생명)이 있으면 그 보험사를 찾아 <b>‘날짜 - 보험사’</b>(예: 20261119 - 메리츠화재.pdf)로 짧게 이름을 바꿉니다. 보험사를 못 찾으면 ‘날짜 - 청구서’가 됩니다.", "올린 청구서는 <b>보험사마다 한 줄</b>로 묶여 보이고, 보험사 이름 앞 <b>체크박스</b>로 청구할 보험사를 고릅니다. 파일 이름을 누르면 엽니다.", "보험사를 못 찾은 파일은 <b>보험사 모름</b> 줄에 나오며, 옆의 고르기에서 보험사를 고르면 파일 이름에 보험사가 들어가도록 바뀝니다.", "보험금청구서 칸 아래 <b>병원서류</b> 칸의 <b>[병원서류 업로드]</b>로 영수증·진료비 세부내역·진단서 등(PDF·사진, 여러 개)을 올리면 <b>보험금청구 › 병원서류</b> 폴더에 ‘날짜 - 서류 종류’(예: 20261119 - 영수증.jpg, 종류를 모르면 ‘병원서류’)로 짧게 저장되고, 이름을 누르면 엽니다.", "두 칸 모두 버튼 대신 파일을 <b>칸 안에 끌어다 놓아도</b> 올라갑니다(PC). 파일 이름 오른쪽 <b>×</b>를 누르면 확인 뒤 삭제합니다(구글 드라이브 휴지통으로 옮겨짐).", "병원서류를 올리면 그 칸 아래에 <b>[보험금청구서 제작 시작]</b>이 나옵니다. 누르면 <b>보험사 청구서들(체크한 보험사가 있으면 그 보험사만, 없으면 전부) → 병원서류(영수증·계산서 → 세부내역 → 나머지)</b> 순서로 인쇄하기 좋게 <b>한 파일</b>을 만듭니다. 사진·팩스 TIF(여러 쪽 포함)·스캔 PDF는 한 쪽씩 A4 세로에 흑백으로 정리돼 들어가고, 가로로 긴 서류는 돌려서 꽉 차게 넣습니다.", "만든 파일은 <b>보험금청구 › 보험금청구 기록</b> 폴더에 ‘날짜 - 보험금청구서 - 메리츠화재·신한EZ손해보험’처럼 저장되고(내려받으면 앞에 고객 이름이 붙음), 맨 아래 <b>보험금청구 기록</b> 칸에 날짜별로 나옵니다. 이름을 누르면 열고, <b>[다운로드]</b>로 기기에 받고, <b>×</b>로 삭제(휴지통)합니다.", "[보험금청구서 제작 시작]을 누르면 병원서류를 <b>팩스 보내기 좋게 흑백(검정·흰색)</b>으로 정리합니다. 누런 바탕·그림자·회색 음영은 희게, 글자는 검게 하고 외톨이 잡티를 지웁니다(마침표·쉼표는 남김). 스캔 PDF도 쪽마다 같은 방식으로 정리합니다.", "보험사 청구서도 같은 방식으로 흑백으로 바꿔 앞에 둡니다(칸은 채우지 않음). 모든 쪽을 300dpi 1비트 흑백으로 담아 파일이 작습니다. 그래도 8MB가 넘으면 200dpi, 다시 넘으면 150dpi로 낮춰 다시 만들고, 기록 칸 위 줄에 크기와 낮춘 해상도를 알려 줍니다. 직접 적거나 PC의 보험금청구 작업에서 채우세요."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("영업"), s_sub, s_pg, s_smemo, s_stage, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
@@ -8116,6 +8275,7 @@
       for (const [fileId, items] of byFile) {
         try {
           await writeContacts(fileId, items);
+          addSent(items); // v509: 되돌린 뒤 다시 반영할 수 있게 14일 기억
           const done = new Set(items.map((i) => i.uid));
           writeQueue(readQueue().filter((i) => !done.has(i.uid)));
           wrote = true;
