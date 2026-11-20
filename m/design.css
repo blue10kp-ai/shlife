@@ -1546,3 +1546,7 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .clm-chk { width: 136px; white-space: nowrap; }
 .clm-chk b { overflow: hidden; text-overflow: ellipsis; }
 .clm-build { justify-content: flex-start; } /* v501: 오른쪽 아래 [닫기]와 겹치지 않게 왼쪽으로 */
+/* v513 로그인 승인/거부 토글 (관리자 > FC 사용 설정 카드 머리) */
+.lg-tg { font-size: 12px; line-height: 1; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line, rgba(127,127,127,.35)); background: transparent; color: var(--t2, inherit); font-weight: 600; min-width: 44px; }
+.lg-tg.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.lg-tg:disabled { opacity: .6; }

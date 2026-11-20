@@ -856,6 +856,7 @@
     await resolveAppDir();
     const p = await stReadJsonIn(appDir, PERM_FILE);
     const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, prefixes: (p && p.prefixes && typeof p.prefixes === "object") ? p.prefixes : {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [], salesFcs: (p && p.salesFcs && typeof p.salesFcs === "object") ? p.salesFcs : {}, starts: (p && p.starts && typeof p.starts === "object") ? p.starts : {}, org: (p && p.org && typeof p.org === "object") ? p.org : {}, orgApplied: (p && p.orgApplied && typeof p.orgApplied === "object") ? p.orgApplied : {}, orgSalesApplied: (p && p.orgSalesApplied && typeof p.orgSalesApplied === "object") ? p.orgSalesApplied : {}, orgVer: (p && p.orgVer) || 1, titles: (p && p.titles && typeof p.titles === "object") ? p.titles : {}, archived: (p && p.archived && typeof p.archived === "object") ? p.archived : {}, fcNos: (p && p.fcNos && typeof p.fcNos === "object") ? p.fcNos : {} }; // fcNos(v359): { FC이름: 사번 } 보조칸(이름 키는 그대로, 일반 사용자가 기준표를 못 읽을 때 사번을 알 수 있게) // archived(v343): { 이메일: {...} } 보관한(삭제한) 사용자 — 데이터는 지우지 않음 // titles(v339): { 이메일: "ESL"|"SSL"|"GSL"|"FC" } 직책 // orgVer 2(v335): 보기·수정 = 그 사용자가 자기 FC를 위 사용자들에게 주는 권한 // orgSalesApplied(v330): { 이메일: [FC] } 조직도가 영업 페이지 접근 허용에 더한 FC // orgApplied(v327): { 이메일: [{fc, prev}] } 조직도가 더한 권한(조직도에서 빼면 이것만 되돌림, 직접 준 권한은 그대로) // org(v326): { 이메일: { parent, view, edit } } 조직도 // salesFcs: { 이메일: [영업 화면에서 추가로 볼 수 있는 FC 이름] } / sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
+    if (p && p.login && typeof p.login === "object") out.login = p.login; // v513: 로그인 승인/거부 토글(없으면 옛 파일 = 예전 방식)
     permNamesCache = { ...out.names };
     permPrefixCache = { ...out.prefixes };
     fcNoMap = { ...out.fcNos };
@@ -3300,10 +3301,25 @@
       team.사람.push(np);
       await stWriteJsonIn(tmDir, TM_FILE, team);
     }
+    let permNote = "";
+    if (isAdmin()) { // v513: 전환과 함께 관리자 > FC 사용 목록에 올림(이메일은 나중에, 로그인은 '거부'로 시작)
+      try {
+        const pm = await readPerms(), nm = String(c.이름 || "").trim();
+        if (!Object.keys(pm.users || {}).some((e) => (pm.names || {})[e] === nm)) {
+          const key = nm + "@email.pending";
+          pm.names = pm.names || {}; pm.titles = pm.titles || {};
+          loginInit(pm);
+          pm.users[key] = []; pm.names[key] = nm; pm.titles[key] = ORG_TITLES.includes(extra.직급) ? extra.직급 : "FC"; pm.login[key] = "거부";
+          await writePerms(pm);
+          if (adminState) adminState.perms = pm;
+          permNote = " · 관리자 FC 사용 목록에 올렸습니다(로그인 거부)";
+        } else permNote = " · FC 사용 목록에는 이미 있습니다";
+      } catch (e) { console.error("FC 사용 목록 등록 실패", e); permNote = " · FC 사용 목록 등록은 못 했습니다(설정 > 사용자 추가로 넣어 주세요)"; }
+    }
     c.전환일시 = now; if ("도입자사번" in extra) { c.도입자사번 = extra.도입자사번; c.도입자 = extra.도입자; }
     await stWriteJsonIn(tmDir, CD_FILE, cands);
     cdDoc = null; cdEdit = false; tmSel = no;
-    toast(`${c.이름 || ""} 님을 팀원으로 전환했습니다`);
+    toast(`${c.이름 || ""} 님을 팀원으로 전환했습니다${permNote}`);
     await openTeamInfo();
   }
   async function saveCandInfo(btn) {
@@ -4462,6 +4478,43 @@
     new Set(tl.anc).forEach((id) => { const a = (s.anc || []).find((x) => x.id === id); if (a) jobs.push(gdPermList(id, true).then((p) => { a.perms = p; })); });
     await Promise.all(jobs);
   }
+  // v513: 로그인 승인/거부 토글. 승인 = 그 계정의 FC 폴더(본인 FC + 체크한 FC)와 설정 폴더 공유, 거부 = 로그인 막기(+ 원하면 공유 해제)
+  async function shareAppDirReader(em) {
+    const st = adminState.shares;
+    if (!appDir || !appDir.id || (st && st.app.some((p) => p.email === em))) return;
+    await gdFetch(GDAPI + "/files/" + encodeURIComponent(appDir.id) + "/permissions?supportsAllDrives=true&sendNotificationEmail=false", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role: "reader", emailAddress: em }) });
+    if (st) st.app = await gdPermList(appDir.id, true);
+  }
+  async function toggleLogin(em, btn) {
+    const p0 = adminState.perms || {}, on = loginOn(p0, em), nm = (p0.names || {})[em] || em.split("@")[0];
+    if (!on && isPend(em)) return toast(`${nm} 님의 구글 계정 이메일이 아직 없습니다. 조직도에서 그 사람을 눌러 이메일을 먼저 넣어 주세요.`);
+    const ids = adminState.fcIds || {}, own = (adminState.fcs || []).includes((p0.names || {})[em]) ? p0.names[em] : "";
+    const list0 = ((p0.users || {})[em] || []).filter((g) => g !== "*");
+    const list = [...list0.filter((g) => grantFc(g) !== own), ...(own ? [own] : [])].filter((g) => ids[grantFc(g)]);
+    let unshare = false;
+    if (!on) {
+      if (!confirm(`${nm} (${em}) 로그인을 승인합니다.\n` + (GD ? (list.length ? `Google Drive 공유: FC 폴더(${list.map(grantFc).join(", ")}) 편집, 설정 폴더 보기` : "볼 FC 폴더가 아직 없어 설정 폴더만 공유합니다.") : ""))) return;
+    } else {
+      if (!confirm(`${nm} (${em}) 로그인을 거부합니다.\n다음에 앱을 열 때부터 로그인 화면에서 멈춥니다.`)) return;
+      unshare = GD && shareState(em) && shareState(em) !== "none" && confirm("Google Drive 공유도 해제할까요?\n\n확인 = 공유 해제 (드라이브에서도 고객 파일을 볼 수 없음)\n취소 = 로그인만 막기 (공유가 남아 있어 드라이브에서 파일을 직접 열 수 있음)");
+    }
+    btn.disabled = true; btn.textContent = "저장 중";
+    try {
+      const pm = await readPerms();
+      loginInit(pm)[em] = on ? "거부" : "승인";
+      await writePerms(pm);
+      adminState.perms = pm;
+      let note = "";
+      if (GD && adminState.shares) {
+        try {
+          if (!on) { if (list.length) await refreshSharesFor(await grantFolders(em, list)); await shareAppDirReader(em); }
+          else if (unshare) await unshareFolders(em);
+        } catch (e) { console.error(e); note = ` 다만 Drive 공유는 바꾸지 못했습니다(${String(e.message || e).slice(0, 60)}).`; }
+      }
+      toast(`${nm} 로그인을 ${on ? "거부" : "승인"}했습니다.${on ? (unshare ? " Drive 공유도 해제했습니다." : "") : ""}${note}`);
+      renderAdmin();
+    } catch (e) { btn.disabled = false; btn.textContent = on ? "승인" : "거부"; handleError(e); }
+  }
   async function unshareFolders(em) {
     const st = adminState && adminState.shares;
     if (!st) return;
@@ -4557,9 +4610,24 @@
   };
   // v370(2026-11-16 사용자 지시): 이메일 없이 이름만 넣어 등록한 사용자는 임시 키 '<이름>@email.pending'. 이메일을 채워 저장하면 모든 기록의 키를 바꿈
   const isPend = (em) => /@email\.pending$/.test(String(em || ""));
+  // v513(2026-11-21 사용자 규칙): 신한FC 로그인은 관리자 페이지의 승인/거부 토글로만 정함(이메일·사번이 있고 없고로 정하지 않음)
+  //   권한 파일에 login 칸이 아예 없으면(토글 도입 전 파일) 예전 방식: FC 사용 목록(users)에 있으면 들어감 — 배포 직후 기존 계정이 잠기지 않게
+  const loginOn = (perms, em) => {
+    em = String(em || "").toLowerCase();
+    if ((CFG.admins || []).map((a) => a.toLowerCase()).includes(em)) return true;
+    if (!perms) return false;
+    if (!perms.login || typeof perms.login !== "object") return !!(perms.users && Object.prototype.hasOwnProperty.call(perms.users, em));
+    return perms.login[em] === "승인";
+  };
+  function loginInit(perms) { // 처음 토글을 쓸 때: 옛 방식 그대로의 값으로 login 칸을 만듦(다른 계정이 잠기지 않게)
+    if (perms.login && typeof perms.login === "object") return perms.login;
+    perms.login = {};
+    Object.keys(perms.users || {}).forEach((em) => { perms.login[em] = isPend(em) ? "거부" : "승인"; });
+    return perms.login;
+  }
   function rekeyOrg(o, a, b) { if (!o || !o[a]) return o; o[b] = o[a]; delete o[a]; Object.keys(o).forEach((k) => { if (o[k] && o[k].parent === a) o[k].parent = b; }); return o; }
   function rekeyPerms(perms, a, b) {
-    ["users", "names", "titles", "salesFcs", "starts", "orgApplied", "orgSalesApplied", "archived"].forEach((k) => { const m = perms[k]; if (m && Object.prototype.hasOwnProperty.call(m, a)) { m[b] = m[a]; delete m[a]; } });
+    ["users", "names", "titles", "salesFcs", "starts", "orgApplied", "orgSalesApplied", "archived", "login"].forEach((k) => { const m = perms[k]; if (m && Object.prototype.hasOwnProperty.call(m, a)) { m[b] = m[a]; delete m[a]; } });
     if (Array.isArray(perms.sensitive)) perms.sensitive = perms.sensitive.map((x) => (x === a ? b : x));
     if (perms.org) rekeyOrg(perms.org, a, b);
   }
@@ -4956,7 +5024,7 @@
           ${users.map((em) => `<div class="perm-row pf-click" data-em="${esc(em)}">
             <div class="perm-head"><button type="button" class="perm-fold" data-pfold aria-expanded="${permOpen.has(em)}" aria-label="${esc(nameOfEm(em) || em)} 펼치기·접기"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
               <span class="perm-id"><span class="perm-nmrow"><b class="perm-nm-txt">${esc(nameOfEm(em) || em.split("@")[0])}</b><input type="text" class="perm-name" data-name placeholder="이름(FC명) 입력" value="${esc(nameOfEm(em))}" maxlength="20" aria-label="${esc(em)} 이름"><span class="tag rank-tag">${titleOf(perms, em)}</span></span><span class="perm-mail">${esc(em)}</span></span>
-              <span class="perm-btns"><button type="button" class="secondary" data-rowedit="${esc(em)}">수정</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button><button type="button" class="secondary" data-rowcancel="${esc(em)}" hidden>취소</button><button type="button" class="primary row-save" data-rowsave="${esc(em)}" hidden>저장</button></span>
+              <span class="perm-btns"><button type="button" class="lg-tg${loginOn(perms, em) ? " on" : ""}" data-login="${esc(em)}" aria-pressed="${loginOn(perms, em)}" title="신한FC 로그인 승인/거부">${loginOn(perms, em) ? "승인" : "거부"}</button><button type="button" class="secondary" data-rowedit="${esc(em)}">수정</button><button type="button" class="del-btn" data-del="${esc(em)}" aria-label="${esc(em)} 삭제">삭제</button><button type="button" class="secondary" data-rowcancel="${esc(em)}" hidden>취소</button><button type="button" class="primary row-save" data-rowsave="${esc(em)}" hidden>저장</button></span>
             </div>
             <div class="perm-body"><div class="perm-pfx">${pfxHtml(em)}</div>${startRowHtml(perms, em)}
             <div class="perm-moved" hidden>
@@ -5119,6 +5187,7 @@
       cb.disabled = false;
     }));
     $("adminBody").querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => deleteUser(b.dataset.del)));
+    $("adminBody").querySelectorAll("[data-login]").forEach((b) => b.addEventListener("click", (ev) => { ev.stopPropagation(); toggleLogin(b.dataset.login, b); }));
     $("adminBody").querySelectorAll("[data-share]").forEach((b) => b.addEventListener("click", () => shareFolders(b.dataset.share)));
     collectPending = collectRows;
     applyPending = applyRows;
@@ -5172,7 +5241,7 @@
       delete perms.users[em];
       if (perms.names) delete perms.names[em];
       perms.sensitive = (perms.sensitive || []).filter((x) => x !== em);
-      ["salesFcs", "titles", "org", "starts", "orgApplied", "orgSalesApplied"].forEach((k) => { if (perms[k]) delete perms[k][em]; });
+      ["salesFcs", "titles", "org", "starts", "orgApplied", "orgSalesApplied", "login"].forEach((k) => { if (perms[k]) delete perms[k][em]; }); // v513: 보관하면 로그인 승인도 지움(원복하면 거부로 시작)
       extraUsers.delete(em);
       await writePerms(perms);
       adminState.perms = perms;
@@ -5203,7 +5272,7 @@
     if (changes.some(([, l]) => l.includes("*"))) return toast("전체(*)는 더 이상 지원하지 않습니다. FC를 하나씩 체크해 주세요.");
     // Google Drive: FC를 체크한 계정은 폴더 공유, 체크를 모두 뺀 계정은 공유 해제 (변경 저장 한 번으로)
     const auto = GD && adminState.shares;
-    const toShare = auto ? changes.filter(([em, list]) => list.length && !shareMatches(em, list)).map(([em]) => em) : [];
+    const toShare = auto ? changes.filter(([em, list]) => list.length && !shareMatches(em, list) && loginOn(adminState.perms, em)).map(([em]) => em) : []; // v513: 로그인 거부 계정은 공유하지 않음(승인할 때 공유)
     const toUnshare = auto ? changes.filter(([em, list]) => !list.length && shareState(em) !== "none").map(([em]) => em) : [];
     const listOfChange = (em) => (changes.find((c) => c[0] === em) || [em, []])[1];
     if (toShare.length || toUnshare.length || opt.pre) {
@@ -5340,7 +5409,7 @@
     const s_pg = sec("영업 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "영업 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 영업 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
-    const s_login = sec("로그인 (공통 로그인)", ["한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
+    const s_login = sec("로그인 (공통 로그인)", ["<b>로그인 승인/거부(v513)</b>: 신한FC 로그인은 관리자 화면 FC 사용 설정의 계정 카드 오른쪽 <b>[승인]/[거부]</b> 토글로만 정합니다(이메일·사번이 있다고 저절로 들어가지 않음). 거부인 계정으로 로그인하면 로그인 화면에 ‘아직 신한FC 로그인이 승인되지 않았습니다’가 뜨고 [다른 계정으로 로그인]이 보입니다. 승인으로 켜면 그 계정의 FC 폴더(본인 FC와 체크한 FC)와 설정 폴더를 Google Drive로 공유합니다. 거부로 끌 때는 공유도 해제할지 묻습니다 — 공유를 남기면 앱은 막혀도 드라이브에서 파일을 직접 열 수 있습니다. 이메일이 아직 없는 사람은 조직도에서 이메일을 먼저 넣어야 승인할 수 있습니다.", "<b>새 팀원</b>: 팀관리 > 후보자정보에서 [전환]하면 팀원정보에 옮겨지고, FC 사용 목록에 ‘이메일 미등록’으로 올라가며 로그인은 거부로 시작합니다. 팀원정보에 등록되어 데이터가 있는 FC는 계정이 없어도 관리자 화면(이달목표 사용자 선택·고객 FC 선택)에서 볼 수 있습니다.", "한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
     const s_go = sec("말만해요 연결", ["말만해요에서 “김현성 고객 검색해줘”처럼 말하면 말만해요 화면 안에 이 앱의 고객 검색 목록이 나타납니다. 한 명만 나와도 목록이 먼저 보이고, 고객을 누르면 그 안에서 고객 정보가 열립니다. 이때는 앱 전체가 아니라 그 페이지만 보입니다(위쪽 바·아래 메뉴 없음). 목록→고객 정보, 정보·계약·분석·상담 탭 이동은 그대로이고, 뒤로가기는 말만해요의 왼쪽 위 버튼이 한 단계씩 되돌립니다.", "말만해요의 [앱으로 열기]를 누르면 보던 바로 그 화면(검색 목록 또는 그 고객 정보)으로 신한FC m이 전체 화면으로 열립니다. 말만해요 안에서는 로그아웃 버튼이 없고(로그아웃은 말만해요에서), 로그인이 풀렸으면 ‘말만해요에서 다시 로그인’ 안내가 나옵니다.", "“오늘 일정 보여줘”처럼 일정을 물으면 일정 화면(하루 보기)만 말만해요 안에 나타납니다. 날짜 이동·추가 버튼은 그대로 쓰고, [앱으로 열기]를 누르면 보던 날짜로 열립니다.", "검색한 이름은 주소의 # 뒤에만 실려 서버로 전송되지 않습니다."]);
     const s_map = sec("고객 주소 지도", ["고객 정보의 주소 오른쪽 <b>위치 아이콘</b>을 누르면 카카오맵에서 그 주소를 찾은 지도가 새 창으로 열립니다. 누를 때만 주소가 카카오맵에 전달됩니다."]);
     const s_inst = sec("앱 설치", ["안드로이드 크롬: 설정 화면의 [앱 설치](없으면 브라우저 메뉴의 ‘앱 설치’), 아이폰 사파리: 공유 → ‘홈 화면에 추가’. 설치하면 앱처럼 전체 화면으로 열립니다. 이미 설치했으면 설정에 설치 카드가 보이지 않습니다."]);
@@ -9058,6 +9127,7 @@
         const fcsOf = (em) => [...new Set([ownOf(em), ...(Array.isArray((P.salesFcs || {})[em]) ? P.salesFcs[em] : [])])].filter((f) => f && fcs.includes(f));
         const users = [...new Set([meE, ...Object.keys(P.users || {}), ...Object.keys(P.names || {}), ...Object.keys(P.salesFcs || {})])].filter(Boolean)
           .map((em) => ({ em, name: ownOf(em) || em.split("@")[0], fcs: fcsOf(em) })).filter((u) => u.fcs.length)
+          .reduce((a, u, i, all) => { a.push(u); if (i === all.length - 1) fcs.filter((f) => !all.some((x) => x.fcs.includes(f))).forEach((f) => a.push({ em: "fc:" + f, name: f, fcs: [f] })); return a; }, []) // v512: 계정(이메일)이 없는 팀원 FC도 관리자가 고를 수 있게
           .sort((a, b) => (b.em === meE) - (a.em === meE) || ((ord.indexOf(a.name) + 1 || 999) - (ord.indexOf(b.name) + 1 || 999)) || a.name.localeCompare(b.name, "ko"));
         let su = SALES.user; if (!su) { try { su = localStorage.getItem(salesUserKey()) || ""; } catch (e) { /* 무시 */ } }
         if (SALES.goFc) { const w = SALES.goFc, cur = users.find((u) => u.em === su); if (!cur || !cur.fcs.includes(w)) { const hit = users.find((u) => u.name === w) || users.find((u) => u.fcs.includes(w)); if (hit) su = hit.em; } } // 말만해요에서 FC를 지정해 연 경우
@@ -9133,7 +9203,7 @@
   const RPT_COLS = ["구분", "FC", "이름", "피보", "상품", "보험료", "기준일", "계약일", "생일", "연락처", "직업", "주소", "모집FC", "상태", "진행", "단계"];
   async function rptOptions(data) {
     const myFc = await myFcName();
-    const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc)].filter(Boolean))];
+    const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc), ...knownFcs].filter(Boolean))];
     let opts = [];
     if (isAdmin() && salesPermsAll) { // 관리자: 모든 사용자 (고른 사용자의 '영업 페이지 접근 허용' FC까지)
       const P = salesPermsAll, meE = me(), ord = CFG.fcOrder || [];
@@ -9141,6 +9211,7 @@
       const fcsOf = (em) => [...new Set([ownOf(em), ...(Array.isArray((P.salesFcs || {})[em]) ? P.salesFcs[em] : [])])].filter((f) => f && fcs.includes(f));
       opts = [...new Set([meE, ...Object.keys(P.users || {}), ...Object.keys(P.names || {}), ...Object.keys(P.salesFcs || {})])].filter(Boolean)
         .map((em) => ({ id: em, label: ownOf(em) || em.split("@")[0], fcs: fcsOf(em) })).filter((u) => u.fcs.length)
+        .reduce((a, u, i, all) => { a.push(u); if (i === all.length - 1) fcs.filter((f) => !all.some((x) => x.fcs.includes(f))).forEach((f) => a.push({ id: "fc:" + f, label: f, fcs: [f] })); return a; }, []) // v512: 계정 없는 팀원 FC도
         .sort((a, b) => (b.id === meE) - (a.id === meE) || ((ord.indexOf(a.label) + 1 || 999) - (ord.indexOf(b.label) + 1 || 999)) || a.label.localeCompare(b.label, "ko"));
     } else { // 일반 사용자: 내 FC + 관리자가 '영업 페이지 접근 허용'한 FC
       opts = [...new Set([myFc, ...salesExtra])].filter((f) => f && fcs.includes(f)).map((f) => ({ id: f, label: f, fcs: [f] }));
@@ -9651,7 +9722,32 @@
     try { localStorage.setItem("shlife.malIdxHash." + me(), hk); } catch (e) { /* 무시 */ }
   }
 
+  // v512→v513(2026-11-21 사용자 규칙): 관리자 > FC 사용 설정의 로그인 토글이 '승인'이 아닌 계정은 로그인 화면에서 멈춤(토글 도입 전 파일은 users에 있으면 통과)
+  //   권한 파일을 못 읽는(공유받지 않은) 계정도 등록 안 된 것으로 봄. 통신 오류처럼 판단할 수 없을 때는 막지 않음
+  async function isRegistered() {
+    if (!GD || isAdmin()) return true;
+    try {
+      await resolveAppDir();
+      if (base && base.owner) return true;
+      if (!appDir || !appDir.id) return false;
+      const p = await stReadJsonIn(appDir, PERM_FILE);
+      return loginOn(p, me());
+    } catch (e) {
+      const m = String(e && e.message);
+      if (m === "NO_SHARE" || /Drive 40[34]/.test(m)) return false;
+      if (m === "GOOGLE_AUTH") throw e;
+      console.warn("등록 확인 못 함, 그대로 진행", e); return true;
+    }
+  }
   function startApp() {
+    isRegistered().then((ok) => {
+      if (ok) return startApp0();
+      show("loginView");
+      const msg = $("lmsg"); if (msg) msg.textContent = `${me()} 계정은 아직 신한FC 로그인이 승인되지 않았습니다. 관리자에게 승인을 요청해 주세요.`;
+      const ob = $("loginOtherBtn"); if (ob) ob.hidden = false;
+    }, (e) => handleError(e));
+  }
+  function startApp0() {
     appStarted = true;
     const goReq = GO0; GO0 = null;
     if (goReq) { // 말만해요에서 넘어옴: 첫 화면은 고객, 이어서 검색
