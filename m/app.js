@@ -1021,6 +1021,7 @@
   // 읽을 시트: 설정에 sheet가 있으면 그 시트만, 없으면 전부
   const sheetsOf = (wb, spec) => (spec.sheet ? wb.SheetNames.filter((n) => n.trim() === spec.sheet) : wb.SheetNames);
 
+  const knownFcs = new Set(); // 리스트 파일을 읽은 FC 이름(고객 줄이 없어도)
   async function loadLists() {
     if (listCache) return listCache;
     const { files } = await scanFiles();
@@ -1038,6 +1039,7 @@
       const wb = await readBook(s.file.id);
       // FC 이름: FC 폴더 이름 → 없으면 파일명 "날짜 - FC - ..." 가운데 부분
       const fc = s.file.fc || (s.file.name.split(" - ")[1] || "").trim();
+      if (fc) knownFcs.add(fc); // v511: 고객이 0명인 FC(빈 data.json)도 FC 선택에 보이게
       // 새 구조 파일: '고객' 시트 하나만 (파일당 한 번), 예전 시트(계약고객 등)는 건너뜀
       const newMode = isNewStruct(wb);
       if (newMode) { if (newDone.has(s.file.id)) return; newDone.add(s.file.id); }
@@ -1340,7 +1342,7 @@
   async function renderFcOpts(records) {
     const box = $("fcOpts");
     if (!box) return FC_ALL;
-    const fcs = [...new Set(records.map((r) => r.fc).filter(Boolean))].sort((a, b) => { const o = CFG.fcOrder || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, "ko"); });
+    const fcs = [...new Set([...records.map((r) => r.fc), ...knownFcs].filter(Boolean))].sort((a, b) => { const o = CFG.fcOrder || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, "ko"); });
     if (fcs.length <= 1) { box.hidden = true; box.innerHTML = ""; return FC_ALL; }
     const myFc = await myFcName();
     let saved = ""; try { saved = localStorage.getItem(listFcKey()) || ""; } catch (e) { /* 무시 */ }
@@ -9045,7 +9047,7 @@
       const myFc = await myFcName();
       if (req !== salesReq) return;
       // FC 선택: 접근 가능한 FC들(고객이 등록된 FC). 기본은 내 FC(권한 파일 이름), 없으면 첫 FC. 선택은 이 기기에 기억
-      const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc)].filter(Boolean))].sort((a, b) => { const o = CFG.fcOrder || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, "ko"); }); // 직급 먼저 → 사번순(config.fcOrder)
+      const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc), ...knownFcs].filter(Boolean))].sort((a, b) => { const o = CFG.fcOrder || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, "ko"); }); // 직급 먼저 → 사번순(config.fcOrder)
       let saved = ""; try { saved = localStorage.getItem(salesFcKey()) || ""; } catch (e) { /* 무시 */ }
       // 선택창에 나오는 FC: 모든 계정(관리자 포함) = 내 FC + 관리자 화면에서 '영업 페이지 접근 허용'에 체크한 FC (고객 폴더 접근 권한이 있는 FC만)
       let selFcs = [...new Set([myFc, ...salesExtra])].filter((f) => f && fcs.includes(f)); // 일반 사용자: 본인 FC + 관리자 화면 '영업 페이지 접근 허용'에 체크한 FC
