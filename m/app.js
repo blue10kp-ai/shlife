@@ -5462,7 +5462,7 @@
     const s_addev = sec("일정 추가 (일정 화면)", ["[선택]으로 고객과 묶은 일정·할 일에는 <b>[해당 없음]</b> 버튼이 보이지 않습니다. [다시 선택]으로 풀면 다시 보입니다.", "<b>일정과 고객이 묶여 있으면</b>(이름이 맞는 고객이 있어 [선택]을 눌러 한 명과 연결한 일정만, [다시 선택]이 보이는 상태) 카드 왼쪽에 <b>파란색 굵은 선</b>이 보입니다.", "<b>일정 카드의 [수정]·[삭제] 버튼은 평소에 접혀 있습니다.</b> ([할 일로]는 [영업/비영업] 왼쪽에 항상 보입니다.) 일정 칸(시간 줄이든 제목 줄이든)을 터치하면 제목 줄 아래 오른쪽 끝으로 펼쳐지고, 한 번 더 터치하면 접힙니다. [영업/비영업]은 예전처럼 윗줄 오른쪽에 항상 보입니다. <b>[수정]</b>에는 <b>종일</b> 체크가 있어, 종일 일정은 체크를 풀고 시작·종료 시간을 넣으면 시간 일정으로, 시간 일정은 체크하면 종일 일정으로 저장됩니다.", "<b>관리자</b>는 이미 있는 일정을 <b>[수정]</b>할 때도 맨 아래 <b>작성자</b>를 바꿀 수 있습니다(고르는 사람은 내가 쓸 수 있는(공유받은) 캘린더를 가진 사람만, 본인으로 되돌리면 작성자 표시가 지워짐). 할 일 [수정]의 <b>사용자</b>도 같은 사람들 중에서 고릅니다.", "<b>2026-11-18부터</b> 추가 칸 맨 위에서 <b>[일정]</b>과 <b>[할 일]</b>을 먼저 고릅니다. <b>일정</b>은 제목·캘린더·날짜·종일/시간·장소(관리자는 작성자), <b>할 일</b>은 제목·<b>마감일</b>·메모(관리자는 <b>사용자</b>도 고름)만 입력하고 [할 일 등록]을 누르면 구글 할 일(기본 목록)에 그 날짜가 마감인 할 일이 만들어집니다(처음 한 번은 할 일 연결 창이 뜰 수 있음).", "일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). (일정 위쪽의 [초기화] 버튼은 2026-11-19에 없앴습니다.) 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
     const s_sub = sec("세일즈 서브메뉴", ["세일즈 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>보고서</b>를 눌러 바꿉니다. <b>보고서</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 유형(따행/이관/DB, 여러 개) · <b>단계</b>(신규·계약·완료·지옥, 여러 개 — 계약은 DB의 계약 고객) · <b>기간</b>(년월 하나)을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 기간의 <b>[3개월]</b>·<b>[1년]</b>은 이번 달까지의 그 기간으로 <b>누르는 즉시 보고서</b>를 보여 줍니다(진행을 누르지 않아도 됨). 이관은 이관일, 따행은 대상년월이 기간 안인 고객입니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘세일즈 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘세일즈 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 보고서는 세일즈에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
     const s_inflow = sec("DB 받은 FC와 진행하는 FC (유입FC, v514)", ["고객마다 <b>유입FC</b>(DB를 배분받은 FC) 칸이 있으면, 그 고객은 <b>유입FC의 이달목표 DB 목록</b>에 나옵니다. 담당FC(메인FC)가 다른 FC여도 DB 목록은 받은 FC 쪽입니다.", "DB 목록의 <b>보관 · 지옥 · 원복</b>(DB상태)은 유입FC 파일의 그 고객 줄에 저장됩니다. 영업단계 칩·전화·문자·상담기록은 담당FC 쪽에 남습니다(진행은 다른 FC가 할 수 있음).", "유입FC가 비어 있으면 예전처럼 담당FC 기준입니다."]);
-    const s_od = OD_ON && sec("연체/실효 리스트 (2026-11-21)", ["세일즈 > 보고서의 <b>조건 보고서</b> 아래에 있습니다. 각 FC는 <b>본인 것만</b>, ESL(관리자·직급 ESL)은 <b>팀 전체</b>(FC를 고르거나 ‘전체’)를 봅니다. 자료는 각 FC 폴더 안에만 있어 드라이브에서 열어도 남의 것은 보이지 않습니다.", "<b>연체</b>: 가장 최근 확인일의 리스트를 ‘○월 ○일자 연체리스트입니다’로 알려 주고 아래에 연체 계약 중 <b>최종납입 2~24회</b>만 보여 줍니다(회차를 모르면 넣고 ‘회차 모름’ 표시)(바로 전 확인일에 없던 계약은 <b>신규</b>, 실효리스트는 회차와 상관없이 모두). 그 밑 오른쪽에 <b>[PDF 다운]</b>. 연락처 번호를 누르면 한 번 더 물은 뒤 전화가 걸리고, 세일즈 화면 전화 버튼처럼 그 FC 이력에 통화 시도가 남습니다.", "<b>실효</b>: 그 아래 ‘○○○○년 ○월 실효리스트입니다’와 실효 표(실효일이 그 달인 계약, 메인FC 기준, 지금 상태 = 실효 그대로·부활·해약), 맨 밑 오른쪽에 <b>[PDF 다운]</b>. 위 요약 줄의 실효 숫자는 이 표의 건수입니다.", "‘전체’ PDF는 FC마다 새 쪽에서 시작해 인쇄 뒤 FC별로 나눠 줄 수 있습니다. FC 한 명을 고르면 데이터수집이 만든 PDF를 그대로 받습니다. 정식 확인일 기록이 생기기 전에는 시험 기록을 ‘시험 기록’으로 표시합니다."]);
+    const s_od = OD_ON && sec("연체/실효 리스트 (2026-11-21)", ["세일즈 > 보고서의 <b>조건 보고서</b> 아래에 있습니다. 각 FC는 <b>본인 것만</b>, ESL(관리자·직급 ESL)은 <b>팀 전체</b>(FC를 고르거나 ‘전체’)를 봅니다. 자료는 각 FC 폴더 안에만 있어 드라이브에서 열어도 남의 것은 보이지 않습니다.", "<b>연체</b>: 가장 최근 확인일의 리스트를 ‘○월 ○일자 연체리스트’로 알려 주고 아래에 연체 계약 중 <b>최종납입 2~24회</b>만 보여 줍니다(회차를 모르면 넣고 ‘회차 모름’ 표시)(바로 전 확인일에 없던 계약은 <b>신규</b>, 실효리스트는 회차와 상관없이 모두). 그 밑 오른쪽에 <b>[PDF 다운]</b>. 연락처 번호를 누르면 한 번 더 물은 뒤 전화가 걸리고, 세일즈 화면 전화 버튼처럼 그 FC 이력에 통화 시도가 남습니다.", "<b>실효</b>: 그 아래 ‘○○○○년 ○월 실효리스트’와 실효 표(실효일이 그 달인 계약, 메인FC 기준, 지금 상태 = 실효 그대로·부활·해약), 맨 밑 오른쪽에 <b>[PDF 다운]</b>. 위 요약 줄의 실효 숫자는 이 표의 건수입니다.", "‘전체’ PDF는 FC마다 새 쪽에서 시작해 인쇄 뒤 FC별로 나눠 줄 수 있습니다. FC 한 명을 고르면 데이터수집이 만든 PDF를 그대로 받습니다. 정식 확인일 기록이 생기기 전에는 시험 기록을 ‘시험 기록’으로 표시합니다."]);
     const s_stage = sec("영업단계 칩 (이관 · DB)", ["<b>다른 FC에서 진행 중이면(v515)</b>: 그 고객의 칩 값이 이 FC 데이터에 없으면, 같은 고객ID의 다른 FC 계약진행 중 가장 최근 단계가 칩에 보입니다(보이기만 하고 저장은 그대로). 이관받은 고객이 이관일 뒤 어느 FC에서든 새로 계약하면 PC 반영 때 그 이관은 자동으로 완료됩니다.", "이관·DB 목록의 고객 줄 오른쪽에 <b>통화 · AP · PC · 계약</b> 칩이 있고, 그 고객의 지금 영업단계인 칩만 색이 들어옵니다. 칩을 누르면 고객 시트의 ‘영업단계’ 칸에 누른 칩의 글자가 저장됩니다(칸이 없으면 새로 만듭니다). 이미 색이 켜진 칩을 다시 누르면 ‘고객의 영업상태를 제거하시겠습니까?’ 확인 뒤 빈칸이 됩니다."]);
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_wake = sec("“몰리야”로 AI 부르기 (시험용)", ["오른쪽 아래에 떠 있는 <b>몰리(두더지) 선 그림 버튼</b>을 누르면 AI 창이 열립니다(아래 메뉴 맨 왼쪽 AI 버튼과 같음). 반투명이라 밑의 내용이 비쳐 보입니다. 누르면 AI 창이 열리면서 <b>바로 듣기(마이크)</b>가 켜져 말하면 됩니다. 버튼을 <b>꾹 눌러 끌면</b> 원하는 자리로 옮겨지고, 그 자리는 이 기기에 기억됩니다. 말만해요 안에서는 그 자리를 비워 두므로 나오지 않습니다.", "설정 > 화면의 <b>“몰리야”로 AI 부르기</b>를 켜면, 이 기기에서 앱 화면이 열려 있는 동안 마이크로 듣다가 <b>‘몰리야’</b>라고 부르면 AI 창이 뜹니다. ‘몰리야 내일 일정 알려줘’처럼 이어 말하면 그 말이 바로 AI에 들어가고, 이름만 부르면 AI 창의 마이크가 켜집니다.", "듣는 동안 화면 위에 작은 <b>‘몰리 듣는 중’</b> 표시가 나오고, 누르면 바로 꺼집니다. 화면이 꺼지거나 다른 앱으로 가면 듣지 않고, AI 창이나 다른 음성 입력을 쓰는 동안에도 멈춥니다. 안드로이드 크롬에서만 되며(아이폰 사파리는 거의 안 됨), 음성은 크롬이 구글 서버로 보내 글자로 바꿉니다. 상담 중에는 꺼 두세요. 설정은 이 기기에만 저장됩니다."]);
@@ -9454,7 +9454,7 @@
   const OD_COLS = ["신규", "계약자", "주피", "연체", "상품명", "보험료", "최종납입", "회차", "연락처", "증권번호"]; // v539(2026-11-21 사용자 지시) 칸 순서 // v533: 연체 표는 연체만(실효는 아래 실효리스트)
   const OD_MINN = 2, OD_MAXN = 24; // v537(2026-11-21 사용자 지시) 연체리스트: 최종납입회차 2~24회만(회차 모름은 넣음)
   const odInRange = (r) => { const v = r["납입회차"]; if (v == null || v === "") return true; const n = +v; return !(n < OD_MINN || n > OD_MAXN); };
-  const OL_COLS = ["계약자", "주피", "상품명", "보험료", "최종납입", "연락처", "증권번호"]; // v539: 실효일·지금상태 칸 뺌(실효리스트라 실효인 것은 알 수 있음)
+  const OL_COLS = ["계약자", "주피", "상품명", "보험료", "회차", "연락처", "증권번호"]; // v544(2026-11-21 사용자 지시): 실효리스트는 최종납입월 대신 회차
   function odFcDir(fc) { // FC 폴더 ID: 읽어 둔 그 FC 고객 줄의 data.json 부모 폴더 → 없으면 권한 파일의 FC 폴더 ID
     const e = (OD.data ? OD.data.lists : []).find((x) => x.fc === fc && x.src && x.src.fileId && jsonInfo.get(x.src.fileId));
     if (e) return jsonInfo.get(e.src.fileId).parent;
@@ -9485,6 +9485,7 @@
     const lapse = (list && list.최근실효 && lp.find((x) => x.파일 === list.최근실효)) || lp[lp.length - 1] || null;
     return { cur, prev, lapse };
   }
+  const odTitle = (it) => { if (!it) return "연체리스트"; if (it.정식 === false || /시험/.test(String(it.제목 || ""))) { const m = /^(\d{4})-(\d\d)/.exec(String(it.확인일 || "")); return m ? `${m[1]}년 ${+m[2]}월 연체리스트` : "연체리스트"; } return String(it.제목 || "연체리스트").replace(/^\d{4}-\d\d-\d\d /, ""); };
   const odFcsOf = () => { const o = OD.opts.find((x) => x.id === OD.opt); return o ? o.fcs : []; };
   const odKey = (r) => String(r["계약ID"] || r["증권번호"] || "");
   function odJoin(fc, r) { // 줄에 이름·상품·보험료·연락처가 없으면 data.json에서 붙임
@@ -9503,15 +9504,18 @@
   async function odBuild() { // 고른 범위의 FC별 연체 줄·실효 줄
     const groups = await Promise.all(odFcsOf().map(async (fc) => { // FC마다 동시에
       const fo = await odFolder(fc), pk = odPick(fo && fo.list), g = { fc, cur: pk.cur, lapse: pk.lapse, rows: [], lrows: [], files: (fo && fo.files) || {} };
+      const nByKey = new Map();
       if (pk.cur && g.files[pk.cur.파일]) {
-        const rows = odRowsOf(await odJson(g.files[pk.cur.파일])), prevIds = pk.prev && g.files[pk.prev.파일] ? new Set(odRowsOf(await odJson(g.files[pk.prev.파일])).map(odKey)) : null;
-        g.excl = rows.filter((r) => String(r["상태"] || "연체") === "연체" && !odInRange(r)).length;
-        g.rows = rows.filter((r) => String(r["상태"] || "연체") === "연체" && odInRange(r)).map((r) => { const st = String(r["상태"] || ""), isNew = !!(prevIds && !prevIds.has(odKey(r))), j = odJoin(fc, r); // v535: 연체리스트는 최종납입 24회 이내만(데이터는 그대로, 화면·PDF에서만 거름)
+        const rows = odRowsOf(await odJson(g.files[pk.cur.파일]));
+        rows.forEach((r) => { if (r["납입회차"] != null && r["납입회차"] !== "") nByKey.set(odKey(r), r["납입회차"]); });
+        const rows2 = rows, prevIds = pk.prev && g.files[pk.prev.파일] ? new Set(odRowsOf(await odJson(g.files[pk.prev.파일])).map(odKey)) : null;
+        g.excl = rows2.filter((r) => String(r["상태"] || "연체") === "연체" && !odInRange(r)).length;
+        g.rows = rows2.filter((r) => String(r["상태"] || "연체") === "연체" && odInRange(r)).map((r) => { const st = String(r["상태"] || ""), isNew = !!(prevIds && !prevIds.has(odKey(r))), j = odJoin(fc, r); // v535: 연체리스트는 최종납입 24회 이내만(데이터는 그대로, 화면·PDF에서만 거름)
           return { ...j, 상태: st, 신규: isNew ? "신규" : "", _new: isNew, 회차: r["납입회차"] != null && r["납입회차"] !== "" ? r["납입회차"] : "(회차 모름)",
             연체: r["연체월수"] != null ? r["연체월수"] + "개월" : "" };
         }).sort((a, b) => (b._new - a._new) || String(a.계약자).localeCompare(String(b.계약자), "ko"));
       }
-      if (pk.lapse && g.files[pk.lapse.파일]) g.lrows = odRowsOf(await odJson(g.files[pk.lapse.파일])).map((r) => ({ ...odJoin(fc, r), 실효일: String(r["실효일"] || "").replace(/-/g, "."), 지금상태: r["지금상태"] || "", _lp: true })).sort((a, b) => String(a.실효일).localeCompare(String(b.실효일)) || String(a.계약자).localeCompare(String(b.계약자), "ko"));
+      if (pk.lapse && g.files[pk.lapse.파일]) g.lrows = odRowsOf(await odJson(g.files[pk.lapse.파일])).map((r) => ({ ...odJoin(fc, r), 실효일: String(r["실효일"] || "").replace(/-/g, "."), 지금상태: r["지금상태"] || "", 회차: r["납입회차"] != null && r["납입회차"] !== "" ? r["납입회차"] : (nByKey.get(odKey(r)) != null ? nByKey.get(odKey(r)) : ""), _lp: true })).sort((a, b) => String(a.실효일).localeCompare(String(b.실효일)) || String(a.계약자).localeCompare(String(b.계약자), "ko"));
       return g;
     }));
     return groups;
@@ -9532,14 +9536,16 @@
     OD.built = { groups, multi, cur, lapse, label: (OD.opts.find((o) => o.id === OD.opt) || {}).label || "" };
     const all = groups.flatMap((g) => g.rows);
     const odHtml = !cur ? `<p class="hint">아직 연체리스트가 없습니다.</p>` :
-      `<p class="od-title"><b>${esc(String(cur.제목 || "").replace(/^\d{4}-\d\d-\d\d /, ""))}</b>${cur.정식 === false && !/시험/.test(String(cur.제목 || "")) ? " (시험)" : ""}입니다.</p>` +
+      `<p class="od-title"><b>${esc(odTitle(cur))}</b></p>` + // v546(2026-11-21 사용자 지시): '입니다' 빼고, 시험 기록은 'YYYY년 M월 연체리스트'
+
       `<div class="od-sum">${odSum(all, groups.flatMap((g) => g.lrows))}${multi ? ` <small>· FC ${groups.length}명</small>` : ""}</div>` +
-      groups.map((g) => `<div class="od-grp">${multi ? `<div class="rpt-gh"><b>${esc(g.fc)}</b> <span>${g.cur ? odSum(g.rows, g.lrows) : "기록 없음"}</span></div>` : ""}${g.rows.length ? odTable(OD_COLS, g.rows, (r) => (r._new ? "od-new" : "")) : g.cur ? `<p class="hint pad">${OD_MINN}~${OD_MAXN}회 연체가 없습니다.</p>` : ""}</div>`).join("") +
+      (multi && !groups.some((g) => g.rows.length) ? `<p class="hint pad">${OD_MINN}~${OD_MAXN}회 연체가 없습니다.</p>` : "") +
+      groups.filter((g) => !multi || g.rows.length).map((g) => `<div class="od-grp">${multi ? `<div class="rpt-gh"><b>${esc(g.fc)}</b> <span>${g.cur ? odSum(g.rows, g.lrows) : "기록 없음"}</span></div>` : ""}${g.rows.length ? odTable(OD_COLS, g.rows, (r) => (r._new ? "od-new" : "")) : g.cur ? `<p class="hint pad">${OD_MINN}~${OD_MAXN}회 연체가 없습니다.</p>` : ""}</div>`).join("") +
       `<div class="rpt-acts od-dl"><button type="button" class="ev-edit" data-od="od" aria-label="연체리스트 PDF 다운">PDF 다운</button></div>`;
     const nL = groups.reduce((a, g) => a + g.lrows.length, 0);
     // v532(2026-11-21 사용자 지시): 실효리스트도 표로 보여 주고 그 밑에 PDF 다운
-    const lpHtml = lapse ? `<div class="od-lp"><p class="od-title"><b>${esc(lapse.제목 || "실효리스트")}</b>입니다.</p>` +
-      (nL ? groups.filter((g) => g.lapse).map((g) => `<div class="od-grp">${multi ? `<div class="rpt-gh"><b>${esc(g.fc)}</b> <span>${g.lrows.length}건</span></div>` : ""}${g.lrows.length ? odTable(OL_COLS, g.lrows, (r) => (r.지금상태 && r.지금상태 !== "실효" ? "od-revived" : "")) : multi ? `<p class="hint pad">실효 계약이 없습니다.</p>` : ""}</div>`).join("") : `<p class="hint">실효 계약이 없습니다.</p>`) +
+    const lpHtml = lapse ? `<div class="od-lp"><p class="od-title"><b>${esc(lapse.제목 || "실효리스트")}</b></p>` +
+      (nL ? groups.filter((g) => g.lapse && (!multi || g.lrows.length)).map((g) => `<div class="od-grp">${multi ? `<div class="rpt-gh"><b>${esc(g.fc)}</b> <span>${g.lrows.length}건</span></div>` : ""}${g.lrows.length ? odTable(OL_COLS, g.lrows, (r) => (r.지금상태 && r.지금상태 !== "실효" ? "od-revived" : "")) : multi ? `<p class="hint pad">실효 계약이 없습니다.</p>` : ""}</div>`).join("") : `<p class="hint">실효 계약이 없습니다.</p>`) +
       `<div class="rpt-acts od-dl"><button type="button" class="ev-edit" data-od="lapse" aria-label="${esc(lapse.제목 || "실효리스트")} PDF 다운">PDF 다운</button></div></div>` : "";
     box.innerHTML = head + odHtml + lpHtml + `<p class="hint" id="odMsg"></p>`; // v538(2026-11-21 사용자 지시): 회색 안내 글은 모두 뺌(메시지 자리만 남김)
   }
@@ -9588,13 +9594,13 @@
     btn.disabled = true; btn.textContent = "만드는 중…";
     try {
       const it = kind === "od" ? b.cur : b.lapse, g0 = b.groups[0];
-      const title = String((it && it.제목) || (kind === "od" ? "연체리스트" : "실효리스트")).replace(/^\d{4}-\d\d-\d\d /, "");
+      const title = kind === "od" ? odTitle(it) : String((it && it.제목) || "실효리스트");
       const fileName = (kind === "od" ? `${String(it && it.확인일 || "").replace(/-/g, "")} - ${title}` : title) + ` - ${b.label}.pdf`;
       // 한 FC면 데이터수집이 만든 PDF를 그대로 받음(있을 때), 전체거나 없으면 앱에서 FC별로 나눠 만듦
       const pc = !b.multi && g0 && (kind === "od" ? g0.cur : g0.lapse) && g0.files[(kind === "od" ? g0.cur : g0.lapse).pdf];
       const blob = pc ? new Blob([await stGet0(pc)], { type: "application/pdf" })
-        : kind === "od" ? await odPdfBlob(title, (g, rs) => `확인일 ${g.cur ? g.cur.확인일 : "-"} · ${odSum(rs).replace(/<\/?b>/g, "")}`, b.groups.filter((g) => g.cur), OD_COLS, (g) => g.rows)
-          : await odPdfBlob(title, (g, rs) => `${rs.length}건 · 실효일이 그 달인 계약 · 지금상태는 확인한 날 기준`, b.groups.filter((g) => g.lapse), OL_COLS, (g) => g.lrows);
+        : kind === "od" ? await odPdfBlob(title, (g, rs) => `확인일 ${g.cur ? g.cur.확인일 : "-"} · ${odSum(rs).replace(/<\/?b>/g, "")}`, b.groups.filter((g) => g.cur && (!b.multi || g.rows.length)), OD_COLS, (g) => g.rows)
+          : await odPdfBlob(title, (g, rs) => `${rs.length}건 · 실효일이 그 달인 계약 · 지금상태는 확인한 날 기준`, b.groups.filter((g) => g.lapse && (!b.multi || g.lrows.length)), OL_COLS, (g) => g.lrows);
       rptSave(blob, fileName.replace(/[\\/:*?"<>|]/g, "")); say("PDF를 내려받았어요.");
     } catch (e) { say("실패: " + (e && e.message ? e.message : e)); }
     finally { btn.disabled = false; btn.textContent = old; }
