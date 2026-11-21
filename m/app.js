@@ -694,7 +694,7 @@
     const cur = readStartPref();
     return `<div class="card" id="startCard"><h3 class="sec-title">화면</h3><div class="disp3">
       <label class="d3"><span>시작하면 AI</span><span class="d3c"><input type="checkbox" class="cb" id="startAi" ${cur.ai ? "checked" : ""}> 바로 열기</span></label>
-      <label class="d3"><span>시작 화면</span><select id="startPage" aria-label="시작 화면">${START_PAGES.map(([k, l]) => `<option value="${k}" ${cur.page === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      <label class="d3"${START_FIXED ? " hidden" : ""}><span>시작 화면</span><select id="startPage" aria-label="시작 화면">${START_PAGES.map(([k, l]) => `<option value="${k}" ${cur.page === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="d3"><span>오른손 모드</span><span class="d3c"><input type="checkbox" class="cb" id="rhMode" ${rhOn() ? "checked" : ""}> 켜기</span></label>
     </div>
     <label class="wake-opt"><input type="checkbox" class="cb" id="darkMode" ${themeIsDark() ? "checked" : ""}> <span><b>다크 모드</b> <small>기본은 다크, 끄면 밝은 화면(내 설정 파일에 저장되어 다른 기기에서도 같음)</small></span></label>
@@ -3385,7 +3385,7 @@
       // 이번달 영업실적(업적 자료 performance.json: 연도·사번별 n=건수, cmip=월납환산보험료, canp) — 팀은 현재 팀원 합계. 민감정보 허용 계정만
       // v517(2026-11-21 사용자 지시): 이번달 영업실적 = 청약 목록(계약\contracts.json)에서 이번 달 청약 중 철회·거절을 뺀 것을 합산, 건수·CMIP·CANP 모두 기여율(ctrt %)을 곱해 더함
       //   그 아래 '지난달 청약상태' 표(청약상태·심사상태·진단종류·[FC명: 팀일 때만]·상품명·계약일자·계약자·주피보험자·CMIP·CANP). 민감정보 허용 계정만
-      let perfHtml = "", feeHtml = "", lastHtml = "", fcTblHtml = "", avgHtml = "";
+      let perfHtml = "", feeHtml = "", lastHtml = "", curHtml = "", fcTblHtml = "", avgHtml = "";
       if (ctj && Array.isArray(ctj.rows)) {
         const ymd = String(ym).replace(/\D/g, ""), ymH = ymd.slice(0, 4) + "-" + ymd.slice(4, 6);
         const ymAdd = (k) => { const d = new Date(+ymd.slice(0, 4), +ymd.slice(4, 6) - 1 + k, 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); };
@@ -3404,10 +3404,14 @@
         // 지난달 청약상태(금액 말고는 가운데 정렬, 기여율 표시 없음)
         const prev = mineCt.filter((r) => String(r.ym) === ymP).sort((a, b) => String(b.ymd).localeCompare(String(a.ymd)));
         const num = (v) => (+v || 0).toLocaleString("ko-KR");
-        lastHtml = `<div class="dsh-perf dsh-last"><div class="dsh-ph"><b>지난달 청약상태</b><small>${esc(ymLabel(ymP.replace("-", "")))} · ${prev.length}건</small></div>` + (prev.length ? `<div class="dsh-tw"><table class="dsh-tb"><thead><tr><th>청약상태</th><th>심사상태</th><th>진단종류</th>${team ? "<th>FC명</th>" : ""}<th>상품명</th><th>계약일자</th><th>계약자</th><th>주피보험자</th><th class="n">CMIP</th><th class="n">CANP</th></tr></thead><tbody>${prev.map((r) => `<tr class="${live(r) ? "" : "off"}"><td>${esc(r.st || "")}</td><td>${esc(r.ispa || "")}</td><td>${esc(r.diag || r["진단종류"] || "")}</td>${team ? `<td>${esc(r.fc || "")}</td>` : ""}<td class="gd">${esc(r.goods || "")}</td><td>${esc(String(r.ymd || "").slice(2).replace(/-/g, "."))}</td><td>${esc(r.owner || "")}</td><td>${esc(r.insured || "")}</td><td class="n">${num(r.cmip)}</td><td class="n">${num(r.canp)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="hint">지난달 청약이 없습니다.</p>`) + `</div>`;
+        const stTable = (rows, title, ymX, none) => `<div class="dsh-perf dsh-last"><div class="dsh-ph"><b>${title}</b><small>${esc(ymLabel(ymX.replace("-", "")))} · ${rows.length}건</small></div>` + (rows.length ? `<div class="dsh-tw"><table class="dsh-tb"><thead><tr><th>청약상태</th><th>심사상태</th><th>진단종류</th>${team ? "<th>FC명</th>" : ""}<th>상품명</th><th>계약일자</th><th>계약자</th><th>주피보험자</th><th class="n">CMIP</th><th class="n">CANP</th></tr></thead><tbody>${rows.map((r) => `<tr class="${live(r) ? "" : "off"}"><td>${esc(r.st || "")}</td><td>${esc(r.ispa || "")}</td><td>${esc(r.diag || r["진단종류"] || "")}</td>${team ? `<td>${esc(r.fc || "")}</td>` : ""}<td class="gd">${esc(r.goods || "")}</td><td>${esc(String(r.ymd || "").slice(2).replace(/-/g, "."))}</td><td>${esc(r.owner || "")}</td><td>${esc(r.insured || "")}</td><td class="n">${num(r.cmip)}</td><td class="n">${num(r.canp)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="hint">${none}</p>`) + `</div>`;
+        lastHtml = stTable(prev, "지난달 청약상태", ymP, "지난달 청약이 없습니다.");
+        // v521(2026-11-21 사용자 지시): 이달 실적 밑에 이달 청약상태 표(지난달 표와 같은 칸)
+        curHtml = stTable(mineCt.filter((r) => String(r.ym) === ymH).sort((a, b) => String(b.ymd).localeCompare(String(a.ymd))), "이달 청약상태", ymH, "이달 청약이 아직 없습니다.");
         // 팀일 때: 지난달 FC별(철회·거절 제외, 기여율 반영)
         if (team) {
-          const rowsF = fcs.map((f) => ({ f, t: tot(prev.filter((r) => r.fc === f)) }));
+          const jn = new Map(((perf && perf.currentFcs) || []).map((x) => [x.name, String(x.joined || "").slice(0, 7)])); // v520: 그달에 아직 입사 전인 FC는 빼고 보여 줌
+          const rowsF = fcs.filter((f) => !jn.get(f) || jn.get(f) <= ymP).map((f) => ({ f, t: tot(prev.filter((r) => r.fc === f)) }));
           const all = tot(prev);
           fcTblHtml = `<div class="dsh-perf dsh-last"><div class="dsh-ph"><b>지난달 FC별 실적</b><small>${esc(ymLabel(ymP.replace("-", "")))} · 철회·거절 제외 · 기여율 반영</small></div><div class="dsh-tw"><table class="dsh-tb dsh-fc"><thead><tr><th>FC명</th><th class="n">건수</th><th class="n">CMIP</th><th class="n">CANP</th></tr></thead><tbody>${rowsF.map(({ f, t }) => `<tr${t.n ? "" : ' class="off"'}><td>${esc(f)}</td><td class="n">${nTxt(t.n)}</td><td class="n">${won(t.cmip)}</td><td class="n">${won(t.canp)}</td></tr>`).join("")}<tr class="sum"><td>합계</td><td class="n">${nTxt(all.n)}</td><td class="n">${won(all.cmip)}</td><td class="n">${won(all.canp)}</td></tr></tbody></table></div></div>`;
         }
@@ -3424,6 +3428,10 @@
           const k = months.length, span = `${+months[0].slice(5)}~${+months[k - 1].slice(5)}월`;
           avgHtml = `<div class="dsh-perf"><div class="dsh-ph"><b>최근 6개월 실적</b><small>${esc(span)} · ${k}개월 평균${team ? " · 팀 합계" : ""}</small></div>
             <div class="dsh-p3 dsh-p4"><div><span>건수</span><b>${nTxt(s.n / k)}</b></div><div><span>CMIP</span><b>${won(s.cmip / k)}</b></div><div><span>CANP</span><b>${won(s.canp / k)}</b></div><div><span>수수료</span><b>${Array.isArray(fee) ? won(s.fee / k) : "-"}</b></div></div></div>`;
+          if (team) { // v520(2026-11-21 사용자 지시): 팀이면 그 아래에 FC별 월평균(그 FC가 입사한 달부터만 세어 나눔, 입사 전이면 뺌)
+            const per = fcs.map((f) => { const ms = win.filter((m) => activeIn(f, m)); if (!ms.length) return null; const a = { f, k: ms.length, n: 0, cmip: 0, canp: 0, fee: 0 }; ms.forEach((m) => { const t = tot(ctj.rows.filter((r) => r.fc === f && String(r.ym) === m)); a.n += t.n; a.cmip += t.cmip; a.canp += t.canp; a.fee += feeOf(f, m); }); return a; }).filter(Boolean);
+            avgHtml += `<div class="dsh-perf dsh-last"><div class="dsh-ph"><b>FC별 최근 6개월 평균</b><small>${esc(span)} · 월평균</small></div><div class="dsh-tw"><table class="dsh-tb dsh-fc"><thead><tr><th>FC명</th><th class="n">건수</th><th class="n">CMIP</th><th class="n">CANP</th><th class="n">수수료</th></tr></thead><tbody>${per.map((a) => `<tr><td>${esc(a.f)}${a.k < 6 ? `<small class="mo">${a.k}개월</small>` : ""}</td><td class="n">${nTxt(a.n / a.k)}</td><td class="n">${won(a.cmip / a.k)}</td><td class="n">${won(a.canp / a.k)}</td><td class="n">${Array.isArray(fee) ? won(a.fee / a.k) : "-"}</td></tr>`).join("")}</tbody></table></div></div>`;
+          }
         } else avgHtml = `<div class="dsh-perf"><div class="dsh-ph"><b>최근 6개월 실적</b><small>입사 전이라 지난 실적이 없습니다</small></div></div>`;
       }
       if (Array.isArray(fee)) {
@@ -3435,7 +3443,7 @@
       ppl.forEach((p) => { const k = p.introId ? "id:" + p.introId : p.introName ? "nm:" + p.introName : ""; if (k) rk.set(k, (rk.get(k) || 0) + 1); });
       const top = [...rk].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => ({ n, reg: k.startsWith("id:"), id: k.slice(3), name: k.startsWith("id:") ? introNameOf(k.slice(3)) || k.slice(3) : k.slice(3) }));
       box.innerHTML = (esl ? `<div class="dsh-head"><span></span><select id="dshFc" aria-label="보는 범위(팀·FC)">${[TEAM, ...fcs].map((f) => `<option value="${esc(f)}"${f === fc ? " selected" : ""}>${f === TEAM ? "팀" : esc(f)}</option>`).join("")}</select></div>` : "") + `
-        ${perfHtml}${lastHtml}${fcTblHtml}${avgHtml}
+        ${perfHtml}${curHtml}${lastHtml}${fcTblHtml}${avgHtml}
         <div class="dsh-cards">${feeHtml}<div class="dsh-card"><span>계약진행</span><b>${pg.length}명</b><small>진행 중</small></div></div>
         <h3 class="dsh-t">이달목표 · ${esc(ymLabel(ym))}</h3>
         ${dashBar("이관", tr.length, [["통화", ts.통화, "s1"], ["AP", ts.AP, "s2"], ["PC", ts.PC, "s3"], ["계약", ts.계약, "s4"], ["미착수", ts.없음, "s0"]])}
@@ -3444,7 +3452,7 @@
         ${dashBar("계약진행", pg.length, [["고객등록", pc.고객등록, "s0"], ["전화", pc.전화, "s1"], ["AP", pc.AP, "s2"], ["PC", pc.PC, "s3"], ["계약", pc.계약, "s4"]])}
         <h3 class="dsh-t">소개 랭킹</h3>
         ${top.length ? `<ol class="dsh-rank">${top.map((r, i) => `<li><span class="no">${i + 1}</span><span class="nm">${r.reg ? trophyHtml(introCounts().get(r.id) || r.n) : ""}${esc(r.name)}${r.reg ? "" : ' <small>미등록</small>'}</span><b>${r.n}명</b></li>`).join("")}</ol>` : `<p class="hint">아직 소개 기록이 없습니다. 고객 화면의 [소개찾기]에서 넣을 수 있습니다.</p>`}
-        <p class="hint">목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다.${canSens() && !perfHtml ? " 청약 목록을 읽지 못해 이번달 영업실적·지난달 청약상태는 숨겼습니다." : ""} 영업실적은 이번 달 청약 중 철회·거절을 뺀 것의 합계이고, 건수·CMIP·CANP 모두 기여율을 곱했습니다. 지난달 청약상태의 금액은 계약 금액 그대로입니다. 최근 6개월 실적은 이번 달 전 6개월 평균(입사 뒤 달만, 팀은 팀 합계)이고 수수료는 실지급금입니다.</p>`;
+        <p class="hint">목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다.${canSens() && !perfHtml ? " 청약 목록을 읽지 못해 이달 실적·청약상태는 숨겼습니다." : ""} 이달 실적은 이번 달 청약 중 철회·거절을 뺀 것의 합계이고, 건수·CMIP·CANP 모두 기여율을 곱했습니다. 지난달 청약상태의 금액은 계약 금액 그대로입니다. 최근 6개월 실적은 이번 달 전 6개월 평균(입사 뒤 달만, 팀은 팀 합계)이고 수수료는 실지급금입니다.</p>`;
     } catch (e) { box.innerHTML = ""; handleError(e); }
   }
   document.addEventListener("change", (ev) => { if (ev.target && ev.target.id === "dshFc") { DSH.fc = ev.target.value; renderDash(); } });
@@ -4642,7 +4650,7 @@
     const row = (k, val, st) => `<span class="${st}"><i>${k}</i><b>${val}</b></span>`;
     const onoff = (x) => (x === true ? ["켬", "on"] : x === false ? ["끔", "off"] : ["–", "off"]);
     const ai = onoff(v ? !!v.ai : false), rh = onoff(v ? v.rh : null);
-    return `<div class="org-set"${self ? ' title="이 기기의 설정"' : ""}>${row("시작", ld ? "…" : pg, "")}${row("AI", ld ? "…" : ai[0], ld ? "off" : ai[1])}${row("오른손", ld ? "…" : rh[0], ld ? "off" : rh[1])}</div>`;
+    return `<div class="org-set"${self ? ' title="이 기기의 설정"' : ""}>${START_FIXED ? "" : row("시작", ld ? "…" : pg, "")}${row("AI", ld ? "…" : ai[0], ld ? "off" : ai[1])}${row("오른손", ld ? "…" : rh[0], ld ? "off" : rh[1])}</div>`;
   };
   // v370(2026-11-16 사용자 지시): 이메일 없이 이름만 넣어 등록한 사용자는 임시 키 '<이름>@email.pending'. 이메일을 채워 저장하면 모든 기록의 키를 바꿈
   const isPend = (em) => /@email\.pending$/.test(String(em || ""));
@@ -5428,7 +5436,7 @@
     const sec = (t, items) => `<h4>${t}</h4><ul>${items.map((x) => `<li>${x}</li>`).join("")}</ul>`;
     const grp = (t) => `<h3 class="help-grp">${t}</h3>`; // 하단 메뉴 순서대로 묶음: AI · 일정 · (고객) · 영업 · 설정/관리자
     const s_team = sec("팀관리 (관리자)", ["<b>관리자</b>로 로그인하면 아래 메뉴 <b>영업 오른쪽</b>에 <b>팀관리</b>가 생깁니다. <b>[조직도]</b> · <b>[팀원정보]</b> · <b>[후보자정보]</b> 버튼이 있고(설정에 있던 조직도를 옮겼습니다), 내용은 정해지는 대로 채웁니다."]);
-    const s_start = sec("시작 화면", ["<b>처음 보일 화면</b>: 설정 화면의 '화면' 카드 가운데 칸(시작 화면)에서 일정 · 고객(기본) · 영업 중 하나를 고르면 바로 저장되고, 다음에 앱을 열 때부터 적용됩니다. 같은 카드 왼쪽 칸은 ‘시작하면 AI 도우미 바로 열기’, 오른쪽 칸은 ‘오른손 모드’입니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '화면' 카드 왼쪽 칸을 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
+    const s_start = sec("시작 화면", ["<b>2026-11-21부터 처음 화면은 대시보드로 고정</b>되어 시작 화면 고르기는 숨겼습니다(아래 설명은 다시 살릴 때를 위한 참고). 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능은 그대로입니다.", "<b>처음 보일 화면</b>: 설정 화면의 '화면' 카드 가운데 칸(시작 화면)에서 일정 · 고객(기본) · 영업 중 하나를 고르면 바로 저장되고, 다음에 앱을 열 때부터 적용됩니다. 같은 카드 왼쪽 칸은 ‘시작하면 AI 도우미 바로 열기’, 오른쪽 칸은 ‘오른손 모드’입니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '화면' 카드 왼쪽 칸을 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
     const s_ai = sec("AI 도우미", ["<b>2026-11-19부터 AI 버튼(아래 메뉴 맨 왼쪽 아이콘·떠 있는 버튼)은 우선 숨겼습니다.</b> 다시 보이게 할 때까지 아래 설명은 참고용입니다.", "<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 위 말처럼 규칙으로 알아듣는 말은 이 폰 안에서만 처리하고 밖으로 보내지 않습니다. 규칙으로 못 알아들은 말만 Gemini(외부 AI)에 '무슨 뜻인지'를 묻는데, 그때 고객 이름은 [고객1] 같은 자리표시로, 주민번호·전화·계좌·이메일·주소 같은 숫자·주소는 [숫자]·[주소]로 가려서 보내고 답을 받은 뒤 앱 안에서 되돌립니다. 말만해요 설정에 Gemini 키가 없거나 연결이 안 되면 규칙만 쓰며, 확인 카드에 ‘AI가 해석’이라고 표시되고 [실행]을 눌러야 처리됩니다."]);
     const s_task = sec("구글 할 일 (일정 화면)", ["<b>[일정으로]</b>: 할 일 줄의 [일정으로]를 누르면 그 할 일을 캘린더 일정으로 옮기고 할 일은 지웁니다. 일정에서 [할 일로] 옮길 때 메모에 적힌 <b>예전 시간</b>(‘시간: 09:00~10:00’)이 있으면 그 시간으로, 없으면 <b>종일 일정</b>으로 만듭니다. 날짜는 마감일(없으면 보고 있는 날), 캘린더는 원래 있던 캘린더(없으면 기본 캘린더)이고, 장소·메모·작성자·고객 연결도 이어집니다.", "<b>할 일 제목에 등록된 고객 이름이 있으면</b> 그 할 일 줄 아래에 <b>일정과 똑같은 고객 카드</b>(이름·생년월일·연락처·주소·미팅장소·상담기록, 이름을 누르면 고객 정보)가 붙습니다. <b>종일 일정</b>도 캘린더와 상관없이 이름으로 고객을 찾습니다. 같은 이름이 여러 명이면 [선택]으로 한 명을 고르고(나중에 [다시 선택]), 관계없으면 [해당 없음]([되돌리기]로 다시 연결). 고른 값은 할 일 메모의 ‘고객연결: …’ 줄에 저장되어 모든 기기에서 같게 보입니다.", "<b>관리자</b>는 할 일을 추가·수정할 때 <b>사용자</b>를 고를 수 있습니다(기본 = 본인). 구글 할 일은 로그인한 계정의 것이라, 다른 사용자를 고르면 할 일 메모 맨 윗줄에 ‘작성: 이름’이 적히고 목록에는 ‘- 이름’으로 보입니다(본인으로 되돌리면 그 줄이 지워짐).", "<b>모든 일정</b> 카드(종일이 아니어도)에는 <b>[할 일로]</b> 버튼이 있습니다(시간이 있는 일정은 할 일 메모에 시간이 적힙니다). 누르면 그 날짜가 마감인 구글 할 일(기본 목록)을 만들고 캘린더 일정은 지웁니다. 장소·메모는 할 일의 메모로 옮겨집니다. 지운 일정은 화면을 새로 고치기 전까지 [원위치]로 되살릴 수 있습니다(만든 할 일은 그대로 남음).", "그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
     const s_nm = sec("일정 제목 → 고객 찾기 (2026-11-17)", ["일정 화면을 <b>좌우로 밀면</b> Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월로 넘어갑니다.", "일정 제목에 <b>등록된 고객 이름</b>이 있으면(‘고객’ 글자가 없어도, 날짜와 상관없이) 그 고객 카드가 일정에 붙고, 카드에서 장소 ‘입력’을 할 수 있습니다. 같은 이름의 고객이 여럿이면 [선택]으로 고르고, 상관없는 고객이면 [무시]로 숨깁니다. 등록된 고객에 없는 이름이면 아무것도 붙이지 않습니다. (2026-11-18: 하루 동안 쓰던 ‘이름 + 고객’ 규칙은 풀었습니다.)"]);
@@ -5440,7 +5448,7 @@
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_wake = sec("“몰리야”로 AI 부르기 (시험용)", ["오른쪽 아래에 떠 있는 <b>몰리(두더지) 선 그림 버튼</b>을 누르면 AI 창이 열립니다(아래 메뉴 맨 왼쪽 AI 버튼과 같음). 반투명이라 밑의 내용이 비쳐 보입니다. 누르면 AI 창이 열리면서 <b>바로 듣기(마이크)</b>가 켜져 말하면 됩니다. 버튼을 <b>꾹 눌러 끌면</b> 원하는 자리로 옮겨지고, 그 자리는 이 기기에 기억됩니다. 말만해요 안에서는 그 자리를 비워 두므로 나오지 않습니다.", "설정 > 화면의 <b>“몰리야”로 AI 부르기</b>를 켜면, 이 기기에서 앱 화면이 열려 있는 동안 마이크로 듣다가 <b>‘몰리야’</b>라고 부르면 AI 창이 뜹니다. ‘몰리야 내일 일정 알려줘’처럼 이어 말하면 그 말이 바로 AI에 들어가고, 이름만 부르면 AI 창의 마이크가 켜집니다.", "듣는 동안 화면 위에 작은 <b>‘몰리 듣는 중’</b> 표시가 나오고, 누르면 바로 꺼집니다. 화면이 꺼지거나 다른 앱으로 가면 듣지 않고, AI 창이나 다른 음성 입력을 쓰는 동안에도 멈춥니다. 안드로이드 크롬에서만 되며(아이폰 사파리는 거의 안 됨), 음성은 크롬이 구글 서버로 보내 글자로 바꿉니다. 상담 중에는 꺼 두세요. 설정은 이 기기에만 저장됩니다."]);
     const s_theme = sec("다크 모드", ["설정 > 화면의 <b>다크 모드</b>를 체크하면 어두운 화면, 끄면 밝은 화면으로 이 기기에서 고정됩니다. 한 번도 고르지 않았으면 <b>다크 모드가 기본</b>입니다(2026-11-18부터, 폰의 밝은·어두운 설정과 상관없음). 고른 값은 내 설정 파일(드라이브)에 저장되어 다른 기기에서도 같게 따르고, 이 기기에는 화면 깜빡임을 막으려고 같이 기억합니다. 로그인 화면도 같은 값을 따릅니다. 말만해요 안에서 열면 말만해요의 설정(다크/라이트)을 따르고, 말만해요에서 바꾸면 바로 바뀝니다(이 앱에는 저장하지 않음)."]);
-    const s_dsh = sec("대시보드 (2026-11-21 바뀜)", ["아래 메뉴 <b>AI 오른쪽 [대시보드]</b>입니다. 보는 범위 선택(오른쪽 위)은 <b>ESL만</b> 보입니다: 맨 위 <b>팀</b>(팀 합계) → 김현성 · 임지섭 … 순서이고, 관리자는 처음에 <b>팀</b>을 봅니다. 그 밖의 계정은 본인 FC만 봅니다.", "<b>이달 실적</b>: 이번 달 <b>건수 · CMIP(월납환산보험료) · CANP</b> 세 칸입니다(금액은 원 단위). 청약 목록(계약 자료)에서 이번 달 청약 중 <b>철회·거절을 뺀 것</b>을 더하고, 세 값 모두 <b>기여율</b>을 곱해 더합니다. 팀은 팀원 합계입니다.", "<b>지난달 청약상태</b>: 지난달 청약을 계약일자 최근 순으로 보여 줍니다(청약상태 · 심사상태 · 진단종류 · FC명(팀일 때만) · 상품명 · 계약일자 · 계약자 · 주피보험자 · CMIP · CANP). 표는 옆으로 밀어 봅니다. 철회·거절 줄은 흐리게, 금액은 계약 금액 그대로입니다.", "<b>지난달 FC별 실적</b>(팀일 때만): FC마다 지난달 철회·거절을 뺀 건수 · CMIP · CANP를 기여율을 곱해 보여 줍니다(예: 2건 중 1건이 기여율 50%면 1.5건). 맨 아래 합계.", "<b>최근 6개월 실적</b>: 이번 달 전 6개월의 월평균 건수 · CMIP · CANP · 수수료(실지급금)입니다. 입사한 지 6개월이 안 된 FC는 입사한 달부터의 합계를 그 달 수로 나눕니다. 팀은 팀 합계의 월평균입니다. 이 상자들은 민감정보 허용 계정만 보입니다.", "<b>최근 수수료</b>(가장 최근 달 실지급, 팀은 합계)와 <b>계약진행</b> 인원 카드가 그 아래에 있습니다.", "<b>이달목표 막대</b>: 이관·DB는 통화·AP·PC·계약·미착수, 따행은 방문완료·설문발송·설문응답·쿠폰발송·미방문, 계약진행은 고객등록·전화·AP·PC·계약별 건수입니다. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다. 맨 아래는 <b>소개 랭킹</b> 상위 3명입니다."]);
+    const s_dsh = sec("대시보드 (2026-11-21 바뀜)", ["아래 메뉴 <b>AI 오른쪽 [대시보드]</b>입니다. 보는 범위 선택(오른쪽 위)은 <b>ESL만</b> 보입니다: 맨 위 <b>팀</b>(팀 합계) → 김현성 · 임지섭 … 순서이고, 관리자는 처음에 <b>팀</b>을 봅니다. 그 밖의 계정은 본인 FC만 봅니다.", "<b>이달 실적</b>: 이번 달 <b>건수 · CMIP(월납환산보험료) · CANP</b> 세 칸입니다(금액은 원 단위). 청약 목록(계약 자료)에서 이번 달 청약 중 <b>철회·거절을 뺀 것</b>을 더하고, 세 값 모두 <b>기여율</b>을 곱해 더합니다. 팀은 팀원 합계입니다.", "<b>이달 청약상태</b>: 이달 실적 바로 아래에 이번 달 청약을 지난달 청약상태와 같은 칸으로 보여 줍니다.", "<b>지난달 청약상태</b>: 지난달 청약을 계약일자 최근 순으로 보여 줍니다(청약상태 · 심사상태 · 진단종류 · FC명(팀일 때만) · 상품명 · 계약일자 · 계약자 · 주피보험자 · CMIP · CANP). 표는 옆으로 밀어 봅니다. 철회·거절 줄은 흐리게, 금액은 계약 금액 그대로입니다.", "<b>지난달 FC별 실적</b>(팀일 때만): FC마다 지난달 철회·거절을 뺀 건수 · CMIP · CANP를 기여율을 곱해 보여 줍니다(예: 2건 중 1건이 기여율 50%면 1.5건). 맨 아래 합계.", "<b>최근 6개월 실적</b>: 이번 달 전 6개월의 월평균 건수 · CMIP · CANP · 수수료(실지급금)입니다. 입사한 지 6개월이 안 된 FC는 입사한 달부터의 합계를 그 달 수로 나눕니다. 팀은 팀 합계의 월평균입니다. 팀을 볼 때는 그 아래에 <b>FC별 최근 6개월 평균</b> 표가 나옵니다(6개월이 안 된 FC는 이름 옆에 개월 수, 입사 전 FC는 빠짐). 지난달 FC별 실적에서도 그달에 입사 전인 FC는 빠집니다. 이 상자들은 민감정보 허용 계정만 보입니다.", "<b>최근 수수료</b>(가장 최근 달 실지급, 팀은 합계)와 <b>계약진행</b> 인원 카드가 그 아래에 있습니다.", "<b>이달목표 막대</b>: 이관·DB는 통화·AP·PC·계약·미착수, 따행은 방문완료·설문발송·설문응답·쿠폰발송·미방문, 계약진행은 고객등록·전화·AP·PC·계약별 건수입니다. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다. 맨 아래는 <b>소개 랭킹</b> 상위 3명입니다."]);
     const s_in = sec("소개 (2026-11-17)", ["<b>고객 정보 > 수정</b>의 <b>소개</b>: <b>소개 · 아님 · 모름</b> 중 고르고, <b>소개</b>이면 소개자 이름을 적습니다. 같은 FC의 등록 고객 후보(이름·출생 두 자리·유입경로)가 나오고, 고르면 <b>등록 고객과 연결</b>(소개고객ID 저장), 고르지 않거나 후보에 없으면 <b>이름만 남기기</b>(소개자명 저장)입니다. 다시 누르면 풀리고 이름을 비우면 지워집니다. 소개만 고치면 ‘직접 수정’ 표시는 붙지 않습니다.", "<b>소개자 트로피</b>: 소개해 준 고객 이름 앞에 1~2명 동, 3~4명 은, 5명 이상 금 트로피가 붙습니다(소개고객ID를 세어 계산, 고객 정보 머리·고객 검색 결과·소개찾기에 나옵니다).", "<b>소개찾기</b>(고객 화면 GBS 옆 버튼): 등록 고객 전부를 대상으로 ‘등록고객 N명 중 M명 확인’을 보여 줍니다. <b>소개고객부터</b>는 고객마다 [소개자 찾기](창에서 이름 검색 → 고객 고르기 · 이미 적힌 이름 · 이름만 · 소개 아님 · 모름), <b>소개자부터</b>는 소개자를 먼저 고른 뒤 그분이 소개한 고객을 체크해 한 번에 연결, <b>랭킹</b>은 소개한 수 순서로 보여 주며 고객이 아닌 소개자는 ‘미등록’으로 묶고 [고객으로 연결]로 한 번에 고객ID에 이어 줍니다. 묶음 <b>지역·성별·직업·직장·유입 시기·가족(같은 주소)·유입경로</b>를 겹쳐 눌러 같은 사람끼리 묶어 볼 수 있고, ‘확인한 고객도 보기’를 켜면 이미 확인한 고객도 나옵니다.", "<b>새 고객 확인</b>: 지난번 접속 뒤 입력된 내 FC 고객이 있으면 로그인 때 소개찾기 화면이 먼저 뜹니다. 고객마다 [소개자 찾기], 모두 끝내려면 <b>나머지는 소개 없음</b>, 미루려면 <b>나중에</b>(다음 접속 때 다시 뜹니다). 처음 접속한 기기는 기준 시각만 기록하고 묻지 않습니다(기존 고객은 소개찾기에서 점검)."]);
     const s_smemo = sec("영업 상담기록 칸 (2026-11-18)", ["영업 화면(이달목표의 이관·따행·DB, 계약진행)의 고객 줄 맨 아래에 <b>가장 최근 상담기록 한 줄</b>이 나오고, 그 오른쪽에 <b>[수정]</b> · <b>[삭제]</b>가 있습니다. 수정하면 처음 날짜·시간은 그대로이고 내용만 바뀌며, 삭제는 확인을 거쳐 엑셀에서 지워집니다. 최근 1년 안의 상담기록이 2건 이상이면 오른쪽 끝에 <b>[더보기]</b>가 생겨 전체를 팝업으로 볼 수 있습니다(보기 전용).", "<b>일정 화면의 고객 카드</b>도 같은 상담기록 줄입니다: 카드 맨 아래 최근 상담기록 <b>최대 5줄(날짜와 함께)</b>과 [수정]·[삭제]·[더보기], 고객 정보 칸(주소 등 글자가 있는 곳)을 터치하면 위에 추가칸(마이크 포함)과 최근 6개월 상담기록이 펼쳐지고 한 번 더 터치하면 접힙니다.", "고객 정보가 있는 줄(버튼·링크가 아닌 곳)을 <b>한 번 터치</b>하면 아래로 상담기록 칸이 펼쳐집니다. <b>맨 위 줄은 상담기록 추가칸</b>([저장]을 누르면 일정 화면의 한 줄 메모처럼 상담기록에 저장되어 고객 정보 > 상담 탭에서도 보임)이고, 그 아래에 <b>최근 6개월 안의 상담기록이 날짜와 함께</b> 나옵니다(각 기록에 [수정]·[삭제], 6개월보다 오래된 것은 ‘6개월 이전 N건 더보기’로 팝업). <b>한 번 더 터치</b>하면 위로 올라가며 사라지고 최근 상담기록 한 줄만 남습니다. (예전 설정의 ‘영업 메모 칸’ 옵션은 없앴고 항상 사용합니다.)"]);
     const s_pg = sec("영업 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "영업 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
@@ -7731,6 +7739,7 @@
   }
   // ---------- 시작 설정: 앱을 열 때 처음 보일 화면 + AI 도우미 바로 열기 (이 기기·이 계정에만 적용) ----------
   const START_PAGES = [["schedule", "일정"], ["customer", "고객"], ["sales", "영업"]]; // 하단 메뉴 순서
+  const START_FIXED = "dash"; // v520(2026-11-21 사용자 지시): 처음 화면은 대시보드로 고정하고 시작 화면 고르기는 숨김(나중에 살리려면 ""로)
   function startPrefKey() { return "shlife.start." + (gAccount() || "me"); }
   function readStartPref() {
     let v = null;
@@ -7813,7 +7822,7 @@
   // 관리자: 각 사용자 카드 안의 '시작 화면' (그 사용자 FC 폴더의 설정 파일에 저장 — 사용자가 직접 저장한 값도 여기에 보이고, 여기서 바꾸면 그 사용자 폰에 따라감)
   function startRowHtml(perms, em) {
     const st = (perms.starts || {})[em] || {}, pg = START_PAGES.some((p) => p[0] === st.page) ? st.page : "customer";
-    return `<div class="perm-start" data-sa="${esc(em)}"><label class="pfx-l"><span>시작 화면</span><select data-sa-page aria-label="${esc(em)} 시작 화면">${START_PAGES.map(([k, l]) => `<option value="${k}" ${pg === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    return `<div class="perm-start" data-sa="${esc(em)}"><label class="pfx-l"${START_FIXED ? " hidden" : ""}><span>시작 화면</span><select data-sa-page aria-label="${esc(em)} 시작 화면">${START_PAGES.map(([k, l]) => `<option value="${k}" ${pg === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       <label class="sa-ai"><input type="checkbox" data-sa-ai ${st.ai ? "checked" : ""}> AI 바로 열기</label><button type="button" class="secondary" data-sa-save="${esc(em)}" disabled>저장</button></div>`;
   }
   function bindStartRows() {
@@ -9828,8 +9837,9 @@
       loadSettings().then(() => openSchedule());
     } else {
       schedMode = "day"; schedDate = dayStart(new Date());
-      const sp = readStartPref().page; // 설정 > 시작 화면
-      if (sp === "schedule") loadSettings().then(() => openSchedule());
+      const sp = START_FIXED || readStartPref().page; // 설정 > 시작 화면(v520: 대시보드 고정)
+      if (sp === "dash") openDash();
+      else if (sp === "schedule") loadSettings().then(() => openSchedule());
       else if (sp === "sales") loadSettings().then(() => openSales());
       else {
         resetSearch(); // 첫 화면: 고객 (일정은 하단 메뉴에서 열 때 불러옴 — 캘린더 호출이 첫 화면을 늦추지 않게)

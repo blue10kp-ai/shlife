@@ -1587,3 +1587,6 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .dsh-tb td.gd { text-align: left; }
 .dsh-fc { width: 100%; }
 .dsh-fc tr.sum td { font-weight: 600; border-top: 1px solid var(--line); }
+.d3[hidden], .pfx-l[hidden] { display: none !important; } /* v520: 시작 화면 고르기 숨김 */
+.dsh-fc td small.mo { margin-left: 3px; font-size: 10px; color: var(--t3); } /* v520 FC별 6개월 평균: 개월 수 */
+#dashView .dsh-card { align-items: flex-end; text-align: right; } /* v522: 대시보드 최근 수수료·계약진행 카드 오른쪽 정렬 */
