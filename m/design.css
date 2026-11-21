@@ -1594,3 +1594,20 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .dsh-score .sc { font-size: 12px; color: var(--t2); }
 .dsh-score .sc b { font-size: 22px; font-weight: 600; color: var(--t1); margin-right: 1px; font-variant-numeric: tabular-nums; }
 #dashView .dsh-card b .ok { color: var(--ok, #2e9d62); font-size: inherit; font-weight: inherit; } /* v525 계약진행 카드: 이달 계약 수 초록 */
+/* v529 영업 > 자료 > 연체/실효 리스트 */
+.od .od-sel { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.od .od-fc { font-size: 13px; }
+.od .od-sum { font-size: 12.5px; color: var(--t2); margin: 6px 0 4px; }
+.od .od-sum b { color: var(--t1); font-variant-numeric: tabular-nums; }
+.od .od-grp { margin-top: 8px; }
+.od-t tr.od-lapse td { color: var(--t3); }
+.od-t tr.od-new td:nth-child(2) { color: var(--bad, #d14b4b); font-weight: 600; }
+.od .od-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.od .od-title { margin: 6px 0 0; font-size: 14px; }
+.od .od-meta { margin: 2px 0 0; }
+.od .od-test { color: var(--bad, #d14b4b); font-weight: 600; }
+.od .od-lp { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.od .od-lp { display: block; }
+.od-t tr.od-revived td { color: var(--t2); }
+.od .od-dl { justify-content: flex-end; display: flex; } /* v534: 다운 버튼 오른쪽 */
+.od-t a.od-tel { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; } /* v540 연락처 전화 링크 */
