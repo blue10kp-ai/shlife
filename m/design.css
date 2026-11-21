@@ -1611,3 +1611,4 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .od-t tr.od-revived td { color: var(--t2); }
 .od .od-dl { justify-content: flex-end; display: flex; } /* v534: 다운 버튼 오른쪽 */
 .od-t a.od-tel { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; } /* v540 연락처 전화 링크 */
+.pf-row[hidden] { display: none !important; } /* v543: 사용자 정보 팝업의 시작 화면 칸 숨김 */

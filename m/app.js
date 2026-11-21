@@ -4942,7 +4942,7 @@
         ${PROF_FIELDS.slice(1, 5).map(fld).join("")}
         <label class="pf-row"><span>직책</span><select data-pf-title>${ORG_TITLES.map((t) => `<option ${title === t ? "selected" : ""}>${t}</option>`).join("")}</select></label>
         <label class="pf-row"><span>일정 구분</span><input type="text" data-pf-pfx value="${esc(nm ? (P.prefixes || {})[nm] || "" : "")}" maxlength="10" placeholder="예: 최" autocomplete="off"></label>
-        <div class="pf-row"><span>시작 화면</span><span class="pf-start"><select data-pf-start aria-label="시작 화면">${START_PAGES.map(([k, l]) => `<option value="${k}" ${st.page === k ? "selected" : ""}>${l}</option>`).join("")}</select><label class="pf-ai"><input type="checkbox" class="cb" data-pf-ai ${st.ai ? "checked" : ""}> AI 바로 열기</label></span></div>
+        <div class="pf-row"${START_FIXED ? " hidden" : ""}><span>시작 화면</span><span class="pf-start"><select data-pf-start aria-label="시작 화면">${START_PAGES.map(([k, l]) => `<option value="${k}" ${st.page === k ? "selected" : ""}>${l}</option>`).join("")}</select><label class="pf-ai"><input type="checkbox" class="cb" data-pf-ai ${st.ai ? "checked" : ""}> AI 바로 열기</label></span></div>
         ${fld(PROF_FIELDS[5])}
       </div>
       ${isNew ? `<p class="hint pf-note">[저장]하면 사용자로 등록되고 조직도에서 관리자 바로 밑에 들어갑니다. 이름·이메일·사번이 모두 있고 이름이 FC 폴더 이름과 같을 때만 본인 FC(보기+수정)와 폴더 공유가 함께 됩니다.</p>` : `<h4 class="pf-sub">신한FC 설정</h4>
