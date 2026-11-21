@@ -1563,3 +1563,16 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .dsh-p3 b { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
 .dsh-p3 small { font-size: 10.5px; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dsh-head:has(> span:only-child) { display: none; }
+.dsh-p3 > div { align-items: flex-end; text-align: right; padding: 0 8px; } /* v517: 세 칸 오른쪽 정렬 */
+.dsh-p3 > div:last-child { padding-right: 0; }
+/* v517 '지난달 청약상태' 표: 가로로 밀어 봄, 촘촘하게 */
+.dsh-last { padding-bottom: 6px; }
+.dsh-tw { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -12px; padding: 0 12px; }
+.dsh-tb { border-collapse: collapse; font-size: 11.5px; width: max-content; min-width: 100%; }
+.dsh-tb th { font-weight: 500; color: var(--t3); text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.dsh-tb td { padding: 5px 8px 5px 0; border-bottom: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dsh-tb tr:last-child td { border-bottom: 0; }
+.dsh-tb .n { text-align: right; }
+.dsh-tb td.n small { margin-left: 3px; color: var(--t3); font-size: 10px; }
+.dsh-tb td.gd { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.dsh-tb tr.off td { color: var(--t3); }
