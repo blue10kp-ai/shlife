@@ -1612,3 +1612,5 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .od .od-dl { justify-content: flex-end; display: flex; } /* v534: 다운 버튼 오른쪽 */
 .od-t a.od-tel { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; } /* v540 연락처 전화 링크 */
 .pf-row[hidden] { display: none !important; } /* v543: 사용자 정보 팝업의 시작 화면 칸 숨김 */
+.rpt-pdf tr.od-ph td { background: #eef1f6; font-size: 13px; padding-top: 6px; padding-bottom: 6px; } /* v548 전체 PDF 묶음: FC 제목 줄 */
+.rpt-pdf tr.od-ph td span { color: #667; margin-left: 6px; font-size: 12px; }
