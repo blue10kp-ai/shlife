@@ -9451,10 +9451,10 @@
   // v531(2026-11-21 사용자 규칙 "새 페이지는 디자인을 먼저 보여 주고 코딩"): 디자인 확인 전까지 숨김. 이 PC 시험에서만 주소에 ?od=1 을 붙여 켬
   const OD_ON = true; // v542(2026-11-21 사용자 "이대로 좋음"): 디자인 확인 끝 → 보임
   const OD = { opt: "", dirs: new Map(), cache: new Map(), data: null, opts: [], built: null };
-  const OD_COLS = ["신규", "계약자", "주피", "연체", "상품명", "보험료", "최종납입", "회차", "연락처", "증권번호"]; // v539(2026-11-21 사용자 지시) 칸 순서 // v533: 연체 표는 연체만(실효는 아래 실효리스트)
+  const OD_COLS = ["신규", "모집", "계약자", "주피", "연체", "상품명", "보험료", "최종납입", "회차", "연락처", "증권번호"]; // v547(2026-11-21 사용자 지시): 신규 옆 모집(직접·이관)
   const OD_MINN = 2, OD_MAXN = 24; // v537(2026-11-21 사용자 지시) 연체리스트: 최종납입회차 2~24회만(회차 모름은 넣음)
   const odInRange = (r) => { const v = r["납입회차"]; if (v == null || v === "") return true; const n = +v; return !(n < OD_MINN || n > OD_MAXN); };
-  const OL_COLS = ["계약자", "주피", "상품명", "보험료", "회차", "연락처", "증권번호"]; // v544(2026-11-21 사용자 지시): 실효리스트는 최종납입월 대신 회차
+  const OL_COLS = ["모집", "계약자", "주피", "상품명", "보험료", "회차", "연락처", "증권번호"]; // v547: 계약자 왼쪽에 모집
   function odFcDir(fc) { // FC 폴더 ID: 읽어 둔 그 FC 고객 줄의 data.json 부모 폴더 → 없으면 권한 파일의 FC 폴더 ID
     const e = (OD.data ? OD.data.lists : []).find((x) => x.fc === fc && x.src && x.src.fileId && jsonInfo.get(x.src.fileId));
     if (e) return jsonInfo.get(e.src.fileId).parent;
@@ -9498,7 +9498,8 @@
       계약자: r["계약자"] || (ct && ct.row["계약자"]) || (own && own.name) || r["고객ID"] || "", 주피: r["피보험자"] || (ct && (ct.row["주피보험자"] || ct.row["피보"])) || (ins && ins.name) || "",
       상품명: productName(r["상품명"] || (ct && ct.row["상품명"]) || ""), 보험료: num(r["보험료"]) || (ct ? num(ct.row["합계보험료"] || ct.row["보험료"]) : ""),
       최종납입: String(r["최종납입년월"] || "").replace("-", "."), 연락처: r["연락처"] || (own ? own.phone || fieldOf(own, "연락처") : ""), 증권번호: pol,
-      _fc: fc, _cust: String(r["고객ID"] || ""), _cid: kid
+      _fc: fc, _cust: String(r["고객ID"] || ""), _cid: kid,
+      모집: (() => { const t = String((ct && (ct.row["모집유형"] || ct.row["계약분류"])) || r["모집유형"] || r["계약분류"] || ""); return /타인|이관/.test(t) ? "이관" : /직접/.test(t) ? "직접" : ""; })()
     };
   }
   async function odBuild() { // 고른 범위의 FC별 연체 줄·실효 줄
@@ -9513,7 +9514,7 @@
         g.rows = rows2.filter((r) => String(r["상태"] || "연체") === "연체" && odInRange(r)).map((r) => { const st = String(r["상태"] || ""), isNew = !!(prevIds && !prevIds.has(odKey(r))), j = odJoin(fc, r); // v535: 연체리스트는 최종납입 24회 이내만(데이터는 그대로, 화면·PDF에서만 거름)
           return { ...j, 상태: st, 신규: isNew ? "신규" : "", _new: isNew, 회차: r["납입회차"] != null && r["납입회차"] !== "" ? r["납입회차"] : "(회차 모름)",
             연체: r["연체월수"] != null ? r["연체월수"] + "개월" : "" };
-        }).sort((a, b) => (b._new - a._new) || String(a.계약자).localeCompare(String(b.계약자), "ko"));
+        }).sort((a, b) => { const na = typeof a.회차 === "number" ? a.회차 : +a.회차 || 1e9, nb = typeof b.회차 === "number" ? b.회차 : +b.회차 || 1e9; return na - nb || String(a.계약자).localeCompare(String(b.계약자), "ko"); }); // v547: 낮은 회차가 위
       }
       if (pk.lapse && g.files[pk.lapse.파일]) g.lrows = odRowsOf(await odJson(g.files[pk.lapse.파일])).map((r) => ({ ...odJoin(fc, r), 실효일: String(r["실효일"] || "").replace(/-/g, "."), 지금상태: r["지금상태"] || "", 회차: r["납입회차"] != null && r["납입회차"] !== "" ? r["납입회차"] : (nByKey.get(odKey(r)) != null ? nByKey.get(odKey(r)) : ""), _lp: true })).sort((a, b) => String(a.실효일).localeCompare(String(b.실효일)) || String(a.계약자).localeCompare(String(b.계약자), "ko"));
       return g;
