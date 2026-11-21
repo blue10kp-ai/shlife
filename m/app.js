@@ -359,6 +359,7 @@
   //   ③ 되돌린 뒤 이 기기에서 보낸 전화·문자 기록(최근 14일)을 다시 반영(이력에 이미 있으면 건너뜀)
   //   줄 수만 크게 준 것은 되돌리지 않고 알리기만
   const BK_DIR = "_앱백업", BK_KEEP = 10, LOCK_FIX = ".복구중.lock", LOCK_SYNC = ".반영중.lock", LOCK_TTL = 10 * 60 * 1000;
+  const LOCK_COLLECT = ".수집중.lock", COLLECT_TTL = 30 * 60 * 1000; // v550(2026-11-22 사용자 "이 안대로"): PC가 SOL 수집·반영하는 동안. 10분마다 갱신, 30분 넘게 갱신 없으면 무시
   const tsName = (d) => { d = d || new Date(); const p = (n) => String(n).padStart(2, "0"); return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()); };
   const bkDirP = new Map(); // 부모 폴더 ID → _앱백업 폴더 ID(Promise)
   function bkDir(parent) {
@@ -382,12 +383,12 @@
     for (const f of mine.slice(BK_KEEP)) await stDel(f.id).catch(() => {});
   }
   async function lockList(parent) { // 같은 폴더의 잠금 파일(.반영중.lock·.복구중.lock)
-    const d = await gdFetch(GDAPI + "/files?pageSize=50&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,createdTime,modifiedTime)&q=" + encodeURIComponent("'" + qv(parent) + "' in parents and trashed=false and (name contains '.반영중' or name contains '.복구중')"));
+    const d = await gdFetch(GDAPI + "/files?pageSize=50&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name,createdTime,modifiedTime)&q=" + encodeURIComponent("'" + qv(parent) + "' in parents and trashed=false and (name contains '.반영중' or name contains '.복구중' or name contains '.수집중')"));
     const now = Date.now(); // 동기화가 '.복구중 (1).lock'처럼 이름을 바꿔도 같은 잠금으로 봄(데이터수집과 합의)
-    const kind = (n) => (/^\.반영중.*\.lock$/.test(n) ? LOCK_SYNC : /^\.복구중.*\.lock$/.test(n) ? LOCK_FIX : "");
-    return (d.files || []).filter((f) => kind(f.name)).map((f) => ({ ...f, name: kind(f.name), fresh: now - new Date(f.createdTime || f.modifiedTime).getTime() < LOCK_TTL }));
+    const kind = (n) => (/^\.반영중.*\.lock$/.test(n) ? LOCK_SYNC : /^\.복구중.*\.lock$/.test(n) ? LOCK_FIX : /^\.수집중.*\.lock$/.test(n) ? LOCK_COLLECT : "");
+    return (d.files || []).filter((f) => kind(f.name)).map((f) => { const k = kind(f.name); return { ...f, name: k, fresh: k === LOCK_COLLECT ? now - new Date(f.modifiedTime || f.createdTime).getTime() < COLLECT_TTL : now - new Date(f.createdTime || f.modifiedTime).getTime() < LOCK_TTL }; });
   }
-  const lockBlocks = (ls) => ls.find((f) => f.name === LOCK_SYNC) || ls.find((f) => f.name === LOCK_FIX && f.fresh) || null;
+  const lockBlocks = (ls) => ls.find((f) => f.name === LOCK_SYNC) || ls.find((f) => f.name === LOCK_COLLECT && f.fresh) || ls.find((f) => f.name === LOCK_FIX && f.fresh) || null;
   async function lockMake(parent, info, id) {
     const b = "shlife" + Date.now();
     const meta = { name: LOCK_FIX, parents: [parent], mimeType: "application/json" };
@@ -537,7 +538,7 @@
     if (info.ver != null && String(m.version) !== String(info.ver)) throw new Error("다른 곳에서 먼저 수정되었습니다. 새로고침한 뒤 다시 시도해 주세요.");
     // 데이터 반영(수집) 중에는 FC 폴더에 .반영중.lock, 복구 중에는 .복구중.lock(10분 안 된 것)이 있다 → 저장 직전에만 확인해 막는다(읽기는 그대로)
     const blk = lockBlocks(locks.filter((f) => f.name === LOCK_FIX || info.name === "data.json"));
-    if (blk) throw new Error(blk.name === LOCK_SYNC ? "데이터 반영 중이라 저장하지 못했습니다. 잠시 후 다시 시도해 주세요." : "데이터 파일을 복구하는 중이라 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    if (blk) { const er = new Error(blk.name === LOCK_SYNC ? "데이터 반영 중이라 저장하지 못했습니다. 잠시 후 다시 시도해 주세요." : blk.name === LOCK_COLLECT ? "데이터 업데이트 중이라 지금은 수정할 수 없습니다. 업데이트가 끝난 뒤 다시 해 주세요." : "데이터 파일을 복구하는 중이라 저장하지 못했습니다. 잠시 후 다시 시도해 주세요."); er.lockKind = blk.name; if (info.parent) syncMark(info.parent, blk.name === LOCK_COLLECT); throw er; }
     // v509: 저장 직전 사본(바로 앞 내용, 서버 복사). 사본을 못 만들어도 저장은 계속(버전 기록이 남음)
     if (info.parent) { try { await bkCopy(id, info, "저장전"); bkPrune(info).catch(() => {}); } catch (e) { console.warn("저장 전 사본을 만들지 못함", e); } }
     const raw = await gdFetch(GDUP + "/files/" + encodeURIComponent(id) + "?uploadType=media&supportsAllDrives=true&fields=" + GD_FIELDS + ",version",
@@ -1824,6 +1825,7 @@
   // 상담기록 저장: ① ✕로 표시한 기록 삭제 ② 새 기록 추가(날짜·시간) ③ 시트 전체를 날짜·시간 최신순으로 정렬
   //   adds: [{ text, when: Date, voice: "파일명" }]
   async function saveConsults(fc, name, adds, dels) {
+    if (dels && dels.length && syncLockedFc(fc)) throw new Error("데이터 업데이트 중이라 상담기록 수정·삭제는 끝난 뒤에 해 주세요."); // v550
     const C = EXTRA.consult;
     const x = await readExtra(); // 저장 직전 최신 파일을 다시 읽음
     if (!x) throw new Error("NO_EXTRA_FILE");
@@ -2402,6 +2404,7 @@
     const g = cv.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, W, H);
     g.save(); g.translate(W / 2, H / 2); if (rot) g.rotate(-Math.PI / 2);
     g.drawImage(bmp, -(rot ? dh : dw) / 2, -(rot ? dw : dh) / 2, rot ? dh : dw, rot ? dw : dh); g.restore();
+    if (clmGray) { await grayPage(doc, cv); cv.width = cv.height = 0; return; } // v551: 회색조 JPEG
     const im = g.getImageData(0, 0, W, H);
     const ink = faxClean(im.data, W, H); cv.width = cv.height = 0; // 큰 캔버스는 바로 비움(폰 메모리)
     await bitPage(doc, ink, W, H);
@@ -2600,56 +2603,275 @@
     try { const u = URL.createObjectURL(new Blob([await stGet0(f.id)], { type: "application/pdf" })), a = document.createElement("a"); a.href = u; a.download = (current && current.cust && !String(f.name).includes(baseName(current.cust.name)) ? baseName(current.cust.name) + " - " : "") + f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); }
     catch (e) { handleError(e); } finally { if (btn) btn.disabled = false; }
   }
+  // ===== v551(2026-11-22 사용자 지시, 시안 확인 "이대로 코딩") 청구 탭 새 구조 =====
+  //   맨 위 메뉴 4개(개인청구서 업로드 / 기본청구서 선택 / 병원서류 업로드 / 청구기록) → 누른 것의 칸이 아래에 열림(처음 = 개인청구서)
+  //   기본청구서 = 앱 설정 폴더 > 보험금청구서식(안내 박스 없는 원본 + 위치.json). 1쪽 안내 박스를 담당 FC(이름·연락처)로 새로 그려 넣음(예전 공용 샘플 '김신한' 자리)
+  //   보험사 순서: 자주 쓴 서식(내설정 clmUse 횟수 많은 순) → 추천 7곳 → 나머지 이름순, 묶음 사이 가로줄
+  //   [보험금청구서 다운로드]: 고른 개인청구서 → 고른 기본청구서 → (있으면) 병원서류를 A4 회색조 300dpi JPEG 품질 70%로 끝에 → 한 PDF. 보험금청구 기록 폴더에 저장 + 기기에 내려받기 + 청구기록.json에 한 줄
+  const CLM_PIN = ["신한라이프", "삼성화재", "메리츠화재", "현대해상", "한화손해보험", "DB손해보험", "KB손해보험"];
+  const BF_DIR = "보험금청구서식", BF_POS = "위치.json", REC_FILE = "청구기록.json";
+  let bfP = null; // 기본청구서 목록 { files: Map(보험사 → 파일), pos: {보험사: {x,y,w,alpha}}, ratio }
+  function bfLoad() {
+    return bfP || (bfP = (async () => {
+      const dir = await resolveAppDir(); if (!dir || !dir.id) return { files: new Map(), pos: {}, ratio: 1168 / 401 };
+      const sub = (await gdQuery("'" + qv(dir.id) + "' in parents and name='" + qv(BF_DIR) + "' and mimeType='" + GD_FOLDER + "' and trashed=false"))[0];
+      if (!sub) return { files: new Map(), pos: {}, ratio: 1168 / 401 };
+      const list = await gdQuery("'" + qv(sub.id) + "' in parents and trashed=false"), files = new Map();
+      let pos = {}, ratio = 1168 / 401;
+      for (const f of list) {
+        if (/\.pdf$/i.test(f.name)) files.set(f.name.replace(/\.pdf$/i, ""), { id: f.id, name: f.name, mime: "application/pdf" });
+        else if (f.name === BF_POS) { try { const j = parseDoc(await stGet0(f.id)); pos = j.서식 || {}; ratio = Number(j.박스비율) || ratio; } catch (e) { console.warn("기본청구서 위치 파일", e); } }
+      }
+      return { files, pos, ratio };
+    })().catch((e) => { bfP = null; throw e; }));
+  }
+  const clmUse = () => ((myPrefs && myPrefs.clmUse) || {});
+  function bfGroups(cos) { // [[묶음 이름, [보험사…]]…]
+    const use = clmUse(), have = new Set(cos);
+    const used = cos.filter((c) => use[c] > 0).sort((a, b) => use[b] - use[a] || a.localeCompare(b, "ko"));
+    const pin = CLM_PIN.filter((c) => have.has(c) && !used.includes(c));
+    const rest = cos.filter((c) => !used.includes(c) && !pin.includes(c)).sort((a, b) => a.localeCompare(b, "ko"));
+    return [["자주 쓴 서식", used], ["추천 보험사", pin], ["나머지 (이름순)", rest]].filter(([, l]) => l.length);
+  }
+  async function clmFcDefault() { // 로그인한 FC의 이름·연락처: 내설정에 적어 둔 것 → (관리자) 팀원 파일 → 이름만
+    const nm = await myFcName(), pr = (await loadMyPrefs().catch(() => null)) || {}, sv = pr.clmFc || {};
+    if (sv.name && (!nm || sv.name === nm)) return { name: sv.name, phone: sv.phone || "" };
+    let phone = "";
+    try { if (isAdmin()) { const d = await stFindPath(TM_DIR), doc = d ? await stReadJsonIn(d, TM_FILE) : null; const p = ((doc && doc.사람) || []).find((x) => (nm && x.이름 === nm) || String(x.이메일 || "").toLowerCase() === me()); if (p) phone = String(p.연락처 || ""); } } catch (e) { /* 없으면 빈칸 */ }
+    return { name: nm, phone };
+  }
+  const recDay = (f) => { const m = String(f.name || "").match(/^(\d{4})(\d{2})(\d{2})\b/); return m ? `${m[1]}-${m[2]}-${m[3]}` : String(f.mod || "").slice(0, 10); };
+  async function recRead() { // 청구기록.json(보험금청구 폴더) + 예전에 만든 PDF(기록 파일에 없는 것)
+    const top = current.clmTop; let doc = null;
+    try { doc = top ? await stReadJsonIn(top, REC_FILE) : null; } catch (e) { console.warn("청구기록 읽기", e); }
+    const items = Array.isArray(doc && doc.기록) ? doc.기록.slice() : [];
+    const known = new Set(items.map((x) => x.pdfId).filter(Boolean));
+    (current.recList || []).forEach((f) => { if (!known.has(f.id)) { const m = String(f.name).match(/보험금청구서 - (.+?)(?: \(\d+\))?\.pdf$/i); items.push({ date: recDay(f), acc: "", cos: m ? m[1].split("·") : [], pdfId: f.id, pdfName: f.name, old: true }); } });
+    return items.sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.at || "").localeCompare(String(a.at || "")));
+  }
+  const clmSelN = () => ((current.clmOwnSel || new Set()).size + (current.clmBaseSel || new Set()).size);
+  function clmFootHtml(ro) {
+    const own = (current.clmOwnSel || new Set()).size, bs = (current.clmBaseSel || new Set()).size, h = (current.hspList || []).length, n = own + bs;
+    const busy = current.clmBusy || "";
+    const sum = n ? `<b>${[own ? `개인 ${own}` : "", bs ? `기본 ${bs}` : ""].filter(Boolean).join(" · ")}</b> 청구서${h ? ` + 병원서류 ${h}개` : ""} → 한 PDF${h ? "<br>병원서류는 A4 회색조(300dpi)로 바꿔 끝에 붙입니다" : ""}` : "청구서를 하나 이상 고르면 다운로드할 수 있습니다";
+    return `<div class="card cx-foot" id="clmFoot"><div class="sum">${sum}${current.recNote ? `<br>${esc(current.recNote)}` : ""}</div>${ro ? "" : `<div class="bar"><input type="text" data-clm-acc placeholder="사고 내용 (예: 무릎 염좌 통원)" value="${esc(current.clmAcc || "")}" maxlength="60"><button type="button" class="go" data-clm-build${n && !busy ? "" : " disabled"}>${esc(busy || "보험금청구서 다운로드")}</button></div>`}</div>`;
+  }
+  function clmFootUpdate() { const f = $("clmFoot"); if (f) f.outerHTML = clmFootHtml(isRO(current.fc)); const m = $("tabBody").querySelector(".cx-menu"); if (m) m.outerHTML = clmMenuHtml(); }
+  function clmMenuHtml() {
+    const tab = current.clmTab || "own", bs = (current.clmBaseSel || new Set()).size, os = (current.clmOwnSel || new Set()).size;
+    const it = [["own", "개인청구서", "업로드", `${(current.clmList || []).length}개${os ? ` · ${os}선택` : ""}`], ["base", "기본청구서", "선택", bs ? `${bs}곳 선택` : "고르기"], ["hsp", "병원서류", "업로드", `${(current.hspList || []).length}개`], ["rec", "청구기록", "", `${(current.recItems || []).length}건`]];
+    return `<div class="cx-menu" role="tablist">${it.map(([k, a, b, c]) => `<button type="button" role="tab" data-clm-tab="${k}" class="${k === tab ? "on" : ""}" aria-selected="${k === tab}">${a}<br>${b || "&nbsp;"}<small>${c}</small></button>`).join("")}</div>`;
+  }
   async function renderClaim(note) {
     const body = $("tabBody"), cust = current.cust, ro = isRO(current.fc);
     if (!GD) { body.innerHTML = '<div class="card"><p class="hint">보험금 청구는 구글 드라이브에서만 쓸 수 있습니다.</p></div>'; return; }
-    if (!current.folders[0]) { body.innerHTML = '<div class="card"><p class="hint">이 고객의 폴더가 없어 보험금 청구를 시작할 수 없습니다.</p></div>'; return; }
+    if (!current.folders[0]) { body.innerHTML = '<div class="card"><p class="hint">이 고객의 폴더가 없어 보험금 청구를 쓸 수 없습니다.</p></div>'; return; }
     if (!current.clmList) body.innerHTML = '<p class="hint pad">보험금 청구 자료를 확인하는 중…</p>';
     try {
       const dir = await clmDir(false);
       if (!clmOnTab(cust)) return;
-      if (!dir) { // 아직 준비 안 된 고객: [보험금 청구 시작]
-        body.innerHTML = `<div class="card clm-card"><p class="hint">아직 보험금 청구를 시작하지 않은 고객입니다.${ro ? "" : " [보험금 청구 시작]을 누르면 이 고객 폴더에 ‘보험금청구’ 폴더와 그 안에 ‘보험금청구서’·‘병원서류’ 폴더를 만듭니다."}</p>${ro ? "" : '<button type="button" class="ev-edit clm-start" data-clm-start>보험금 청구 시작</button>'}</div>`;
-        return;
-      }
-      let list = await docsList(dir);
+      let list = dir ? await docsList(dir) : [];
       if (!clmOnTab(cust)) return;
       const pend = (current.clmPend || []).filter((x) => !list.some((f) => f.id === x.id)); current.clmPend = pend; list = pend.concat(list);
       if (pend.length && !current.clmRetry) { current.clmRetry = 1; setTimeout(() => { if (clmOnTab(cust)) renderClaim(note); }, 3000); } else if (!pend.length) current.clmRetry = 0;
       current.clmList = list;
-      const hdir = await hspDir(false); let hlist = hdir ? await docsList(hdir) : [];
+      const hdir = dir ? await hspDir(false) : null; let hlist = hdir ? await docsList(hdir) : [];
       if (!clmOnTab(cust)) return;
       const hpend = (current.hspPend || []).filter((x) => !hlist.some((f) => f.id === x.id)); current.hspPend = hpend; hlist = hpend.concat(hlist);
       if (hpend.length && !current.clmRetry) { current.clmRetry = 1; setTimeout(() => { if (clmOnTab(cust)) renderClaim(note); }, 3000); }
       current.hspList = hlist;
-      const hnote = current.hspNote || ""; current.hspNote = "";
-      const rdir = await recDir(false); let rlist = rdir ? await docsList(rdir) : [];
+      const rdir = dir ? await recDir(false) : null; let rlist = rdir ? await docsList(rdir) : [];
       if (!clmOnTab(cust)) return;
       const rpend = (current.recPend || []).filter((x) => !rlist.some((f) => f.id === x.id)); current.recPend = rpend; rlist = rpend.concat(rlist);
-      if (rpend.length && !current.clmRetry) { current.clmRetry = 1; setTimeout(() => { if (clmOnTab(cust)) renderClaim(note); }, 3000); }
       current.recList = rlist;
-      const rnote = current.recNote || ""; current.recNote = "";
-      const delX = (kind, i, f) => (ro ? "" : `<button type="button" class="clm-del" data-${kind}-del="${i}" aria-label="${esc(f.name)} 삭제">×</button>`); // v496: 파일마다 ×(드라이브 휴지통)
-      const hspHtml = `<div class="card clm-card hsp-card"${ro ? "" : ' data-drop="hsp"'}><div class="docs-head"><span class="docs-cnt">병원서류 ${hlist.length}개${hnote ? ` · ${esc(hnote)}` : ""}</span>${ro ? "" : '<button type="button" class="ev-edit" data-hsp-add>병원서류 업로드</button><input type="file" id="hspFile" accept=".pdf,image/*" multiple hidden>'}</div>
-        ${hlist.length ? `<div class="clm-files hsp-files">${hlist.map((f, i) => `<div class="clm-frow"><button type="button" class="clm-file" data-hsp-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button>${delX("hsp", i, f)}</div>`).join("")}</div>` : `<p class="hint">올린 병원서류가 없습니다.${ro ? "" : " [병원서류 업로드]로 영수증·진료비 세부내역·진단서 등(PDF·사진)을 올리거나 이 칸에 끌어다 놓으면 ‘보험금청구 › 병원서류’ 폴더에 저장됩니다."}</p>`}${!ro && hlist.length && list.length ? `<div class="clm-build"><button type="button" class="primary" data-clm-build${current.clmBusy ? " disabled" : ""}>${esc(current.clmBusy || clmBuildLabel())}</button></div>` : ""}</div>`;
-      // v497: 맨 아래 '보험금청구 기록' 칸 — 만든 청구서(보험금청구 › 보험금청구 기록 폴더), 날짜별, [다운로드] · ×
-      const rday = (f) => { const m = String(f.name).match(/^(\d{4})(\d{2})(\d{2})\b/); return m ? `${m[1]}-${m[2]}-${m[3]}` : String(f.mod).slice(0, 10); };
-      const rdays = [...new Set(rlist.map(rday))].sort().reverse();
-      const recHtml = `<div class="card clm-card rec-card"><div class="docs-head"><span class="docs-cnt">보험금청구 기록 ${rlist.length}개${rnote ? ` · ${esc(rnote)}` : ""}</span></div>
-        ${rlist.length ? rdays.map((d) => `<div class="rec-day">${esc(d)}</div><div class="clm-files">${rlist.map((f, i) => [f, i]).filter(([f]) => rday(f) === d).map(([f, i]) => `<div class="clm-frow"><button type="button" class="clm-file" data-rec-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button><button type="button" class="ev-edit rec-dl" data-rec-dl="${i}">다운로드</button>${delX("rec", i, f)}</div>`).join("")}</div>`).join("") : `<p class="hint">만든 보험금청구서가 없습니다. 병원서류를 올린 뒤 [보험금청구서 제작 시작]을 누르면 보험사 청구서들과 병원서류를 한 파일로 합친 PDF를 만들어 여기에 보여 줍니다.</p>`}</div>`;
-      const sel = current.clmSel || (current.clmSel = new Set());
-      const groups = new Map(); list.forEach((f, i) => { const co = clmCompany(f.name); if (!groups.has(co)) groups.set(co, []); groups.get(co).push([f, i]); });
-      const cos = [...groups.keys()].filter(Boolean).sort((a, b) => a.localeCompare(b, "ko"));
-      [...sel].forEach((c) => { if (!groups.has(c)) sel.delete(c); });
-      const fileBtn = ([f, i]) => `<div class="clm-frow"><button type="button" class="clm-file" data-clm-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button>${delX("clm", i, f)}</div>`;
-      const coOpts = `<option value="">보험사 고르기</option>${CLM_CO.map(([c]) => `<option>${esc(c)}</option>`).join("")}`;
-      body.innerHTML = `<div class="card clm-card"${ro ? "" : ' data-drop="clm"'}><div class="docs-head"><span class="docs-cnt">보험금청구서 ${list.length}개${cos.length ? ` · 보험사 ${cos.length}곳${sel.size ? ` 중 ${sel.size}곳 선택` : ""}` : ""}${note ? ` · ${esc(note)}` : ""}</span>${ro ? "" : '<button type="button" class="ev-edit" data-clm-add>청구서 업로드</button><input type="file" id="clmFile" accept=".pdf,image/*" multiple hidden>'}</div>
-        ${list.length ? `<ul class="clm-list">${cos.map((co) => `<li class="clm-co"><label class="clm-chk"><input type="checkbox" data-clm-sel="${esc(co)}"${sel.has(co) ? " checked" : ""}><b>${esc(co)}</b></label><div class="clm-files">${groups.get(co).map(fileBtn).join("")}</div></li>`).join("")}${groups.has("") ? groups.get("").map(([f, i]) => `<li class="clm-co clm-unk"><span class="clm-chk"><span class="clm-q">보험사 모름</span></span><div class="clm-files">${fileBtn([f, i])}${ro ? "" : `<select data-clm-co="${i}" aria-label="${esc(f.name)} 보험사 고르기">${coOpts}</select>`}</div></li>`).join("") : ""}</ul>` : `<p class="hint">올린 보험금청구서가 없습니다.${ro ? "" : " [청구서 업로드]로 보험사 청구서(PDF·사진)를 올리면 ‘보험금청구 › 보험금청구서’ 폴더에 저장되고(이 칸에 끌어다 놓아도 됨), 파일 이름으로 보험사를 찾아 보여 줍니다."}</p>`}</div>` + hspHtml + recHtml;
+      current.recItems = dir ? await recRead() : [];
+      let bf = { files: new Map(), pos: {} };
+      try { bf = await bfLoad(); } catch (e) { console.warn("기본청구서 목록", e); }
+      await loadMyPrefs().catch(() => null);
+      if (!current.clmFcSet) { const d = await clmFcDefault(); if (!current.clmFcSet) { current.clmFc = d; current.clmFcDef = d; current.clmFcSet = true; } }
+      if (!clmOnTab(cust)) return;
+      const tab = current.clmTab || (current.clmTab = "own");
+      const ownSel = current.clmOwnSel || (current.clmOwnSel = new Set()), baseSel = current.clmBaseSel || (current.clmBaseSel = new Set());
+      [...ownSel].forEach((id) => { if (!list.some((f) => f.id === id)) ownSel.delete(id); });
+      const xBtn = (kind, i, f) => (ro ? "" : `<button type="button" class="x" data-${kind}-del="${i}" aria-label="${esc(f.name)} 삭제">×</button>`);
+      const md = (f) => { const d = recDay(f); return d ? d.slice(5) : ""; };
+      const fsz = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + "MB" : n ? Math.max(1, Math.round(n / 1024)) + "KB" : "");
+      let panel = "";
+      if (tab === "own") {
+        panel = `<div${ro ? "" : ' data-drop="clm"'}><div class="cx-head"><b>올린 개인청구서</b><span id="clmOwnCnt">${list.length}개${ownSel.size ? ` · ${ownSel.size}개 선택` : ""}${note ? ` · ${esc(note)}` : ""}</span>${ro ? "" : '<button type="button" class="ev-edit" data-clm-add>업로드</button><input type="file" id="clmFile" accept=".pdf,image/*" multiple hidden>'}</div>
+          ${list.length ? list.map((f, i) => `<div class="cx-row"><input type="checkbox" data-own-sel="${esc(f.id)}"${ownSel.has(f.id) ? " checked" : ""} aria-label="${esc(f.name)} 고르기"><button type="button" class="nm cx-link" data-clm-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button><span class="mt">${esc(md(f))}</span>${xBtn("clm", i, f)}</div>`).join("") : `<p class="hint">이 고객에게 올린 개인청구서가 없습니다.${ro ? "" : " [업로드]로 PDF를 올리거나 여기에 끌어다 놓으세요."}</p>`}</div>`;
+      } else if (tab === "base") {
+        const fc = current.clmFc || {}, cos = [...bf.files.keys()];
+        [...baseSel].forEach((c) => { if (!bf.files.has(c)) baseSel.delete(c); });
+        const use = clmUse();
+        panel = `<div class="cx-fc"><div class="lb">청구서 안내 박스의 담당 FC (공용 샘플 ‘김신한’ 대신 넣을 사람)</div>
+          <div class="in"><label for="clmFcN">이름</label><input id="clmFcN" class="nmI" data-clmfc="name" value="${esc(fc.name || "")}" maxlength="10"${ro ? " disabled" : ""}><label for="clmFcP">연락처</label><input id="clmFcP" class="phI" data-clmfc="phone" type="tel" value="${esc(fc.phone || "")}" placeholder="010-0000-0000" maxlength="16"${ro ? " disabled" : ""}></div>
+          <div class="pv" id="clmFcPv">${clmFcPv()}</div>
+          <div class="rs"><span>기본값: 로그인한 FC</span>${ro ? "" : '<button type="button" class="cx-a" data-clmfc-reset>되돌리기</button>'}</div></div>
+          <div class="cx-head"><b>보험사 기본청구서</b><span id="clmBaseCnt">${cos.length}곳${baseSel.size ? ` · ${baseSel.size}곳 선택` : ""}</span></div>
+          ${cos.length ? `<div class="cx-grid">${bfGroups(cos).map(([g, l]) => `<div class="cx-gl">${g}</div>` + l.map((c) => `<label class="cx-row"><input type="checkbox" data-base-sel="${esc(c)}"${baseSel.has(c) ? " checked" : ""}><span class="nm">${esc(c)}</span>${use[c] ? `<span class="mt">${use[c]}회</span>` : ""}</label>`).join("")).join("")}</div>` : '<p class="hint">기본청구서 서식을 찾지 못했습니다(앱 설정 폴더 › 보험금청구서식).</p>'}`;
+      } else if (tab === "hsp") {
+        panel = `<div${ro ? "" : ' data-drop="hsp"'}><div class="cx-head"><b>병원서류</b><span>${hlist.length}개${current.hspNote ? ` · ${esc(current.hspNote)}` : ""}</span></div>
+          ${hlist.map((f, i) => `<div class="cx-row"><button type="button" class="nm cx-link" data-hsp-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button><span class="mt">${esc(fsz(f.size))}</span>${xBtn("hsp", i, f)}</div>`).join("")}
+          ${ro ? (hlist.length ? "" : '<p class="hint">올린 병원서류가 없습니다.</p>') : hlist.length
+            ? '<div class="cx-drop sm"><button type="button" class="ev-edit" data-hsp-add>추가 업로드</button><span>또는 파일을 여기에 끌어다 놓으세요 (PDF·사진·팩스 TIF)</span></div>'
+            : '<div class="cx-drop"><button type="button" class="ev-edit" data-hsp-add>업로드</button><br>영수증·세부내역·진단서를 올리거나<br>파일을 여기에 끌어다 놓으세요 (PDF·사진·팩스 TIF)</div>'}
+          ${ro ? "" : '<input type="file" id="hspFile" accept=".pdf,image/*,.tif,.tiff" multiple hidden>'}</div>`;
+        current.hspNote = "";
+      } else {
+        const it = current.recItems || [];
+        panel = `<div class="cx-head"><b>청구기록</b><span>${it.length}건</span></div>
+          ${it.length ? it.map((r, i) => `<div class="cx-row cx-rec"><span class="dt">${esc(r.date || "")}</span><button type="button" class="nm cx-link" data-rec-open="${i}"><b>${esc(r.acc || (r.old ? "예전 기록" : "사고 내용 없음"))}</b><span class="co">${esc((r.cos || []).join(" · ") || "-")}</span></button>${ro ? "" : `<button type="button" class="x" data-rec-del="${i}" aria-label="청구기록 삭제">×</button>`}</div>`).join("") + '<p class="hint cx-note">줄을 누르면 그때 만든 PDF가 열립니다</p>' : '<p class="hint">아직 만든 보험금청구서가 없습니다. 아래 [보험금청구서 다운로드]로 만들면 여기에 남습니다.</p>'}`;
+      }
+      body.innerHTML = `${clmMenuHtml()}<div class="card cx-panel">${panel}</div>${clmFootHtml(ro)}`;
+      current.recNote = "";
     } catch (e) { if (clmOnTab(cust)) body.innerHTML = '<div class="card"><p class="hint">보험금 청구 자료를 불러오지 못했습니다.</p></div>'; handleError(e); }
+  }
+  const clmFcLine = () => { const fc = current.clmFc || {}; return `${fc.name || "○○○"}FC(${fc.phone || "010-0000-0000"})`; };
+  const clmFcPv = () => `서류 보완 및 기타문의 시<br><b>${esc(clmFcLine())}</b>에게<br>반드시 먼저 연락주세요 ^^`;
+  async function clmBoxPng(doc, alpha) { // 안내 박스 그림(1168×401, 원래 박스와 같은 모양): 테두리·글씨는 진하게, 바탕은 alpha만큼 흰색
+    const W = 1168, H = 401, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const g = cv.getContext("2d"); g.fillStyle = `rgba(255,255,255,${alpha == null ? 1 : alpha})`; g.fillRect(0, 0, W, H);
+    g.strokeStyle = "#000"; g.lineWidth = 12; g.strokeRect(14, 14, W - 28, H - 28);
+    g.fillStyle = "#000"; g.textAlign = "center"; g.textBaseline = "middle";
+    const fam = "'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif", line2 = clmFcLine() + "에게";
+    let sz = 86; g.font = `${sz}px ${fam}`; while (sz > 40 && g.measureText(line2).width > 1060) { sz -= 2; g.font = `${sz}px ${fam}`; }
+    g.font = `86px ${fam}`; g.fillText("서류 보완 및 기타문의 시", W / 2, 110);
+    g.font = `${sz}px ${fam}`; g.fillText(line2, W / 2, 205);
+    g.font = `86px ${fam}`; g.fillText("반드시 먼저 연락주세요 ^^", W / 2, 300);
+    return doc.embedPng(await new Promise((r) => cv.toBlob(async (b) => r(new Uint8Array(await b.arrayBuffer())), "image/png")));
+  }
+  let clmGray = false; // v551: true면 그림 쪽을 흑백 정리 대신 회색조 JPEG(품질 70%)로
+  async function grayPage(doc, cv) {
+    const W = cv.width, H = cv.height, g = cv.getContext("2d"), im = g.getImageData(0, 0, W, H), a = im.data;
+    for (let i = 0; i < a.length; i += 4) { const v = (a[i] * 299 + a[i + 1] * 587 + a[i + 2] * 114) / 1000; a[i] = a[i + 1] = a[i + 2] = v; }
+    g.putImageData(im, 0, 0);
+    const jpg = await doc.embedJpg(await new Promise((r) => cv.toBlob(async (b) => r(new Uint8Array(await b.arrayBuffer())), "image/jpeg", 0.7)));
+    const pg = doc.addPage([595.28, 841.89]); pg.drawImage(jpg, { x: 0, y: 0, width: 595.28, height: 841.89 });
+  }
+  async function clmBuild2() {
+    const ro = isRO(current.fc); if (ro || current.clmBusy) return;
+    const cust = current.cust, ownSel = current.clmOwnSel || new Set(), baseSel = current.clmBaseSel || new Set();
+    const own = (current.clmList || []).filter((f) => ownSel.has(f.id));
+    let bf; try { bf = await bfLoad(); } catch (e) { return handleError(e); }
+    const cos = [...baseSel].filter((c) => bf.files.has(c)), order = new Map(bfGroups([...bf.files.keys()]).flatMap(([, l]) => l).map((c, i) => [c, i]));
+    cos.sort((a, b) => (order.get(a) ?? 999) - (order.get(b) ?? 999));
+    if (!own.length && !cos.length) return toast("청구서를 하나 이상 골라 주세요");
+    const hsp = (current.hspList || []).slice().sort((a, b) => hspOrder(a) - hspOrder(b) || a.name.localeCompare(b.name, "ko"));
+    const fc = current.clmFc || {};
+    if (cos.length && (!fc.name || !fc.phone)) { current.clmTab = "base"; await renderClaim(); return toast("기본청구서 안내 박스에 넣을 담당 FC 이름과 연락처를 넣어 주세요"); }
+    const acc = String(current.clmAcc || "").trim();
+    const bset = (t) => { current.clmBusy = t; const b = $("tabBody") && $("tabBody").querySelector("[data-clm-build]"); if (b) { b.textContent = t || "보험금청구서 다운로드"; b.disabled = !!t; } };
+    bset("준비 중…");
+    const skipped = [], failed = []; let made = null, bytes = null;
+    try {
+      bset("PDF 도구 불러오는 중…");
+      await rptLoad("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js");
+      const doc = await PDFLib.PDFDocument.create();
+      clmGray = true; clmDpi = 300;
+      for (let k = 0; k < own.length; k++) { // 개인청구서: PDF는 쪽 그대로, 사진은 A4 회색조
+        bset(`개인청구서 붙이는 중 ${k + 1}/${own.length}`);
+        try { await clmAppend(doc, own[k], await stGet0(own[k].id), false); } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.warn(own[k].name, e); failed.push(own[k].name); }
+      }
+      for (let k = 0; k < cos.length; k++) { // 기본청구서: 1쪽 안내 박스를 담당 FC로
+        const co = cos[k], f = bf.files.get(co), p = bf.pos[co];
+        bset(`${co} 청구서 받는 중 ${k + 1}/${cos.length}`);
+        try {
+          const src = await PDFLib.PDFDocument.load(await stGet0(f.id), { ignoreEncryption: true });
+          if (p && p.w) { const pg = src.getPages()[0], h = p.w / (bf.ratio || 1168 / 401), png = await clmBoxPng(src, p.alpha); pg.drawImage(png, { x: p.x, y: pg.getHeight() - p.y - h, width: p.w, height: h }); }
+          (await doc.copyPages(src, src.getPageIndices())).forEach((pg) => doc.addPage(pg));
+        } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.warn(co, e); failed.push(co); }
+      }
+      if (!doc.getPageCount()) throw new Error("붙일 수 있는 청구서가 없습니다");
+      for (let i = 0; i < hsp.length; i++) { // 병원서류: A4 회색조 300dpi JPEG 70%
+        bset(`병원서류 바꾸는 중 ${i + 1}/${hsp.length}`); await new Promise((r) => setTimeout(r, 30));
+        try { await clmAppend(doc, hsp[i], await stGet0(hsp[i].id), true); } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.warn(hsp[i].name, e); skipped.push(hsp[i].name); }
+      }
+      bset("PDF 만드는 중…");
+      bytes = await doc.save();
+      const label = [...new Set(cos.concat(own.map((f) => clmCompany(f.name) || "개인청구서")))];
+      const fname = `${clmYmd()} - 보험금청구서 - ${label.join("·")}`.slice(0, 120) + ".pdf";
+      { // 기기에 내려받기
+        const u = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" })), a = document.createElement("a");
+        a.href = u; a.download = `${baseName(cust.name)} - ${fname}`; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000);
+      }
+      const dir = await recDir(true), have = new Set((await docsList(dir)).map((f) => f.name));
+      const base = `${clmYmd()} - 보험금청구서 - ${label.join("·")}`.slice(0, 120);
+      let name = base + ".pdf", n = 2; while (have.has(name)) name = `${base} (${n++}).pdf`;
+      bset(`저장 중 (${(bytes.length / 1048576).toFixed(1)}MB)…`);
+      const it = await docsUpload(dir, name, new File([bytes], name, { type: "application/pdf" }));
+      if (it && it.id) made = { id: it.id, name: it.name || name, mime: "application/pdf", size: bytes.length, mod: new Date().toISOString(), webUrl: it.webViewLink || "", thumb: "" };
+      if (made) { // 청구기록.json에 한 줄
+        const top = current.clmTop, doc0 = (await stReadJsonIn(top, REC_FILE).catch(() => null)) || {}, rows = Array.isArray(doc0.기록) ? doc0.기록 : [];
+        rows.push({ date: `${clmYmd().slice(0, 4)}-${clmYmd().slice(4, 6)}-${clmYmd().slice(6)}`, acc, cos: label, own: own.map((f) => f.name), hsp: hsp.filter((f) => !skipped.includes(f.name)).map((f) => f.name), fc: `${fc.name || ""} ${fc.phone || ""}`.trim(), pdfId: made.id, pdfName: made.name, at: new Date().toISOString(), by: me() });
+        await stWriteJsonIn(top, REC_FILE, { 설명: "신한FC m 청구 탭 청구기록(다운로드할 때마다 한 줄)", 기록: rows });
+      }
+      try { // 자주 쓴 서식 횟수 + 내 담당 FC 정보(로그인한 FC 이름일 때만) 기억
+        const pr = { ...((await loadMyPrefs()) || {}) }, use = { ...(pr.clmUse || {}) };
+        cos.forEach((c) => { use[c] = (use[c] || 0) + 1; }); pr.clmUse = use;
+        const nm = await myFcName(); if (fc.name && fc.phone && (!nm || fc.name === nm)) pr.clmFc = { name: fc.name, phone: fc.phone };
+        await saveMyPrefs(pr);
+      } catch (e) { console.warn("청구 횟수 저장", e); }
+    } catch (e) { handleError(e); }
+    clmGray = false; clmDpi = 300; current.clmBusy = "";
+    if (current.cust !== cust) return;
+    if (made) { current.recPend = [made].concat(current.recPend || []); current.clmAcc = ""; }
+    current.recNote = [made ? `다운로드함 (${(bytes.length / 1048576).toFixed(1)}MB) · 청구기록에 남김` : "", failed.length ? `청구서 ${failed.length}개는 붙이지 못함` : "", skipped.length ? `병원서류 ${skipped.length}개는 붙이지 못함(PDF·사진·TIF만 가능)` : ""].filter(Boolean).join(", ");
+    if (made) toast("보험금청구서를 한 파일로 만들어 내려받았습니다");
+    if (clmOnTab(cust)) await renderClaim();
+  }
+  // v551(2026-11-22 사용자 지시): 개인청구서를 올리면 원본은 '보험금청구서 › 원본'에 두고, 보험금청구서 스타일로 바꾼 PDF를 이 고객 청구서로 저장
+  //   스타일 = A4 세로, 이미지 개선(회색조·밝기 단계 맞춤·바깥 여백 잘라냄), 위쪽 왼쪽부터 놓기, 회색조 300dpi JPEG 품질 70%
+  const CLM_ORIG = "원본";
+  async function clmStylePage(doc, src, sw, sh) {
+    const c0 = document.createElement("canvas"); c0.width = sw; c0.height = sh;
+    const g0 = c0.getContext("2d"); g0.fillStyle = "#fff"; g0.fillRect(0, 0, sw, sh); g0.drawImage(src, 0, 0, sw, sh);
+    const im = g0.getImageData(0, 0, sw, sh), a = im.data, n = sw * sh, hist = new Uint32Array(256);
+    for (let i = 0; i < a.length; i += 4) { const v = (a[i] * 299 + a[i + 1] * 587 + a[i + 2] * 114) / 1000 | 0; a[i] = v; hist[v]++; }
+    const pct = (q) => { let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= n * q) return v; } return 255; };
+    const lo = Math.min(90, pct(0.01)), hi = Math.max(lo + 60, Math.min(250, pct(0.6)) - 8); // 바탕(대부분 밝은 곳)은 흰색으로, 가장 진한 1%는 검정으로
+    let x0 = sw, y0 = sh, x1 = -1, y1 = -1;
+    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) {
+      const i = (y * sw + x) * 4; let v = Math.round((a[i] - lo) * 255 / (hi - lo)); v = v < 0 ? 0 : v > 255 ? 255 : v;
+      a[i] = a[i + 1] = a[i + 2] = v; a[i + 3] = 255;
+      if (v < 200 && x % 2 === 0 && y % 2 === 0) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+    g0.putImageData(im, 0, 0);
+    if (x1 < 0) { x0 = 0; y0 = 0; x1 = sw - 1; y1 = sh - 1; } // 빈 쪽
+    const pad = Math.round(Math.max(sw, sh) * 0.01); x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(sw - 1, x1 + pad); y1 = Math.min(sh - 1, y1 + pad);
+    const cw = x1 - x0 + 1, ch = y1 - y0 + 1, rot = cw > ch * 1.15, iw = rot ? ch : cw, ih = rot ? cw : ch;
+    const W = 2480, H = 3508, m = 59, k = Math.min((W - 2 * m) / iw, (H - 2 * m) / ih), dw = Math.round(iw * k), dh = Math.round(ih * k);
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const g = cv.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, W, H); g.imageSmoothingQuality = "high";
+    if (rot) { g.save(); g.translate(m, m + dh); g.rotate(-Math.PI / 2); g.drawImage(c0, x0, y0, cw, ch, 0, 0, dh, dw); g.restore(); } // 가로로 긴 쪽은 세워서
+    else g.drawImage(c0, x0, y0, cw, ch, m, m, dw, dh); // 위쪽 왼쪽부터
+    c0.width = c0.height = 0;
+    await grayPage(doc, cv); cv.width = cv.height = 0;
+  }
+  async function clmStylePdf(f) { // 올린 파일 하나 → 스타일 PDF(Uint8Array). 못 바꾸는 종류면 null
+    await rptLoad("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js");
+    const buf = await f.arrayBuffer(), doc = await PDFLib.PDFDocument.create(), name = String(f.name || ""), type = f.type || "";
+    if (/\.pdf$/i.test(name) || type === "application/pdf") {
+      await rptLoad("https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js");
+      if (window.pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)) }).promise;
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i), vp = page.getViewport({ scale: 300 / 72 }), c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); await page.render({ canvasContext: g, viewport: vp }).promise;
+        await clmStylePage(doc, c, c.width, c.height); c.width = c.height = 0; page.cleanup();
+      }
+      pdf.destroy();
+    } else if (/\.tiff?$/i.test(name) || type === "image/tiff") { for (const c of await tifPages(buf)) await clmStylePage(doc, c, c.width, c.height); }
+    else if (/^image\//.test(type) && !/heic|heif/i.test(type + name)) {
+      const blob = new Blob([buf], { type }); let bmp; try { bmp = await createImageBitmap(blob, { imageOrientation: "from-image" }); } catch (e) { bmp = await createImageBitmap(blob); }
+      await clmStylePage(doc, bmp, bmp.width, bmp.height);
+    } else return null;
+    return doc.getPageCount() ? doc.save() : null;
   }
   async function clmAddFiles(files, btn, hsp) { // hsp = 병원서류 칸
     const cust = current.cust, ok = files.filter((f) => f.size <= DOCS_MAX), big = files.length - ok.length;
     if (!ok.length) { toast("50MB가 넘는 파일은 올릴 수 없습니다"); return; }
+    const lbl0 = btn ? btn.textContent : "";
     if (btn) btn.disabled = true;
     let done = 0; const failed = [], upl = [];
     try {
@@ -2661,15 +2883,29 @@
         let base = hsp ? `${clmYmd()} - ${hspKind(orig)}${ext}` : clmStdName(co, ext); // v502: 병원서류도 'YYYYMMDD - 영수증.jpg'처럼 짧게 // 청구서: 'YYYYMMDD - 보험사.pdf'(못 찾으면 'YYYYMMDD - 청구서.pdf'), 병원서류: 원래 이름 앞에 날짜·FC·고객
         const m = base.match(/^(.*?)(\.[A-Za-z0-9]{1,5})?$/); let name = base, k = 2;
         while (have.has(name)) name = `${m[1]} (${k++})${m[2] || ""}`;
-        try { const it = await docsUpload(dir, name, f); if (it && it.id) upl.push({ id: it.id, name: it.name || name, mime: it.mimeType || f.type || "", size: f.size, mod: new Date().toISOString(), webUrl: it.webViewLink || "", thumb: "" }); have.add(name); done++; } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(f.name); }
+        let upF = f;
+        if (!hsp) { // v551: 원본 보관 + 스타일 PDF로 바꿔 저장
+          try {
+            if (btn) btn.textContent = `바꾸는 중 ${done + 1}/${ok.length}`;
+            const pdf = await clmStylePdf(f);
+            if (pdf) {
+              try { const od = await clmFolder(dir.id, CLM_ORIG, true); await docsUpload(od, name, f); } // 원본 보관(실패해도 바꾼 PDF는 저장)
+              catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.warn("개인청구서 원본 보관 실패", f.name, e); }
+              const pb = name.replace(/\.[A-Za-z0-9]{1,5}$/, ""); name = pb + ".pdf"; let k2 = 2; while (have.has(name)) name = `${pb} (${k2++}).pdf`;
+              upF = new File([pdf], name, { type: "application/pdf" });
+            }
+          } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.warn("개인청구서 스타일 바꾸기 실패 — 원본 그대로 저장", f.name, e); }
+          if (btn) btn.textContent = `올리는 중 ${done + 1}/${ok.length}`;
+        }
+        try { const it = await docsUpload(dir, name, upF); if (it && it.id) upl.push({ id: it.id, name: it.name || name, mime: it.mimeType || upF.type || "", size: upF.size, mod: new Date().toISOString(), webUrl: it.webViewLink || "", thumb: "" }); have.add(name); done++; } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(f.name); }
       }
     } catch (e) { handleError(e); }
-    if (btn) { btn.disabled = false; btn.textContent = hsp ? "병원서류 업로드" : "청구서 업로드"; }
+    if (btn) { btn.disabled = false; btn.textContent = lbl0 || "업로드"; }
     const msg = [done ? `${done}개 올림` : "", failed.length ? `${failed.length}개 실패` : "", big ? `${big}개는 50MB 초과` : ""].filter(Boolean).join(", ");
     if (current.cust === cust) { current.clmRetry = 0; if (hsp) { current.hspPend = upl.reverse().concat(current.hspPend || []); current.hspNote = msg; } else current.clmPend = upl.reverse().concat(current.clmPend || []); if (clmOnTab(cust)) await renderClaim(hsp ? "" : msg); }
   }
   document.addEventListener("click", async (ev) => {
-    const t = ev.target && ev.target.closest && ev.target.closest("#tabBody [data-clm-start], #tabBody [data-clm-add], #tabBody [data-clm-open], #tabBody [data-hsp-add], #tabBody [data-hsp-open], #tabBody [data-clm-del], #tabBody [data-hsp-del], #tabBody [data-clm-build], #tabBody [data-rec-open], #tabBody [data-rec-dl], #tabBody [data-rec-del]");
+    const t = ev.target && ev.target.closest && ev.target.closest("#tabBody [data-clm-start], #tabBody [data-clm-add], #tabBody [data-clm-open], #tabBody [data-hsp-add], #tabBody [data-hsp-open], #tabBody [data-clm-del], #tabBody [data-hsp-del], #tabBody [data-clm-build], #tabBody [data-rec-open], #tabBody [data-rec-dl], #tabBody [data-rec-del], #tabBody [data-clm-tab], #tabBody [data-clmfc-reset]");
     if (!t || !current) return;
     if (t.hasAttribute("data-clm-start")) {
       if (isRO(current.fc)) return;
@@ -2678,13 +2914,19 @@
       return;
     }
     if (t.hasAttribute("data-clm-add") || t.hasAttribute("data-hsp-add")) { const inp = $(t.hasAttribute("data-hsp-add") ? "hspFile" : "clmFile"); if (inp) { inp.value = ""; inp.click(); } return; }
-    if (t.hasAttribute("data-clm-build")) { if (!isRO(current.fc)) clmBuild(); return; }
-    if (t.hasAttribute("data-rec-open") || t.hasAttribute("data-rec-dl")) { const g = (current.recList || [])[+(t.dataset.recOpen || t.dataset.recDl)]; if (g) { if (t.hasAttribute("data-rec-dl")) clmDownload(g, t); else docsView(g); } return; }
-    if (t.hasAttribute("data-rec-del")) { // v497: 만든 청구서 삭제(드라이브 휴지통)
-      const g = (current.recList || [])[+t.dataset.recDel];
-      if (!g || isRO(current.fc) || !confirm(`‘${g.name}’ 기록을 삭제할까요?\n(구글 드라이브 휴지통으로 옮겨집니다)`)) return;
+    if (t.hasAttribute("data-clm-tab")) { current.clmTab = t.dataset.clmTab; await renderClaim(); return; } // v551: 메뉴 4개
+    if (t.hasAttribute("data-clmfc-reset")) { current.clmFc = { ...(current.clmFcDef || {}) }; await renderClaim(); return; }
+    if (t.hasAttribute("data-clm-build")) { if (!isRO(current.fc)) clmBuild2(); return; }
+    if (t.hasAttribute("data-rec-open") || t.hasAttribute("data-rec-dl")) { const r = (current.recItems || [])[+(t.dataset.recOpen || t.dataset.recDl)]; if (!r || !r.pdfId) return toast("이 기록의 PDF를 찾지 못했습니다"); const g = (current.recList || []).find((x) => x.id === r.pdfId) || { id: r.pdfId, name: r.pdfName || "보험금청구서.pdf", mime: "application/pdf" }; if (t.hasAttribute("data-rec-dl")) clmDownload(g, t); else docsView(g); return; }
+    if (t.hasAttribute("data-rec-del")) { // v551: 청구기록 한 줄 삭제 = 기록 파일에서 빼고, 그때 만든 PDF는 드라이브 휴지통으로
+      const r = (current.recItems || [])[+t.dataset.recDel];
+      if (!r || isRO(current.fc) || !confirm(`${r.date || ""} ${r.acc || ""} 청구기록을 삭제할까요?\n(그때 만든 PDF는 구글 드라이브 휴지통으로 옮겨집니다)`)) return;
       t.disabled = true;
-      try { await stDel(g.id); current.recPend = (current.recPend || []).filter((x) => x.id !== g.id); current.recNote = "1개 삭제"; await renderClaim(); } catch (e) { t.disabled = false; handleError(e); }
+      try {
+        if (r.pdfId) { await stDel(r.pdfId).catch((e) => { if (!String(e.message).includes("404")) throw e; }); current.recPend = (current.recPend || []).filter((x) => x.id !== r.pdfId); }
+        if (!r.old && current.clmTop) { const d0 = (await stReadJsonIn(current.clmTop, REC_FILE)) || {}; const rows = (Array.isArray(d0.기록) ? d0.기록 : []).filter((x) => !(x.pdfId === r.pdfId && x.at === r.at)); await stWriteJsonIn(current.clmTop, REC_FILE, { ...d0, 기록: rows }); }
+        current.recNote = "청구기록 1건 삭제"; await renderClaim();
+      } catch (e) { t.disabled = false; handleError(e); }
       return;
     }
     if (t.hasAttribute("data-clm-del") || t.hasAttribute("data-hsp-del")) { // v496: 파일 삭제(드라이브 휴지통)
@@ -2713,6 +2955,13 @@
     const t = ev.target; if (!t || !current) return;
     if (t.id === "clmFile" && t.files && t.files.length) { clmAddFiles([...t.files], $("tabBody").querySelector("[data-clm-add]")); return; }
     if (t.id === "hspFile" && t.files && t.files.length) { clmAddFiles([...t.files], $("tabBody").querySelector("[data-hsp-add]"), true); return; }
+    if (t.matches && t.matches("#tabBody [data-own-sel], #tabBody [data-base-sel]")) { // v551: 개인·기본 청구서 고르기
+      const own = t.hasAttribute("data-own-sel"), set = own ? (current.clmOwnSel || (current.clmOwnSel = new Set())) : (current.clmBaseSel || (current.clmBaseSel = new Set())), k = own ? t.dataset.ownSel : t.dataset.baseSel;
+      t.checked ? set.add(k) : set.delete(k); clmFootUpdate();
+      const hs = $("clmOwnCnt"); if (hs && own) hs.textContent = `${(current.clmList || []).length}개${set.size ? ` · ${set.size}개 선택` : ""}`;
+      const hb = $("clmBaseCnt"); if (hb && !own) hb.textContent = hb.textContent.replace(/ · \d+곳 선택$/, "") + (set.size ? ` · ${set.size}곳 선택` : "");
+      return;
+    }
     if (t.matches && t.matches("#tabBody [data-clm-sel]")) { const sel = current.clmSel || (current.clmSel = new Set()); t.checked ? sel.add(t.dataset.clmSel) : sel.delete(t.dataset.clmSel); { const bb = $("tabBody").querySelector("[data-clm-build]"); if (bb && !bb.disabled) bb.textContent = clmBuildLabel(); } const c = $("tabBody").querySelector(".clm-card .docs-cnt"); if (c) c.textContent = c.textContent.replace(/ · 보험사 (\d+)곳( 중 \d+곳 선택)?/, (a, n) => ` · 보험사 ${n}곳${sel.size ? ` 중 ${sel.size}곳 선택` : ""}`); return; }
     if (t.matches && t.matches("#tabBody [data-clm-co]")) { // 보험사를 못 찾은 파일: 고르면 이름을 바꿔 보험사가 들어가게
       const f = (current.clmList || [])[+t.dataset.clmCo], co = t.value; if (!f || !co || isRO(current.fc)) return;
@@ -2720,6 +2969,11 @@
       t.disabled = true;
       try { await gdFetch(GDAPI + "/files/" + encodeURIComponent(f.id) + "?fields=id,name&supportsAllDrives=true", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }); current.clmPend = (current.clmPend || []).filter((x) => x.id !== f.id); current.clmList = null; await renderClaim(`${co}(으)로 이름 바꿈`); } catch (e) { t.disabled = false; handleError(e); }
     }
+  });
+  document.addEventListener("input", (ev) => { // v551: 담당 FC·사고 내용 입력
+    const t = ev.target; if (!t || !current || !t.matches) return;
+    if (t.matches("#tabBody [data-clmfc]")) { current.clmFc = { ...(current.clmFc || {}), [t.dataset.clmfc]: t.value.trim() }; const pv = $("clmFcPv"); if (pv) pv.innerHTML = clmFcPv(); return; }
+    if (t.matches("#tabBody [data-clm-acc]")) current.clmAcc = t.value;
   });
   async function selectTab(id) {
     $("tabs").querySelectorAll("button").forEach((b) =>
@@ -5462,7 +5716,7 @@
     const s_addev = sec("일정 추가 (일정 화면)", ["[선택]으로 고객과 묶은 일정·할 일에는 <b>[해당 없음]</b> 버튼이 보이지 않습니다. [다시 선택]으로 풀면 다시 보입니다.", "<b>일정과 고객이 묶여 있으면</b>(이름이 맞는 고객이 있어 [선택]을 눌러 한 명과 연결한 일정만, [다시 선택]이 보이는 상태) 카드 왼쪽에 <b>파란색 굵은 선</b>이 보입니다.", "<b>일정 카드의 [수정]·[삭제] 버튼은 평소에 접혀 있습니다.</b> ([할 일로]는 [영업/비영업] 왼쪽에 항상 보입니다.) 일정 칸(시간 줄이든 제목 줄이든)을 터치하면 제목 줄 아래 오른쪽 끝으로 펼쳐지고, 한 번 더 터치하면 접힙니다. [영업/비영업]은 예전처럼 윗줄 오른쪽에 항상 보입니다. <b>[수정]</b>에는 <b>종일</b> 체크가 있어, 종일 일정은 체크를 풀고 시작·종료 시간을 넣으면 시간 일정으로, 시간 일정은 체크하면 종일 일정으로 저장됩니다.", "<b>관리자</b>는 이미 있는 일정을 <b>[수정]</b>할 때도 맨 아래 <b>작성자</b>를 바꿀 수 있습니다(고르는 사람은 내가 쓸 수 있는(공유받은) 캘린더를 가진 사람만, 본인으로 되돌리면 작성자 표시가 지워짐). 할 일 [수정]의 <b>사용자</b>도 같은 사람들 중에서 고릅니다.", "<b>2026-11-18부터</b> 추가 칸 맨 위에서 <b>[일정]</b>과 <b>[할 일]</b>을 먼저 고릅니다. <b>일정</b>은 제목·캘린더·날짜·종일/시간·장소(관리자는 작성자), <b>할 일</b>은 제목·<b>마감일</b>·메모(관리자는 <b>사용자</b>도 고름)만 입력하고 [할 일 등록]을 누르면 구글 할 일(기본 목록)에 그 날짜가 마감인 할 일이 만들어집니다(처음 한 번은 할 일 연결 창이 뜰 수 있음).", "일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). (일정 위쪽의 [초기화] 버튼은 2026-11-19에 없앴습니다.) 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
     const s_sub = sec("세일즈 서브메뉴", ["세일즈 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>보고서</b>를 눌러 바꿉니다. <b>보고서</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 유형(따행/이관/DB, 여러 개) · <b>단계</b>(신규·계약·완료·지옥, 여러 개 — 계약은 DB의 계약 고객) · <b>기간</b>(년월 하나)을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 기간의 <b>[3개월]</b>·<b>[1년]</b>은 이번 달까지의 그 기간으로 <b>누르는 즉시 보고서</b>를 보여 줍니다(진행을 누르지 않아도 됨). 이관은 이관일, 따행은 대상년월이 기간 안인 고객입니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘세일즈 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘세일즈 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 보고서는 세일즈에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
     const s_inflow = sec("DB 받은 FC와 진행하는 FC (유입FC, v514)", ["고객마다 <b>유입FC</b>(DB를 배분받은 FC) 칸이 있으면, 그 고객은 <b>유입FC의 이달목표 DB 목록</b>에 나옵니다. 담당FC(메인FC)가 다른 FC여도 DB 목록은 받은 FC 쪽입니다.", "DB 목록의 <b>보관 · 지옥 · 원복</b>(DB상태)은 유입FC 파일의 그 고객 줄에 저장됩니다. 영업단계 칩·전화·문자·상담기록은 담당FC 쪽에 남습니다(진행은 다른 FC가 할 수 있음).", "유입FC가 비어 있으면 예전처럼 담당FC 기준입니다."]);
-    const s_od = OD_ON && sec("연체/실효 리스트 (2026-11-21)", ["세일즈 > 보고서의 <b>조건 보고서</b> 아래에 있습니다. 각 FC는 <b>본인 것만</b>, ESL(관리자·직급 ESL)은 <b>팀 전체</b>(FC를 고르거나 ‘전체’)를 봅니다. 자료는 각 FC 폴더 안에만 있어 드라이브에서 열어도 남의 것은 보이지 않습니다.", "<b>연체</b>: 가장 최근 확인일의 리스트를 ‘○월 ○일자 연체리스트’로 알려 주고 아래에 연체 계약 중 <b>최종납입 2~24회</b>만 보여 줍니다(회차를 모르면 넣고 ‘회차 모름’ 표시)(바로 전 확인일에 없던 계약은 <b>신규</b>, 실효리스트는 회차와 상관없이 모두). 그 밑 오른쪽에 <b>[PDF 다운]</b>. 연락처 번호를 누르면 한 번 더 물은 뒤 전화가 걸리고, 세일즈 화면 전화 버튼처럼 그 FC 이력에 통화 시도가 남습니다.", "<b>실효</b>: 그 아래 ‘○○○○년 ○월 실효리스트’와 실효 표(실효일이 그 달인 계약, 메인FC 기준, 지금 상태 = 실효 그대로·부활·해약), 맨 밑 오른쪽에 <b>[PDF 다운]</b>. 위 요약 줄의 실효 숫자는 이 표의 건수입니다.", "‘전체’ PDF는 앞부분에 모든 FC를 이어 붙인 묶음(ESL이 볼 것), 뒷부분에 FC마다 새 쪽에서 시작하는 페이지(인쇄 뒤 FC별로 나눠 줄 것)가 들어 있습니다. FC 한 명을 고르면 데이터수집이 만든 PDF를 그대로 받습니다. 정식 확인일 기록이 생기기 전에는 시험 기록을 ‘시험 기록’으로 표시합니다."]);
+    const s_od = OD_ON && sec("연체/실효 리스트 (2026-11-21)", ["세일즈 > 보고서의 <b>조건 보고서</b> 아래에 있습니다. 각 FC는 <b>본인 것만</b>, ESL(관리자·직급 ESL)은 <b>팀 전체</b>(FC를 고르거나 ‘전체’)를 봅니다. 자료는 각 FC 폴더 안에만 있어 드라이브에서 열어도 남의 것은 보이지 않습니다.", "<b>연체</b>: 가장 최근 확인일의 리스트를 ‘○월 ○일자 연체리스트’로 알려 주고 아래에 연체 계약 중 <b>최종납입 2~24회</b>만 보여 줍니다(회차를 모르면 넣고 ‘회차 모름’ 표시)(바로 전 확인일에 없던 계약은 <b>신규</b>, 실효리스트는 회차와 상관없이 모두). 제목 줄 오른쪽 끝에 <b>[PDF 다운]</b>. 연락처 번호를 누르면 한 번 더 물은 뒤 전화가 걸리고, 세일즈 화면 전화 버튼처럼 그 FC 이력에 통화 시도가 남습니다.", "<b>실효</b>: 그 아래 ‘○○○○년 ○월 실효리스트’와 실효 표(실효일이 그 달인 계약, 메인FC 기준, 지금 상태 = 실효 그대로·부활·해약), 제목 줄 오른쪽 끝에 <b>[PDF 다운]</b>. 위 요약 줄의 실효 숫자는 이 표의 건수입니다.", "‘전체’ PDF는 앞부분에 모든 FC를 이어 붙인 묶음(ESL이 볼 것), 뒷부분에 FC마다 새 쪽에서 시작하는 페이지(인쇄 뒤 FC별로 나눠 줄 것)가 들어 있습니다. FC 한 명을 고르면 데이터수집이 만든 PDF를 그대로 받습니다. 정식 확인일 기록이 생기기 전에는 시험 기록을 ‘시험 기록’으로 표시합니다."]);
     const s_stage = sec("영업단계 칩 (이관 · DB)", ["<b>다른 FC에서 진행 중이면(v515)</b>: 그 고객의 칩 값이 이 FC 데이터에 없으면, 같은 고객ID의 다른 FC 계약진행 중 가장 최근 단계가 칩에 보입니다(보이기만 하고 저장은 그대로). 이관받은 고객이 이관일 뒤 어느 FC에서든 새로 계약하면 PC 반영 때 그 이관은 자동으로 완료됩니다.", "이관·DB 목록의 고객 줄 오른쪽에 <b>통화 · AP · PC · 계약</b> 칩이 있고, 그 고객의 지금 영업단계인 칩만 색이 들어옵니다. 칩을 누르면 고객 시트의 ‘영업단계’ 칸에 누른 칩의 글자가 저장됩니다(칸이 없으면 새로 만듭니다). 이미 색이 켜진 칩을 다시 누르면 ‘고객의 영업상태를 제거하시겠습니까?’ 확인 뒤 빈칸이 됩니다."]);
     const s_nf = sec("전화·문자 필터 (이달이관 · 따행)", ["목록 위의 <b>전화</b>·<b>문자</b> 칸을 체크하면 그 달에 아직 전화(또는 문자) 시도 ✓가 없는 고객만 보입니다. 둘 다 체크하면 전화도 문자도 안 한 고객만 보입니다.", "체크를 끄면 전체가 다시 보입니다. 따행 줄은 ‘설문 ☐발송 ☐응답 | ☐쿠폰 | ☐전화 ☐문자’ 순서입니다. 발송·응답·쿠폰은 체크하면 그 날짜가 있는 고객만, 전화·문자는 반대로 아직 안 한 고객만 보여 주며, 함께 쓸 수 있습니다."]);
     const s_wake = sec("“몰리야”로 AI 부르기 (시험용)", ["오른쪽 아래에 떠 있는 <b>몰리(두더지) 선 그림 버튼</b>을 누르면 AI 창이 열립니다(아래 메뉴 맨 왼쪽 AI 버튼과 같음). 반투명이라 밑의 내용이 비쳐 보입니다. 누르면 AI 창이 열리면서 <b>바로 듣기(마이크)</b>가 켜져 말하면 됩니다. 버튼을 <b>꾹 눌러 끌면</b> 원하는 자리로 옮겨지고, 그 자리는 이 기기에 기억됩니다. 말만해요 안에서는 그 자리를 비워 두므로 나오지 않습니다.", "설정 > 화면의 <b>“몰리야”로 AI 부르기</b>를 켜면, 이 기기에서 앱 화면이 열려 있는 동안 마이크로 듣다가 <b>‘몰리야’</b>라고 부르면 AI 창이 뜹니다. ‘몰리야 내일 일정 알려줘’처럼 이어 말하면 그 말이 바로 AI에 들어가고, 이름만 부르면 AI 창의 마이크가 켜집니다.", "듣는 동안 화면 위에 작은 <b>‘몰리 듣는 중’</b> 표시가 나오고, 누르면 바로 꺼집니다. 화면이 꺼지거나 다른 앱으로 가면 듣지 않고, AI 창이나 다른 음성 입력을 쓰는 동안에도 멈춥니다. 안드로이드 크롬에서만 되며(아이폰 사파리는 거의 안 됨), 음성은 크롬이 구글 서버로 보내 글자로 바꿉니다. 상담 중에는 꺼 두세요. 설정은 이 기기에만 저장됩니다."]);
@@ -5482,7 +5736,7 @@
     const s_cmp = sec("고객 구분 · 유입경로 말 (2026-11-17)", ["화면의 말이 <b>직접모집</b>(예전 ‘계약·본인’), <b>이관고객</b>(예전 ‘이관’), <b>계약진행</b>(예전 ‘진행’), <b>가망</b>으로 바뀌었습니다. 고객 정보의 <b>유입경로</b>는 <b>신규유입 · 이관유입 · DB유입</b> 세 가지이고 처음 한 번 정해지면 바뀌지 않아 <b>읽기만</b> 합니다(예전 ‘계약·지인·소개’ 값은 신규유입으로 보입니다). 소개는 유입경로가 아니라 <b>소개자</b> 칸으로 따로 둡니다.", "데이터가 새 칸 이름(주민번호·고객분류·이관상태·따행상태·계약진행 표 등)으로 바뀌는 중에는 앱이 <b>새 칸이 있으면 새 칸, 없으면 옛 칸</b>을 읽고, 저장은 옛 칸과 새 칸 <b>둘 다</b>에 합니다(이관보관·이관상태, 따행보관·따행상태, 진행제외·영업단계와 계약진행 표, DB제외·DB상태, 후번호와 주민번호). 따행 <b>방문완료</b>는 방문완료일만 보고, 따행 <b>대상</b>은 따행상태(목표, 빈칸이면 활동기한이 안 끝난 줄)로 셉니다. 상령일(생년월일+6개월)과 납입완료 예정(최초계약일+납입기간)은 칸이 없어도 계산해서 보여 줍니다."]);
     const s_prog = sec("보관 (이동 · 원복)", ["<b>[지옥으로]</b>를 누르면 옮긴 뒤 지옥문 그림이 1초 동안 화면 전체에 나옵니다.", "<b>지옥으로 보낸 계약·계약자</b>(이관·따행·DB)는 고객 <b>성향이 자동으로 Shit</b>이 됩니다. 되돌리기를 누르면 예전 성향으로 돌아가고, 다른 단계로 옮겨도 성향은 그대로 두니 필요하면 고객 정보에서 바꾸세요.", "<b>2026-11-18부터 이달목표의 이관·따행</b>은 위 칩이 <b>신규 · 완료 · 지옥</b>입니다(예전 ‘이관/따행 · 보관’). 신규 줄은 <b>[완료]</b>, 완료 줄은 <b>[신규로] [지옥으로]</b>, 지옥 줄은 <b>[신규로] [완료로]</b>로 옮깁니다. 예전에 보관한 고객은 완료에, 삭제한 고객은 지옥에 보입니다. 파일에는 지금처럼 목표 · 보관 · 삭제로 저장됩니다(이력에 남음). DB 탭도 같은 말로 <b>신규 · 계약 · 보관 · 지옥</b>입니다(예전 ‘삭제’ = 지옥, 보관 줄의 [삭제로] = [지옥으로]).", "세일즈 > 이달목표 목록 줄의 오른쪽 버튼 글자는 상태에 따라 달라집니다. 신규 목록 줄은 <b>보관으로</b>, 보관 목록 줄은 <b>신규로</b>(원래 목록으로)와 <b>지옥으로</b>(DB), 지옥 목록 줄은 <b>신규로</b>와 <b>보관으로</b>입니다. 아래 설명의 ‘이동·원복’은 각각 ‘보관으로·신규로’를 뜻합니다.", "고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 세일즈 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다. DB DB 목록 위 칩은 <b>신규 / 계약 / 보관</b> 순서이고(신규 검정 · 계약 초록 · 보관 파랑), <b>보관</b>을 누르면 빨간 <b>지옥</b> 칩이 더해집니다. 계약 고객이 된 DB 고객은 고객 시트의 ‘DB상태’가 ‘계약’이 되고 계약 칩에서 봅니다. <b>지옥</b> 목록은 가장 최근에 지옥으로 보낸 고객이 맨 위에 나오며 줄의 <b>복구</b>를 누르면 보관으로 돌아갑니다. 보관 목록에는 원복 오른쪽에 <b>지옥으로</b> 버튼도 있습니다: 확인 뒤 누르면 자료는 지우지 않고 고객 시트의 ‘DB상태’ 칸(신규·보관·삭제 중 하나, 빈칸은 신규)에 ‘삭제’(=지옥)만 표시해, 보관 목록에서도 안 보이게 합니다(6초 안에 [되돌리기] 가능).", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 고객 화면 [이관] 목록에서는 <b>이달 N / 보관 M</b> 칩(이달 이관 고객 수)과 줄의 이동·원복으로 그 고객의 <b>이달 이관 계약만</b> 한꺼번에 보관하거나 원복합니다(이관일자가 이번 달인 계약 = 이달목표 > 이관에 나오는 계약, 지난 달 이관·담당이 다른 FC 계약은 그대로). 이달 이관 계약이 없는 이관 고객에는 버튼이 없습니다. 고객 정보 화면 탭 줄 오른쪽에도 보관할 수 있는 목록마다 <b>보관으로 이동</b>/<b>원복</b> 버튼이 나옵니다(여러 개면 ‘진행 보관’·‘DB 보관’·‘이관 보관’처럼 앞에 목록 이름). 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
     const s_rh = sec("오른손 모드", ["'화면' 카드 오른쪽 칸입니다. 하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용되고, 관리자 조직도에서 볼 수 있게 기록됩니다."]);
-    const s_bk = sec("데이터 자동 백업·복구 (v509)", ["<b>자동 백업</b>: 앱이 고객 데이터 파일을 저장하기 직전에, 바로 앞 내용을 같은 폴더의 <b>_앱백업</b> 폴더에 사본으로 남깁니다. 계정마다 최근 10개만 두고 오래된 것은 휴지통으로 보냅니다. 사본은 원본과 같은 폴더 안에 있어 원본과 같은 사람만 볼 수 있습니다.", "<b>자동 복구</b>: 고객 데이터 파일이 깨져 있으면(모양이 망가짐) 앱이 Drive 버전 기록에서 가장 최근의 정상본을 찾아 자동으로 되돌리고 화면에 알립니다. 깨진 내용은 지우지 않고 _앱백업 폴더에 ‘깨진본’으로 남깁니다. 데이터 반영 중이거나 다른 곳에서 복구 중이면 손대지 않습니다.", "되돌린 뒤에는 이 기기에서 최근 14일 동안 보낸 <b>전화·문자 기록</b>을 다시 반영합니다(이미 있는 기록은 건너뜀). 다른 기기에서 한 기록이나 칩·정보 수정은 다시 반영되지 않으니, 알림이 뜨면 최근에 고친 내용을 한 번 확인해 주세요.", "줄 수만 크게 줄어든 경우는 되돌리지 않고 알리기만 합니다. 자동 복구를 못 했다는 알림이 뜨면 관리자에게 알려 주세요."]);
+    const s_bk = sec("데이터 업데이트 중 잠금 (v550)", ["PC가 팀 데이터를 모으는 동안(그 FC 폴더에 업데이트 표시가 있는 동안) 화면 맨 위에 노란 띠 <b>데이터 업데이트 중</b>이 뜹니다.", "그동안은 <b>보기와 새 기록만</b> 됩니다. 전화·문자 시도는 따로 모아 두었다가 업데이트가 끝나면 자동으로 붙이고, 상담기록 추가는 바로 저장됩니다.", "고객 정보 수정·단계 변경·완료·상담기록 수정/삭제는 띠가 사라진 뒤 다시 해 주세요(1분마다 확인).", "업데이트 표시가 30분 넘게 새로 고쳐지지 않으면 끝난 것으로 보고 다시 열립니다."]) + sec("데이터 자동 백업·복구 (v509)", ["<b>자동 백업</b>: 앱이 고객 데이터 파일을 저장하기 직전에, 바로 앞 내용을 같은 폴더의 <b>_앱백업</b> 폴더에 사본으로 남깁니다. 계정마다 최근 10개만 두고 오래된 것은 휴지통으로 보냅니다. 사본은 원본과 같은 폴더 안에 있어 원본과 같은 사람만 볼 수 있습니다.", "<b>자동 복구</b>: 고객 데이터 파일이 깨져 있으면(모양이 망가짐) 앱이 Drive 버전 기록에서 가장 최근의 정상본을 찾아 자동으로 되돌리고 화면에 알립니다. 깨진 내용은 지우지 않고 _앱백업 폴더에 ‘깨진본’으로 남깁니다. 데이터 반영 중이거나 다른 곳에서 복구 중이면 손대지 않습니다.", "되돌린 뒤에는 이 기기에서 최근 14일 동안 보낸 <b>전화·문자 기록</b>을 다시 반영합니다(이미 있는 기록은 건너뜀). 다른 기기에서 한 기록이나 칩·정보 수정은 다시 반영되지 않으니, 알림이 뜨면 최근에 고친 내용을 한 번 확인해 주세요.", "줄 수만 크게 줄어든 경우는 되돌리지 않고 알리기만 합니다. 자동 복구를 못 했다는 알림이 뜨면 관리자에게 알려 주세요."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·세일즈 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>팀관리 메뉴의 [조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>세일즈 페이지 접근</b>: 세일즈(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 세일즈 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 세일즈 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 세일즈 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: 아래 메뉴 <b>팀관리</b>의 [조직도]를 누르면(2026-11-19에 설정에서 옮김) 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘세일즈 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/세일즈 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
@@ -5491,7 +5745,7 @@
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
-    const s_clm = sec("청구 탭 (고객 정보, 2026-11-19)", ["처음 쓰는 고객은 청구 탭에 <b>[보험금 청구 시작]</b>이 나옵니다. 누르면 이 고객 폴더에 <b>보험금청구</b> 폴더와 그 안에 <b>보험금청구서 · 병원서류</b> 폴더를 만듭니다.", "<b>[청구서 업로드]</b>로 보험사 보험금청구서(PDF·사진, 여러 개)를 올리면 보험금청구서 폴더에 저장됩니다. 파일 이름에 보험사 이름(예: 메리츠화재, 삼성생명)이 있으면 그 보험사를 찾아 <b>‘날짜 - 보험사’</b>(예: 20261119 - 메리츠화재.pdf)로 짧게 이름을 바꿉니다. 보험사를 못 찾으면 ‘날짜 - 청구서’가 됩니다.", "올린 청구서는 <b>보험사마다 한 줄</b>로 묶여 보이고, 보험사 이름 앞 <b>체크박스</b>로 청구할 보험사를 고릅니다. 파일 이름을 누르면 엽니다.", "보험사를 못 찾은 파일은 <b>보험사 모름</b> 줄에 나오며, 옆의 고르기에서 보험사를 고르면 파일 이름에 보험사가 들어가도록 바뀝니다.", "보험금청구서 칸 아래 <b>병원서류</b> 칸의 <b>[병원서류 업로드]</b>로 영수증·진료비 세부내역·진단서 등(PDF·사진, 여러 개)을 올리면 <b>보험금청구 › 병원서류</b> 폴더에 ‘날짜 - 서류 종류’(예: 20261119 - 영수증.jpg, 종류를 모르면 ‘병원서류’)로 짧게 저장되고, 이름을 누르면 엽니다.", "두 칸 모두 버튼 대신 파일을 <b>칸 안에 끌어다 놓아도</b> 올라갑니다(PC). 파일 이름 오른쪽 <b>×</b>를 누르면 확인 뒤 삭제합니다(구글 드라이브 휴지통으로 옮겨짐).", "병원서류를 올리면 그 칸 아래에 <b>[보험금청구서 제작 시작]</b>이 나옵니다. 누르면 <b>보험사 청구서들(체크한 보험사가 있으면 그 보험사만, 없으면 전부) → 병원서류(영수증·계산서 → 세부내역 → 나머지)</b> 순서로 인쇄하기 좋게 <b>한 파일</b>을 만듭니다. 사진·팩스 TIF(여러 쪽 포함)·스캔 PDF는 한 쪽씩 A4 세로에 흑백으로 정리돼 들어가고, 가로로 긴 서류는 돌려서 꽉 차게 넣습니다.", "만든 파일은 <b>보험금청구 › 보험금청구 기록</b> 폴더에 ‘날짜 - 보험금청구서 - 메리츠화재·신한EZ손해보험’처럼 저장되고(내려받으면 앞에 고객 이름이 붙음), 맨 아래 <b>보험금청구 기록</b> 칸에 날짜별로 나옵니다. 이름을 누르면 열고, <b>[다운로드]</b>로 기기에 받고, <b>×</b>로 삭제(휴지통)합니다.", "[보험금청구서 제작 시작]을 누르면 병원서류를 <b>팩스 보내기 좋게 흑백(검정·흰색)</b>으로 정리합니다. 누런 바탕·그림자·회색 음영은 희게, 글자는 검게 하고 외톨이 잡티를 지웁니다(마침표·쉼표는 남김). 스캔 PDF도 쪽마다 같은 방식으로 정리합니다.", "보험사 청구서도 같은 방식으로 흑백으로 바꿔 앞에 둡니다(칸은 채우지 않음). 모든 쪽을 300dpi 1비트 흑백으로 담아 파일이 작습니다. 그래도 8MB가 넘으면 200dpi, 다시 넘으면 150dpi로 낮춰 다시 만들고, 기록 칸 위 줄에 크기와 낮춘 해상도를 알려 줍니다. 직접 적거나 PC의 보험금청구 작업에서 채우세요."]);
+    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
@@ -8439,6 +8693,74 @@
     await stPutBook(fileId, wb);
     delete bookCache[fileId];
   }
+  // ===== v550(2026-11-22 사용자 "이 안대로") 데이터 수집 중 잠금 =====
+  //   PC가 FC 폴더에 .수집중.lock 을 두는 동안: 맨 위 경고 띠, 그 FC data.json 고치기는 막음(jsonPutDoc), 상담기록 수정·삭제도 막음
+  //   새 기록(전화·문자 시도 이력)은 그 FC 폴더 _앱대기\YYYYMMDD-HHMMSS-<계정>.json 에 쌓았다가, 잠금이 풀리면 앱이 붙이고 그 파일을 지움(PC와 합의한 모양)
+  //   상담기록 추가는 고객추가정보(PC가 쓰지 않는 파일)라 그대로 저장
+  const SYNC = { parents: new Set(), fcs: new Set(), seen: new Set(), timer: null };
+  const PEND_DIR = "_앱대기";
+  function fcOfParent(parent) { // 그 폴더의 FC 이름(data.json 안 fc 값 → 권한 파일 FC 폴더 ID)
+    for (const x of jsonInfo.values()) if (x.name === "data.json" && x.parent === parent && x.meta && x.meta.fc) return x.meta.fc;
+    for (const [fc, id] of Object.entries(fcFolderIds || {})) if (id === parent) return fc;
+    return "";
+  }
+  function syncMark(parent, on) {
+    const had = SYNC.parents.has(parent);
+    if (on) SYNC.parents.add(parent); else SYNC.parents.delete(parent);
+    if (had !== on) syncBand();
+  }
+  const syncLockedFc = (fc) => { for (const p of SYNC.parents) if (fcOfParent(p) === fc) return true; return false; };
+  function syncBand() {
+    let el = $("syncBand");
+    const on = SYNC.parents.size > 0;
+    document.documentElement.classList.toggle("sync-lock", on);
+    if (!on) { if (el) el.remove(); return; }
+    const names = [...SYNC.parents].map(fcOfParent).filter(Boolean);
+    if (!el) { el = document.createElement("div"); el.id = "syncBand"; el.className = "sync-band"; el.setAttribute("role", "status"); const main = document.querySelector("main"); if (main) main.prepend(el); }
+    el.innerHTML = `<span class="dot" aria-hidden="true"></span><span><b>데이터 업데이트 중</b>${names.length ? " (" + esc(names.join(", ")) + ")" : ""} · 지금은 보기와 새 기록(전화·문자·상담기록 추가)만 됩니다<small>수정·완료·단계 변경은 업데이트가 끝난 뒤 다시 열립니다</small></span>`;
+  }
+  async function syncCheck() { // 읽어 둔 FC 폴더마다 수집중 잠금 확인 → 띠, 풀린 폴더는 _앱대기 붙이기
+    if (!GD || !account() || document.visibilityState === "hidden") return;
+    const parents = [...new Set([...jsonInfo.values()].filter((x) => x.name === "data.json" && x.parent).map((x) => x.parent))];
+    for (const p of parents) {
+      let on = false;
+      try { on = (await lockList(p)).some((f) => f.name === LOCK_COLLECT && f.fresh); } catch (e) { continue; }
+      syncMark(p, on);
+      if (!on && !SYNC.seen.has(p)) { SYNC.seen.add(p); pendMerge(p).catch((e) => console.warn("대기 기록 붙이기 실패", e)); }
+      if (on) SYNC.seen.delete(p); // 풀리면 다시 붙이기
+    }
+  }
+  function syncStart() { if (SYNC.timer) return; setTimeout(syncCheck, 6000); SYNC.timer = setInterval(syncCheck, 60000); }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && SYNC.timer) setTimeout(syncCheck, 1000); });
+  async function pendDir(parent, make) {
+    const ex = await gdFindIn(parent, PEND_DIR);
+    if (ex || !make) return ex ? ex.id : "";
+    const f = await gdFetch(GDAPI + "/files?supportsAllDrives=true&fields=id", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: PEND_DIR, mimeType: GD_FOLDER, parents: [parent] }) });
+    return f.id;
+  }
+  async function pendWrite(parent, items) { // 전화·문자 시도 기록을 _앱대기 파일 하나로
+    const dir = await pendDir(parent, true);
+    const adds = items.map((it) => ({ sheet: "이력", row: { 일시: it.ts, 고객ID: it.custId || "", 계약ID: it.cid || "", 담당FC: it.fc || "", 유형: it.kind === "call" ? "통화" : "문자", 결과: "시도", 내용: it.src || "", 입력일시: nowStamp() }, item: it }));
+    const body = JSON.stringify({ at: new Date().toISOString(), by: me(), adds });
+    const name = tsName() + "-" + me().split("@")[0] + ".json", b = "shlife" + Date.now();
+    const blob = new Blob(["--" + b + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify({ name, parents: [dir], mimeType: "application/json" }) + "\r\n--" + b + "\r\nContent-Type: application/json\r\n\r\n" + body + "\r\n--" + b + "--"]);
+    await gdFetch(GDUP + "/files?uploadType=multipart&supportsAllDrives=true&fields=id", { method: "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body: blob });
+  }
+  async function pendMerge(parent) { // 잠금이 풀린 폴더의 _앱대기 파일을 data.json에 붙이고 지움(이력에 같은 일시·고객·유형이 있으면 건너뜀)
+    const dir = await pendDir(parent, false); if (!dir) return;
+    const files = (await gdQuery("'" + qv(dir) + "' in parents and trashed=false")).filter((f) => f.file && /\.json$/.test(f.name));
+    if (!files.length) return;
+    const dataId = [...jsonInfo.entries()].find(([, x]) => x.name === "data.json" && x.parent === parent);
+    if (!dataId) return;
+    let n = 0;
+    for (const f of files) {
+      let d; try { d = parseDoc(await stGet0(f.id)); } catch (e) { continue; }
+      const items = (d.adds || []).filter((a) => a.sheet === "이력").map((a) => a.item || { uid: "p" + f.id + Math.random(), kind: a.row && a.row.유형 === "문자" ? "sms" : "call", ts: a.row.일시, cid: a.row.계약ID, custId: a.row.고객ID, fc: a.row.담당FC, src: a.row.내용 });
+      if (items.length) { await writeContacts(dataId[0], items); n += items.length; }
+      try { await gdFetch(GDAPI + "/files/" + encodeURIComponent(f.id) + "?supportsAllDrives=true", { method: "DELETE" }); } catch (e) { await stDel(f.id).catch(() => {}); }
+    }
+    if (n) { histCache = null; contractCache = null; toast(`업데이트 중에 남긴 전화·문자 기록 ${n}건을 저장했습니다.`); }
+  }
   async function flushContacts() {
     if (flushing || !account()) return;
     flushing = true;
@@ -8450,7 +8772,10 @@
       let wrote = false;
       for (const [fileId, items] of byFile) {
         try {
-          await writeContacts(fileId, items);
+          const par = (jsonInfo.get(fileId) || {}).parent;
+          if (par && SYNC.parents.has(par)) { await pendWrite(par, items); const done = new Set(items.map((i) => i.uid)); writeQueue(readQueue().filter((i) => !done.has(i.uid))); continue; } // v550: 수집 중이면 _앱대기로
+          try { await writeContacts(fileId, items); }
+          catch (e) { if (e && e.lockKind === LOCK_COLLECT && par) { await pendWrite(par, items); const done = new Set(items.map((i) => i.uid)); writeQueue(readQueue().filter((i) => !done.has(i.uid))); continue; } throw e; }
           addSent(items); // v509: 되돌린 뒤 다시 반영할 수 있게 14일 기억
           const done = new Set(items.map((i) => i.uid));
           writeQueue(readQueue().filter((i) => !done.has(i.uid)));
@@ -9537,17 +9862,17 @@
     OD.built = { groups, multi, cur, lapse, label: (OD.opts.find((o) => o.id === OD.opt) || {}).label || "" };
     const all = groups.flatMap((g) => g.rows);
     const odHtml = !cur ? `<p class="hint">아직 연체리스트가 없습니다.</p>` :
-      `<p class="od-title"><b>${esc(odTitle(cur))}</b></p>` + // v546(2026-11-21 사용자 지시): '입니다' 빼고, 시험 기록은 'YYYY년 M월 연체리스트'
+      `<div class="od-th"><p class="od-title"><b>${esc(odTitle(cur))}</b></p><button type="button" class="ev-edit" data-od="od" aria-label="연체리스트 PDF 다운">PDF 다운</button></div>` + // v549: PDF 다운은 제목 줄 오른쪽 끝 // v546(2026-11-21 사용자 지시): '입니다' 빼고, 시험 기록은 'YYYY년 M월 연체리스트'
 
       `<div class="od-sum">${odSum(all, groups.flatMap((g) => g.lrows))}${multi ? ` <small>· FC ${groups.length}명</small>` : ""}</div>` +
       (multi && !groups.some((g) => g.rows.length) ? `<p class="hint pad">${OD_MINN}~${OD_MAXN}회 연체가 없습니다.</p>` : "") +
       groups.filter((g) => !multi || g.rows.length).map((g) => `<div class="od-grp">${multi ? `<div class="rpt-gh"><b>${esc(g.fc)}</b> <span>${g.cur ? odSum(g.rows, g.lrows) : "기록 없음"}</span></div>` : ""}${g.rows.length ? odTable(OD_COLS, g.rows, (r) => (r._new ? "od-new" : "")) : g.cur ? `<p class="hint pad">${OD_MINN}~${OD_MAXN}회 연체가 없습니다.</p>` : ""}</div>`).join("") +
-      `<div class="rpt-acts od-dl"><button type="button" class="ev-edit" data-od="od" aria-label="연체리스트 PDF 다운">PDF 다운</button></div>`;
+      "";
     const nL = groups.reduce((a, g) => a + g.lrows.length, 0);
     // v532(2026-11-21 사용자 지시): 실효리스트도 표로 보여 주고 그 밑에 PDF 다운
-    const lpHtml = lapse ? `<div class="od-lp"><p class="od-title"><b>${esc(lapse.제목 || "실효리스트")}</b></p>` +
+    const lpHtml = lapse ? `<div class="od-lp"><div class="od-th"><p class="od-title"><b>${esc(lapse.제목 || "실효리스트")}</b></p><button type="button" class="ev-edit" data-od="lapse" aria-label="${esc(lapse.제목 || "실효리스트")} PDF 다운">PDF 다운</button></div>` +
       (nL ? groups.filter((g) => g.lapse && (!multi || g.lrows.length)).map((g) => `<div class="od-grp">${multi ? `<div class="rpt-gh"><b>${esc(g.fc)}</b> <span>${g.lrows.length}건</span></div>` : ""}${g.lrows.length ? odTable(OL_COLS, g.lrows, (r) => (r.지금상태 && r.지금상태 !== "실효" ? "od-revived" : "")) : multi ? `<p class="hint pad">실효 계약이 없습니다.</p>` : ""}</div>`).join("") : `<p class="hint">실효 계약이 없습니다.</p>`) +
-      `<div class="rpt-acts od-dl"><button type="button" class="ev-edit" data-od="lapse" aria-label="${esc(lapse.제목 || "실효리스트")} PDF 다운">PDF 다운</button></div></div>` : "";
+      `</div>` : "";
     box.innerHTML = head + odHtml + lpHtml + `<p class="hint" id="odMsg"></p>`; // v538(2026-11-21 사용자 지시): 회색 안내 글은 모두 뺌(메시지 자리만 남김)
   }
   // v548(2026-11-21 사용자 지시): '전체' PDF = 앞부분 ESL용 묶음(모든 FC를 이어서, FC마다 제목 줄) + 뒷부분 FC별 나눠 주기용(FC마다 새 쪽)
@@ -10043,6 +10368,7 @@
   }
   function startApp0() {
     appStarted = true;
+    syncStart(); // v550: 데이터 수집 중 잠금 확인(1분마다)
     const goReq = GO0; GO0 = null;
     if (goReq) { // 말만해요에서 넘어옴: 첫 화면은 고객, 이어서 검색
       schedMode = "day"; schedDate = dayStart(new Date());
