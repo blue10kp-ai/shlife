@@ -1550,3 +1550,16 @@ button.copy-btn { font-family: inherit; cursor: pointer; margin: 0; box-shadow: 
 .lg-tg { font-size: 12px; line-height: 1; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line, rgba(127,127,127,.35)); background: transparent; color: var(--t2, inherit); font-weight: 600; min-width: 44px; }
 .lg-tg.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .lg-tg:disabled { opacity: .6; }
+/* v516 대시보드 '이번달 영업실적' (건수 · CMIP · CANP 세 칸) */
+.dsh-perf { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; }
+.dsh-ph { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.dsh-ph b { font-size: 13px; font-weight: 600; }
+.dsh-ph small { font-size: 11px; color: var(--t3); }
+.dsh-p3 { display: grid; grid-template-columns: repeat(3, 1fr); }
+.dsh-p3 > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 0 8px; }
+.dsh-p3 > div:first-child { padding-left: 0; }
+.dsh-p3 > div + div { border-left: 1px solid var(--line); }
+.dsh-p3 span { font-size: 11.5px; color: var(--t2); }
+.dsh-p3 b { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; white-space: nowrap; }
+.dsh-p3 small { font-size: 10.5px; color: var(--t3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dsh-head:has(> span:only-child) { display: none; }
