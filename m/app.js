@@ -9793,10 +9793,10 @@
   // v531(2026-11-21 사용자 규칙 "새 페이지는 디자인을 먼저 보여 주고 코딩"): 디자인 확인 전까지 숨김. 이 PC 시험에서만 주소에 ?od=1 을 붙여 켬
   const OD_ON = true; // v542(2026-11-21 사용자 "이대로 좋음"): 디자인 확인 끝 → 보임
   const OD = { opt: "", dirs: new Map(), cache: new Map(), data: null, opts: [], built: null };
-  const OD_COLS = ["신규", "모집", "계약자", "주피", "연체", "상품명", "보험료", "최종납입", "회차", "연락처", "증권번호"]; // v547(2026-11-21 사용자 지시): 신규 옆 모집(직접·이관)
+  const OD_COLS = ["신규", "모집", "회차", "계약자", "주피", "연체", "상품명", "보험료", "최종납입", "연락처", "증권번호"]; // v553(2026-11-22 사용자 지시): 회차를 모집 오른쪽으로 // v547(2026-11-21 사용자 지시): 신규 옆 모집(직접·이관)
   const OD_MINN = 2, OD_MAXN = 24; // v537(2026-11-21 사용자 지시) 연체리스트: 최종납입회차 2~24회만(회차 모름은 넣음)
   const odInRange = (r) => { const v = r["납입회차"]; if (v == null || v === "") return true; const n = +v; return !(n < OD_MINN || n > OD_MAXN); };
-  const OL_COLS = ["모집", "계약자", "주피", "상품명", "보험료", "회차", "연락처", "증권번호"]; // v547: 계약자 왼쪽에 모집
+  const OL_COLS = ["모집", "회차", "계약자", "주피", "상품명", "보험료", "연락처", "증권번호"]; // v553: 회차를 모집 오른쪽으로 // v547: 계약자 왼쪽에 모집
   function odFcDir(fc) { // FC 폴더 ID: 읽어 둔 그 FC 고객 줄의 data.json 부모 폴더 → 없으면 권한 파일의 FC 폴더 ID
     const e = (OD.data ? OD.data.lists : []).find((x) => x.fc === fc && x.src && x.src.fileId && jsonInfo.get(x.src.fileId));
     if (e) return jsonInfo.get(e.src.fileId).parent;
