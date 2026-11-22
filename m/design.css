@@ -1704,3 +1704,42 @@ html.sync-lock #salesView [data-stg], html.sync-lock #salesView [data-arx], html
 .mt-sh { flex: none; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--t2); font: inherit; font-size: 12px; cursor: pointer; }
 .mt-sh[disabled] { opacity: .6; cursor: default; }
 .mt-tip { margin: 4px 4px 0; }
+
+/* v555(2026-11-22 사용자 지시 "팀관리 라인 조직도 등 글씨 한단계 작게"): 팀관리(조직도·팀원정보·후보자정보) 글씨를 1px씩 작게. 입력칸 16px는 아이폰 확대 방지로 그대로 */
+.org-help { font-size: 10.5px; }
+.org-nm { font-size: 13px; }
+.org-nm small { font-size: 10px; }
+.org-cbs { font-size: 11.5px; }
+.org-note { font-size: 10px; }
+.org-note-top { font-size: 10.5px; }
+.org-off { font-size: 10.5px; }
+.org-set span { font-size: 9.5px; }
+.org-set small { font-size: 9.5px; }
+.org-card .org-set small.hint { font-size: 9.5px; }
+.org-card .org-mail { font-size: 10px; }
+.org-card .org-set span { font-size: 10.5px; }
+.sec-title.org-h [data-org] { font-size: 12px; }
+.org-card .org-title { font-size: 10.5px; }
+.org-card .org-dev { font-size: 10px; }
+.org-card .org-nmbtn { font-size: 13px; }
+.org-card .org-nmbtn::after { font-size: 9.5px; }
+.org-card .org-info { font-size: 10.5px; }
+.org-back .org-back-btn { font-size: 14px; }
+.tm-bar .org-back-btn { font-size: 13px; }
+.tm-bar select { font-size: 13px; }
+.tm-info { font-size: 13.5px; }
+.tm-info dt { font-size: 11.5px; }
+.tm-info, .tm-info.editing { font-size: 14px; }
+.tm-info.editing input::placeholder { font-size: 12px; }
+.tm-selrow select { font-size: 14px; }
+.tm-bar .ev-edit { font-size: 13px; }
+.cd-h { font-size: 12px; }
+.cd-qa .cd-q { font-size: 11.5px; }
+.cd-qa .cd-a { font-size: 14px; }
+.cd-conv .hint { font-size: 11.5px; }
+.cd-conv .ev-edit { font-size: 13px; }
+.team-head .team-btns .ev-edit { font-size: 14px; }
+#teamView .sec-title { font-size: 14px; }
+#adminView .card.org-wrap .sec-title { font-size: 15px; }
+#teamView .hint:not(.cd-conv .hint) { font-size: 12px; }
+#adminView .org-wrap .hint:not(small) { font-size: 13px; }
