@@ -5741,6 +5741,7 @@
     const s_dsh = sec("대시보드 (2026-11-21 바뀜)", ["아래 메뉴 <b>AI 오른쪽 [대시보드]</b>입니다. 보는 범위 선택(오른쪽 위)은 <b>ESL만</b> 보입니다: 맨 위 <b>팀</b>(팀 합계) → 김현성 · 임지섭 … 순서이고, 관리자는 처음에 <b>팀</b>을 봅니다. 그 밖의 계정은 본인 FC만 봅니다.", "<b>이달 실적</b>: 이번 달 <b>건수 · CMIP(월납환산보험료) · CANP</b> 세 칸입니다(금액은 원 단위). 청약 목록(계약 자료)에서 이번 달 청약 중 <b>철회·거절을 뺀 것</b>을 더하고, 세 값 모두 <b>기여율</b>을 곱해 더합니다. 팀은 팀원 합계입니다.", "<b>이달 청약상태</b>: 이달 실적 바로 아래에 이번 달 청약을 지난달 청약상태와 같은 칸으로 보여 줍니다.", "<b>지난달 청약상태</b>: 지난달 청약을 계약일자 최근 순으로 보여 줍니다(청약상태 · 심사상태 · 진단종류 · FC명(팀일 때만) · 상품명 · 계약일자 · 계약자 · 주피보험자 · CMIP · CANP). 표는 옆으로 밀어 봅니다. 철회·거절 줄은 흐리게, 금액은 계약 금액 그대로입니다.", "<b>지난달 FC별 실적</b>(팀일 때만): FC마다 지난달 철회·거절을 뺀 건수 · CMIP · CANP를 기여율을 곱해 보여 줍니다(예: 2건 중 1건이 기여율 50%면 1.5건). 맨 아래 합계.", "<b>최근 6개월 평균 실적</b>: 이번 달 전 6개월의 월평균 건수 · CMIP · CANP · 수수료(실지급금)입니다. 입사한 지 6개월이 안 된 FC는 입사한 달부터의 합계를 그 달 수로 나눕니다. 팀은 FC별 월평균의 평균입니다(더한 값이 아님). 팀을 볼 때는 그 아래에 <b>FC별 최근 6개월 평균</b> 표가 나옵니다(6개월이 안 된 FC는 이름 옆에 개월 수, 입사 전 FC는 빠짐). 지난달 FC별 실적에서도 그달에 입사 전인 FC는 빠집니다. 이 상자들은 민감정보 허용 계정만 보입니다.", "<b>최근 수수료</b>(가장 최근 달 실지급, 팀은 합계)와 <b>계약진행</b> 인원 카드가 그 아래에 있습니다.", "<b>이달목표 이행 점수</b>: (이관 중 통화 이상 + 따행 중 쿠폰발송 + DB 중 AP 이상) ÷ (이관 + 따행 + DB 목표 전체) × 100을 점수로 보여 주고(80%면 80점), 그 아래 한 줄 막대가 진도입니다. 계약진행 막대는 최근 3개월에 시작한 계약진행의 고객등록·전화·AP·PC·계약별 건수입니다. 위쪽 <b>계약진행 카드</b>는 ‘이달 계약 건 / 최근 3개월 계약진행 건’입니다. 최근 3개월에 시작한 계약진행 중 이번 달에 계약한 건(진행 단계가 이달 계약이거나, 그 고객의 이번 달 청약이 있음 — 청약철회·거절도 계약한 뒤 일이라 계약으로 셈. 여러 FC가 나눈 청약은 메인FC(계약자의 담당FC)에게만 셈)이 앞의 초록 숫자입니다. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다. 맨 아래는 <b>소개 랭킹</b> 상위 3명입니다."]);
     const s_in = sec("소개 (2026-11-17)", ["<b>고객 정보 > 수정</b>의 <b>소개</b>: <b>소개 · 아님 · 모름</b> 중 고르고, <b>소개</b>이면 소개자 이름을 적습니다. 같은 FC의 등록 고객 후보(이름·출생 두 자리·유입경로)가 나오고, 고르면 <b>등록 고객과 연결</b>(소개고객ID 저장), 고르지 않거나 후보에 없으면 <b>이름만 남기기</b>(소개자명 저장)입니다. 다시 누르면 풀리고 이름을 비우면 지워집니다. 소개만 고치면 ‘직접 수정’ 표시는 붙지 않습니다.", "<b>소개자 트로피</b>: 소개해 준 고객 이름 앞에 1~2명 동, 3~4명 은, 5명 이상 금 트로피가 붙습니다(소개고객ID를 세어 계산, 고객 정보 머리·고객 검색 결과·소개찾기에 나옵니다).", "<b>소개찾기</b>(고객 화면 GBS 옆 버튼): 등록 고객 전부를 대상으로 ‘등록고객 N명 중 M명 확인’을 보여 줍니다. <b>소개고객부터</b>는 고객마다 [소개자 찾기](창에서 이름 검색 → 고객 고르기 · 이미 적힌 이름 · 이름만 · 소개 아님 · 모름), <b>소개자부터</b>는 소개자를 먼저 고른 뒤 그분이 소개한 고객을 체크해 한 번에 연결, <b>랭킹</b>은 소개한 수 순서로 보여 주며 고객이 아닌 소개자는 ‘미등록’으로 묶고 [고객으로 연결]로 한 번에 고객ID에 이어 줍니다. 묶음 <b>지역·성별·직업·직장·유입 시기·가족(같은 주소)·유입경로</b>를 겹쳐 눌러 같은 사람끼리 묶어 볼 수 있고, ‘확인한 고객도 보기’를 켜면 이미 확인한 고객도 나옵니다.", "<b>새 고객 확인</b>: 지난번 접속 뒤 입력된 내 FC 고객이 있으면 로그인 때 소개찾기 화면이 먼저 뜹니다. 고객마다 [소개자 찾기], 모두 끝내려면 <b>나머지는 소개 없음</b>, 미루려면 <b>나중에</b>(다음 접속 때 다시 뜹니다). 처음 접속한 기기는 기준 시각만 기록하고 묻지 않습니다(기존 고객은 소개찾기에서 점검)."]);
     const s_smemo = sec("영업 상담기록 칸 (2026-11-18)", ["<b>전화·문자 시도 기록(2026-11-21)</b>: 고객에게 전화·문자를 누르면 상담기록에 ‘<b>○○에서 전화 시도</b>’ / ‘○○에서 문자 시도’가 저절로 남습니다(○○ = 누른 화면: 연체리스트·실효리스트·이달목표 이관/따행/DB·고객 목록·고객 정보·일정). 세일즈 화면과 연체/실효 리스트는 ‘정말로 거시겠습니까?’에 확인을 눌렀을 때만 남습니다. 전화·문자 앱이 열린 사이에는 이 폰에 적어 두었다가 앱으로 돌아오면 저장합니다.", "세일즈 화면(이달목표의 이관·따행·DB, 계약진행)의 고객 줄 맨 아래에 <b>가장 최근 상담기록 한 줄</b>이 나오고, 그 오른쪽에 <b>[수정]</b> · <b>[삭제]</b>가 있습니다. 수정하면 처음 날짜·시간은 그대로이고 내용만 바뀌며, 삭제는 확인을 거쳐 엑셀에서 지워집니다. 최근 1년 안의 상담기록이 2건 이상이면 오른쪽 끝에 <b>[더보기]</b>가 생겨 전체를 팝업으로 볼 수 있습니다(보기 전용).", "<b>일정 화면의 고객 카드</b>도 같은 상담기록 줄입니다: 카드 맨 아래 최근 상담기록 <b>최대 5줄(날짜와 함께)</b>과 [수정]·[삭제]·[더보기], 고객 정보 칸(주소 등 글자가 있는 곳)을 터치하면 위에 추가칸(마이크 포함)과 최근 6개월 상담기록이 펼쳐지고 한 번 더 터치하면 접힙니다.", "고객 정보가 있는 줄(버튼·링크가 아닌 곳)을 <b>한 번 터치</b>하면 아래로 상담기록 칸이 펼쳐집니다. <b>맨 위 줄은 상담기록 추가칸</b>([저장]을 누르면 일정 화면의 한 줄 메모처럼 상담기록에 저장되어 고객 정보 > 상담 탭에서도 보임)이고, 그 아래에 <b>최근 6개월 안의 상담기록이 날짜와 함께</b> 나옵니다(각 기록에 [수정]·[삭제], 6개월보다 오래된 것은 ‘6개월 이전 N건 더보기’로 팝업). <b>한 번 더 터치</b>하면 위로 올라가며 사라지고 최근 상담기록 한 줄만 남습니다. (예전 설정의 ‘영업 메모 칸’ 옵션은 없앴고 항상 사용합니다.)"]);
+    const s_mat = sec("세일즈 > 자료 (v554, 2026-11-22)", ["세일즈 위 서브메뉴 맨 오른쪽 <b>자료</b>: 팀이 함께 보는 상품 안내장·설계안·교육자료·모의고사·서식 파일 목록입니다. 위쪽 칩(전체·분류별, 옆 숫자 = 파일 수)을 누르면 그 분류만, 검색 칸에 글자를 넣으면 이름으로 바로 걸러집니다.", "<b>줄을 누르면 바로 열립니다</b>(PDF는 새 창, 사진은 화면 안). <b>[공유]</b>를 누르면 파일을 받아 휴대폰 공유창(카톡·문자 등)이 바로 열립니다. 큰 파일이라 공유창이 바로 안 열리면 버튼이 <b>[보내기]</b>로 바뀌고, 한 번 더 누르면 열립니다.", "관리자는 <b>[올리기]</b>로 파일을 올립니다. 고른 분류 폴더에 저장되고, ‘전체’일 때는 ‘기타’로 들어갑니다. 파일은 드라이브 <b>app › 신한FC › 설정 › 자료</b>에 있고, 그 안에 폴더를 만들면 분류가 하나 생깁니다(폴더 이름 앞 숫자는 순서용으로 화면에선 빠짐)."]);
     const s_pg = sec("세일즈 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "세일즈 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 세일즈 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
@@ -5764,7 +5765,7 @@
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
@@ -8396,7 +8397,7 @@
   window.addEventListener("pageshow", () => setTimeout(flushConsultQ, 3000));
   const attemptPage = () => { // 지금 화면 이름
     const v = document.documentElement.dataset.view;
-    if (v === "salesView") return SALES.sub === "material" ? "보고서" : SALES.sub === "prog" ? "계약진행" : "이달목표 " + ({ transfer: "이관", dda: "따행", valueup: "DB" }[SALES.tab] || "");
+    if (v === "salesView") return SALES.sub === "material" ? "보고서" : SALES.sub === "data" ? "자료" : SALES.sub === "prog" ? "계약진행" : "이달목표 " + ({ transfer: "이관", dda: "따행", valueup: "DB" }[SALES.tab] || "");
     return { scheduleView: "일정", searchView: "고객 목록", customerView: "고객 정보", dashView: "대시보드" }[v] || "앱";
   };
   document.addEventListener("click", (ev) => { // 확인창이 없는 전화·문자 링크(고객 정보·고객 목록·일정 등). 세일즈 이달목표 버튼·연체/실효 리스트는 확인창 뒤에 따로 남김
@@ -9559,6 +9560,7 @@
     show("salesView", !!keep);
     const box = $("salesView");
     if (SALES.sub === "material") { await renderMaterial(req); return; } // 세일즈 > 보고서: 조건 보고서 (v360)
+    if (SALES.sub === "data") { await renderMat(req); return; } // 세일즈 > 자료 (v554)
     if (!SALES.ym) SALES.ym = ymNow();
     let ym = SALES.ym;
     const top = (fcHtml) => `<div class="sales-top">
@@ -10022,11 +10024,102 @@
     else if (k === "go") { RPT.built = rptBuild(); $("rptOut").innerHTML = rptOutHtml(RPT.built); $("rptOut").scrollIntoView({ behavior: "smooth", block: "start" }); }
     else rptAct(k, b);
   });
+  // ---------- v554(2026-11-22 사용자 지시 "세일즈 보고서 오른쪽에 자료 페이지 추가", "버튼 누르면 바로 실행되게") 세일즈 > 자료 ----------
+  //   설정 폴더 › 자료 안의 폴더 하나 = 분류 하나(폴더 이름 앞 숫자는 순서용, 화면에선 뺌), 자료 폴더 바로 아래 파일 = '기타'
+  //   줄을 누르면 바로 열기, [공유]는 바로 휴대폰 공유창(파일째), [올리기]는 관리자만(고른 분류 폴더에, '전체'면 자료 폴더 바로 아래)
+  const MAT_DIR = "자료", MAT_ETC = "기타";
+  const MAT = { cat: "전체", q: "", groups: null, dir: null, blob: {} };
+  async function matLoad() {
+    await resolveAppDir();
+    if (!appDir || !appDir.id) return [];
+    if (!MAT.dir) {
+      const r = await gdQuery("'" + qv(appDir.id) + "' in parents and name='" + qv(MAT_DIR) + "' and mimeType='" + GD_FOLDER + "' and trashed=false");
+      if (r.length) MAT.dir = { id: r[0].id };
+      else if (isAdmin()) { const mk = await gdFetch(GDAPI + "/files?fields=id&supportsAllDrives=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: MAT_DIR, mimeType: GD_FOLDER, parents: [appDir.id] }) }); MAT.dir = { id: mk.id }; }
+    }
+    if (!MAT.dir) return [];
+    const subs = (await gdQuery("'" + qv(MAT.dir.id) + "' in parents and mimeType='" + GD_FOLDER + "' and trashed=false")).sort((a, b) => a.name.localeCompare(b.name, "ko", { numeric: true }));
+    const lists = (await Promise.all([MAT.dir, ...subs].map((d) => docsList({ id: d.id })))).map((l) => l.sort((a, b) => String(b.mod).slice(0, 10).localeCompare(String(a.mod).slice(0, 10)) || b.name.localeCompare(a.name, "ko", { numeric: true }))); // 최근 날짜 → 같은 날이면 이름 큰 것(11월 > 10월)부터
+    const groups = subs.map((d, i) => ({ name: d.name, id: d.id, files: lists[i + 1] }));
+    if (lists[0].length) groups.push({ name: MAT_ETC, id: MAT.dir.id, files: lists[0] });
+    return groups;
+  }
+  const matCat = (s) => String(s).replace(/^\d+[.\s_-]+/, "") || String(s);
+  const matNm = (f) => String(f.name).replace(/\.[A-Za-z0-9]{1,5}$/, "").replace(/^\d{8}\s*-\s*/, "");
+  const matTy = (f) => { const e = docsExt(f); return e === "PDF" ? "PDF" : /^(DOCX?|HWPX?|TXT|RTF)$/.test(e) ? "DOC" : /^(XLSX?|CSV)$/.test(e) ? "XLS" : /^PPTX?$/.test(e) ? "PPT" : docsIsImg(f) ? "IMG" : /google-apps/.test(f.mime || "") ? "GDOC" : e.slice(0, 4); };
+  const matSize = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + "MB" : n >= 1024 ? Math.round(n / 1024) + "KB" : n ? n + "B" : "");
+  async function renderMat(req, again) {
+    const box = $("salesView");
+    if (!MAT.groups || again) {
+      if (!MAT.groups) box.innerHTML = `<div class="card"><p class="hint">자료를 불러오는 중…</p></div>`;
+      try { const g = await matLoad(); if (req !== salesReq) return; MAT.groups = g; }
+      catch (e) { if (req === salesReq) box.innerHTML = `<div class="card"><p class="hint">자료를 불러오지 못했습니다.</p></div>`; handleError(e); return; }
+    }
+    const adm = isAdmin() && GD;
+    box.innerHTML = `<div class="mt-bar"><input type="search" id="matQ" placeholder="자료 검색" value="${esc(MAT.q)}" autocomplete="off">${adm ? `<button type="button" class="ev-edit" data-mat-up>올리기</button><input type="file" id="matFile" multiple hidden>` : ""}</div><div id="matList"></div>`;
+    matDraw();
+  }
+  function matDraw() {
+    const el = $("matList"); if (!el) return;
+    const G = MAT.groups || [];
+    if (MAT.cat !== "전체" && !G.some((g) => g.name === MAT.cat)) MAT.cat = "전체";
+    const q = MAT.q.trim().toLowerCase(), hit = (f) => !q || f.name.toLowerCase().includes(q);
+    const all = G.reduce((n, g) => n + g.files.length, 0);
+    const cats = [["전체", all], ...G.map((g) => [g.name, g.files.length])].map(([c, n]) => `<button type="button" class="${c === MAT.cat ? "on" : ""}" data-mat-cat="${esc(c)}">${esc(c === "전체" ? c : matCat(c))}<small>${n}</small></button>`).join("");
+    const shown = G.map((g, gi) => ({ g, gi, files: g.files.map((f, fi) => ({ f, fi })).filter((x) => hit(x.f)) })).filter((x) => (MAT.cat === "전체" || x.g.name === MAT.cat) && x.files.length);
+    const body = shown.map(({ g, gi, files }) => `<div class="card mt-card"><div class="mt-gl"><b>${esc(matCat(g.name))}</b>${files.length}개</div>${files.map(({ f, fi }) => { const ty = matTy(f); return `<div class="mt-row"><button type="button" class="mt-open" data-mat-open="${gi}:${fi}"><span class="mt-ty${ty === "PDF" ? " pdf" : ""}">${esc(ty)}</span><span class="mt-nm"><b>${esc(matNm(f))}</b><span>${esc(String(f.mod).slice(0, 10))}${matSize(f.size) ? " · " + matSize(f.size) : ""}</span></span></button><button type="button" class="mt-sh" data-mat-share="${gi}:${fi}">${MAT.blob[f.id] ? "보내기" : "공유"}</button></div>`; }).join("")}</div>`).join("");
+    el.innerHTML = `<div class="mt-cats">${cats}</div>${body || `<div class="card"><p class="hint">${all ? "찾는 자료가 없습니다." : `아직 자료가 없습니다.${isAdmin() ? " [올리기]로 파일을 올리면 설정 폴더 › 자료에 저장됩니다. 분류는 자료 폴더 안에 폴더를 만들면 생깁니다." : ""}`}</p></div>`}<p class="hint mt-tip">줄을 누르면 열립니다 · [공유]는 휴대폰 공유창(카톡·문자)으로 파일을 보냅니다</p>`;
+  }
+  const matFile = (k) => { const [gi, fi] = String(k).split(":").map(Number), g = (MAT.groups || [])[gi]; return g ? g.files[fi] : null; };
+  async function matShare(f, btn) {
+    const old = btn.textContent;
+    try {
+      let file = MAT.blob[f.id];
+      if (!file) {
+        if (/google-apps/.test(f.mime || "")) { if (navigator.share && f.webUrl) await navigator.share({ title: matNm(f), url: f.webUrl }); else if (f.webUrl) window.open(f.webUrl, "_blank", "noopener"); return; }
+        btn.disabled = true; btn.textContent = "준비 중";
+        file = new File([await stGet0(f.id)], f.name, { type: f.mime || "application/octet-stream" });
+      }
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], title: matNm(f) }); delete MAT.blob[f.id]; }
+        catch (e) { if (e && e.name === "NotAllowedError") { MAT.blob[f.id] = file; btn.disabled = false; btn.textContent = "보내기"; toast("파일을 받았어요. [보내기]를 누르면 공유창이 열립니다"); return; } if (!(e && e.name === "AbortError")) throw e; }
+      } else { const u = URL.createObjectURL(file), a = document.createElement("a"); a.href = u; a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); toast("이 기기는 공유창을 쓸 수 없어 내려받았습니다"); }
+      btn.textContent = "공유";
+    } catch (e) { btn.textContent = old; handleError(e); }
+    finally { btn.disabled = false; }
+  }
+  async function matUpload(files, btn) {
+    const G = MAT.groups || [], g = G.find((x) => x.name === MAT.cat), dir = g ? { id: g.id } : MAT.dir;
+    if (!dir) { toast("자료 폴더를 찾지 못했습니다"); return; }
+    const ok = files.filter((f) => f.size <= DOCS_MAX); let done = 0; const failed = [];
+    if (!ok.length) { toast("50MB가 넘는 파일은 올릴 수 없습니다"); return; }
+    btn.disabled = true;
+    try {
+      const have = new Set((await docsList(dir)).map((f) => f.name));
+      for (const f of ok) {
+        btn.textContent = `올리는 중 ${done + 1}/${ok.length}`;
+        const base = String(f.name || "파일").replace(/[\\/:*?"<>|]/g, "").trim() || "파일", m = base.match(/^(.*?)(\.[A-Za-z0-9]{1,5})?$/); let name = base, k = 2;
+        while (have.has(name)) name = `${m[1]} (${k++})${m[2] || ""}`;
+        try { await docsUpload(dir, name, f); have.add(name); done++; } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(f.name); }
+      }
+    } catch (e) { handleError(e); }
+    toast([done ? `${done}개 올림` : "", failed.length ? `${failed.length}개 실패` : "", files.length > ok.length ? `${files.length - ok.length}개는 50MB 초과` : ""].filter(Boolean).join(", ") || "올리지 못했습니다");
+    if (SALES.sub === "data") await renderMat(salesReq, true);
+  }
+  $("salesView").addEventListener("input", (ev) => { if (ev.target && ev.target.id === "matQ") { MAT.q = ev.target.value; matDraw(); } });
+  $("salesView").addEventListener("change", (ev) => { const t = ev.target; if (t && t.id === "matFile" && t.files && t.files.length) { const fs0 = [...t.files]; t.value = ""; matUpload(fs0, $("salesView").querySelector("[data-mat-up]")); } });
+  $("salesView").addEventListener("click", (ev) => {
+    if (SALES.sub !== "data") return;
+    const c = ev.target.closest("[data-mat-cat]"); if (c) { MAT.cat = c.dataset.matCat; matDraw(); return; }
+    const o = ev.target.closest("[data-mat-open]"); if (o) { const f = matFile(o.dataset.matOpen); if (f) docsView(f); return; }
+    const sh = ev.target.closest("[data-mat-share]"); if (sh) { const f = matFile(sh.dataset.matShare); if (f) matShare(f, sh); return; }
+    const up = ev.target.closest("[data-mat-up]"); if (up) { const i = $("matFile"); if (i) i.click(); }
+  });
   function openSales() { renderSales(); flushContacts(); }
   $("salesSub").addEventListener("click", (ev) => { // 세일즈 서브메뉴: 이달목표 / 자료 (세일즈 화면 위, 화면 바깥 줄)
     const b = ev.target.closest("[data-ssub]");
     if (!b) return;
-    SALES.sub = b.dataset.ssub === "material" ? "material" : b.dataset.ssub === "prog" ? "prog" : "check";
+    SALES.sub = b.dataset.ssub === "material" ? "material" : b.dataset.ssub === "data" ? "data" : b.dataset.ssub === "prog" ? "prog" : "check";
     renderSales();
   });
   $("salesView").addEventListener("click", (ev) => {

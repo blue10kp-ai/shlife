@@ -1679,3 +1679,28 @@ html.sync-lock #salesView [data-stg], html.sync-lock #salesView [data-arx], html
 .cx-foot .go[disabled] { background: var(--raised); color: var(--t3); box-shadow: inset 0 0 0 1px var(--line); cursor: default; }
 :root[data-theme="dark"] .cx-foot .go:not([disabled]) { color: var(--bg); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cx-foot .go:not([disabled]) { color: var(--bg); } }
+
+/* v554 세일즈 > 자료 */
+.mt-bar { display: flex; gap: 6px; align-items: center; margin: 0 0 8px; }
+.mt-bar input[type=search] { flex: 1; min-width: 0; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t1); font: inherit; font-size: 13px; padding: 0 10px; }
+.mt-bar .ev-edit { margin: 0; flex: none; height: 32px; padding: 0 12px; font-size: 13px; }
+.mt-cats { display: flex; gap: 4px; overflow-x: auto; margin: 0 0 8px; scrollbar-width: none; }
+.mt-cats::-webkit-scrollbar { display: none; }
+.mt-cats button { flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--t2); font: inherit; font-size: 12.5px; height: 28px; padding: 0 10px; border-radius: 14px; cursor: pointer; }
+.mt-cats button small { color: var(--t3); font-size: 11px; margin-left: 3px; font-variant-numeric: tabular-nums; }
+.mt-cats button.on { background: var(--t1); color: var(--bg); border-color: var(--t1); }
+.mt-cats button.on small { color: var(--bg); opacity: .7; }
+.mt-card { padding: 4px 12px 6px; margin-bottom: 8px; }
+.mt-gl { display: flex; align-items: baseline; gap: 6px; font-size: 12px; color: var(--t3); padding: 8px 0 4px; }
+.mt-gl b { color: var(--t2); font-weight: 600; font-size: 12.5px; }
+.mt-row { display: flex; align-items: center; gap: 8px; min-height: 48px; border-top: 1px solid var(--line); }
+.mt-gl + .mt-row { border-top: 0; }
+.mt-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 0; background: transparent; padding: 6px 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.mt-ty { flex: none; width: 34px; height: 22px; border-radius: 5px; font: 600 10px/22px ui-monospace, SFMono-Regular, Menlo, monospace; text-align: center; color: var(--t2); box-shadow: inset 0 0 0 1px var(--line); background: var(--raised); }
+.mt-ty.pdf { color: var(--accent); }
+.mt-nm { flex: 1; min-width: 0; }
+.mt-nm b { display: block; font-weight: 500; font-size: 13.5px; color: var(--t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-nm span { display: block; font-size: 11.5px; color: var(--t3); font-variant-numeric: tabular-nums; }
+.mt-sh { flex: none; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--t2); font: inherit; font-size: 12px; cursor: pointer; }
+.mt-sh[disabled] { opacity: .6; cursor: default; }
+.mt-tip { margin: 4px 4px 0; }
