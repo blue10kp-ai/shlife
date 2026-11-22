@@ -2311,7 +2311,7 @@
     return (current.hspDir = d);
   }
   const clmPrefix = () => { const d = new Date(); return [`${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`, current.fc || myFcName() || "", baseName(current.cust && current.cust.name)].filter(Boolean).join(" - "); };
-  const HSP_KIND = [[/영수|계산서/, "영수증"], [/세부|내역|산정/, "세부내역"], [/진단/, "진단서"], [/소견/, "소견서"], [/처방/, "처방전"], [/입.?퇴원|입원.?확인|퇴원/, "입퇴원확인서"], [/수술/, "수술확인서"], [/통원|진료.?확인/, "통원확인서"], [/검사|결과/, "검사결과"]];
+  const HSP_KIND = [[/신분증|주민등록|운전면허|면허증|여권|외국인등록/, "신분증"], [/영수|계산서/, "영수증"], [/세부|내역|산정/, "세부내역"], [/진단/, "진단서"], [/소견/, "소견서"], [/처방/, "처방전"], [/입.?퇴원|입원.?확인|퇴원/, "입퇴원확인서"], [/수술/, "수술확인서"], [/통원|진료.?확인/, "통원확인서"], [/검사|결과/, "검사결과"]];
   const hspKind = (n) => (HSP_KIND.find(([re]) => re.test(n)) || [0, "병원서류"])[1]; // v502: 원래 이름에서 서류 종류를 찾아 짧은 이름으로(못 찾으면 '병원서류')
   const clmYmd = () => { const d = new Date(); return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}`; };
   const clmStdName = (co, ext) => `${clmYmd()} - ${co || "청구서"}${ext || ""}`; // v501(2026-11-19 사용자 지시): 청구서 이름은 짧게 'YYYYMMDD - 보험사.pdf' (이미 고객 폴더 안이라 FC·고객 이름은 뺌)
@@ -2397,7 +2397,8 @@
     pdf.destroy();
   }
   let clmDpi = 300; // v506: 기본 300dpi(사용자 지시), 결과가 8MB를 넘으면 200 → 150dpi로 낮춰 다시 만듦
-  async function srcToA4(doc, bmp, bw, bh) { // 그림 하나 → A4 세로 한 쪽(흑백). 가로로 긴 서류는 누운 채로 돌려 꽉 차게
+  async function srcToA4(doc, bmp, bw, bh) {
+    if (clmGray && clmIdName) { const r = bw / bh; return clmStylePage(doc, bmp, bw, bh, (r > 0.66 && r < 0.76) || (r > 1.32 && r < 1.5)); } // A4 모양이면 쪽 그대로, 아니면 사진 // v552: 신분증은 원래 모양 그대로 // 그림 하나 → A4 세로 한 쪽(흑백). 가로로 긴 서류는 누운 채로 돌려 꽉 차게
     const W = Math.round(8.268 * clmDpi), H = Math.round(11.693 * clmDpi), rot = bw > bh, iw = rot ? bh : bw, ih = rot ? bw : bh;
     const k = Math.min(W / iw, H / ih), dw = iw * k, dh = ih * k;
     const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
@@ -2409,7 +2410,10 @@
     const ink = faxClean(im.data, W, H); cv.width = cv.height = 0; // 큰 캔버스는 바로 비움(폰 메모리)
     await bitPage(doc, ink, W, H);
   }
-  async function clmAppend(doc, f, buf, clean) { // 파일 하나를 쪽으로 붙임. clean = 병원서류(팩스용 흑백 정리), 아니면 PDF는 쪽 그대로
+  async function clmAppend(doc, f, buf, clean) {
+    clmIdName = ID_RE.test(String(f.name || "")); try { return await clmAppend0(doc, f, buf, clean); } finally { clmIdName = false; }
+  }
+  async function clmAppend0(doc, f, buf, clean) { // 파일 하나를 쪽으로 붙임. clean = 병원서류(팩스용 흑백 정리), 아니면 PDF는 쪽 그대로
     if (isPdfFile(f)) { if (clean) return pdfToA4(doc, buf); const src = await PDFLib.PDFDocument.load(buf, { ignoreEncryption: true }); (await doc.copyPages(src, src.getPageIndices())).forEach((pg) => doc.addPage(pg)); return; }
     if (/\.tiff?$/i.test(f.name) || f.mime === "image/tiff") { for (const c of await tifPages(buf)) await srcToA4(doc, c, c.width, c.height); return; } // 팩스 TIF
     if (docsIsImg(f) && !/\.heic$/i.test(f.name)) return imgToA4(doc, buf, f.mime);
@@ -2698,7 +2702,7 @@
       const fsz = (n) => (n >= 1048576 ? (n / 1048576).toFixed(1) + "MB" : n ? Math.max(1, Math.round(n / 1024)) + "KB" : "");
       let panel = "";
       if (tab === "own") {
-        panel = `<div${ro ? "" : ' data-drop="clm"'}><div class="cx-head"><b>올린 개인청구서</b><span id="clmOwnCnt">${list.length}개${ownSel.size ? ` · ${ownSel.size}개 선택` : ""}${note ? ` · ${esc(note)}` : ""}</span>${ro ? "" : '<button type="button" class="ev-edit" data-clm-add>업로드</button><input type="file" id="clmFile" accept=".pdf,image/*" multiple hidden>'}</div>
+        panel = `<div${ro ? "" : ' data-drop="clm"'}><div class="cx-head"><b>개인청구서 리스트</b><span id="clmOwnCnt">${list.length}개${ownSel.size ? ` · ${ownSel.size}개 선택` : ""}${note ? ` · ${esc(note)}` : ""}</span>${ro ? "" : '<button type="button" class="ev-edit" data-clm-add>업로드</button><input type="file" id="clmFile" accept=".pdf,image/*" multiple hidden>'}</div>
           ${list.length ? list.map((f, i) => `<div class="cx-row"><input type="checkbox" data-own-sel="${esc(f.id)}"${ownSel.has(f.id) ? " checked" : ""} aria-label="${esc(f.name)} 고르기"><button type="button" class="nm cx-link" data-clm-open="${i}" title="${esc(f.name)}">${esc(f.name)}</button><span class="mt">${esc(md(f))}</span>${xBtn("clm", i, f)}</div>`).join("") : `<p class="hint">이 고객에게 올린 개인청구서가 없습니다.${ro ? "" : " [업로드]로 PDF를 올리거나 여기에 끌어다 놓으세요."}</p>`}</div>`;
       } else if (tab === "base") {
         const fc = current.clmFc || {}, cos = [...bf.files.keys()];
@@ -2823,7 +2827,11 @@
   // v551(2026-11-22 사용자 지시): 개인청구서를 올리면 원본은 '보험금청구서 › 원본'에 두고, 보험금청구서 스타일로 바꾼 PDF를 이 고객 청구서로 저장
   //   스타일 = A4 세로, 이미지 개선(회색조·밝기 단계 맞춤·바깥 여백 잘라냄), 위쪽 왼쪽부터 놓기, 회색조 300dpi JPEG 품질 70%
   const CLM_ORIG = "원본";
-  async function clmStylePage(doc, src, sw, sh) {
+  // v552(2026-11-22 사용자 지시 "신분증은 따로 정렬하지 말것"): 신분증 사본은 자르기·돌리기·키우기·위쪽 왼쪽으로 옮기기를 하지 않고 원래 놓인 모양 그대로(회색조·밝기 맞춤만)
+  //   판별: 파일 이름(신분증·주민등록·운전면허·여권·외국인등록) 또는 쪽 안 글씨 덩어리가 카드 비율(가로:세로 약 1.4~1.8)이고 쪽의 40% 이하인 경우
+  const ID_RE = /신분증|주민등록|운전면허|면허증|여권|외국인등록/;
+  let clmIdName = false; // 지금 바꾸는 파일 이름이 신분증인지(병원서류 쪽 바꾸기에서도 씀)
+  async function clmStylePage(doc, src, sw, sh, isPage) {
     const c0 = document.createElement("canvas"); c0.width = sw; c0.height = sh;
     const g0 = c0.getContext("2d"); g0.fillStyle = "#fff"; g0.fillRect(0, 0, sw, sh); g0.drawImage(src, 0, 0, sw, sh);
     const im = g0.getImageData(0, 0, sw, sh), a = im.data, n = sw * sh, hist = new Uint32Array(256);
@@ -2839,10 +2847,17 @@
     g0.putImageData(im, 0, 0);
     if (x1 < 0) { x0 = 0; y0 = 0; x1 = sw - 1; y1 = sh - 1; } // 빈 쪽
     const pad = Math.round(Math.max(sw, sh) * 0.01); x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(sw - 1, x1 + pad); y1 = Math.min(sh - 1, y1 + pad);
-    const cw = x1 - x0 + 1, ch = y1 - y0 + 1, rot = cw > ch * 1.15, iw = rot ? ch : cw, ih = rot ? cw : ch;
-    const W = 2480, H = 3508, m = 59, k = Math.min((W - 2 * m) / iw, (H - 2 * m) / ih), dw = Math.round(iw * k), dh = Math.round(ih * k);
+    const cw = x1 - x0 + 1, ch = y1 - y0 + 1, ar = cw / ch;
+    const W = 2480, H = 3508, m = 59;
     const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
     const g = cv.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, W, H); g.imageSmoothingQuality = "high";
+    if (clmIdName || (isPage && ((ar > 1.4 && ar < 1.8) || (ar > 0.55 && ar < 0.72)) && cw * ch < sw * sh * 0.4) || (!isPage && ((ar > 1.5 && ar < 1.7) || (ar > 0.59 && ar < 0.67)))) { // 사진은 카드 비율(A4 가로 1.41과 겹치지 않게 좁게) // 신분증: 원래 모양 그대로
+      if (isPage) { const k0 = Math.min(W / sw, H / sh); g.drawImage(c0, 0, 0, sw, sh, 0, 0, Math.round(sw * k0), Math.round(sh * k0)); } // 쪽 전체를 그대로
+      else { const k0 = Math.min(1, (W - 2 * m) / sw, (H - 2 * m) / sh, 1300 / Math.max(sw, sh)); g.drawImage(c0, 0, 0, sw, sh, m, m, Math.round(sw * k0), Math.round(sh * k0)); } // 사진: 돌리거나 자르지 않고 원래 크기 정도로
+      c0.width = c0.height = 0; await grayPage(doc, cv); cv.width = cv.height = 0; return;
+    }
+    const rot = cw > ch * 1.15, iw = rot ? ch : cw, ih = rot ? cw : ch;
+    const k = Math.min((W - 2 * m) / iw, (H - 2 * m) / ih), dw = Math.round(iw * k), dh = Math.round(ih * k);
     if (rot) { g.save(); g.translate(m, m + dh); g.rotate(-Math.PI / 2); g.drawImage(c0, x0, y0, cw, ch, 0, 0, dh, dw); g.restore(); } // 가로로 긴 쪽은 세워서
     else g.drawImage(c0, x0, y0, cw, ch, m, m, dw, dh); // 위쪽 왼쪽부터
     c0.width = c0.height = 0;
@@ -2851,6 +2866,7 @@
   async function clmStylePdf(f) { // 올린 파일 하나 → 스타일 PDF(Uint8Array). 못 바꾸는 종류면 null
     await rptLoad("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js");
     const buf = await f.arrayBuffer(), doc = await PDFLib.PDFDocument.create(), name = String(f.name || ""), type = f.type || "";
+    clmIdName = ID_RE.test(name);
     if (/\.pdf$/i.test(name) || type === "application/pdf") {
       await rptLoad("https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js");
       if (window.pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
@@ -2858,7 +2874,7 @@
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i), vp = page.getViewport({ scale: 300 / 72 }), c = document.createElement("canvas"); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
         const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); await page.render({ canvasContext: g, viewport: vp }).promise;
-        await clmStylePage(doc, c, c.width, c.height); c.width = c.height = 0; page.cleanup();
+        await clmStylePage(doc, c, c.width, c.height, true); c.width = c.height = 0; page.cleanup();
       }
       pdf.destroy();
     } else if (/\.tiff?$/i.test(name) || type === "image/tiff") { for (const c of await tifPages(buf)) await clmStylePage(doc, c, c.width, c.height); }
@@ -2866,6 +2882,7 @@
       const blob = new Blob([buf], { type }); let bmp; try { bmp = await createImageBitmap(blob, { imageOrientation: "from-image" }); } catch (e) { bmp = await createImageBitmap(blob); }
       await clmStylePage(doc, bmp, bmp.width, bmp.height);
     } else return null;
+    clmIdName = false;
     return doc.getPageCount() ? doc.save() : null;
   }
   async function clmAddFiles(files, btn, hsp) { // hsp = 병원서류 칸
@@ -5745,7 +5762,7 @@
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
-    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
+    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
