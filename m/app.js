@@ -3496,7 +3496,7 @@
       tmDir = await stFindPath(TM_DIR);
       cdDoc = tmDir ? await stReadJsonIn(tmDir, CD_FILE) : null;
       { const tj = tmDir ? await stReadJsonIn(tmDir, TM_FILE).catch(() => null) : null; cdTeam = (tj && Array.isArray(tj.사람) && tj.사람) || []; }
-      if (!cdDoc || !Array.isArray(cdDoc.사람) || !cdPeople().length) { box.innerHTML = `<div class="card">${cdHead()}<p class="hint">팀원으로 전환하지 않은 후보자가 없습니다(내 드라이브 > Claude > 팀 > ${esc(CD_FILE)}).</p></div>`; return; }
+      if (!cdDoc || !Array.isArray(cdDoc.사람) || !cdPeople().length) { box.innerHTML = `<div class="card">${cdHead("", '<button type="button" class="ev-edit cd-add-btn" data-cd-add>+ 추가</button>')}<p class="hint">팀원으로 전환하지 않은 후보자가 없습니다(내 드라이브 > Claude > 팀 > ${esc(CD_FILE)}).</p></div>`; return; }
       const ppl = cdPeople();
       if (!ppl.some((x) => String(x.id) === cdSel)) cdSel = String(ppl[0].id);
       renderCandInfo(); window.scrollTo(0, 0);
@@ -3511,6 +3511,228 @@
     return o;
   };
   const cdYm = (v) => String(v || "").replace(/^(\d{4})-(\d{2}).*/, "$1.$2");
+  // ---------- v562(2026-11-24 사용자 "이대로 코딩"): 후보자 [추가](메모·이미지 → Gemini 분석 → 채운 칸 확인 → 완료), [수정]의 '자료로 채우기'(빈 칸만 / 기존 정보도 바꾸기), 맨 아래 '자료' 박스 ----------
+  //   올린 이미지·PDF는 Claude/팀/후보자자료/<후보자ID - 이름> 폴더에 '날짜 - 추가|수정 - 원래이름'으로 저장, 후보자 기록의 '자료폴더'에 폴더 ID. 메모는 '추가메모'에 날짜와 함께 쌓음
+  const CD_DOCS = "후보자자료", CD_CARRIERS = ["SKT", "KT", "LG U+", "SKT 알뜰폰", "KT 알뜰폰", "LG U+ 알뜰폰"];
+  const cdSrcFiles = { add: [], edit: [] }; // 아직 올리지 않은 파일(이 화면에서만)
+  let cdAdd = null; // { step, memo, vals, filled:Set }
+  let cdFillMode = "empty";
+  const cdYmd = () => { const d = new Date(); return d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0"); };
+  function cdSrcHtml(id) {
+    return `<div class="cd-src" data-cdsrc="${id}"><label class="cd-lab" for="cdMemo_${id}">메모</label><textarea class="cd-memo" id="cdMemo_${id}" rows="3" placeholder="이름·연락처·학력·병역 등 아는 것을 적어 주세요">${esc(id === "add" && cdAdd ? cdAdd.memo || "" : "")}</textarea>
+      <span class="cd-lab">이미지 (이력서·자기소개서·명함 사진)</span>
+      <div class="cd-drop" tabindex="0" role="button" data-cddrop="${id}">이미지를 여기로 <b>끌어다 놓거나 눌러서 고르기</b><small>여러 장 가능 · JPG·PNG·PDF</small><input type="file" accept="image/*,application/pdf" multiple hidden data-cdfile="${id}"></div>
+      <div class="cd-thumbs" data-cdthumbs="${id}">${cdThumbsHtml(id)}</div></div>`;
+  }
+  function cdThumbsHtml(id) {
+    return cdSrcFiles[id].map((f, i) => { if (!f._url && /^image\//.test(f.type) && !/heic/i.test(f.type + f.name)) f._url = URL.createObjectURL(f); return `<span class="cd-th" title="${esc(f.name)}">${f._url ? `<img src="${f._url}" alt="">` : `<b>${/pdf/i.test(f.type + f.name) ? "PDF" : "파일"}</b>`}<i>${esc(f.name.replace(/\.[^.]+$/, "").slice(0, 8))}</i><button type="button" data-cdthx="${id}|${i}" aria-label="${esc(f.name)} 빼기">×</button></span>`; }).join("");
+  }
+  function cdAddFiles(id, list) {
+    const ok = [...(list || [])].filter((f) => /^image\//.test(f.type) || /pdf/i.test(f.type) || /\.(pdf|jpe?g|png|webp|heic)$/i.test(f.name));
+    if (!ok.length) return toast("이미지나 PDF만 넣을 수 있습니다.");
+    cdSrcFiles[id].push(...ok.slice(0, 10 - cdSrcFiles[id].length));
+    const t = document.querySelector(`[data-cdthumbs="${id}"]`); if (t) t.innerHTML = cdThumbsHtml(id);
+  }
+  function cdClearFiles(id) { cdSrcFiles[id].forEach((f) => { if (f._url) URL.revokeObjectURL(f._url); }); cdSrcFiles[id] = []; }
+  document.addEventListener("dragover", (ev) => { const d = ev.target.closest && ev.target.closest("[data-cddrop]"); if (!d) return; ev.preventDefault(); d.classList.add("over"); });
+  document.addEventListener("dragleave", (ev) => { const d = ev.target.closest && ev.target.closest("[data-cddrop]"); if (d) d.classList.remove("over"); });
+  document.addEventListener("drop", (ev) => { const d = ev.target.closest && ev.target.closest("[data-cddrop]"); if (!d) return; ev.preventDefault(); d.classList.remove("over"); cdAddFiles(d.dataset.cddrop, ev.dataTransfer && ev.dataTransfer.files); });
+  document.addEventListener("change", (ev) => { const i = ev.target.closest && ev.target.closest("[data-cdfile]"); if (!i) return; cdAddFiles(i.dataset.cdfile, i.files); i.value = ""; });
+  document.addEventListener("keydown", (ev) => { const d = ev.target.closest && ev.target.closest("[data-cddrop]"); if (d && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); d.querySelector("[data-cdfile]").click(); } });
+
+  // 분석: 메모·이미지 → Gemini → 후보자 칸 값(형식 맞춘 것만)
+  function cdNorm(k, v) {
+    v = String(v == null ? "" : v).trim(); if (!v) return "";
+    const one = (list) => (list.includes(v) ? v : "");
+    if (k === "입사일") return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "";
+    if (k === "고등학교졸업") return /^\d{4}$/.test(v) ? v : "";
+    if (k === "최종학력") return one(["고등학교", "대학교", "대학원"]);
+    if (k === "병역") return one(["면제", "육군", "공군", "해군"]);
+    if (k === "병역시작" || k === "병역끝") return /^\d{4}-\d{2}$/.test(v) ? v : "";
+    if (k === "결혼여부") return v === "기혼" ? "기혼" : "";
+    if (k === "결혼기념일") return /^\d{2}-\d{2}$/.test(v) ? v : "";
+    if (k === "통신사") return one(CD_CARRIERS);
+    if (k === "주민번호") return /^\d{6}-\d{1,7}$/.test(v) ? v : "";
+    if (k === "연락처") { const d = v.replace(/\D/g, ""); return /^01\d{8,9}$/.test(d) ? d.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3") : ""; }
+    if (k === "이메일") return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : "";
+    return v.slice(0, /^자/.test(k) ? 3000 : 200);
+  }
+  const cdAiKeys = () => [...CD_ROWS.flatMap(([, cells]) => cells.map(([k]) => k)).filter((k) => k !== "사번" && k !== "도입자"), ...CD_QS.map(([k]) => k), ...CD_ESSAYS.map(([k]) => k)];
+  async function cdAnalyze(memo, files) {
+    const cfg = await aiGeminiConfig(); if (!cfg) return { noKey: true };
+    const parts = [];
+    for (const f of files.slice(0, 10)) {
+      try {
+        const buf = await f.arrayBuffer();
+        if (/pdf/i.test(f.type) || /\.pdf$/i.test(f.name)) { if (buf.byteLength <= 15 * 1024 * 1024) parts.push({ inline_data: { mime_type: "application/pdf", data: await b64(new Blob([buf])) } }); }
+        else if (!/heic/i.test(f.type + f.name)) { const bm = await createImageBitmap(new Blob([buf], { type: f.type || "image/jpeg" })); parts.push({ inline_data: { mime_type: "image/jpeg", data: await b64(await cvJpeg(bm, bm.width, bm.height, 1800)) } }); }
+      } catch (e) { console.warn("Gemini에 못 보낸 후보자 자료", f.name, e); }
+    }
+    if (!parts.length && !String(memo || "").trim()) return null;
+    const keys = cdAiKeys();
+    const prompt = "너는 보험회사 FC 후보자(입사 지원자)의 정보를 정리하는 도우미다. 아래 메모와 첨부한 이력서·자기소개서·명함 이미지에서 후보자 본인의 정보만 읽어 JSON 객체 하나로 답해라.\n" +
+      "키(모두 문자열): " + keys.join(", ") + "\n" +
+      "형식: 입사일 YYYY-MM-DD, 고등학교 = 고등학교 이름, 고등학교졸업 = 졸업 연도 YYYY, 최종학력 = 고등학교|대학교|대학원 중 하나, 병역 = 면제|육군|공군|해군 중 하나, 병역시작·병역끝 YYYY-MM, 결혼여부 = 기혼이면 \"기혼\" 아니면 빈 문자열, 결혼기념일 MM-DD, 통신사 = " + CD_CARRIERS.join("|") + " 중 하나, 주민번호 000000-0000000, 연락처 010-0000-0000, 영문이름 = 여권식 영문 이름. " +
+      "자기소개1~6은 차례로 [" + CD_QS.map(([, q]) => q).join(" / ") + "]의 답, 자소서1~3은 [" + CD_ESSAYS.map(([, q]) => q).join(" / ") + "]에 해당하는 글(원문 그대로, 길면 그대로 둠).\n" +
+      "자료에서 확인되지 않는 값은 지어내지 말고 빈 문자열로 둬라.\n\n메모:\n" + String(memo || "(없음)");
+    try {
+      const body = JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, ...parts] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } });
+      let res = null;
+      for (const mdl of [...new Set([cfg.model, "gemini-flash-latest", "gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemini-3.1-flash-lite"])]) {
+        res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(mdl) + ":generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.key }, body });
+        if (![404, 429, 500, 503].includes(res.status)) break;
+      }
+      if (!res.ok) { console.warn("Gemini 후보자 분석 실패", res.status); return null; }
+      const d = await res.json(), c0 = (d.candidates || [])[0] || {}, tx = ((c0.content || {}).parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("");
+      const j = JSON.parse(String(tx).replace(/^```json\s*|\s*```$/g, "") || "{}"), out = {};
+      keys.forEach((k) => { const v = cdNorm(k, j[k]); if (v) out[k] = v; });
+      return out;
+    } catch (e) { console.warn("Gemini 후보자 분석 실패", e); return null; }
+  }
+  // 분석 결과를 화면의 칸에 넣기. mode = empty(빈 칸만) | replace(기존도 바꿈) → { filled, replaced }
+  function cdApplyFill(box, res, mode) {
+    let filled = 0, replaced = 0;
+    box.querySelectorAll(".cd-old").forEach((x) => x.remove());
+    Object.entries(res || {}).forEach(([k, v]) => {
+      const el = box.querySelector(`[data-cdf="${k}"]`); if (!el) return;
+      const cur = el.type === "checkbox" ? (el.checked ? "기혼" : "") : String(el.value || "").trim();
+      if (cur === v || (cur && mode !== "replace")) return;
+      if (el.type === "checkbox") el.checked = v === "기혼";
+      else if (el.tagName === "SELECT") { if (![...el.options].some((o) => (o.value || o.textContent) === v)) el.insertAdjacentHTML("beforeend", `<option>${esc(v)}</option>`); el.value = v; }
+      else el.value = v;
+      const show = el._dpFace || (el.type === "checkbox" ? el.closest(".cd-chk") : el);
+      if (show) show.classList.add("cd-ai");
+      if (cur) { replaced++; const host = el.closest("dd") || el.parentElement; host.insertAdjacentHTML("beforeend", `<span class="cd-old">이전: ${esc(cur)}</span>`); } else filled++;
+    });
+    return { filled, replaced };
+  }
+  // 자료 폴더: Claude/팀/후보자자료/<ID - 이름>
+  async function cdDocsDir(p, create) {
+    if (!GD) return null;
+    if (p.자료폴더) return { id: p.자료폴더 };
+    let par = await stFindPath(TM_DIR + "/" + CD_DOCS);
+    if (!par) { if (!create) return null; const t = tmDir || (await stFindPath(TM_DIR)); par = { id: (await gdFetch(GDAPI + "/files?fields=id&supportsAllDrives=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: CD_DOCS, mimeType: GD_FOLDER, parents: [t.id] }) })).id }; }
+    const nm = String(p.id) + " - " + String(p.이름 || "이름 없음").replace(/[\\/:*?"<>|]/g, "");
+    const ex = await gdQuery("'" + qv(par.id) + "' in parents and name='" + qv(nm) + "' and mimeType='" + GD_FOLDER + "' and trashed=false");
+    if (ex.length) return { id: ex[0].id };
+    if (!create) return null;
+    return { id: (await gdFetch(GDAPI + "/files?fields=id&supportsAllDrives=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: nm, mimeType: GD_FOLDER, parents: [par.id] }) })).id };
+  }
+  async function cdUpload(p, files, how) { // → 폴더 ID
+    const dir = await cdDocsDir(p, true), day = cdYmd();
+    for (const f of files) await stPutIn(dir, `${day} - ${how} - ${f.name.replace(/[\\/:*?"<>|]/g, "_")}`, f, f.type || "application/octet-stream");
+    return dir.id;
+  }
+  // 자료 박스(보기 화면 맨 아래)
+  let cdDocsList = [];
+  async function cdLoadDocs(p) {
+    const box = $("cdDocsList"), n = $("cdDocsN"); if (!box) return;
+    try {
+      const dir = await cdDocsDir(p, false);
+      cdDocsList = dir ? (await stList(dir.id)).filter((f) => f.file).sort((a, b) => String(b.name).localeCompare(String(a.name), "ko", { numeric: true })) : [];
+      if (String(p.id) !== cdSel || !$("cdDocsList")) return;
+      n.textContent = cdDocsList.length + "개";
+      const size = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + "MB" : Math.max(1, Math.round(b / 1024)) + "KB");
+      box.innerHTML = cdDocsList.length ? cdDocsList.map((f, i) => { const m = /^(\d{4})(\d{2})(\d{2}) - (추가|수정) - (.+)$/.exec(f.name), ty = /pdf/i.test(f.name) ? "PDF" : /\.(jpe?g|png|gif|webp|heic|bmp)$/i.test(f.name) ? "IMG" : "FILE";
+        return `<div class="cd-doc"><span class="cd-ty">${ty}</span><button type="button" class="cd-dn" data-cddoc="${i}"><b>${esc(m ? m[5] : f.name)}</b><small>${m ? m[2] + "-" + m[3] : esc(String(f.lastModifiedDateTime || "").slice(5, 10))} · ${size(f.size || 0)}${m ? " · " + m[4] + "할 때" : ""}</small></button><button type="button" class="cd-dd" data-cddocdel="${i}">삭제</button></div>`; }).join("") : `<p class="hint">첨부한 파일이 없습니다. [추가]·[수정]에서 이미지를 올리면 여기에 보입니다.</p>`;
+    } catch (e) { box.innerHTML = `<p class="hint">자료를 불러오지 못했습니다.</p>`; console.warn(e); }
+  }
+  // [추가] 창
+  function cdAddOpen() { cdClearFiles("add"); cdAdd = { step: 1, memo: "", vals: {}, filled: new Set() }; cdAddRender(); }
+  function cdAddClose() { const b = $("cdAddSheet"); if (b) b.remove(); if (window.DatePick) DatePick.close(); cdClearFiles("add"); cdAdd = null; }
+  function cdAddRender(busy) {
+    let box = $("cdAddSheet");
+    if (!box) { box = document.createElement("div"); box.id = "cdAddSheet"; box.className = "modal ntf-shw"; document.body.appendChild(box); }
+    if (cdAdd.step === 1) {
+      box.innerHTML = `<div class="ntf-sh cd-add" role="dialog" aria-modal="true" aria-label="후보자 추가"><h3>후보자 추가<small class="cd-step">1/2 자료 넣기</small><button type="button" data-cdadd-x>취소</button></h3>
+        ${cdSrcHtml("add")}
+        <p class="hint cd-note">[분석해서 채우기]를 누르면 메모와 이미지를 구글 Gemini로 보내 후보자 정보 칸을 채웁니다. 올린 이미지는 Claude/팀/후보자자료 폴더에도 저장합니다.</p>
+        <button type="button" class="ntf-save" data-cdadd-go ${busy ? "disabled" : ""}>${busy ? esc(busy) : "분석해서 채우기"}</button>
+        <button type="button" class="cd-skip" data-cdadd-skip ${busy ? "disabled" : ""}>건너뛰고 직접 입력</button></div>`;
+      return;
+    }
+    const v = cdAdd.vals, val = (k) => String(v[k] == null ? "" : v[k]), p0 = { ...v };
+    const rows = CD_ROWS.map(([lab, cells]) => `<dt>${lab}</dt><dd class="${cells.length > 1 ? "tm-multi" : ""}">${cells.map((c) => cdCellEdit(c, val, p0)).join("")}</dd>`).join("");
+    const qa = ([k, q]) => `<div class="cd-q">${esc(q)}</div><textarea class="cd-a${cdAdd.filled.has(k) ? " cd-ai" : ""}" data-cdf="${k}" rows="1" aria-label="${esc(q)}">${esc(val(k))}</textarea>`;
+    const qn = [...CD_QS, ...CD_ESSAYS].filter(([k]) => cdAdd.filled.has(k)).length;
+    box.innerHTML = `<div class="ntf-sh cd-add" role="dialog" aria-modal="true" aria-label="후보자 추가"><h3>후보자 추가<small class="cd-step">2/2 정보 확인</small><button type="button" data-cdadd-back>‹ 자료</button></h3>
+      ${cdAdd.filled.size ? `<div class="cd-sum"><span class="cd-sw"></span>자동으로 채운 칸 ${cdAdd.filled.size}개 · 확인하고 빈 칸을 채워 주세요</div>` : `<div class="cd-sum">${cdAdd.note ? esc(cdAdd.note) : "빈 칸을 채워 주세요. 이름은 꼭 넣어야 합니다."}</div>`}
+      <dl class="tm-info cd-info editing cd-add-form">${rows}</dl>
+      <details class="cd-more"${qn ? " open" : ""}><summary>짧은 질문 6 · 상세 자기소개서 3${qn ? ` <span>${qn}개 채움</span>` : ""}</summary><h4 class="cd-h">짧은 질문</h4><div class="cd-qa editing">${CD_QS.map(qa).join("")}</div><h4 class="cd-h">상세 자기소개서</h4><div class="cd-qa editing">${CD_ESSAYS.map(qa).join("")}</div></details>
+      <button type="button" class="ntf-save" data-cdadd-done>완료</button></div>`;
+    box.querySelectorAll("[data-cdf]").forEach((el) => { if (cdAdd.filled.has(el.dataset.cdf)) { const s = el._dpFace || (el.type === "checkbox" ? el.closest(".cd-chk") : el); setTimeout(() => { const s2 = el._dpFace || s; if (s2) s2.classList.add("cd-ai"); }, 0); } });
+  }
+  const cdFormVals = (box) => { const vals = {}; box.querySelectorAll("[data-cdf]").forEach((el) => { vals[el.dataset.cdf] = el.type === "checkbox" ? (el.checked ? el.dataset.on || "예" : "") : String(el.value || "").trim(); }); introFix(vals, cdTeam); return vals; };
+  async function cdAddGo(skip) {
+    const memoEl = document.querySelector("#cdAddSheet .cd-memo"); cdAdd.memo = memoEl ? memoEl.value : cdAdd.memo;
+    if (!skip) {
+      if (!cdAdd.memo.trim() && !cdSrcFiles.add.length) return toast("메모나 이미지를 넣어 주세요.");
+      cdAddRender(`메모와 이미지 ${cdSrcFiles.add.length}장을 읽는 중…`);
+      const res = await cdAnalyze(cdAdd.memo, cdSrcFiles.add);
+      if (!cdAdd) return;
+      if (res && res.noKey) { cdAdd.note = "Gemini 키가 없어 자동으로 채우지 못했습니다(말만해요 설정에서 키를 넣으면 됩니다). 직접 채워 주세요."; }
+      else if (!res) cdAdd.note = "자료를 읽지 못했습니다. 직접 채워 주세요.";
+      else { cdAdd.vals = { ...cdAdd.vals, ...res }; cdAdd.filled = new Set(Object.keys(res)); cdAdd.note = ""; }
+    }
+    cdAdd.step = 2; cdAddRender();
+  }
+  async function cdAddDone(btn) {
+    const box = $("cdAddSheet"), vals = cdFormVals(box);
+    if (!vals.이름) return toast("이름을 넣어 주세요.");
+    btn.disabled = true; btn.textContent = "저장 중";
+    try {
+      if (!tmDir) tmDir = await stFindPath(TM_DIR);
+      const fresh = (await stReadJsonIn(tmDir, CD_FILE)) || { 사람: [] }; if (!Array.isArray(fresh.사람)) fresh.사람 = [];
+      const day = cdYmd(), pre = "C" + day + "-", nn = fresh.사람.map((x) => String(x.id || "")).filter((x) => x.startsWith(pre)).map((x) => +x.slice(pre.length) || 0);
+      const d = new Date(), z = (x) => String(x).padStart(2, "0"), stamp = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
+      const rec = { id: pre + String(Math.max(0, ...nn) + 1).padStart(2, "0"), ...Object.fromEntries(Object.entries(vals).filter(([, v]) => v !== "")), 등록일시: stamp };
+      if (cdAdd.memo.trim()) rec.추가메모 = stamp.slice(0, 10) + " " + cdAdd.memo.trim();
+      if (cdSrcFiles.add.length) rec.자료폴더 = await cdUpload(rec, cdSrcFiles.add, "추가");
+      fresh.사람.push(rec);
+      await stWriteJsonIn(tmDir, CD_FILE, fresh);
+      cdDoc = fresh; cdSel = rec.id; cdEdit = false; cdAddClose(); renderCandInfo(); window.scrollTo(0, 0); toast("후보자를 추가했습니다");
+    } catch (e) { btn.disabled = false; btn.textContent = "완료"; handleError(e); }
+  }
+  async function cdEditFill(btn) {
+    const card = document.querySelector("#teamView .tm-wrap"), memoEl = card.querySelector('[data-cdsrc="edit"] .cd-memo'), memo = memoEl ? memoEl.value : "";
+    if (!memo.trim() && !cdSrcFiles.edit.length) return toast("메모나 이미지를 넣어 주세요.");
+    btn.disabled = true; btn.textContent = `메모와 이미지 ${cdSrcFiles.edit.length}장을 읽는 중…`;
+    const res = await cdAnalyze(memo, cdSrcFiles.edit);
+    btn.disabled = false; btn.textContent = "분석해서 채우기";
+    const sum = $("cdSum");
+    if (res && res.noKey) return toast("Gemini 키가 없어 분석하지 못했습니다(말만해요 설정에서 키를 넣어 주세요).");
+    if (!res) return toast("자료를 읽지 못했습니다.");
+    const r = cdApplyFill(card, res, cdFillMode);
+    if (sum) { sum.hidden = false; sum.innerHTML = `<span class="cd-sw"></span>빈 칸 ${r.filled}개 채움${cdFillMode === "replace" ? ` · 기존 칸 ${r.replaced}개 바꿈` : ""} · [저장]을 눌러야 저장됩니다`; }
+  }
+  document.addEventListener("click", (ev) => {
+    const t = ev.target.closest && ev.target.closest("[data-cd-add],[data-cdadd-x],[data-cdadd-go],[data-cdadd-skip],[data-cdadd-back],[data-cdadd-done],[data-cddrop],[data-cdthx],[data-cdmode],[data-cdfill],[data-cddoc],[data-cddocdel]");
+    if (!t) { if (ev.target.id === "cdAddSheet" && confirm("후보자 추가를 그만둘까요?")) cdAddClose(); return; }
+    const d = t.dataset;
+    if (d.cdAdd != null) return cdAddOpen();
+    if (d.cdaddX != null) { if (confirm("후보자 추가를 그만둘까요?")) cdAddClose(); return; }
+    if (d.cdaddGo != null) return cdAddGo(false);
+    if (d.cdaddSkip != null) return cdAddGo(true);
+    if (d.cdaddBack != null) { const box = $("cdAddSheet"); cdAdd.vals = { ...cdAdd.vals, ...cdFormVals(box) }; cdAdd.step = 1; if (window.DatePick) DatePick.close(); return cdAddRender(); }
+    if (d.cdaddDone != null) return cdAddDone(t);
+    if (d.cdthx) { const [id, i] = d.cdthx.split("|"); const f = cdSrcFiles[id].splice(+i, 1)[0]; if (f && f._url) URL.revokeObjectURL(f._url); const box = document.querySelector(`[data-cdthumbs="${id}"]`); if (box) box.innerHTML = cdThumbsHtml(id); return; }
+    if (d.cddrop) { if (!ev.target.closest("input")) t.querySelector("[data-cdfile]").click(); return; }
+    if (d.cdmode) { cdFillMode = d.cdmode === "replace" ? "replace" : "empty"; t.parentElement.querySelectorAll("[data-cdmode]").forEach((b) => { b.classList.toggle("on", b === t); b.setAttribute("aria-checked", String(b === t)); }); return; }
+    if (d.cdfill != null) return cdEditFill(t);
+    if (d.cddoc) { const f = cdDocsList[+d.cddoc]; if (f) docsView({ ...f, mime: (f.file && f.file.mimeType) || "" }); return; }
+    if (d.cddocdel) { const f = cdDocsList[+d.cddocdel], p = cdPeople().find((x) => String(x.id) === cdSel); if (!f || !confirm(`'${f.name}' 파일을 지울까요?\n\n드라이브 휴지통으로 가서 30일 안에 되살릴 수 있습니다.`)) return; t.disabled = true; stDel(f.id).then(() => { toast("지웠습니다(드라이브 휴지통)"); if (p) cdLoadDocs(p); }, (e) => { t.disabled = false; handleError(e); }); }
+  });
+  function cdCellEdit([k, t, ph], val, p) { // 후보자 칸 하나(수정·추가 창 공통)
+      const v = val(k);
+      if (k === "도입자") return introSel("cdf", p, cdTeam);
+      if (t === "year") return `<input data-cdf="${k}" type="text" data-dp="year" class="tm-narrow cd-year" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}">`;
+      if (t === "month") return `<input data-cdf="${k}" type="text" data-dp="month" data-dp-range="cd-${k.replace(/(시작|끝)$/, "")}"${/끝$/.test(k) ? " data-dp-end" : ""} class="cd-month" value="${esc(v)}" aria-label="${esc("병역 " + (ph || k))}">`;
+      if (/^pick:/.test(t)) { const os = t.slice(5).split("|"), old = v && !os.includes(v) ? v : ""; return `<select data-cdf="${k}" aria-label="${esc(k)}"><option value="">선택</option>${os.map((x) => `<option ${v === x ? "selected" : ""}>${esc(x)}</option>`).join("")}${old ? `<option value="${esc(old)}" selected>이전: ${esc(old)}</option>` : ""}</select>`; }
+      if (t === "check") return `<label class="cd-chk"><input type="checkbox" class="cb" data-cdf="${k}" data-on="${esc(ph || "예")}" ${v ? "checked" : ""}> ${esc(ph || "예")}</label>`;
+      if (t === "md") return `<input data-cdf="${k}" type="text" data-dp="md" class="cd-mdin" value="${esc(v)}" placeholder="${esc((ph || "") + " 월·일")}" aria-label="${esc(ph || k)}">`; // v561: 공통 날짜 달력(월일)
+      if (k === "통신사") { const base = ["SKT", "KT", "LG U+", "SKT 알뜰폰", "KT 알뜰폰", "LG U+ 알뜰폰"], os = v && !base.includes(v) ? [v, ...base] : base; return `<select data-cdf="통신사" class="tm-narrow" aria-label="통신사"><option value=""${v ? "" : " selected"}>통신사</option>${os.map((o) => `<option${o === v ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`; }
+      return `<input data-cdf="${k}" type="${t === "secret" || t === "date" ? "text" : t}"${t === "date" ? ' data-dp="date"' : ""} value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">`;
+    }
   function renderCandInfo() {
     const box = $("teamView"), ppl = cdPeople(), p = ppl.find((x) => String(x.id) === cdSel) || ppl[0];
     if (!box || !p) return;
@@ -3528,17 +3750,7 @@
       if (k === "결혼기념일") { const m = /^(\d{2})-(\d{2})$/.exec(v); return "기념일 " + (m ? +m[1] + "월 " + +m[2] + "일" : esc(v)); }
       return esc(v);
     };
-    const edit = ([k, t, ph]) => {
-      const v = val(k);
-      if (k === "도입자") return introSel("cdf", p, cdTeam);
-      if (t === "year") return `<input data-cdf="${k}" type="text" data-dp="year" class="tm-narrow cd-year" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}">`;
-      if (t === "month") return `<input data-cdf="${k}" type="text" data-dp="month" data-dp-range="cd-${k.replace(/(시작|끝)$/, "")}"${/끝$/.test(k) ? " data-dp-end" : ""} class="cd-month" value="${esc(v)}" aria-label="${esc("병역 " + (ph || k))}">`;
-      if (/^pick:/.test(t)) { const os = t.slice(5).split("|"), old = v && !os.includes(v) ? v : ""; return `<select data-cdf="${k}" aria-label="${esc(k)}"><option value="">선택</option>${os.map((x) => `<option ${v === x ? "selected" : ""}>${esc(x)}</option>`).join("")}${old ? `<option value="${esc(old)}" selected>이전: ${esc(old)}</option>` : ""}</select>`; }
-      if (t === "check") return `<label class="cd-chk"><input type="checkbox" class="cb" data-cdf="${k}" data-on="${esc(ph || "예")}" ${v ? "checked" : ""}> ${esc(ph || "예")}</label>`;
-      if (t === "md") return `<input data-cdf="${k}" type="text" data-dp="md" class="cd-mdin" value="${esc(v)}" placeholder="${esc((ph || "") + " 월·일")}" aria-label="${esc(ph || k)}">`; // v561: 공통 날짜 달력(월일)
-      if (k === "통신사") { const base = ["SKT", "KT", "LG U+", "SKT 알뜰폰", "KT 알뜰폰", "LG U+ 알뜰폰"], os = v && !base.includes(v) ? [v, ...base] : base; return `<select data-cdf="통신사" class="tm-narrow" aria-label="통신사"><option value=""${v ? "" : " selected"}>통신사</option>${os.map((o) => `<option${o === v ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`; }
-      return `<input data-cdf="${k}" type="${t === "secret" || t === "date" ? "text" : t}"${t === "date" ? ' data-dp="date"' : ""} value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">`;
-    };
+    const edit = (c) => cdCellEdit(c, val, p);
     const rowHtml = ([lab, cells]) => {
       const parts = cdEdit ? cells.map(edit) : cells.map(view).filter(Boolean);
       return `<dt>${lab}</dt><dd class="${cells.length > 1 ? "tm-multi" : ""}">${parts.length ? parts.join(cdEdit ? "" : '<span class="tm-gap"></span>') : '<span class="tm-none">-</span>'}</dd>`;
@@ -3546,12 +3758,14 @@
     const cvMiss = ["이름", "사번", "입사일"].filter((k) => !val(k).trim()); // v490(2026-11-19 사용자 지시): 필수 항목(이름·사번·입사일)이 다 들어가야 [팀원 전환]이 눌림
     const qa = ([k, q]) => `<div class="cd-q">${esc(q)}</div>${cdEdit ? `<textarea class="cd-a" data-cdf="${k}" rows="1" aria-label="${esc(q)}">${esc(val(k))}</textarea>` : `<div class="cd-a">${val(k) ? esc(val(k)) : '<span class="tm-none">-</span>'}</div>`}`;
     const opts = ppl.map((x) => `<option value="${esc(String(x.id))}" ${String(x.id) === String(p.id) ? "selected" : ""}>${esc(x.이름 || "(이름 없음)")}</option>`).join("");
-    const acts = cdEdit ? `<button type="button" class="ev-edit" data-cd-cancel>취소</button><button type="button" class="ev-edit ev-done" data-cd-save>저장</button>` : `<button type="button" class="ev-edit" data-cd-edit>수정</button>`;
+    const acts = cdEdit ? `<button type="button" class="ev-edit" data-cd-cancel>취소</button><button type="button" class="ev-edit ev-done" data-cd-save>저장</button>` : `<button type="button" class="ev-edit cd-add-btn" data-cd-add>+ 추가</button><button type="button" class="ev-edit" data-cd-edit>수정</button>`; // v562: [수정] 왼쪽 [추가]
     box.innerHTML = `<div class="card tm-wrap">${cdHead(`<select data-cd-sel aria-label="후보자 고르기" ${cdEdit ? "disabled" : ""}>${opts}</select>`, acts)}
+      ${cdEdit ? `<div class="cd-fill"><div class="cd-fill-h"><b>자료로 채우기</b><span class="hint"> · 메모나 이미지를 넣고 [분석]</span></div>${cdSrcHtml("edit")}<div class="cd-seg" role="radiogroup" aria-label="채우는 방법"><button type="button" role="radio" data-cdmode="empty" class="${cdFillMode === "empty" ? "on" : ""}" aria-checked="${cdFillMode === "empty"}">빈 칸만 채우기<small>있는 정보는 그대로</small></button><button type="button" role="radio" data-cdmode="replace" class="${cdFillMode === "replace" ? "on" : ""}" aria-checked="${cdFillMode === "replace"}">기존 정보도 바꾸기<small>읽은 값으로 덮어씀</small></button></div><button type="button" class="cd-fill-go" data-cdfill>분석해서 채우기</button></div><div class="cd-sum" id="cdSum" hidden></div>` : ""}
       <dl class="tm-info cd-info${cdEdit ? " editing" : ""}">${CD_ROWS.map(rowHtml).join("")}</dl>
       <hr class="tm-hr"><h4 class="cd-h">짧은 질문</h4><div class="cd-qa${cdEdit ? " editing" : ""}">${CD_QS.map(qa).join("")}</div>
       <hr class="tm-hr"><h4 class="cd-h">상세 자기소개서</h4><div class="cd-qa${cdEdit ? " editing" : ""}">${CD_ESSAYS.map(qa).join("")}</div>
-      ${cdEdit ? "" : `<hr class="tm-hr"><div class="cd-conv"><span class="hint">${cvMiss.length ? "필수 항목을 먼저 넣어 주세요: " + cvMiss.join(" · ") : "사번 " + esc(val("사번")) + " · 입사일 " + esc(val("입사일")) + " · 팀원정보에 등록합니다"}</span><button type="button" class="ev-edit ev-done" data-cd-conv${cvMiss.length ? " disabled" : ""}>팀원 전환</button></div>`}</div>`;
+      ${cdEdit ? "" : `<hr class="tm-hr"><div class="cd-conv"><span class="hint">${cvMiss.length ? "필수 항목을 먼저 넣어 주세요: " + cvMiss.join(" · ") : "사번 " + esc(val("사번")) + " · 입사일 " + esc(val("입사일")) + " · 팀원정보에 등록합니다"}</span><button type="button" class="ev-edit ev-done" data-cd-conv${cvMiss.length ? " disabled" : ""}>팀원 전환</button></div>`}</div>${cdEdit ? "" : `<div class="card cd-docs"><div class="cd-docs-h"><h3 class="sec-title">자료</h3><span class="hint" id="cdDocsN"></span></div><div id="cdDocsList"><p class="hint">불러오는 중…</p></div></div>`}`;
+    if (!cdEdit) cdLoadDocs(p); // v562: 맨 아래 '자료' 박스
   }
   // v484(2026-11-19 사용자 지시): [팀원 전환] — 사번이 있어야 하고, 확인 화면(입사일·직급·도입자) 뒤 팀원 파일에 등록. 단계는 후보자 → 팀원 둘뿐(교육생 단계 없음).
   //   후보자 기록(자기소개 등)은 모두 팀원 파일로 옮기고, 후보자 파일에는 지우지 않고 '전환일시'만 적어 목록에서 빠지게 함
@@ -3628,6 +3842,11 @@
       const q = fresh && Array.isArray(fresh.사람) ? fresh.사람.find((x) => String(x.id) === cdSel) : null;
       if (!q) throw new Error("후보자 파일에서 이 사람을 찾지 못했습니다");
       let n = 0;
+      { // v562: '자료로 채우기'에 넣은 이미지·메모도 함께 저장
+        const memo = String((box.querySelector('[data-cdsrc="edit"] .cd-memo') || {}).value || "").trim();
+        if (cdSrcFiles.edit.length) { const fid = await cdUpload(q, cdSrcFiles.edit, "수정"); if (q.자료폴더 !== fid) q.자료폴더 = fid; cdClearFiles("edit"); n++; }
+        if (memo) { const d0 = new Date(), z0 = (x) => String(x).padStart(2, "0"); q.추가메모 = (q.추가메모 ? q.추가메모 + String.fromCharCode(10) : "") + `${d0.getFullYear()}-${z0(d0.getMonth() + 1)}-${z0(d0.getDate())} ${memo}`; n++; }
+      }
       Object.keys(vals).forEach((k) => {
         const old = String(q[k] == null ? "" : q[k]);
         if (old === vals[k]) return;
@@ -3644,7 +3863,7 @@
     if (t.hasAttribute("data-cd-conv")) { const cp = cdPeople().find((x) => String(x.id) === cdSel); if (cp) candConvertAsk(cp); return; }
     if (t.hasAttribute("data-team-cand")) { openCandInfo(); return; }
     if (t.hasAttribute("data-cd-back")) { if (cdEdit && !confirm("저장하지 않은 수정을 버릴까요?")) return; cdEdit = false; cdDoc = null; openTeam(); window.scrollTo(0, 0); return; }
-    if (t.hasAttribute("data-cd-edit")) { cdEdit = true; renderCandInfo(); return; }
+    if (t.hasAttribute("data-cd-edit")) { cdEdit = true; cdClearFiles("edit"); renderCandInfo(); return; }
     if (t.hasAttribute("data-cd-cancel")) { cdEdit = false; renderCandInfo(); return; }
     saveCandInfo(t);
   });
@@ -5790,7 +6009,7 @@
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
-    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
+    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>후보자 추가(v562)</b>: [수정] 왼쪽 [+ 추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562)</b>: 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_ntf, s_login, s_go, s_map, s_inst];
