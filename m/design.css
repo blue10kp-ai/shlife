@@ -2087,3 +2087,10 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 #salesView .rd-nav { justify-content: flex-start; gap: 4px; }
 #salesView .rd-nav .sched-rt { position: static; transform: none; order: 9; margin-left: auto; }
 #salesView .rd-nav .sched-label { font-size: 16px; padding: 0 4px; }
+
+/* v587: 수정 모드 [취소][저장] */
+.rt-backbar .rt-eb { margin-left: auto; display: inline-flex; gap: 6px; }
+.rt-backbar .rt-eb button { height: 32px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--t1); font: inherit; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
+.rt-backbar .rt-eb button.pri { border: 0; background: var(--t1); color: var(--bg); font-weight: 600; }
+.rt-backbar .rt-eb button:disabled { opacity: .35; }
+.rt-backbar .rt-eb button.pri:disabled { background: var(--line); color: var(--t3); opacity: 1; }
