@@ -2038,3 +2038,24 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 .rt .rt-map { height: 240px; border-radius: 10px; border: 1px solid var(--line); margin: 0 0 12px; overflow: hidden; background: var(--raised); }
 .rt-mk span { display: inline-flex; width: 24px; height: 24px; border-radius: 12px; background: var(--accent, #2b5aa6); color: #fff; font-size: 12px; font-weight: 600; align-items: center; justify-content: center; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
 .rt-mk.end span { background: #1d2430; }
+
+/* v582: 동선관리 날짜별 보기 */
+#salesView .rd-nav { position: static; margin: 4px 0 8px; }
+.rt-backbar { margin: 4px 0 8px; }
+.rt .rd-s { display: block; padding-right: 36px; }
+.rt .rd-s b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; max-width: 100%; vertical-align: bottom; }
+.rt .rd-s .sub { display: block; }
+.rt .rd-s .rt-grip { position: absolute; right: 0; top: 4px; }
+.rt .tl-s .t.chg { color: #d97706; }
+.rt .rd-bar { display: flex; gap: 6px; margin-top: 10px; }
+.rt .rd-bar button { flex: 1; height: 38px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--t1); font: inherit; font-size: 14px; }
+.rt .rd-bar button.pri { border: 0; background: var(--t1); color: var(--bg); font-weight: 600; }
+.rt .rd-bar button:disabled { opacity: .4; }
+.rt .rd-bar button.pri:disabled { background: var(--line); color: var(--t3); opacity: 1; }
+
+/* v583: 자료 끌어놓기·서식 다운 */
+#salesView .mt-drop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 10px; text-align: center; font-size: 12px; color: var(--t3); margin: 0 0 8px; }
+#salesView .mt-drop.on { border-color: var(--accent, #2b5aa6); color: var(--t1); background: var(--raised); }
+#salesView .mt-dl { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; }
+#salesView .mt-fill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--t2); white-space: nowrap; }
+#salesView .mt-fill .cb { width: 14px; height: 14px; }

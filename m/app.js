@@ -6189,7 +6189,7 @@
     const s_dsh = sec("대시보드 (2026-11-21 바뀜)", ["아래 메뉴 <b>AI 오른쪽 [대시보드]</b>입니다. 보는 범위 선택(오른쪽 위)은 <b>ESL만</b> 보입니다: 맨 위 <b>팀</b>(팀 합계) → 김현성 · 임지섭 … 순서이고, 관리자는 처음에 <b>팀</b>을 봅니다. 그 밖의 계정은 본인 FC만 봅니다.", "<b>이달 실적</b>: 이번 달 <b>건수 · CMIP(월납환산보험료) · CANP</b> 세 칸입니다(금액은 원 단위). 청약 목록(계약 자료)에서 이번 달 청약 중 <b>철회·거절을 뺀 것</b>을 더하고, 세 값 모두 <b>기여율</b>을 곱해 더합니다. 팀은 팀원 합계입니다.", "<b>이달 청약상태</b>: 이달 실적 바로 아래에 이번 달 청약을 지난달 청약상태와 같은 칸으로 보여 줍니다.", "<b>지난달 청약상태</b>: 지난달 청약을 계약일자 최근 순으로 보여 줍니다(청약상태 · 심사상태 · 진단종류 · FC명(팀일 때만) · 상품명 · 계약일자 · 계약자 · 주피보험자 · CMIP · CANP). 표는 옆으로 밀어 봅니다. 철회·거절 줄은 흐리게, 금액은 계약 금액 그대로입니다.", "<b>지난달 FC별 실적</b>(팀일 때만): FC마다 지난달 철회·거절을 뺀 건수 · CMIP · CANP를 기여율을 곱해 보여 줍니다(예: 2건 중 1건이 기여율 50%면 1.5건). 맨 아래 합계.", "<b>최근 6개월 평균 실적</b>: 이번 달 전 6개월의 월평균 건수 · CMIP · CANP · 수수료(실지급금)입니다. 입사한 지 6개월이 안 된 FC는 입사한 달부터의 합계를 그 달 수로 나눕니다. 팀은 FC별 월평균의 평균입니다(더한 값이 아님). 팀을 볼 때는 그 아래에 <b>FC별 최근 6개월 평균</b> 표가 나옵니다(6개월이 안 된 FC는 이름 옆에 개월 수, 입사 전 FC는 빠짐). 지난달 FC별 실적에서도 그달에 입사 전인 FC는 빠집니다. 이 상자들은 민감정보 허용 계정만 보입니다.", "<b>최근 수수료</b>(가장 최근 달 실지급, 팀은 합계)와 <b>계약진행</b> 인원 카드가 그 아래에 있습니다.", "<b>이달목표 이행 점수</b>: (이관 중 통화 이상 + 따행 중 쿠폰발송 + DB 중 AP 이상) ÷ (이관 + 따행 + DB 목표 전체) × 100을 점수로 보여 주고(80%면 80점), 그 아래 한 줄 막대가 진도입니다. 계약진행 막대는 최근 3개월에 시작한 계약진행의 고객등록·전화·AP·PC·계약별 건수입니다. 위쪽 <b>계약진행 카드</b>는 ‘이달 계약 건 / 최근 3개월 계약진행 건’입니다. 최근 3개월에 시작한 계약진행 중 이번 달에 계약한 건(진행 단계가 이달 계약이거나, 그 고객의 이번 달 청약이 있음 — 청약철회·거절도 계약한 뒤 일이라 계약으로 셈. 여러 FC가 나눈 청약은 메인FC(계약자의 담당FC)에게만 셈)이 앞의 초록 숫자입니다. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다. 맨 아래는 <b>소개 랭킹</b> 상위 3명입니다."]);
     const s_in = sec("소개 (2026-11-17)", ["<b>새 고객 확인의 [없음](v567)</b>: 새로 들어온 고객 줄의 [없음]을 누르면 그 고객은 소개자 없음(소개 아님)으로 저장되고, 다음부터 소개자를 묻지 않습니다. [나머지는 소개 없음]은 남은 고객을 한꺼번에 같은 방식으로 저장합니다. [다음에]는 이번 로그인 동안은 묻지 않고, 다음 구글 로그인 뒤에 다시 묻습니다.", "<b>고객 정보 > 수정</b>의 <b>소개</b>: <b>소개 · 아님 · 모름</b> 중 고르고, <b>소개</b>이면 소개자 이름을 적습니다. 같은 FC의 등록 고객 후보(이름·출생 두 자리·유입경로)가 나오고, 고르면 <b>등록 고객과 연결</b>(소개고객ID 저장), 고르지 않거나 후보에 없으면 <b>이름만 남기기</b>(소개자명 저장)입니다. 다시 누르면 풀리고 이름을 비우면 지워집니다. 소개만 고치면 ‘직접 수정’ 표시는 붙지 않습니다.", "<b>소개자 트로피</b>: 소개해 준 고객 이름 앞에 1~2명 동, 3~4명 은, 5명 이상 금 트로피가 붙습니다(소개고객ID를 세어 계산, 고객 정보 머리·고객 검색 결과·소개찾기에 나옵니다).", "<b>소개찾기</b>(고객 화면 GBS 옆 버튼): 등록 고객 전부를 대상으로 ‘등록고객 N명 중 M명 확인’을 보여 줍니다. <b>소개고객부터</b>는 고객마다 [소개자 찾기](창에서 이름 검색 → 고객 고르기 · 이미 적힌 이름 · 이름만 · 소개 아님 · 모름), <b>소개자부터</b>는 소개자를 먼저 고른 뒤 그분이 소개한 고객을 체크해 한 번에 연결, <b>랭킹</b>은 소개한 수 순서로 보여 주며 고객이 아닌 소개자는 ‘미등록’으로 묶고 [고객으로 연결]로 한 번에 고객ID에 이어 줍니다. 묶음 <b>지역·성별·직업·직장·유입 시기·가족(같은 주소)·유입경로</b>를 겹쳐 눌러 같은 사람끼리 묶어 볼 수 있고, ‘확인한 고객도 보기’를 켜면 이미 확인한 고객도 나옵니다.", "<b>새 고객 확인</b>: 지난번 접속 뒤 입력된 내 FC 고객이 있으면 로그인 때 소개찾기 화면이 먼저 뜹니다. 고객마다 [소개자 찾기], 모두 끝내려면 <b>나머지는 소개 없음</b>, 미루려면 <b>나중에</b>(다음 접속 때 다시 뜹니다). 처음 접속한 기기는 기준 시각만 기록하고 묻지 않습니다(기존 고객은 소개찾기에서 점검)."]);
     const s_smemo = sec("영업 상담기록 칸 (2026-11-18)", ["<b>전화·문자 시도 기록(2026-11-21)</b>: 고객에게 전화·문자를 누르면 상담기록에 ‘<b>○○에서 전화 시도</b>’ / ‘○○에서 문자 시도’가 저절로 남습니다(○○ = 누른 화면: 연체리스트·실효리스트·이달목표 이관/따행/DB·고객 목록·고객 정보·일정). 세일즈 화면과 연체/실효 리스트는 ‘정말로 거시겠습니까?’에 확인을 눌렀을 때만 남습니다. 전화·문자 앱이 열린 사이에는 이 폰에 적어 두었다가 앱으로 돌아오면 저장합니다.", "세일즈 화면(이달목표의 이관·따행·DB, 계약진행)의 고객 줄 맨 아래에 <b>가장 최근 상담기록 한 줄</b>이 나오고, 그 오른쪽에 <b>[수정]</b> · <b>[삭제]</b>가 있습니다. 수정하면 처음 날짜·시간은 그대로이고 내용만 바뀌며, 삭제는 확인을 거쳐 엑셀에서 지워집니다. 최근 1년 안의 상담기록이 2건 이상이면 오른쪽 끝에 <b>[더보기]</b>가 생겨 전체를 팝업으로 볼 수 있습니다(보기 전용).", "<b>일정 화면의 고객 카드</b>도 같은 상담기록 줄입니다: 카드 맨 아래 최근 상담기록 <b>최대 5줄(날짜와 함께)</b>과 [수정]·[삭제]·[더보기], 고객 정보 칸(주소 등 글자가 있는 곳)을 터치하면 위에 추가칸(마이크 포함)과 최근 6개월 상담기록이 펼쳐지고 한 번 더 터치하면 접힙니다.", "고객 정보가 있는 줄(버튼·링크가 아닌 곳)을 <b>한 번 터치</b>하면 아래로 상담기록 칸이 펼쳐집니다. <b>맨 위 줄은 상담기록 추가칸</b>([저장]을 누르면 일정 화면의 한 줄 메모처럼 상담기록에 저장되어 고객 정보 > 상담 탭에서도 보임)이고, 그 아래에 <b>최근 6개월 안의 상담기록이 날짜와 함께</b> 나옵니다(각 기록에 [수정]·[삭제], 6개월보다 오래된 것은 ‘6개월 이전 N건 더보기’로 팝업). <b>한 번 더 터치</b>하면 위로 올라가며 사라지고 최근 상담기록 한 줄만 남습니다. (예전 설정의 ‘영업 메모 칸’ 옵션은 없앴고 항상 사용합니다.)"]);
-    const s_mat = sec("세일즈 > 자료 (v554, 2026-11-22)", ["세일즈 위 서브메뉴 맨 오른쪽 <b>자료</b>: 팀이 함께 보는 상품 안내장·설계안·교육자료·모의고사·서식 파일 목록입니다. 위쪽 칩(전체·분류별, 옆 숫자 = 파일 수)을 누르면 그 분류만, 검색 칸에 글자를 넣으면 이름으로 바로 걸러집니다.", "<b>줄을 누르면 바로 열립니다</b>(PDF는 새 창, 사진은 화면 안). <b>[공유]</b>를 누르면 파일을 받아 휴대폰 공유창(카톡·문자 등)이 바로 열립니다. 큰 파일이라 공유창이 바로 안 열리면 버튼이 <b>[보내기]</b>로 바뀌고, 한 번 더 누르면 열립니다.", "관리자는 <b>[올리기]</b>로 파일을 올립니다. 고른 분류 폴더에 저장되고, ‘전체’일 때는 ‘기타’로 들어갑니다. 파일은 드라이브 <b>app › 신한FC › 설정 › 자료</b>에 있고, 그 안에 폴더를 만들면 분류가 하나 생깁니다(폴더 이름 앞 숫자는 순서용으로 화면에선 빠짐)."]);
+    const s_mat = sec("세일즈 > 자료 (v554, 2026-11-22)", ["<b>v583</b>: 관리자는 [업로드] 버튼이나 파일을 위 칸에 <b>끌어다 놓아</b> 올립니다. <b>서식</b> 분류의 파일은 [다운]으로 바로 받고, 밑의 <b>FC 정보 채우기</b>가 체크되어 있으면 내 정보(지점 등)를 서식의 자리에 넣어 받습니다. 처음 한 번 묻는 정보는 내 설정에 저장됩니다.", "세일즈 위 서브메뉴 맨 오른쪽 <b>자료</b>: 팀이 함께 보는 상품 안내장·설계안·교육자료·모의고사·서식 파일 목록입니다. 위쪽 칩(전체·분류별, 옆 숫자 = 파일 수)을 누르면 그 분류만, 검색 칸에 글자를 넣으면 이름으로 바로 걸러집니다.", "<b>줄을 누르면 바로 열립니다</b>(PDF는 새 창, 사진은 화면 안). <b>[공유]</b>를 누르면 파일을 받아 휴대폰 공유창(카톡·문자 등)이 바로 열립니다. 큰 파일이라 공유창이 바로 안 열리면 버튼이 <b>[보내기]</b>로 바뀌고, 한 번 더 누르면 열립니다.", "관리자는 <b>[올리기]</b>로 파일을 올립니다. 고른 분류 폴더에 저장되고, ‘전체’일 때는 ‘기타’로 들어갑니다. 파일은 드라이브 <b>app › 신한FC › 설정 › 자료</b>에 있고, 그 안에 폴더를 만들면 분류가 하나 생깁니다(폴더 이름 앞 숫자는 순서용으로 화면에선 빠짐)."]);
     const s_pg = sec("세일즈 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "세일즈 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 세일즈 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
@@ -6210,7 +6210,7 @@
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·세일즈 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>팀관리 메뉴의 [조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>세일즈 페이지 접근</b>: 세일즈(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 세일즈 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 세일즈 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 세일즈 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: 아래 메뉴 <b>팀관리</b>의 [조직도]를 누르면(2026-11-19에 설정에서 옮김) 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘세일즈 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/세일즈 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
-    const s_rt = sec("세일즈 > 동선관리 (v580)", ["<b>출발·도착</b>은 [회사]·[집] 버튼으로 고르거나 주소를 직접 넣습니다. 집 주소는 처음 한 번 넣으면 내 설정 파일(드라이브)에 저장됩니다. 출발 시각, 미팅당 시간, <b>점심 1시간</b>(넣을 시간대)을 정합니다.", "고객을 이름·주소로 검색해 <b>[+ 담기]</b>로 고릅니다(최대 8명). 고른 고객마다 주소(미팅장소)와 미팅 시간을 바꿀 수 있습니다.", "장소는 고객의 <b>미팅장소</b>가 먼저, 없으면 저장된 주소입니다(v581). 고른 고객 줄의 장소 칸에서 바로 고칠 수 있습니다.", "<b>[최적동선 제안]</b>을 누르면 카카오 길찾기로 이동 시간 합이 가장 짧은 순서를 찾아, 출발 예상 시각·차 몇 분·몇 km와 함께 시간표를 보여 줍니다. 위 <b>지도</b>에 출발(출)·미팅 번호·도착(도)과 길이 그려집니다. 미팅 줄 오른쪽 손잡이를 <b>끌어서</b> 순서를 바꾸면 시간이 다시 계산됩니다. [구글 지도 길찾기]는 구글 지도로 엽니다.", "<b>[일정에 넣기]</b>: 날짜(달력)·캘린더를 고르면 출발·미팅·도착 일정을 넣습니다. 미팅 일정에는 고객 연결이 미리 들어가고, 메모에 출발 예상 시각과 이동이 적힙니다. 점심은 일정으로 넣지 않습니다."]);
+    const s_rt = sec("세일즈 > 동선관리 (v580)", ["<b>날짜별 보기(v582)</b>: 동선관리를 열면 위에 일정 Today와 같은 날짜 이동(‹ 날짜 ›)이 있고, 처음엔 오늘이 나옵니다. 그날 영업일정 캘린더의 시간 있는 일정으로 동선·지도·이동 시간을 보여 줍니다(출발·도착 기본 회사). 장소는 일정 장소, 없으면 연결된 고객의 미팅장소·주소입니다.", "미팅 줄 오른쪽 손잡이를 끌어 순서를 바꾸면 첫 일정 시작 시각부터 이동 시간에 맞춰 시간을 다시 정하고(바뀐 시간은 주황색) <b>[저장]·[취소]</b>가 켜집니다. [저장]은 구글 캘린더 일정 시간을 고치고, [취소]는 처음 순서로 돌립니다.", "오른쪽 위 <b>[추가]</b>는 고객을 골라 [최적동선 제안]을 하는 화면입니다(아래 설명). [일정에 넣기]는 보고 있던 날짜로 넣습니다.", "<b>출발·도착</b>은 [회사]·[집] 버튼으로 고르거나 주소를 직접 넣습니다. 집 주소는 처음 한 번 넣으면 내 설정 파일(드라이브)에 저장됩니다. 출발 시각, 미팅당 시간, <b>점심 1시간</b>(넣을 시간대)을 정합니다.", "고객을 이름·주소로 검색해 <b>[+ 담기]</b>로 고릅니다(최대 8명). 고른 고객마다 주소(미팅장소)와 미팅 시간을 바꿀 수 있습니다.", "장소는 고객의 <b>미팅장소</b>가 먼저, 없으면 저장된 주소입니다(v581). 고른 고객 줄의 장소 칸에서 바로 고칠 수 있습니다.", "<b>[최적동선 제안]</b>을 누르면 카카오 길찾기로 이동 시간 합이 가장 짧은 순서를 찾아, 출발 예상 시각·차 몇 분·몇 km와 함께 시간표를 보여 줍니다. 위 <b>지도</b>에 출발(출)·미팅 번호·도착(도)과 길이 그려집니다. 미팅 줄 오른쪽 손잡이를 <b>끌어서</b> 순서를 바꾸면 시간이 다시 계산됩니다. [구글 지도 길찾기]는 구글 지도로 엽니다.", "<b>[일정에 넣기]</b>: 날짜(달력)·캘린더를 고르면 출발·미팅·도착 일정을 넣습니다. 미팅 일정에는 고객 연결이 미리 들어가고, 메모에 출발 예상 시각과 이동이 적힙니다. 점심은 일정으로 넣지 않습니다."]);
     const s_ib = sec("팀관리 > 도입현황 (관리자, v578)", ["팀관리의 <b>[도입현황]</b>에서 연도를 고르면 그해 도입 합계, 도입자별 인원, 월별 '도입자 → 피도입자'가 나옵니다. <b>[최근 3개월]</b>을 누르면 이번 달을 포함한 3개월만 봅니다.", "도입 1건 = 팀원정보에서 도입자가 있는 팀원 1명입니다. 날짜는 <b>도입일</b>(없으면 입사일)로 셉니다. [팀원 전환]을 하면 도입일이 입사일로 자동으로 들어가고, 팀원정보 도입자 밑 도입일 칸(달력)에서 고칠 수 있습니다. 퇴직해도 도입 기록은 남고 '퇴직'으로 표시합니다."]);
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_num = sec("주민번호·전화번호 '-' 자동 (v576)", ["주민번호와 전화번호는 <b>숫자만</b> 저장합니다. 화면에 보일 때는 '-'를 알아서 넣습니다(800823-1234567, 010-1234-5678, 02-123-4567). 수정 칸에서도 숫자만 치면 자리에 맞춰 '-'가 들어갑니다. 고객 정보·팀원정보·후보자정보·세일즈 목록·보고서에 모두 같습니다."]);
@@ -10726,7 +10726,7 @@
       catch (e) { if (req === salesReq) box.innerHTML = `<div class="card"><p class="hint">자료를 불러오지 못했습니다.</p></div>`; handleError(e); return; }
     }
     const adm = isAdmin() && GD;
-    box.innerHTML = `<div class="mt-bar"><input type="search" id="matQ" placeholder="자료 검색" value="${esc(MAT.q)}" autocomplete="off">${adm ? `<button type="button" class="ev-edit" data-mat-up>올리기</button><input type="file" id="matFile" multiple hidden>` : ""}</div><div id="matList"></div>`;
+    box.innerHTML = `<div class="mt-bar"><input type="search" id="matQ" placeholder="자료 검색" value="${esc(MAT.q)}" autocomplete="off">${adm ? `<button type="button" class="ev-edit" data-mat-up>업로드</button><input type="file" id="matFile" multiple hidden>` : ""}</div>${adm ? `<div class="mt-drop" id="matDrop">파일을 여기로 끌어다 놓으면 ${esc(MAT.cat === "전체" ? "기타" : matCat(MAT.cat))}에 업로드</div>` : ""}<div id="matList"></div>`; // v583(사용자 지시): 올리기 → 업로드, 끌어놓기
     matDraw();
   }
   function matDraw() {
@@ -10737,7 +10737,7 @@
     const all = G.reduce((n, g) => n + g.files.length, 0);
     const cats = [["전체", all], ...G.map((g) => [g.name, g.files.length])].map(([c, n]) => `<button type="button" class="${c === MAT.cat ? "on" : ""}" data-mat-cat="${esc(c)}">${esc(c === "전체" ? c : matCat(c))}<small>${n}</small></button>`).join("");
     const shown = G.map((g, gi) => ({ g, gi, files: g.files.map((f, fi) => ({ f, fi })).filter((x) => hit(x.f)) })).filter((x) => (MAT.cat === "전체" || x.g.name === MAT.cat) && x.files.length);
-    const body = shown.map(({ g, gi, files }) => `<div class="card mt-card"><div class="mt-gl"><b>${esc(matCat(g.name))}</b>${files.length}개</div>${files.map(({ f, fi }) => { const ty = matTy(f); return `<div class="mt-row"><button type="button" class="mt-open" data-mat-open="${gi}:${fi}"><span class="mt-ty${ty === "PDF" ? " pdf" : ""}">${esc(ty)}</span><span class="mt-nm"><b>${esc(matNm(f))}</b><span>${esc(String(f.mod).slice(0, 10))}${matSize(f.size) ? " · " + matSize(f.size) : ""}</span></span></button><button type="button" class="mt-sh" data-mat-share="${gi}:${fi}">${MAT.blob[f.id] ? "보내기" : "공유"}</button></div>`; }).join("")}</div>`).join("");
+    const body = shown.map(({ g, gi, files }) => `<div class="card mt-card"><div class="mt-gl"><b>${esc(matCat(g.name))}</b>${files.length}개</div>${files.map(({ f, fi }) => { const ty = matTy(f); return `<div class="mt-row"><button type="button" class="mt-open" data-mat-open="${gi}:${fi}"><span class="mt-ty${ty === "PDF" ? " pdf" : ""}">${esc(ty)}</span><span class="mt-nm"><b>${esc(matNm(f))}</b><span>${esc(String(f.mod).slice(0, 10))}${matSize(f.size) ? " · " + matSize(f.size) : ""}</span></span></button>${matCat(g.name) === "서식" ? `<span class="mt-dl"><button type="button" class="mt-sh" data-mat-down="${gi}:${fi}">다운</button><label class="mt-fill"><input type="checkbox" class="cb" data-mat-fill${matFillOn() ? " checked" : ""}> FC 정보 채우기</label></span>` : `<button type="button" class="mt-sh" data-mat-share="${gi}:${fi}">${MAT.blob[f.id] ? "보내기" : "공유"}</button>`}</div>`; }).join("")}</div>`).join("");
     el.innerHTML = `<div class="mt-cats">${cats}</div>${body || `<div class="card"><p class="hint">${all ? "찾는 자료가 없습니다." : `아직 자료가 없습니다.${isAdmin() ? " [올리기]로 파일을 올리면 설정 폴더 › 자료에 저장됩니다. 분류는 자료 폴더 안에 폴더를 만들면 생깁니다." : ""}`}</p></div>`}<p class="hint mt-tip">줄을 누르면 열립니다 · [공유]는 휴대폰 공유창(카톡·문자)으로 파일을 보냅니다</p>`;
   }
   const matFile = (k) => { const [gi, fi] = String(k).split(":").map(Number), g = (MAT.groups || [])[gi]; return g ? g.files[fi] : null; };
@@ -10767,16 +10767,81 @@
     try {
       const have = new Set((await docsList(dir)).map((f) => f.name));
       for (const f of ok) {
-        btn.textContent = `올리는 중 ${done + 1}/${ok.length}`;
+        btn.textContent = `업로드 중 ${done + 1}/${ok.length}`;
         const base = String(f.name || "파일").replace(/[\\/:*?"<>|]/g, "").trim() || "파일", m = base.match(/^(.*?)(\.[A-Za-z0-9]{1,5})?$/); let name = base, k = 2;
         while (have.has(name)) name = `${m[1]} (${k++})${m[2] || ""}`;
         try { await docsUpload(dir, name, f); have.add(name); done++; } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.error(e); failed.push(f.name); }
       }
     } catch (e) { handleError(e); }
-    toast([done ? `${done}개 올림` : "", failed.length ? `${failed.length}개 실패` : "", files.length > ok.length ? `${files.length - ok.length}개는 50MB 초과` : ""].filter(Boolean).join(", ") || "올리지 못했습니다");
+    toast([done ? `${done}개 업로드` : "", failed.length ? `${failed.length}개 실패` : "", files.length > ok.length ? `${files.length - ok.length}개는 50MB 초과` : ""].filter(Boolean).join(", ") || "업로드하지 못했습니다");
+    btn.disabled = false; btn.textContent = "업로드";
     if (SALES.sub === "data") await renderMat(salesReq, true);
   }
   $("salesView").addEventListener("input", (ev) => { if (ev.target && ev.target.id === "matQ") { MAT.q = ev.target.value; matDraw(); } });
+  // ===== v583(2026-11-25 사용자 지시) 자료: 끌어놓기 업로드, 서식 [다운] + 'FC 정보 채우기' =====
+  (() => {
+    const v = $("salesView"), on = () => SALES.sub === "data" && isAdmin() && !!$("matDrop");
+    v.addEventListener("dragover", (ev) => { if (!on() || !ev.dataTransfer || ![...ev.dataTransfer.types].includes("Files")) return; ev.preventDefault(); $("matDrop").classList.add("on"); });
+    v.addEventListener("dragleave", (ev) => { if (on() && !v.contains(ev.relatedTarget)) $("matDrop").classList.remove("on"); });
+    v.addEventListener("drop", (ev) => { if (!on()) return; ev.preventDefault(); $("matDrop").classList.remove("on"); const fs0 = [...((ev.dataTransfer && ev.dataTransfer.files) || [])]; if (fs0.length) matUpload(fs0, v.querySelector("[data-mat-up]")); });
+  })();
+  const MAT_FILL_KEY = "shlife.matFill";
+  const matFillOn = () => { try { return localStorage.getItem(MAT_FILL_KEY) !== "0"; } catch (e) { return true; } };
+  $("salesView").addEventListener("change", (ev) => { const t = ev.target; if (t && t.matches && t.matches("[data-mat-fill]")) { try { localStorage.setItem(MAT_FILL_KEY, t.checked ? "1" : "0"); } catch (e) {} document.querySelectorAll("#salesView [data-mat-fill]").forEach((x) => { x.checked = t.checked; }); } });
+  // 서식마다 FC 정보를 넣을 자리(PDF 점 단위, 위에서부터 top). 자료 폴더에 '서식채우기.json'이 있으면 그것을 먼저 씀: { "파일 이름 일부": [{ "칸": "지점", "x": 488, "top": 101, "size": 10 }] }
+  const MAT_FILL_DEF = { "피보험자서면동의서": [{ 칸: "지점", x: 489, top: 101, size: 10 }] };
+  const MAT_FC_KEYS = { 이름: "FC 이름", 사번: "사번", 연락처: "연락처", 지점: "지점명(예: ○○지점의 ○○ 부분)", 이메일: "이메일" };
+  async function matFillMap(f) {
+    let map = MAT_FILL_DEF;
+    try { const j = MAT.dir ? await stReadJsonIn(MAT.dir, "서식채우기.json") : null; if (j && typeof j === "object") map = { ...MAT_FILL_DEF, ...j }; } catch (e) { /* 없으면 기본 */ }
+    const key = Object.keys(map).find((k) => norm(f.name).includes(norm(k)));
+    return key ? map[key] : null;
+  }
+  async function matFcInfo(need) { // 내 설정 파일의 fcInfo → (관리자) 팀원 파일 → 그래도 없으면 물어보고 저장
+    await loadMyPrefs().catch(() => {});
+    const info = { ...((myPrefs && myPrefs.fcInfo) || {}) };
+    if (!info.이름) info.이름 = (await myFcName().catch(() => "")) || "";
+    if (need.some((k) => !info[k]) && isAdmin()) {
+      try { const d = await stFindPath(TM_DIR), doc = d ? await stReadJsonIn(d, TM_FILE) : null, p = ((doc && doc.사람) || []).find((x) => x.이름 === info.이름); if (p) ["사번", "연락처", "이메일", "지점"].forEach((k) => { if (!info[k] && p[k]) info[k] = k === "연락처" ? fmtPhone(p[k]) : String(p[k]); }); } catch (e) { /* 팀원 파일 못 읽음 */ }
+    }
+    let asked = false;
+    for (const k of need) { if (info[k]) continue; const v = prompt(`서식에 넣을 ${MAT_FC_KEYS[k] || k}을(를) 넣어 주세요. 한 번 넣으면 내 설정에 저장됩니다.`, ""); if (v == null) return null; info[k] = String(v).trim(); asked = true; }
+    if (asked) { try { await saveMyPrefs({ ...(myPrefs || {}), fcInfo: { ...((myPrefs && myPrefs.fcInfo) || {}), ...Object.fromEntries(need.map((k) => [k, info[k]])) } }); } catch (e) { console.warn("FC 정보 저장 실패", e); } }
+    return info;
+  }
+  function matTextPng(text, size) { // 글자를 그림으로(PDF에 한글 글꼴을 넣지 않고 화면 글꼴로)
+    const sc = 4, c = document.createElement("canvas"), x = c.getContext("2d"), font = `${size * sc}px "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
+    x.font = font; const w = Math.ceil(x.measureText(text).width) + 4, h = Math.ceil(size * sc * 1.3);
+    c.width = w; c.height = h; const y = c.getContext("2d"); y.font = font; y.fillStyle = "#111"; y.textBaseline = "middle"; y.fillText(text, 2, h / 2);
+    return { url: c.toDataURL("image/png"), w: w / sc, h: h / sc };
+  }
+  async function matDown(f, btn) {
+    const fill = matFillOn() && docsExt(f) === "PDF", old = btn.textContent;
+    btn.disabled = true; btn.textContent = "준비 중";
+    try {
+      let bytes = await stGet0(f.id), name = f.name;
+      if (fill) {
+        const spots = await matFillMap(f);
+        if (!spots) toast("이 서식은 FC 정보를 넣을 자리가 정해지지 않아 그대로 받습니다");
+        else {
+          const info = await matFcInfo([...new Set(spots.map((sp) => sp.칸))]);
+          if (info) {
+            await rptLoad("https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js");
+            const doc = await window.PDFLib.PDFDocument.load(bytes), pages = doc.getPages();
+            for (const sp of spots) {
+              const v = String(info[sp.칸] || "").trim(); if (!v) continue;
+              const pg = pages[(sp.page || 1) - 1] || pages[0], im = matTextPng(sp.칸 === "연락처" ? fmtPhone(v) : v, sp.size || 10), png = await doc.embedPng(im.url);
+              pg.drawImage(png, { x: sp.x, y: pg.getHeight() - sp.top - im.h, width: im.w, height: im.h });
+            }
+            bytes = await doc.save(); name = name.replace(/(\.pdf)$/i, " - " + (info.이름 || "FC") + "$1");
+          }
+        }
+      }
+      rptSave(new Blob([bytes], { type: f.mime || "application/pdf" }), name);
+      toast("받았습니다");
+    } catch (e) { handleError(e); }
+    finally { btn.disabled = false; btn.textContent = old; }
+  }
   $("salesView").addEventListener("change", (ev) => { const t = ev.target; if (t && t.id === "matFile" && t.files && t.files.length) { const fs0 = [...t.files]; t.value = ""; matUpload(fs0, $("salesView").querySelector("[data-mat-up]")); } });
   $("salesView").addEventListener("click", (ev) => {
     if (SALES.sub !== "data") return;
@@ -10784,12 +10849,13 @@
     const o = ev.target.closest("[data-mat-open]"); if (o) { const f = matFile(o.dataset.matOpen); if (f) docsView(f); return; }
     const sh = ev.target.closest("[data-mat-share]"); if (sh) { const f = matFile(sh.dataset.matShare); if (f) matShare(f, sh); return; }
     const up = ev.target.closest("[data-mat-up]"); if (up) { const i = $("matFile"); if (i) i.click(); }
+    const dn = ev.target.closest("[data-mat-down]"); if (dn) { const f = matFile(dn.dataset.matDown); if (f) matDown(f, dn); return; }
   });
   // ===== v580(2026-11-25 사용자 지시 "동선관리") 세일즈 > 동선관리 =====
   //   고객을 골라 [최적동선 제안] → 이동 시간 합이 가장 짧은 순서(카카오 길찾기) + 시간표(미팅 시간·점심 1시간) → [일정에 넣기](고객 연결을 미리 넣음)
   //   출발·도착: 회사(관리자 설정의 회사 주소) / 집(내 설정 파일 homeAddress) / 주소 직접 입력. 한 번에 최대 8명
   const RT_MAX = 8;
-  const RT = { from: { k: "company", a: "" }, to: { k: "home", a: "" }, start: "09:00", meet: 60, lunch: true, lunchFrom: "12:00", lunchTo: "13:30", q: "", picks: [], res: null, busy: false, reorder: false, msg: "", homeEdit: false };
+  const RT = { view: "day", day: dayStart(new Date()), from: { k: "company", a: "" }, to: { k: "company", a: "" }, start: "09:00", meet: 60, lunch: true, lunchFrom: "12:00", lunchTo: "13:30", q: "", picks: [], res: null, busy: false, reorder: false, msg: "", homeEdit: false };
   const rtMin = (hm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hm || "")); return m ? +m[1] * 60 + +m[2] : 0; };
   const rtHm = (n) => pad2(Math.floor(((n % 1440) + 1440) % 1440 / 60)) + ":" + pad2(((n % 60) + 60) % 60);
   const rtHome = () => String((myPrefs && myPrefs.homeAddress) || "").trim();
@@ -10818,7 +10884,7 @@
     box.innerHTML = `<div class="card"><p class="hint">불러오는 중…</p></div>`;
     try { await Promise.all([loadSettings().catch(() => {}), loadMyPrefs().catch(() => {}), rtCustomers()]); } catch (e) { if (req === salesReq) { box.innerHTML = ""; handleError(e); } return; }
     if (req !== salesReq) return;
-    rtDraw();
+    if (RT.view === "add") rtDraw(); else { RD.key = ""; rdLoad(); } // v582: 기본은 날짜별 보기
   }
   function rtPlaceHtml(which) {
     const p = RT[which], lab = which === "from" ? "출발" : "도착";
@@ -10836,7 +10902,7 @@
     const noCompany = (RT.from.k === "company" || RT.to.k === "company") && !String(appSettings.companyAddress || "").trim();
     const timeOpts = (cur, list) => list.map((t) => `<option${t === cur ? " selected" : ""}>${t}</option>`).join("");
     const minOpts = (cur) => [30, 40, 60, 90, 120].map((m) => `<option value="${m}"${m === +cur ? " selected" : ""}>${m}분</option>`).join("");
-    box.innerHTML = `<div class="card rt">
+    box.innerHTML = `<div class="rt-backbar"><button type="button" class="ev-edit org-back-btn" data-rt-back>‹ ${esc(rdLabel(RT.day))} 동선</button></div><div class="card rt">
       ${rtPlaceHtml("from")}${rtPlaceHtml("to")}
       ${needHome ? `<div class="rt-row"><span>집 주소</span><div class="rt-pl"><input class="rt-in" id="rtHomeIn" value="${esc(rtHome())}" placeholder="집 주소를 넣어 주세요(내 설정에 저장)" autocomplete="off"><button type="button" class="rt-b on" data-rt-homesave>저장</button></div></div>` : rtHome() && (RT.from.k === "home" || RT.to.k === "home") ? `<p class="hint2">집: ${esc(rtHome())} <a href="#" data-rt-homeedit>바꾸기</a></p>` : ""}
       ${noCompany ? `<p class="hint2">회사 주소가 없습니다. 관리자 설정의 회사 주소를 넣거나 주소를 직접 넣어 주세요.</p>` : ""}
@@ -10852,13 +10918,13 @@
   }
   // v581(사용자 지시 "지도에 각 일정의 위치와 동선"): Leaflet + 오픈스트리트맵 바탕, 카카오 길찾기 길 모양을 선으로
   const rtLib = (u, css) => new Promise((res, rej) => { if (document.querySelector(`[data-rtlib="${u}"]`)) return res(); const el = document.createElement(css ? "link" : "script"); el.dataset.rtlib = u; if (css) { el.rel = "stylesheet"; el.href = u; res(); } else { el.src = u; el.onload = res; el.onerror = () => rej(new Error("지도 도구를 불러오지 못했습니다")); } document.head.appendChild(el); });
-  async function rtMapDraw() {
-    const el = $("rtMap"); if (!el || !RT.res) return;
+  async function rtMapDraw(o) {
+    const el = $("rtMap"); if (!el || (!o && !RT.res)) return;
     try {
       await rtLib("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css", true);
       await rtLib("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js");
       if (!$("rtMap") || !window.L) return;
-      const R = RT.res, L = window.L, seq = [0, ...R.order, R.pts.length - 1];
+      const R0 = RT.res, O = o || { geo: R0.geo, M: R0.M, seq: [0, ...R0.order, R0.pts.length - 1], names: R0.pts.map((p) => p.name) }, L = window.L, seq = O.seq, R = { geo: O.geo, M: O.M };
       const map = L.map(el, { zoomControl: true, attributionControl: true });
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
       const ll = (i) => [R.geo[i].y, R.geo[i].x], bounds = [];
@@ -10867,7 +10933,7 @@
       seq.forEach((i, k) => {
         const end = k === 0 || k === seq.length - 1, txt = k === 0 ? "출" : k === seq.length - 1 ? "도" : String(k);
         if (k === seq.length - 1 && seq[0] !== i && Math.abs(R.geo[i].x - R.geo[seq[0]].x) < 1e-6 && Math.abs(R.geo[i].y - R.geo[seq[0]].y) < 1e-6) return;
-        L.marker(ll(i), { icon: L.divIcon({ className: "rt-mk" + (end ? " end" : ""), html: `<span>${txt}</span>`, iconSize: [24, 24], iconAnchor: [12, 12] }), title: R.pts[i].name }).addTo(map);
+        L.marker(ll(i), { icon: L.divIcon({ className: "rt-mk" + (end ? " end" : ""), html: `<span>${txt}</span>`, iconSize: [24, 24], iconAnchor: [12, 12] }), title: O.names[i] }).addTo(map);
         bounds.push(ll(i));
       });
       map.fitBounds(bounds, { padding: [20, 20] });
@@ -10968,7 +11034,7 @@
     try { cals = (await scheduleCalendars()).map(withAlias).filter((c) => !c.accessRole || c.accessRole === "owner" || c.accessRole === "writer"); } catch (e) { return handleError(e); }
     if (!cals.length) return toast("일정을 넣을 캘린더가 없습니다.");
     const team = (GCFG && GCFG.teamCalendar) || "1팀", def = (cals.find((c) => c.name === team) || cals[0]).id;
-    const today = ymdStr(new Date()), meets = P.steps.filter((s) => s.k === "meet"), st = P.steps[0], en = P.steps[P.steps.length - 1];
+    const today = ymdStr(RT.day || new Date()), meets = P.steps.filter((s) => s.k === "meet"), st = P.steps[0], en = P.steps[P.steps.length - 1];
     const old = document.getElementById("rtCalPop"); if (old) old.remove();
     const box = document.createElement("div"); box.id = "rtCalPop"; box.className = "modal";
     box.innerHTML = `<div class="modal-box rt-cal" role="dialog" aria-modal="true" aria-label="일정에 넣기"><h3 class="sec-title">일정 ${meets.length + 2}건 넣기</h3>
@@ -11020,17 +11086,151 @@
     if (!t) return;
     ev.preventDefault();
     const d = t.dataset;
-    if (d.rtPl) { const [w, k] = d.rtPl.split(":"); RT[w] = { k, a: "" }; RT.homeEdit = false; return rtDraw(); }
+    if (d.rtPl) { const [w, k] = d.rtPl.split(":"); RT[w] = { k, a: "" }; RT.homeEdit = false; if (RT.view !== "add") { RD.key = ""; return rdLoad(); } return rtDraw(); }
     if (d.rtAdd) { const c = (rtCustCache || []).find((x) => x.id === d.rtAdd); if (c && RT.picks.length < RT_MAX) { RT.picks.push({ ...c, addr: c.meet || c.addr, src: c.meet ? "미팅장소" : c.addr ? "주소" : "", min: RT.meet }); RT.q = ""; RT.res = null; } return rtDraw(); }
     if (d.rtDel != null) { RT.picks.splice(+d.rtDel, 1); RT.res = null; return rtDraw(); }
     if (t.hasAttribute("data-rt-go")) return rtCompute();
-    if (t.hasAttribute("data-rt-homeedit")) { RT.homeEdit = true; return rtDraw(); }
-    if (t.hasAttribute("data-rt-homesave")) { const v = String(($("rtHomeIn") || {}).value || "").trim(); if (!v) return toast("집 주소를 넣어 주세요."); try { await saveMyPrefs({ ...(myPrefs || {}), homeAddress: v }); RT.homeEdit = false; toast("집 주소를 저장했습니다"); } catch (e) { handleError(e); } return rtDraw(); }
+    if (t.hasAttribute("data-rt-homeedit")) { RT.homeEdit = true; return rtRender(); }
+    if (t.hasAttribute("data-rt-homesave")) { const v = String(($("rtHomeIn") || {}).value || "").trim(); if (!v) return toast("집 주소를 넣어 주세요."); try { await saveMyPrefs({ ...(myPrefs || {}), homeAddress: v }); RT.homeEdit = false; toast("집 주소를 저장했습니다"); } catch (e) { handleError(e); } if (RT.view !== "add") { RD.key = ""; return rdLoad(); } return rtDraw(); }
     if (t.hasAttribute("data-rt-reorder")) { RT.reorder = !RT.reorder; return rtDraw(); }
     if (d.rtUp || d.rtDown) { const o = RT.res.order, i = o.indexOf(+(d.rtUp || d.rtDown)), j = d.rtUp ? i - 1 : i + 1; if (i >= 0 && j >= 0 && j < o.length) { [o[i], o[j]] = [o[j], o[i]]; RT.res.manual = true; } return rtDraw(); }
     if (t.hasAttribute("data-rt-map")) { window.open(rtMapUrl(), "_blank", "noopener"); return; }
     if (t.hasAttribute("data-rt-cal")) return rtCalAsk();
   });
+  // ===== v582(2026-11-25 사용자 지시) 동선관리 날짜별 보기 =====
+  //   기본 = 고른 날(처음엔 오늘)의 영업일정 캘린더 일정(시간 있는 것)으로 동선·지도. 출발·도착 기본 회사.
+  //   손잡이로 끌어 순서를 바꾸면 첫 일정 시작 시각은 두고 나머지를 이동 시간에 맞춰 다시 정함 → [저장] = 캘린더 일정 시간 고침, [취소] = 처음대로
+  const RD = { key: "", busy: false, msg: "", evs: [], miss: [], geo: null, M: null, orig: [], order: [], saving: false };
+  const rtRouteMemo = new Map();
+  const rtRoute = async (a, b) => { const k = [a.x, a.y, b.x, b.y].join(","); if (rtRouteMemo.has(k)) return rtRouteMemo.get(k); const r = await route(a, b); if (r) rtRouteMemo.set(k, r); return r; };
+  const rtRender = () => (RT.view === "add" ? rtDraw() : rtDayDraw());
+  const rdLabel = (d) => `${d.getMonth() + 1}월 ${d.getDate()}일 (${"일월화수목금토"[d.getDay()]})${sameDay(d, new Date()) ? " · 오늘" : ""}`;
+  const rdMin = (d) => d.getHours() * 60 + d.getMinutes();
+  const rdDirty = () => RD.order.join(",") !== RD.orig.join(",");
+  function rdNavHtml() {
+    const arrow = (p) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${p}"/></svg>`;
+    return `<div class="sched-nav rd-nav"><span class="sched-rt"><span class="sched-seg"><button type="button" class="link-btn" data-rd-add aria-label="동선 추가">추가</button></span></span><button type="button" data-rd-day="-1" aria-label="이전 날">${arrow("M15 6l-6 6 6 6")}</button><button type="button" class="sched-label" data-rd-today>${esc(rdLabel(RT.day))}</button><button type="button" data-rd-day="1" aria-label="다음 날">${arrow("M9 6l6 6-6 6")}</button></div>`;
+  }
+  async function rdLoad() { // 그날 일정 읽기 → 장소 정하기 → 좌표·길찾기
+    const day = RT.day, key = ymdStr(day) + "|" + rtPlaceAddr(RT.from) + "|" + rtPlaceAddr(RT.to);
+    if (RD.key === key && (RD.busy || RD.M || RD.msg)) return;
+    RD.key = key; RD.busy = true; RD.msg = ""; RD.evs = []; RD.miss = []; RD.M = null; rtDayDraw();
+    try {
+      const all = await fetchEvents(day, addDays(day, 1));
+      if (RD.key !== key) return;
+      const cust = rtCustCache || [];
+      const byId = new Map(cust.filter((c) => c.custId).map((c) => [c.custId, c]));
+      const evs = all.filter((e) => !e.allDay && schedSalesIds.has(e.calId) && sameDay(e.start, day) && !/\(동선\)$/.test(e.title));
+      evs.forEach((e) => {
+        const l = CalCust.linkOf(e.priv), c = (l.custId && byId.get(l.custId)) || (() => { const t = norm(e.title), hit = cust.filter((x) => norm(x.name).length >= 2 && t.includes(norm(x.name))); return hit.length === 1 ? hit[0] : null; })();
+        const place = e.location || (c && (c.meet || c.addr)) || "", src = e.location ? "일정 장소" : c && c.meet ? "미팅장소" : c && c.addr ? "주소" : "";
+        (place ? RD.evs : RD.miss).push({ e, c, place, src, dur: Math.max(10, Math.round((e.end - e.start) / 60000)) });
+      });
+      if (RD.evs.length > 10) { RD.miss.push(...RD.evs.slice(10)); RD.evs = RD.evs.slice(0, 10); }
+      if (!RD.evs.length) { RD.busy = false; return rtDayDraw(); }
+      if (!KAKAO.restKey) throw new Error("카카오 키가 없어 거리를 계산할 수 없습니다(관리자 설정).");
+      const fromA = rtPlaceAddr(RT.from), toA = rtPlaceAddr(RT.to);
+      if (!fromA || !toA) throw new Error(!fromA ? "출발지 주소가 없습니다." : "도착지 주소가 없습니다.");
+      const addrs = [fromA, ...RD.evs.map((x) => x.place), toA], geo = await Promise.all(addrs.map((a) => geocode(a)));
+      const bad = addrs.map((a, i) => (geo[i] ? "" : i === 0 ? "출발지" : i === addrs.length - 1 ? "도착지" : RD.evs[i - 1].e.title)).filter(Boolean);
+      if (bad.length) throw new Error("주소로 위치를 찾지 못했습니다: " + bad.join(", "));
+      const n = RD.evs.length, M = addrs.map(() => []), jobs = [];
+      for (let i = 0; i <= n; i++) for (let j = 1; j <= n + 1; j++) if (i !== j && !(i === 0 && j === n + 1)) jobs.push([i, j]);
+      let k = 0; const worker = async () => { while (k < jobs.length) { const [i, j] = jobs[k++]; M[i][j] = await rtRoute(geo[i], geo[j]); } };
+      await Promise.all(Array.from({ length: 6 }, worker));
+      if (RD.key !== key) return;
+      if (jobs.some(([i, j]) => !M[i][j])) throw new Error("길찾기를 받지 못한 구간이 있습니다. 잠시 뒤 다시 열어 주세요.");
+      RD.geo = geo; RD.M = M; RD.orig = RD.evs.map((_, i) => i + 1); RD.order = RD.orig.slice();
+    } catch (e) { if (RD.key === key) RD.msg = String(e && e.message || e); }
+    if (RD.key === key) { RD.busy = false; rtDayDraw(); }
+  }
+  function rdPlan() { // 지금 순서 → 시간표(바뀐 순서면 첫 시작 시각부터 이동 시간에 맞춰 다시)
+    const M = RD.M, n = RD.evs.length, dirty = rdDirty(), steps = [];
+    const first = RD.evs[RD.order[0] - 1], t0 = Math.min(...RD.evs.map((x) => rdMin(x.e.start)));
+    let prev = 0, t = null, km = 0, mv = 0;
+    RD.order.forEach((i, k) => {
+      const x = RD.evs[i - 1], r = M[prev][i];
+      const st = dirty ? (k === 0 ? t0 : t + r.min) : rdMin(x.e.start);
+      if (k === 0) steps.push({ k: "start", t: st - r.min, name: rtPlaceName(RT.from) + " 출발" });
+      steps.push({ k: "move", dep: k === 0 ? st - r.min : t, min: r.min, km: r.km });
+      km += r.km; mv += r.min;
+      const en = dirty ? st + x.dur : rdMin(x.e.end);
+      steps.push({ k: "meet", t: st, end: en, x, idx: i, chg: st !== rdMin(x.e.start) });
+      t = en; prev = i;
+    });
+    const r = M[prev][n + 1]; steps.push({ k: "move", dep: t, min: r.min, km: r.km }); km += r.km; mv += r.min;
+    steps.push({ k: "end", t: t + r.min, name: rtPlaceName(RT.to) + " 도착" });
+    return { steps, km, mv, end: t + r.min, first };
+  }
+  function rtDayDraw() {
+    const box = $("salesView"); if (!box || SALES.sub !== "route" || RT.view === "add") return;
+    const needHome = (RT.from.k === "home" || RT.to.k === "home") && (!rtHome() || RT.homeEdit);
+    let body = "";
+    if (RD.busy) body = `<p class="hint pad">그날 일정과 길찾기를 불러오는 중…</p>`;
+    else if (RD.msg) body = `<p class="rt-msg">${esc(RD.msg)}</p>`;
+    else if (!RD.evs.length) body = `<p class="hint pad">이 날 영업일정 캘린더에 시간이 정해진 일정이 없습니다. [추가]로 동선을 짜서 일정에 넣을 수 있습니다.</p>`;
+    else {
+      const P = rdPlan(), on = rdDirty() && !RD.saving;
+      const row = (s) => s.k === "move" ? `<div class="tl-mv">${rtHm(s.dep)} 출발 · 차 ${s.min}분 · ${s.km.toFixed(1)}km</div>`
+        : s.k === "meet" ? `<div class="tl-s meet rd-s"><span class="t${s.chg ? " chg" : ""}">${rtHm(s.t)}</span><span class="dot"></span><b>${esc(s.x.e.title)}</b><div class="sub">${rtHm(s.t)}~${rtHm(s.end)} · ${esc(s.x.place.split(/\s+/).slice(0, 4).join(" "))}${s.x.src && s.x.src !== "일정 장소" ? ` (${esc(s.x.src)})` : ""}${s.chg ? ` · 원래 ${rtHm(rdMin(s.x.e.start))}` : ""}</div><span class="rt-grip" data-rd-grip="${s.idx}" aria-label="끌어서 순서 바꾸기"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 8h16M4 12h16M4 16h16"/></svg></span></div>`
+        : `<div class="tl-s"><span class="t">${rtHm(s.t)}</span><span class="dot"></span><b>${esc(s.name)}</b></div>`;
+      body = `<div class="rt-sum"><span><b>${P.km.toFixed(1)}</b>km</span><span>이동 <b>${Math.floor(P.mv / 60)}:${pad2(P.mv % 60)}</b></span><span>도착 <b>${rtHm(P.end)}</b></span></div>
+        <div id="rtMap" class="rt-map" aria-label="동선 지도"></div>
+        <div class="tl" id="rdTl">${P.steps.map(row).join("")}</div>
+        <p class="hint2">영업일정 캘린더의 시간 있는 일정 ${RD.evs.length}건 · 장소 = 일정 장소, 없으면 연결된 고객의 미팅장소·주소 · 손잡이를 끌어 순서를 바꾸면 첫 일정 시작 시각부터 이동 시간에 맞춰 다시 정합니다(바뀐 시간은 주황색).</p>
+        <div class="rd-bar"><button type="button" data-rd-cancel${on ? "" : " disabled"}>취소</button><button type="button" class="pri" data-rd-save${on ? "" : " disabled"}>${RD.saving ? "저장 중…" : "저장"}</button></div>`;
+    }
+    const miss = RD.miss.length ? `<p class="hint2">장소를 몰라 동선에서 뺀 일정: ${RD.miss.map((x) => `${rtHm(rdMin(x.e.start))} ${esc(x.e.title)}`).join(", ")} (일정에 장소를 넣거나 고객에 미팅장소·주소를 넣으면 들어갑니다)</p>` : "";
+    box.innerHTML = rdNavHtml() + `<div class="card rt rd" id="rdCard">${rtPlaceHtml("from")}${rtPlaceHtml("to")}
+      ${needHome ? `<div class="rt-row"><span>집 주소</span><div class="rt-pl"><input class="rt-in" id="rtHomeIn" value="${esc(rtHome())}" placeholder="집 주소를 넣어 주세요(내 설정에 저장)" autocomplete="off"><button type="button" class="rt-b on" data-rt-homesave>저장</button></div></div>` : ""}
+      <div style="height:6px"></div>${body}${miss}</div>`;
+    if (RD.M && RD.evs.length && !RD.busy && !RD.msg) rtMapDraw({ geo: RD.geo, M: RD.M, seq: [0, ...RD.order, RD.evs.length + 1], names: ["출발", ...RD.evs.map((x) => x.e.title), "도착"] });
+  }
+  async function rdSave(btn) {
+    const P = rdPlan(), tz = (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone || "Asia/Seoul", ds = ymdStr(RT.day);
+    const at = (m) => ({ dateTime: `${ds}T${rtHm(m)}:00`, timeZone: tz });
+    const ch = P.steps.filter((s) => s.k === "meet" && (s.chg || s.end !== rdMin(s.x.e.end)));
+    if (!ch.length) return;
+    if (!confirm(`일정 ${ch.length}건의 시간을 바꿀까요?` + String.fromCharCode(10) + ch.map((s) => `${s.x.e.title}: ${rtHm(rdMin(s.x.e.start))} → ${rtHm(s.t)}`).join(String.fromCharCode(10)))) return;
+    RD.saving = true; rtDayDraw();
+    let done = 0;
+    try { await ensureGWrite(); for (const s of ch) { await gcalPatch(s.x.e.calId, s.x.e.eventId, { start: at(s.t), end: at(s.end) }); done++; } toast(`일정 ${done}건의 시간을 바꿨습니다`); }
+    catch (e) { toast((done ? `${done}건까지 바꾸고 멈췄습니다: ` : "") + String(e && e.message || e)); }
+    RD.saving = false; RD.key = ""; rdLoad();
+  }
+  (() => { // 날짜별 보기: 손잡이로 끌어 순서 바꾸기
+    let drag = null;
+    document.addEventListener("pointerdown", (ev) => {
+      const g = ev.target.closest && ev.target.closest("#rdTl [data-rd-grip]"); if (!g) return;
+      ev.preventDefault();
+      const row = g.closest(".tl-s"), rows = [...document.querySelectorAll("#rdTl .tl-s.meet")];
+      drag = { idx: +g.dataset.rdGrip, row, y0: ev.clientY, mids: rows.map((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2; }) };
+      row.classList.add("dragging"); try { g.setPointerCapture(ev.pointerId); } catch (e) {}
+    });
+    document.addEventListener("pointermove", (ev) => { if (!drag) return; ev.preventDefault(); drag.row.style.transform = `translateY(${ev.clientY - drag.y0}px)`; }, { passive: false });
+    const end = (ev) => {
+      if (!drag) return;
+      const d = drag; drag = null; d.row.classList.remove("dragging"); d.row.style.transform = "";
+      const o = RD.order, from = o.indexOf(d.idx); if (from < 0) return;
+      const y = d.mids[from] + (ev.clientY - d.y0), to = d.mids.filter((m, k) => k !== from && m < y).length;
+      if (to === from) return;
+      o.splice(from, 1); o.splice(to, 0, d.idx); rtDayDraw();
+    };
+    document.addEventListener("pointerup", end); document.addEventListener("pointercancel", end);
+  })();
+  document.addEventListener("click", (ev) => {
+    const t = ev.target && ev.target.closest && ev.target.closest("#salesView [data-rd-day],#salesView [data-rd-today],#salesView [data-rd-add],#salesView [data-rd-cancel],#salesView [data-rd-save],#salesView [data-rt-back]");
+    if (!t) return;
+    ev.preventDefault();
+    if ((t.dataset.rdDay || t.hasAttribute("data-rd-today")) && rdDirty() && !confirm("저장하지 않은 순서 변경을 버리고 다른 날로 갈까요?")) return;
+    if (t.dataset.rdDay) { RT.day = addDays(RT.day, +t.dataset.rdDay); return rdLoad(); }
+    if (t.hasAttribute("data-rd-today")) { RT.day = dayStart(new Date()); return rdLoad(); }
+    if (t.hasAttribute("data-rd-add")) { RT.view = "add"; return rtDraw(); }
+    if (t.hasAttribute("data-rt-back")) { RT.view = "day"; RD.key = ""; return rdLoad(); }
+    if (t.hasAttribute("data-rd-cancel")) { RD.order = RD.orig.slice(); return rtDayDraw(); }
+    if (t.hasAttribute("data-rd-save")) return rdSave(t);
+  });
+  document.addEventListener("change", (ev) => { const t = ev.target; if (RT.view !== "add" && t && t.dataset && t.dataset.rtAddr && t.closest("#rdCard")) { RD.key = ""; rdLoad(); } });
   function openSales() { renderSales(); flushContacts(); }
   $("salesSub").addEventListener("click", (ev) => { // 세일즈 서브메뉴: 이달목표 / 자료 (세일즈 화면 위, 화면 바깥 줄)
     const b = ev.target.closest("[data-ssub]");
