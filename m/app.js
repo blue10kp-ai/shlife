@@ -3484,21 +3484,23 @@
   const CD_QS = [["자기소개1", "1. 본인 자신을 30글자 이내로 표현해 보세요."], ["자기소개2", "2. 10년 후의 나의 모습은?"], ["자기소개3", "3. 신한라이프가 당신을 뽑아야 하는 이유는?"], ["자기소개4", "4. 본인의 좌우명은?"], ["자기소개5", "5. 본인의 슬럼프 극복 방법은 무엇인가요?"], ["자기소개6", "6. 현재의 꿈은 무엇인가요?"]];
   const CD_ESSAYS = [["자소서1", "1. 성장 배경과 자신의 가치관(인생관)"], ["자소서2", "2. 본인이 생각하는 본인의 장단점"], ["자소서3", "3. 지원 동기 및 향후 Vision과 꿈"]];
   let cdDoc = null, cdSel = "", cdEdit = false, cdTeam = [];
-  const cdPeople = () => ((cdDoc && cdDoc.사람) || []).filter((x) => !x.전환일시).sort((a, b) => String(a.이름 || "").localeCompare(String(b.이름 || ""), "ko"));
-  const cdHead = (mid, acts) => `<h3 class="sec-title">후보자정보</h3><div class="tm-bar"><button type="button" class="ev-edit org-back-btn" data-cd-back>‹ 팀관리</button>${mid || '<span class="tm-sp" aria-hidden="true"></span>'}${acts || ""}</div>`;
+  const cdKept = () => ((cdDoc && cdDoc.사람) || []).filter((x) => !x.전환일시 && x.담아둔일시).sort((a, b) => String(b.담아둔일시).localeCompare(String(a.담아둔일시))); // v563: 담아둔 후보자(고르기 목록에서 빠짐)
+  let cdKeepView = false;
+  const cdPeople = () => ((cdDoc && cdDoc.사람) || []).filter((x) => !x.전환일시 && !x.담아둔일시).sort((a, b) => String(a.이름 || "").localeCompare(String(b.이름 || ""), "ko"));
+  const cdHead = (mid, acts) => `<div class="cd-titlebar"><h3 class="sec-title">후보자정보</h3>${cdEdit ? "" : `<span class="cd-tr">${cdKept().length ? `<button type="button" class="cd-keepn" data-cd-keeplist>담아둔 ${cdKept().length}</button>` : ""}<button type="button" class="cd-addt" data-cd-add>추가</button></span>`}</div><div class="tm-bar"><button type="button" class="ev-edit org-back-btn" data-cd-back>‹ 팀관리</button>${mid || '<span class="tm-sp" aria-hidden="true"></span>'}${acts || ""}</div>`;
   async function openCandInfo() {
     if (!isAdmin()) return;
     show("teamView");
     const box = $("teamView");
     box.innerHTML = `<p class="hint pad">후보자 정보를 불러오는 중…</p>`;
     try {
-      cdEdit = false;
+      cdEdit = false; cdKeepView = false;
       tmDir = await stFindPath(TM_DIR);
       cdDoc = tmDir ? await stReadJsonIn(tmDir, CD_FILE) : null;
       { const tj = tmDir ? await stReadJsonIn(tmDir, TM_FILE).catch(() => null) : null; cdTeam = (tj && Array.isArray(tj.사람) && tj.사람) || []; }
-      if (!cdDoc || !Array.isArray(cdDoc.사람) || !cdPeople().length) { box.innerHTML = `<div class="card">${cdHead("", '<button type="button" class="ev-edit cd-add-btn" data-cd-add>+ 추가</button>')}<p class="hint">팀원으로 전환하지 않은 후보자가 없습니다(내 드라이브 > Claude > 팀 > ${esc(CD_FILE)}).</p></div>`; return; }
+      if (!cdDoc || !Array.isArray(cdDoc.사람) || !cdPeople().length) { box.innerHTML = `<div class="card">${cdHead("")}<p class="hint">팀원으로 전환하지 않은 후보자가 없습니다(내 드라이브 > Claude > 팀 > ${esc(CD_FILE)}).</p></div>`; return; }
       const ppl = cdPeople();
-      if (!ppl.some((x) => String(x.id) === cdSel)) cdSel = String(ppl[0].id);
+      if (!ppl.some((x) => String(x.id) === cdSel) && !cdKept().some((x) => String(x.id) === cdSel)) cdSel = String(ppl[0].id);
       renderCandInfo(); window.scrollTo(0, 0);
     } catch (e) { box.innerHTML = ""; handleError(e); openTeam(); }
   }
@@ -3722,6 +3724,53 @@
     if (d.cddoc) { const f = cdDocsList[+d.cddoc]; if (f) docsView({ ...f, mime: (f.file && f.file.mimeType) || "" }); return; }
     if (d.cddocdel) { const f = cdDocsList[+d.cddocdel], p = cdPeople().find((x) => String(x.id) === cdSel); if (!f || !confirm(`'${f.name}' 파일을 지울까요?\n\n드라이브 휴지통으로 가서 30일 안에 되살릴 수 있습니다.`)) return; t.disabled = true; stDel(f.id).then(() => { toast("지웠습니다(드라이브 휴지통)"); if (p) cdLoadDocs(p); }, (e) => { t.disabled = false; handleError(e); }); }
   });
+  // ---------- v563(2026-11-24 사용자 지시): 담아두기 — 담아둔 후보자는 고르기 목록에서 빼고, [담아둔 N] 목록에서 검색·보기·꺼내기 ----------
+  function renderCdKeep() {
+    const box = $("teamView"), list = cdKept();
+    const md = (s) => String(s || "").slice(5, 10);
+    box.innerHTML = `<div class="card tm-wrap cd-keep"><div class="cd-titlebar"><h3 class="sec-title">담아둔 후보자</h3><span class="cd-tr"><button type="button" class="cd-keepn" data-cd-keepback>‹ 후보자정보</button></span></div>
+      <input type="search" class="cd-kq" id="cdKq" placeholder="이름·연락처로 찾기" aria-label="담아둔 후보자 찾기" autocomplete="off">
+      <div class="cd-klist">${list.map((x) => `<div class="cd-krow" data-k="${esc(String(x.이름 || "") + " " + String(x.연락처 || "").replace(/\D/g, "") + " " + String(x.연락처 || ""))}"><button type="button" class="cd-kn" data-cd-keepopen="${esc(String(x.id))}">${esc(x.이름 || "(이름 없음)")}</button><small>${esc(md(x.담아둔일시))} 담음</small><button type="button" class="cd-kout" data-cd-keepout="${esc(String(x.id))}">꺼내기</button></div>`).join("") || '<p class="hint">담아둔 후보자가 없습니다.</p>'}<p class="hint cd-knone" hidden>찾는 후보자가 없습니다.</p></div>
+      <p class="hint cd-knote">담아둔 후보자는 위 고르기 목록에 나오지 않습니다. 이름을 누르면 정보를 보고, [꺼내기]를 누르면 다시 목록에 나옵니다.</p></div>`;
+  }
+  document.addEventListener("input", (ev) => {
+    if (!ev.target || ev.target.id !== "cdKq") return;
+    const q = ev.target.value.trim().toLowerCase(), qd = q.replace(/\D/g, "");
+    let n = 0;
+    document.querySelectorAll(".cd-krow").forEach((r) => { const k = r.dataset.k.toLowerCase(), hit = !q || k.includes(q) || (qd.length >= 3 && k.includes(qd)); r.hidden = !hit; if (hit) n++; });
+    const none = document.querySelector(".cd-knone"); if (none) none.hidden = n > 0 || !q;
+  });
+  async function cdKeepSet(id, on) { // on = 담아두기, off = 꺼내기
+    const fresh = await stReadJsonIn(tmDir, CD_FILE);
+    const q = fresh && Array.isArray(fresh.사람) ? fresh.사람.find((x) => String(x.id) === String(id)) : null;
+    if (!q) throw new Error("후보자 파일에서 이 사람을 찾지 못했습니다");
+    if (on) { const d = new Date(), z = (x) => String(x).padStart(2, "0"); q.담아둔일시 = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; }
+    else delete q.담아둔일시;
+    await stWriteJsonIn(tmDir, CD_FILE, fresh);
+    cdDoc = fresh;
+    return q;
+  }
+  document.addEventListener("click", async (ev) => {
+    const t = ev.target.closest && ev.target.closest("[data-cd-keep],[data-cd-keepout],[data-cd-keeplist],[data-cd-keepback],[data-cd-keepopen]");
+    if (!t) return;
+    const d = t.dataset;
+    if (d.cdKeeplist != null) { cdKeepView = true; renderCdKeep(); window.scrollTo(0, 0); return; }
+    if (d.cdKeepback != null) { cdKeepView = false; if (!cdPeople().some((x) => String(x.id) === cdSel)) cdSel = String((cdPeople()[0] || {}).id || ""); if (cdPeople().length) renderCandInfo(); else openCandInfo(); window.scrollTo(0, 0); return; }
+    if (d.cdKeepopen) { cdKeepView = false; cdSel = d.cdKeepopen; renderCandInfo(); window.scrollTo(0, 0); return; }
+    t.disabled = true;
+    try {
+      if (d.cdKeep) {
+        const q = await cdKeepSet(d.cdKeep, true), ppl = cdPeople();
+        cdSel = String((ppl[0] || {}).id || "");
+        if (ppl.length) renderCandInfo(); else openCandInfo();
+        undoToast(`${q.이름 || "후보자"} 님을 담아 두었습니다(목록에서 빠짐)`, async () => { try { await cdKeepSet(q.id, false); cdSel = String(q.id); cdKeepView = false; renderCandInfo(); toast("되돌렸습니다."); } catch (e) { handleError(e); } });
+      } else if (d.cdKeepout) {
+        const q = await cdKeepSet(d.cdKeepout, false);
+        toast(`${q.이름 || "후보자"} 님을 꺼냈습니다(목록에 다시 나옴)`);
+        if (cdKeepView) renderCdKeep(); else { cdSel = String(q.id); renderCandInfo(); }
+      }
+    } catch (e) { t.disabled = false; handleError(e); }
+  });
   function cdCellEdit([k, t, ph], val, p) { // 후보자 칸 하나(수정·추가 창 공통)
       const v = val(k);
       if (k === "도입자") return introSel("cdf", p, cdTeam);
@@ -3734,7 +3783,8 @@
       return `<input data-cdf="${k}" type="${t === "secret" || t === "date" ? "text" : t}"${t === "date" ? ' data-dp="date"' : ""} value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">`;
     }
   function renderCandInfo() {
-    const box = $("teamView"), ppl = cdPeople(), p = ppl.find((x) => String(x.id) === cdSel) || ppl[0];
+    if (cdKeepView) return renderCdKeep();
+    const box = $("teamView"), ppl = cdPeople(), kp = cdKept().find((x) => String(x.id) === cdSel), p = kp || ppl.find((x) => String(x.id) === cdSel) || ppl[0];
     if (!box || !p) return;
     const pre = cdEdit ? cdPrefill(p) : {};
     const val = (k) => (k in pre ? pre[k] : String(p[k] == null ? "" : p[k]));
@@ -3757,8 +3807,8 @@
     };
     const cvMiss = ["이름", "사번", "입사일"].filter((k) => !val(k).trim()); // v490(2026-11-19 사용자 지시): 필수 항목(이름·사번·입사일)이 다 들어가야 [팀원 전환]이 눌림
     const qa = ([k, q]) => `<div class="cd-q">${esc(q)}</div>${cdEdit ? `<textarea class="cd-a" data-cdf="${k}" rows="1" aria-label="${esc(q)}">${esc(val(k))}</textarea>` : `<div class="cd-a">${val(k) ? esc(val(k)) : '<span class="tm-none">-</span>'}</div>`}`;
-    const opts = ppl.map((x) => `<option value="${esc(String(x.id))}" ${String(x.id) === String(p.id) ? "selected" : ""}>${esc(x.이름 || "(이름 없음)")}</option>`).join("");
-    const acts = cdEdit ? `<button type="button" class="ev-edit" data-cd-cancel>취소</button><button type="button" class="ev-edit ev-done" data-cd-save>저장</button>` : `<button type="button" class="ev-edit cd-add-btn" data-cd-add>+ 추가</button><button type="button" class="ev-edit" data-cd-edit>수정</button>`; // v562: [수정] 왼쪽 [추가]
+    const opts = (kp ? `<option value="${esc(String(kp.id))}" selected>(담아둠) ${esc(kp.이름 || "")}</option>` : "") + ppl.map((x) => `<option value="${esc(String(x.id))}" ${String(x.id) === String(p.id) ? "selected" : ""}>${esc(x.이름 || "(이름 없음)")}</option>`).join("");
+    const acts = cdEdit ? `<button type="button" class="ev-edit" data-cd-cancel>취소</button><button type="button" class="ev-edit ev-done" data-cd-save>저장</button>` : `<button type="button" class="ev-edit" data-cd-edit>수정</button>${kp ? `<button type="button" class="ev-edit" data-cd-keepout="${esc(String(p.id))}">꺼내기</button>` : `<button type="button" class="ev-edit" data-cd-keep="${esc(String(p.id))}">담아두기</button>`}`; // v563: [추가]는 제목 줄로, [수정] 오른쪽 [담아두기]/[꺼내기]
     box.innerHTML = `<div class="card tm-wrap">${cdHead(`<select data-cd-sel aria-label="후보자 고르기" ${cdEdit ? "disabled" : ""}>${opts}</select>`, acts)}
       ${cdEdit ? `<div class="cd-fill"><div class="cd-fill-h"><b>자료로 채우기</b><span class="hint"> · 메모나 이미지를 넣고 [분석]</span></div>${cdSrcHtml("edit")}<div class="cd-seg" role="radiogroup" aria-label="채우는 방법"><button type="button" role="radio" data-cdmode="empty" class="${cdFillMode === "empty" ? "on" : ""}" aria-checked="${cdFillMode === "empty"}">빈 칸만 채우기<small>있는 정보는 그대로</small></button><button type="button" role="radio" data-cdmode="replace" class="${cdFillMode === "replace" ? "on" : ""}" aria-checked="${cdFillMode === "replace"}">기존 정보도 바꾸기<small>읽은 값으로 덮어씀</small></button></div><button type="button" class="cd-fill-go" data-cdfill>분석해서 채우기</button></div><div class="cd-sum" id="cdSum" hidden></div>` : ""}
       <dl class="tm-info cd-info${cdEdit ? " editing" : ""}">${CD_ROWS.map(rowHtml).join("")}</dl>
@@ -5991,7 +6041,7 @@
     const s_pg = sec("세일즈 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "세일즈 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 세일즈 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
-    const s_ntf = sec("중요 알림 · 오전 6시 로그아웃 (v557, 2026-11-24)", ["<b>중요 알림</b>: 로그인한 뒤 그날 처음 앱을 열면, 오늘에 해당하는 알림이 한 창에 모두 나옵니다. 버튼은 <b>[확인]</b> 하나뿐이고, 누르면 알림에 정해 둔 페이지로 이동합니다(시스템 알림이 먼저, 그다음 목록 위쪽 알림). 한 번 확인한 알림은 다시 나오지 않습니다(요일 알림은 그날만).", "<b>시스템 알림</b>: 내 FC에 새 이관 계약이나 새 밸류업DB가 생기면 자동으로 알립니다. 처음 한 번은 지금 목록을 기억만 하고, 그 뒤로 새로 생긴 건수를 알려 줍니다.", "<b>관리자 › 전체 알림</b>(관리자만): 알림 추가·수정·삭제, 알림마다 켜기·끄기, 시스템 알림 전체 켜기·끄기(기본 켬). 알림마다 날짜(시작~끝) 또는 요일, 대상(전체·FC별), 확인하면 이동할 페이지를 정합니다. 날짜 알림에는 확인한 사람 수가 나옵니다.", "<b>오전 6시 로그아웃</b>: 매일 오전 6시가 지나면 모든 앱(신한FC·말만해요 등 같은 로그인을 쓰는 앱)이 로그아웃되고, 다음 로그인 때 구글 계정 고르기 창이 한 번 나옵니다. 구글 비밀번호를 다시 넣게 하지는 못하며, 폰 시계를 기준으로 합니다."]);
+    const s_ntf = sec("중요 알림 · 오전 6시 로그아웃 (v557, 2026-11-24)", ["<b>중요 알림</b>: 로그인한 뒤 그날 처음 앱을 열면, 오늘에 해당하는 알림이 한 창에 모두 나옵니다. 버튼은 <b>[확인]</b> 하나뿐이고, 누르면 알림에 정해 둔 페이지로 이동합니다(시스템 알림이 먼저, 그다음 목록 위쪽 알림). 한 번 확인한 알림은 다시 나오지 않습니다(요일 알림은 그날만).", "<b>연체·실효 알림(v564)</b>: 내 FC의 연체리스트(나온 지 7일 안)나 실효리스트(이번 달·지난달)가 새로 나오면 로그인 직후 알림이 뜨고, [확인]을 누르면 세일즈 › 보고서의 연체/실효 리스트로 바로 갑니다. 한 번 확인하면 다시 뜨지 않고, 다음에 앱을 열면 첫 화면(대시보드)부터 보입니다. 연체나 실효가 없으면 PDF 다운 버튼은 숨깁니다.", "<b>시스템 알림</b>: 내 FC에 새 이관 계약이나 새 밸류업DB가 생기면 자동으로 알립니다. 처음 한 번은 지금 목록을 기억만 하고, 그 뒤로 새로 생긴 건수를 알려 줍니다.", "<b>관리자 › 전체 알림</b>(관리자만): 알림 추가·수정·삭제, 알림마다 켜기·끄기, 시스템 알림 전체 켜기·끄기(기본 켬). 알림마다 날짜(시작~끝) 또는 요일, 대상(전체·FC별), 확인하면 이동할 페이지를 정합니다. 날짜 알림에는 확인한 사람 수가 나옵니다.", "<b>오전 6시 로그아웃</b>: 매일 오전 6시가 지나면 모든 앱(신한FC·말만해요 등 같은 로그인을 쓰는 앱)이 로그아웃되고, 다음 로그인 때 구글 계정 고르기 창이 한 번 나옵니다. 구글 비밀번호를 다시 넣게 하지는 못하며, 폰 시계를 기준으로 합니다."]);
     const s_login = sec("로그인 (공통 로그인)", ["<b>로그인 승인/거부(v513)</b>: 신한FC 로그인은 관리자 화면 FC 사용 설정의 계정 카드 오른쪽 <b>[승인]/[거부]</b> 토글로만 정합니다(이메일·사번이 있다고 저절로 들어가지 않음). 거부인 계정으로 로그인하면 로그인 화면에 ‘아직 신한FC 로그인이 승인되지 않았습니다’가 뜨고 [다른 계정으로 로그인]이 보입니다. 승인으로 켜면 그 계정의 FC 폴더(본인 FC와 체크한 FC)와 설정 폴더를 Google Drive로 공유합니다. 거부로 끌 때는 공유도 해제할지 묻습니다 — 공유를 남기면 앱은 막혀도 드라이브에서 파일을 직접 열 수 있습니다. 이메일이 아직 없는 사람은 조직도에서 이메일을 먼저 넣어야 승인할 수 있습니다.", "<b>새 팀원</b>: 팀관리 > 후보자정보에서 [전환]하면 팀원정보에 옮겨지고, FC 사용 목록에 ‘이메일 미등록’으로 올라가며 로그인은 거부로 시작합니다. 팀원정보에 등록되어 데이터가 있는 FC는 계정이 없어도 관리자 화면(이달목표 사용자 선택·고객 FC 선택)에서 볼 수 있습니다.", "한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
     const s_go = sec("말만해요 연결", ["말만해요에서 “김현성 고객 검색해줘”처럼 말하면 말만해요 화면 안에 이 앱의 고객 검색 목록이 나타납니다. 한 명만 나와도 목록이 먼저 보이고, 고객을 누르면 그 안에서 고객 정보가 열립니다. 이때는 앱 전체가 아니라 그 페이지만 보입니다(위쪽 바·아래 메뉴 없음). 목록→고객 정보, 정보·계약·분석·상담 탭 이동은 그대로이고, 뒤로가기는 말만해요의 왼쪽 위 버튼이 한 단계씩 되돌립니다.", "말만해요의 [앱으로 열기]를 누르면 보던 바로 그 화면(검색 목록 또는 그 고객 정보)으로 신한FC m이 전체 화면으로 열립니다. 말만해요 안에서는 로그아웃 버튼이 없고(로그아웃은 말만해요에서), 로그인이 풀렸으면 ‘말만해요에서 다시 로그인’ 안내가 나옵니다.", "“오늘 일정 보여줘”처럼 일정을 물으면 일정 화면(하루 보기)만 말만해요 안에 나타납니다. 날짜 이동·추가 버튼은 그대로 쓰고, [앱으로 열기]를 누르면 보던 날짜로 열립니다.", "검색한 이름은 주소의 # 뒤에만 실려 서버로 전송되지 않습니다."]);
     const s_map = sec("고객 주소 지도", ["고객 정보의 주소 오른쪽 <b>위치 아이콘</b>을 누르면 카카오맵에서 그 주소를 찾은 지도가 새 창으로 열립니다. 누를 때만 주소가 카카오맵에 전달됩니다."]);
@@ -6009,7 +6059,7 @@
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
-    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>후보자 추가(v562)</b>: [수정] 왼쪽 [+ 추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562)</b>: 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
+    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562)</b>: 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_ntf, s_login, s_go, s_map, s_inst];
@@ -8304,7 +8354,7 @@
     if (s === "schedule") { schedMode = "day"; schedDate = dayStart(new Date()); openSchedule(); } // 항상 오늘 Today
     else if (s === "admin") openAdmin();
     else if (s === "dash") openDash();
-    else if (s === "sales") openSales();
+    else if (s === "sales") { SALES.fromNtf = false; openSales(); }
     else if (s === "team") openTeam();
     else resetSearch(); // 고객: 검색을 지우고 처음 화면
   }));
@@ -9840,7 +9890,7 @@
     setTimeout(() => { apply(); setTimeout(() => { apply(); cleanup(); }, 150); }, 50); // 레이아웃이 자리 잡은 뒤 한 번 더 맞춤 (타이머: 화면이 가려져 있어도 멈추지 않음)
   }
   function salesSaveState() { // 새로 로드돼도 이어 보도록 (세일즈 화면을 보고 있을 때만)
-    if ($("salesView").hidden || SALES.resume) return;
+    if ($("salesView").hidden || SALES.resume || SALES.fromNtf) return; // v564: 알림으로 온 화면은 남기지 않음
     try { sessionStorage.setItem(SALES_SAVE_KEY, JSON.stringify({ acc: gAccount(), t: Date.now(), tab: SALES.tab, ym: SALES.ym, fc: SALES.fc, dct: SALES.dct, dcls: SALES.dcls, dact: SALES.dact, df: SALES.df, open: [...SALES.open].slice(0, 300), a: salesAnchor() })); } catch (e) { /* 무시 */ }
   }
   function salesClearState() { try { sessionStorage.removeItem(SALES_SAVE_KEY); } catch (e) { /* 무시 */ } }
@@ -10214,7 +10264,7 @@
     OD.built = { groups, multi, cur, lapse, label: (OD.opts.find((o) => o.id === OD.opt) || {}).label || "" };
     const all = groups.flatMap((g) => g.rows);
     const odHtml = !cur ? `<p class="hint">아직 연체리스트가 없습니다.</p>` :
-      `<div class="od-th"><p class="od-title"><b>${esc(odTitle(cur))}</b></p><button type="button" class="ev-edit" data-od="od" aria-label="연체리스트 PDF 다운">PDF 다운</button></div>` + // v549: PDF 다운은 제목 줄 오른쪽 끝 // v546(2026-11-21 사용자 지시): '입니다' 빼고, 시험 기록은 'YYYY년 M월 연체리스트'
+      `<div class="od-th"><p class="od-title"><b>${esc(odTitle(cur))}</b></p>${all.length ? `<button type="button" class="ev-edit" data-od="od" aria-label="연체리스트 PDF 다운">PDF 다운</button>` : ""}</div>` + // v564(사용자 지시): 연체가 없으면 PDF 다운 버튼 숨김 // v549: PDF 다운은 제목 줄 오른쪽 끝 // v546(2026-11-21 사용자 지시): '입니다' 빼고, 시험 기록은 'YYYY년 M월 연체리스트'
 
       `<div class="od-sum">${odSum(all, groups.flatMap((g) => g.lrows))}${multi ? ` <small>· FC ${groups.length}명</small>` : ""}</div>` +
       (multi && !groups.some((g) => g.rows.length) ? `<p class="hint pad">${OD_MINN}~${OD_MAXN}회 연체가 없습니다.</p>` : "") +
@@ -10222,7 +10272,7 @@
       "";
     const nL = groups.reduce((a, g) => a + g.lrows.length, 0);
     // v532(2026-11-21 사용자 지시): 실효리스트도 표로 보여 주고 그 밑에 PDF 다운
-    const lpHtml = lapse ? `<div class="od-lp"><div class="od-th"><p class="od-title"><b>${esc(lapse.제목 || "실효리스트")}</b></p><button type="button" class="ev-edit" data-od="lapse" aria-label="${esc(lapse.제목 || "실효리스트")} PDF 다운">PDF 다운</button></div>` +
+    const lpHtml = lapse ? `<div class="od-lp"><div class="od-th"><p class="od-title"><b>${esc(lapse.제목 || "실효리스트")}</b></p>${nL ? `<button type="button" class="ev-edit" data-od="lapse" aria-label="${esc(lapse.제목 || "실효리스트")} PDF 다운">PDF 다운</button>` : ""}</div>` + // v564: 실효가 없으면 숨김
       (nL ? groups.filter((g) => g.lapse && (!multi || g.lrows.length)).map((g) => `<div class="od-grp">${multi ? `<div class="rpt-gh"><b>${esc(g.fc)}</b> <span>${g.lrows.length}건</span></div>` : ""}${g.lrows.length ? odTable(OL_COLS, g.lrows, (r) => (r.지금상태 && r.지금상태 !== "실효" ? "od-revived" : "")) : multi ? `<p class="hint pad">실효 계약이 없습니다.</p>` : ""}</div>`).join("") : `<p class="hint">실효 계약이 없습니다.</p>`) +
       `</div>` : "";
     box.innerHTML = head + odHtml + lpHtml + `<p class="hint" id="odMsg"></p>`; // v538(2026-11-21 사용자 지시): 회색 안내 글은 모두 뺌(메시지 자리만 남김)
@@ -10808,8 +10858,8 @@
   //   확인 기록 = 그 사람 FC 폴더의 알림확인.json {이메일: {확인키: 시각}} + 이 기기(localStorage). Drive에 못 남겨도 이 기기 기록으로 동작
   //   시스템 알림 = 새 이관·새 DB(내 FC, 지난번 확인 뒤 새로 생긴 줄). 처음 한 번은 지금 목록을 기억만 함
   const NTF_FILE = "shlife-알림.json", NTF_ACK = "알림확인.json";
-  const NTF_GO = [["", "이동 없음"], ["sales:transfer", "세일즈 › 이달목표 › 이관"], ["sales:dda", "세일즈 › 이달목표 › 따행"], ["sales:valueup", "세일즈 › 이달목표 › DB"], ["sales:prog", "세일즈 › 계약진행"], ["sales:material", "세일즈 › 보고서"], ["sales:data", "세일즈 › 자료"], ["dash", "대시보드"], ["schedule", "일정"], ["customer", "고객"]];
-  const NTF_SYS = [["newTransfer", "새 이관 계약 {n}건이 이달목표에 올라왔습니다.", "sales:transfer"], ["newDb", "새 밸류업DB {n}건이 배분되었습니다.", "sales:valueup"]];
+  const NTF_GO = [["", "이동 없음"], ["sales:od", "세일즈 › 보고서 › 연체/실효"], ["sales:transfer", "세일즈 › 이달목표 › 이관"], ["sales:dda", "세일즈 › 이달목표 › 따행"], ["sales:valueup", "세일즈 › 이달목표 › DB"], ["sales:prog", "세일즈 › 계약진행"], ["sales:material", "세일즈 › 보고서"], ["sales:data", "세일즈 › 자료"], ["dash", "대시보드"], ["schedule", "일정"], ["customer", "고객"]];
+  const NTF_SYS = [["newOverdue", "{t}가 나왔습니다. 확인해 주세요.", "sales:od"], ["newLapse", "{t}가 나왔습니다. 확인해 주세요.", "sales:od"], ["newTransfer", "새 이관 계약 {n}건이 이달목표에 올라왔습니다.", "sales:transfer"], ["newDb", "새 밸류업DB {n}건이 배분되었습니다.", "sales:valueup"]]; // v564: 연체·실효 리스트가 나온 날 알림(목록 위쪽 = 이동 우선)
   const NTF_DOW = "일월화수목금토";
   const ntfGoLabel = (g) => (NTF_GO.find((x) => x[0] === (g || "")) || NTF_GO[0])[1];
   const ntfDay = () => am6Today();
@@ -10817,7 +10867,7 @@
   function ntfNorm(d) {
     d = d && typeof d === "object" ? d : {};
     const items = (Array.isArray(d.items) ? d.items : []).filter((x) => x && x.id);
-    NTF_SYS.forEach(([k, t, go]) => { if (!items.some((x) => x.kind === "system" && x.sys === k)) items.push({ id: "sys-" + k, kind: "system", sys: k, text: t, go, target: ["*"], on: true }); });
+    NTF_SYS.slice().reverse().forEach(([k, t, go]) => { if (!items.some((x) => x.kind === "system" && x.sys === k)) (k === "newOverdue" || k === "newLapse" ? items.unshift.bind(items) : items.push.bind(items))({ id: "sys-" + k, kind: "system", sys: k, text: t, go, target: ["*"], on: true }); });
     return { v: 1, system: d.system !== false, items };
   }
   async function ntfLoad() { await resolveAppDir(); return ntfNorm(await stReadJsonIn(appDir, NTF_FILE)); }
@@ -10847,7 +10897,25 @@
     };
     let seen = {}; try { seen = JSON.parse(localStorage.getItem(NTF_SEEN()) || "{}") || {}; } catch (e) { seen = {}; }
     const out = []; let first = false;
-    on.forEach((it) => {
+    // v564: 연체·실효 리스트 — 나온 지 7일(실효는 그 달·지난달) 안이고 이 기기에서 아직 확인 안 한 파일이면 알림(처음 기억만 하는 규칙 없이)
+    const odOn = on.filter((x) => x.sys === "newOverdue" || x.sys === "newLapse");
+    if (odOn.length && OD_ON) {
+      try {
+        if (!OD.data) OD.data = data;
+        const f = await odFolder(fc), pk = f && f.list ? odPick(f.list) : {};
+        const ago = new Date(Date.now() - 7 * 864e5), lim = ago.getFullYear() + "-" + String(ago.getMonth() + 1).padStart(2, "0") + "-" + String(ago.getDate()).padStart(2, "0");
+        const pm = new Date(); pm.setDate(1); pm.setMonth(pm.getMonth() - 1); const lm = pm.getFullYear() + "-" + String(pm.getMonth() + 1).padStart(2, "0");
+        odOn.forEach((it) => {
+          const x = it.sys === "newOverdue" ? pk.cur : pk.lapse; if (!x || x.정식 === false) return;
+          const fresh = it.sys === "newOverdue" ? String(x.확인일 || "") >= lim : String(x.월 || "") >= lm;
+          const key = String(x.파일 || x.확인일 || x.월 || ""), prev = Array.isArray(seen[it.sys]) ? seen[it.sys] : [];
+          if (!key || !fresh || prev.includes(key)) return;
+          const t = it.sys === "newOverdue" ? odTitle(x) : String(x.제목 || "실효리스트");
+          out.push({ ...it, text: String(it.text || "").replace("{t}", t).replace("{n}", "1"), _now: [...prev, key].slice(-24) });
+        });
+      } catch (e) { console.warn("연체 알림 확인 못 함", e); }
+    }
+    on.filter((x) => x.sys !== "newOverdue" && x.sys !== "newLapse").forEach((it) => {
       const f = keys[it.sys]; if (!f) return;
       const now = f(), prev = seen[it.sys];
       if (!Array.isArray(prev)) { seen[it.sys] = now; first = true; return; } // 처음 = 지금 목록을 기억만
@@ -10886,6 +10954,13 @@
   }
   function ntfGo(g) {
     const [a, b] = String(g).split(":");
+    salesClearState(); SALES.fromNtf = true; // v564(사용자 지시): 알림을 보고 간 화면은 이어 보기에 남기지 않음 → 다음에 열면 첫 화면(대시보드)부터
+    if (a === "sales" && b === "od") { // 세일즈 › 보고서의 연체/실효 리스트로
+      SALES.sub = "material";
+      loadSettings().then(() => openSales());
+      let n = 0; const tm = setInterval(() => { const c = $("odCard"); if (c && !/불러오는 중/.test(c.textContent)) { clearInterval(tm); c.scrollIntoView({ block: "start", behavior: "smooth" }); } else if (++n > 40) clearInterval(tm); }, 300);
+      return;
+    }
     if (a === "sales") {
       SALES.sub = ["prog", "material", "data"].includes(b) ? b : "check";
       if (SALES.sub === "check") { SALES.tab = ["dda", "valueup"].includes(b) ? b : "transfer"; SALES.ym = ymNow(); }
