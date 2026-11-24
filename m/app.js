@@ -2484,6 +2484,34 @@
   }
   // v499(2026-11-19 사용자 지시 "Gemini로 읽기"): 병원서류(영수증·세부내역·진단서 등)를 Gemini에 보내 사고일·시각·경위·병원·진료과·입원/통원을 읽어 입력창에 미리 채움
   //   [보험금청구서 제작 시작]을 누를 때만 보냄. 키는 말만해요 설정 파일(aiGeminiConfig). 주민번호·계좌는 묻지도 적지도 않음
+  // ---- v565(2026-11-24 진단 뒤 고침): Gemini 호출 하나로 — 성공한 모델을 기억해 먼저 쓰고, 없는 모델(404)은 이 세션에서 건너뜀, 요청마다 20초 제한, 전체 50초 안, flash 모델은 생각 단계 끔 ----
+  //   onStep(상태, 모델, 차례, 경과ms): 'start' | 'retry' — 화면 진행 표시용. 돌려주는 값은 fetch 응답(없으면 null)
+  const GEM_LAST = "shlife.gemModel", GEM_BAD = new Set();
+  async function gemCall(cfg, req, onStep) {
+    let last = ""; try { last = localStorage.getItem(GEM_LAST) || ""; } catch (e) { /* 무시 */ }
+    const order = [...new Set([last, "gemini-3.5-flash", cfg.model, "gemini-flash-latest", "gemini-3.8-flash", "gemini-flash-lite-latest", "gemini-3.1-flash-lite"].filter((m) => m && !GEM_BAD.has(m)))];
+    const t0 = Date.now(); let res = null, n = 0;
+    for (const mdl of order) {
+      if (n && Date.now() - t0 > 45000) break; // 전체 50초 안쪽에서 멈춤
+      if (onStep) try { onStep(n ? "retry" : "start", mdl, n, Date.now() - t0); } catch (e) { /* 무시 */ }
+      n++;
+      for (const think of [true, false]) {
+        const body = JSON.stringify(think && /flash/.test(mdl) ? { ...req, generationConfig: { ...(req.generationConfig || {}), thinkingConfig: { thinkingBudget: 0 } } } : req);
+        const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 20000);
+        try { res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(mdl) + ":generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.key }, body, signal: ac.signal }); }
+        catch (e) { res = null; console.warn("Gemini", mdl, e && e.name === "AbortError" ? "20초 넘음" : e && e.message, "→ 다음 모델"); }
+        finally { clearTimeout(tm); }
+        if (res && res.status === 400 && think && /flash/.test(mdl)) { const tx = await res.clone().text().catch(() => ""); if (/thinking/i.test(tx)) continue; } // 생각 끄기를 모르는 모델이면 끄지 않고 한 번 더
+        break;
+      }
+      if (!res) continue;
+      if (res.status === 404) { GEM_BAD.add(mdl); continue; }
+      if ([429, 500, 503].includes(res.status)) { console.warn("Gemini", mdl, res.status, "→ 다음 모델"); continue; }
+      if (res.ok) { try { localStorage.setItem(GEM_LAST, mdl); } catch (e) { /* 무시 */ } }
+      return res;
+    }
+    return res;
+  }
   const b64 = (blob) => new Promise((r, j) => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(",")[1] || ""); fr.onerror = j; fr.readAsDataURL(blob); });
   async function cvJpeg(src, w, h, max) { const k = Math.min(1, max / Math.max(w, h)), c = document.createElement("canvas"); c.width = Math.round(w * k); c.height = Math.round(h * k); const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(src, 0, 0, c.width, c.height); return new Promise((r) => c.toBlob(r, "image/jpeg", 0.85)); }
   async function hspParts(hsp, bufs) { // Gemini에 보낼 조각: PDF는 그대로, 사진·TIF는 긴 변 1800px JPEG (최대 10장)
@@ -2506,14 +2534,9 @@
       "accDate = 이번 진료의 시작일(진료기간·입원일·내원일 중 가장 이른 날). accTime = 서류에 내원·접수 시각이 있을 때만. story = 서류의 처치·검사·시술·진료과를 바탕으로 '무릎 통증으로 정형외과 통원 치료'처럼 짧게. hosp = 영수증 머리·도장의 병원 이름 그대로. kind = 영수증의 외래/입원 구분.\n" +
       "서류에서 확인되지 않는 값은 지어내지 말고 빈 문자열로 둬라. 주민등록번호·계좌번호·환자 이름은 답에 넣지 마라.";
     try {
-      const body = JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, ...parts] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } });
-      let res = null;
-      for (const mdl of [...new Set([cfg.model, "gemini-flash-latest", "gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemini-3.1-flash-lite"])]) { // 설정의 모델이 없어졌거나(404) 붐비면(429·500·503) 다음 모델로
-        res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(mdl) + ":generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.key }, body });
-        if (![404, 429, 500, 503].includes(res.status)) break;
-        console.warn("Gemini", mdl, res.status, "→ 다음 모델");
-      }
-      if (!res.ok) { console.warn("Gemini 병원서류 읽기 실패", res.status, (await res.text().catch(() => "")).slice(0, 200)); return null; }
+      const gemReq = { contents: [{ role: "user", parts: [{ text: prompt }, ...parts] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } };
+      let res = await gemCall(cfg, gemReq, null); // v565: 모델 기억·없는 모델 건너뛰기·20초 제한·생각 끄기
+      if (!res || !res.ok) { console.warn("Gemini 병원서류 읽기 실패", res && res.status, (await res.text().catch(() => "")).slice(0, 200)); return null; }
       const d = await res.json(), c0 = (d.candidates || [])[0] || {}, tx = ((c0.content || {}).parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("");
       if (!tx.trim()) { console.warn("Gemini 병원서류 읽기: 빈 답", cfg.model, c0.finishReason || "", JSON.stringify(d).slice(0, 300)); return null; }
       const j = JSON.parse(tx.replace(/^```json\s*|\s*```$/g, ""));
@@ -3560,7 +3583,7 @@
     return v.slice(0, /^자/.test(k) ? 3000 : 200);
   }
   const cdAiKeys = () => [...CD_ROWS.flatMap(([, cells]) => cells.map(([k]) => k)).filter((k) => k !== "사번" && k !== "도입자"), ...CD_QS.map(([k]) => k), ...CD_ESSAYS.map(([k]) => k)];
-  async function cdAnalyze(memo, files) {
+  async function cdAnalyze(memo, files, onStep) {
     const cfg = await aiGeminiConfig(); if (!cfg) return { noKey: true };
     const parts = [];
     for (const f of files.slice(0, 10)) {
@@ -3578,13 +3601,9 @@
       "자기소개1~6은 차례로 [" + CD_QS.map(([, q]) => q).join(" / ") + "]의 답, 자소서1~3은 [" + CD_ESSAYS.map(([, q]) => q).join(" / ") + "]에 해당하는 글(원문 그대로, 길면 그대로 둠).\n" +
       "자료에서 확인되지 않는 값은 지어내지 말고 빈 문자열로 둬라.\n\n메모:\n" + String(memo || "(없음)");
     try {
-      const body = JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, ...parts] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } });
-      let res = null;
-      for (const mdl of [...new Set([cfg.model, "gemini-flash-latest", "gemini-3.8-flash", "gemini-3.5-flash", "gemini-flash-lite-latest", "gemini-3.1-flash-lite"])]) {
-        res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(mdl) + ":generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.key }, body });
-        if (![404, 429, 500, 503].includes(res.status)) break;
-      }
-      if (!res.ok) { console.warn("Gemini 후보자 분석 실패", res.status); return null; }
+      const gemReq = { contents: [{ role: "user", parts: [{ text: prompt }, ...parts] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } };
+      let res = await gemCall(cfg, gemReq, onStep); // v565: 모델 기억·없는 모델 건너뛰기·20초 제한·생각 끄기
+      if (!res || !res.ok) { console.warn("Gemini 후보자 분석 실패", res && res.status); return null; }
       const d = await res.json(), c0 = (d.candidates || [])[0] || {}, tx = ((c0.content || {}).parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("");
       const j = JSON.parse(String(tx).replace(/^```json\s*|\s*```$/g, "") || "{}"), out = {};
       keys.forEach((k) => { const v = cdNorm(k, j[k]); if (v) out[k] = v; });
@@ -3612,17 +3631,28 @@
   async function cdDocsDir(p, create) {
     if (!GD) return null;
     if (p.자료폴더) return { id: p.자료폴더 };
-    let par = await stFindPath(TM_DIR + "/" + CD_DOCS);
-    if (!par) { if (!create) return null; const t = tmDir || (await stFindPath(TM_DIR)); par = { id: (await gdFetch(GDAPI + "/files?fields=id&supportsAllDrives=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: CD_DOCS, mimeType: GD_FOLDER, parents: [t.id] }) })).id }; }
+    let par = cdDocsParent || (await stFindPath(TM_DIR + "/" + CD_DOCS));
+    if (par) cdDocsParent = par;
+    if (!par) { if (!create) return null; const t = tmDir || (await stFindPath(TM_DIR)); par = { id: (await gdFetch(GDAPI + "/files?fields=id&supportsAllDrives=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: CD_DOCS, mimeType: GD_FOLDER, parents: [t.id] }) })).id }; cdDocsParent = par; }
     const nm = String(p.id) + " - " + String(p.이름 || "이름 없음").replace(/[\\/:*?"<>|]/g, "");
     const ex = await gdQuery("'" + qv(par.id) + "' in parents and name='" + qv(nm) + "' and mimeType='" + GD_FOLDER + "' and trashed=false");
     if (ex.length) return { id: ex[0].id };
     if (!create) return null;
     return { id: (await gdFetch(GDAPI + "/files?fields=id&supportsAllDrives=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: nm, mimeType: GD_FOLDER, parents: [par.id] }) })).id };
   }
-  async function cdUpload(p, files, how) { // → 폴더 ID
+  async function cdShrink(f) { // v565: 사진은 긴 변 2000px JPEG로 줄여 올림(PDF·HEIC 등은 원본 그대로)
+    if (!/^image\/(jpeg|png|webp|bmp)$/i.test(f.type || "")) return { blob: f, name: f.name, type: f.type || "application/octet-stream" };
+    try {
+      const bm = await createImageBitmap(f);
+      if (Math.max(bm.width, bm.height) <= 2000 && f.size <= 1.5 * 1024 * 1024) return { blob: f, name: f.name, type: f.type };
+      const b = await cvJpeg(bm, bm.width, bm.height, 2000);
+      return { blob: b, name: f.name.replace(/\.[^.]+$/, "") + ".jpg", type: "image/jpeg" };
+    } catch (e) { return { blob: f, name: f.name, type: f.type || "application/octet-stream" }; }
+  }
+  let cdDocsParent = null; // v565: 후보자자료 폴더 ID 기억
+  async function cdUpload(p, files, how) { // → 폴더 ID (여러 장 동시에)
     const dir = await cdDocsDir(p, true), day = cdYmd();
-    for (const f of files) await stPutIn(dir, `${day} - ${how} - ${f.name.replace(/[\\/:*?"<>|]/g, "_")}`, f, f.type || "application/octet-stream");
+    await Promise.all(files.map(async (f) => { const x = await cdShrink(f); return stPutIn(dir, `${day} - ${how} - ${x.name.replace(/[\\/:*?"<>|]/g, "_")}`, x.blob, x.type); }));
     return dir.id;
   }
   // 자료 박스(보기 화면 맨 아래)
@@ -3665,12 +3695,20 @@
     box.querySelectorAll("[data-cdf]").forEach((el) => { if (cdAdd.filled.has(el.dataset.cdf)) { const s = el._dpFace || (el.type === "checkbox" ? el.closest(".cd-chk") : el); setTimeout(() => { const s2 = el._dpFace || s; if (s2) s2.classList.add("cd-ai"); }, 0); } });
   }
   const cdFormVals = (box) => { const vals = {}; box.querySelectorAll("[data-cdf]").forEach((el) => { vals[el.dataset.cdf] = el.type === "checkbox" ? (el.checked ? el.dataset.on || "예" : "") : String(el.value || "").trim(); }); introFix(vals, cdTeam); return vals; };
+  // v565: 분석 진행 표시 — 버튼 글자에 단계·경과 초("읽는 중… 12초", 다른 모델로 바꾸면 "다른 모델로 다시 시도 중… 25초")
+  function cdProgress(btn, n) {
+    const t0 = Date.now(); let stage = "읽는 중";
+    const draw = () => { const b = typeof btn === "function" ? btn() : btn; if (b) b.textContent = (stage === "읽는 중" ? `메모와 이미지 ${n}장을 읽는 중… ` : "다른 모델로 다시 시도 중… ") + Math.round((Date.now() - t0) / 1000) + "초"; };
+    draw(); const tm = setInterval(draw, 1000);
+    return { step: (st) => { stage = st === "retry" ? "다시" : "읽는 중"; draw(); }, stop: () => clearInterval(tm) };
+  }
   async function cdAddGo(skip) {
     const memoEl = document.querySelector("#cdAddSheet .cd-memo"); cdAdd.memo = memoEl ? memoEl.value : cdAdd.memo;
     if (!skip) {
       if (!cdAdd.memo.trim() && !cdSrcFiles.add.length) return toast("메모나 이미지를 넣어 주세요.");
       cdAddRender(`메모와 이미지 ${cdSrcFiles.add.length}장을 읽는 중…`);
-      const res = await cdAnalyze(cdAdd.memo, cdSrcFiles.add);
+      const pg = cdProgress(() => document.querySelector("[data-cdadd-go]"), cdSrcFiles.add.length);
+      const res = await cdAnalyze(cdAdd.memo, cdSrcFiles.add, (st) => pg.step(st)); pg.stop();
       if (!cdAdd) return;
       if (res && res.noKey) { cdAdd.note = "Gemini 키가 없어 자동으로 채우지 못했습니다(말만해요 설정에서 키를 넣으면 됩니다). 직접 채워 주세요."; }
       else if (!res) cdAdd.note = "자료를 읽지 못했습니다. 직접 채워 주세요.";
@@ -3698,8 +3736,9 @@
   async function cdEditFill(btn) {
     const card = document.querySelector("#teamView .tm-wrap"), memoEl = card.querySelector('[data-cdsrc="edit"] .cd-memo'), memo = memoEl ? memoEl.value : "";
     if (!memo.trim() && !cdSrcFiles.edit.length) return toast("메모나 이미지를 넣어 주세요.");
-    btn.disabled = true; btn.textContent = `메모와 이미지 ${cdSrcFiles.edit.length}장을 읽는 중…`;
-    const res = await cdAnalyze(memo, cdSrcFiles.edit);
+    btn.disabled = true;
+    const pg = cdProgress(btn, cdSrcFiles.edit.length);
+    const res = await cdAnalyze(memo, cdSrcFiles.edit, (st) => pg.step(st)); pg.stop();
     btn.disabled = false; btn.textContent = "분석해서 채우기";
     const sum = $("cdSum");
     if (res && res.noKey) return toast("Gemini 키가 없어 분석하지 못했습니다(말만해요 설정에서 키를 넣어 주세요).");
@@ -8256,12 +8295,8 @@
     console.info("[AI→Gemini 보내는 글]", m.text); // 확인용: 이름·민감 숫자가 가려졌는지
     let j;
     try {
-      const body = JSON.stringify({ systemInstruction: { parts: [{ text: AI_GEM_PROMPT(today, AI_DOW[now.getDay()]) }] }, contents: [{ role: "user", parts: [{ text: m.text }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } });
-      let res = null;
-      for (const mdl of [...new Set([cfg.model, "gemini-flash-latest", "gemini-3.8-flash", "gemini-flash-lite-latest", "gemini-3.1-flash-lite"])]) { // v499: 설정 모델(gemini-2.5-flash)이 새 사용자에게 막혀(404) 말만해요 AI가 멈춰 있었음 → 없거나 붐비면 다음 모델
-        res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(mdl) + ":generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.key }, body });
-        if (![404, 429, 500, 503].includes(res.status)) break;
-      }
+      const gemReq = { systemInstruction: { parts: [{ text: AI_GEM_PROMPT(today, AI_DOW[now.getDay()]) }] }, contents: [{ role: "user", parts: [{ text: m.text }] }], generationConfig: { responseMimeType: "application/json", temperature: 0 } };
+      let res = await gemCall(cfg, gemReq, null); // v565: 모델 기억·없는 모델 건너뛰기·20초 제한·생각 끄기
       if (!res || !res.ok) return null;
       const d = await res.json();
       const txt = ((((d.candidates || [])[0] || {}).content || {}).parts || []).filter((x) => !x.thought).map((x) => x.text || "").join("");
