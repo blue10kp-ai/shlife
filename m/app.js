@@ -3480,7 +3480,7 @@
   // v481(2026-11-19 사용자 지시): 팀관리 > [후보자정보]. 관리자만. 후보자는 Claude/팀 폴더의 후보자 파일에 따로 두고(나중에 팀원정보로 옮길 예정이라 이름·주민번호·통신사·연락처·이메일·주소 칸 이름은 팀원 파일과 같게),
   //   기본 정보 + 짧은 질문 6개 + 상세 자기소개서 3개를 보여 주고 그 자리에서 고쳐 저장
   const CD_FILE = "후보자(초안).json";
-  const CD_ROWS = [["이름", [["이름", "text", ""]]], ["사번", [["사번", "text", "나오면 입력"]]], ["입사일", [["입사일", "date", ""]]], ["도입자", [["도입자", "text", ""]]], ["소개자", [["소개자", "text", "도입자에게 소개한 사람"]]], ["영문이름", [["영문이름", "text", ""]]], ["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["고등학교", [["고등학교", "text", "졸업 연도"]]], ["최종학력", [["최종학력", "text", "학교 · 졸업 연도"]]], ["병역", [["병역", "text", "입대 년월"]]], ["결혼여부", [["결혼여부", "text", "기념일"]]], ["자녀여부", [["자녀여부", "text", ""]]], ["종교", [["종교", "text", ""]]], ["취미", [["취미", "text", ""]]], ["특기", [["특기", "text", ""]]]];
+  const CD_ROWS = [["이름", [["이름", "text", ""]]], ["사번", [["사번", "text", "나오면 입력"]]], ["입사일", [["입사일", "date", ""]]], ["도입자", [["도입자", "text", ""]]], ["소개자", [["소개자", "text", "도입자에게 소개한 사람"]]], ["영문이름", [["영문이름", "text", ""]]], ["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["고등학교", [["고등학교", "text", "학교명"], ["고등학교졸업", "year", "졸업 연도"]]], ["최종학력", [["최종학력", "pick:고등학교|대학교|대학원", ""]]], ["병역", [["병역", "pick:면제|육군|공군|해군", ""], ["병역시작", "month", "시작"], ["병역끝", "month", "끝"]]], ["결혼여부", [["결혼여부", "check", "기혼"], ["결혼기념일", "md", "기념일"]]], ["자녀여부", [["자녀여부", "text", ""]]], ["종교", [["종교", "text", ""]]], ["취미", [["취미", "text", ""]]], ["특기", [["특기", "text", ""]]]];
   const CD_QS = [["자기소개1", "1. 본인 자신을 30글자 이내로 표현해 보세요."], ["자기소개2", "2. 10년 후의 나의 모습은?"], ["자기소개3", "3. 신한라이프가 당신을 뽑아야 하는 이유는?"], ["자기소개4", "4. 본인의 좌우명은?"], ["자기소개5", "5. 본인의 슬럼프 극복 방법은 무엇인가요?"], ["자기소개6", "6. 현재의 꿈은 무엇인가요?"]];
   const CD_ESSAYS = [["자소서1", "1. 성장 배경과 자신의 가치관(인생관)"], ["자소서2", "2. 본인이 생각하는 본인의 장단점"], ["자소서3", "3. 지원 동기 및 향후 Vision과 꿈"]];
   let cdDoc = null, cdSel = "", cdEdit = false, cdTeam = [];
@@ -3502,21 +3502,40 @@
       renderCandInfo(); window.scrollTo(0, 0);
     } catch (e) { box.innerHTML = ""; handleError(e); openTeam(); }
   }
+  // v560(2026-11-24 사용자 지시): 고등학교 = 학교명 + 졸업 연도, 최종학력 = 고등학교/대학교/대학원, 병역 = 면제/육군/공군/해군 + 시작·끝 년월, 결혼여부 = 체크 + 기념일(월·일)
+  //   예전에 글로 적은 값은 수정 화면에서 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고(예: 고등학교 칸의 '1988' → 졸업 연도, '결혼11월18일' → 기혼·11-18), 저장으로 바뀌면 원래 글은 '<칸>_이전'에 남김
+  const cdPrefill = (p) => {
+    const g = (k) => String(p[k] == null ? "" : p[k]).trim(), o = {};
+    const hs = g("고등학교"); if (/^\d{4}$/.test(hs)) { o.고등학교 = ""; if (!g("고등학교졸업")) o.고등학교졸업 = hs; }
+    const mr = g("결혼여부"); if (mr && mr !== "기혼") { o.결혼여부 = /미혼/.test(mr) ? "" : "기혼"; const m = /(\d{1,2})\s*월\s*(\d{1,2})\s*일/.exec(mr); if (m && !g("결혼기념일")) o.결혼기념일 = String(m[1]).padStart(2, "0") + "-" + String(m[2]).padStart(2, "0"); }
+    return o;
+  };
+  const cdYm = (v) => String(v || "").replace(/^(\d{4})-(\d{2}).*/, "$1.$2");
   function renderCandInfo() {
     const box = $("teamView"), ppl = cdPeople(), p = ppl.find((x) => String(x.id) === cdSel) || ppl[0];
     if (!box || !p) return;
-    const val = (k) => String(p[k] == null ? "" : p[k]);
+    const pre = cdEdit ? cdPrefill(p) : {};
+    const val = (k) => (k in pre ? pre[k] : String(p[k] == null ? "" : p[k]));
     const view = ([k, t]) => {
       const v = val(k);
       if (k === "도입자") { const n = introName(p, cdTeam); return n ? esc(n) : ""; }
       if (!v) return "";
       if (t === "secret") return `<span class="tm-sec"><span class="tm-secv">${esc(v)}</span><button type="button" class="map-btn copy-btn" data-copy="${esc(v)}" data-copy-msg="복사했습니다">복사</button></span>`;
       if (k === "주소") return `${esc(v)} ${mapBtn(v)}`;
+      if (k === "고등학교졸업") return /^\d{4}$/.test(v) ? esc(v) + "년 졸업" : esc(v);
+      if (k === "병역시작") return esc(cdYm(v)) + " ~";
+      if (k === "병역끝") return (val("병역시작") ? "" : "~ ") + esc(cdYm(v));
+      if (k === "결혼기념일") { const m = /^(\d{2})-(\d{2})$/.exec(v); return "기념일 " + (m ? +m[1] + "월 " + +m[2] + "일" : esc(v)); }
       return esc(v);
     };
     const edit = ([k, t, ph]) => {
       const v = val(k);
       if (k === "도입자") return introSel("cdf", p, cdTeam);
+      if (t === "year") return `<input data-cdf="${k}" type="number" inputmode="numeric" min="1950" max="2100" class="tm-narrow cd-year" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}">`;
+      if (t === "month") return `<input data-cdf="${k}" type="month" class="cd-month" value="${esc(v)}" aria-label="${esc("병역 " + (ph || k))}">`;
+      if (/^pick:/.test(t)) { const os = t.slice(5).split("|"), old = v && !os.includes(v) ? v : ""; return `<select data-cdf="${k}" aria-label="${esc(k)}"><option value="">선택</option>${os.map((x) => `<option ${v === x ? "selected" : ""}>${esc(x)}</option>`).join("")}${old ? `<option value="${esc(old)}" selected>이전: ${esc(old)}</option>` : ""}</select>`; }
+      if (t === "check") return `<label class="cd-chk"><input type="checkbox" class="cb" data-cdf="${k}" data-on="${esc(ph || "예")}" ${v ? "checked" : ""}> ${esc(ph || "예")}</label>`;
+      if (t === "md") { const m = /^(\d{2})-(\d{2})$/.exec(v) || [], opt = (n, cur) => Array.from({ length: n }, (_, i) => String(i + 1).padStart(2, "0")).map((x) => `<option value="${x}" ${cur === x ? "selected" : ""}>${+x}</option>`).join(""); return `<span class="cd-md" data-cdmd="${k}"><span class="cd-mdl">${esc(ph || "")}</span><select data-md="m" aria-label="${esc(ph)} 월"><option value="">월</option>${opt(12, m[1])}</select><select data-md="d" aria-label="${esc(ph)} 일"><option value="">일</option>${opt(31, m[2])}</select></span>`; }
       if (k === "통신사") { const base = ["SKT", "KT", "LG U+", "SKT 알뜰폰", "KT 알뜰폰", "LG U+ 알뜰폰"], os = v && !base.includes(v) ? [v, ...base] : base; return `<select data-cdf="통신사" class="tm-narrow" aria-label="통신사"><option value=""${v ? "" : " selected"}>통신사</option>${os.map((o) => `<option${o === v ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`; }
       return `<input data-cdf="${k}" type="${t === "secret" ? "text" : t}" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">`;
     };
@@ -3601,14 +3620,20 @@
   }
   async function saveCandInfo(btn) {
     const box = $("teamView"), vals = {};
-    box.querySelectorAll("[data-cdf]").forEach((el) => { vals[el.dataset.cdf] = String(el.value || "").trim(); }); introFix(vals, cdTeam);
+    box.querySelectorAll("[data-cdf]").forEach((el) => { vals[el.dataset.cdf] = el.type === "checkbox" ? (el.checked ? el.dataset.on || "예" : "") : String(el.value || "").trim(); }); introFix(vals, cdTeam);
+    box.querySelectorAll("[data-cdmd]").forEach((el) => { const m = el.querySelector('[data-md="m"]').value, d = el.querySelector('[data-md="d"]').value; vals[el.dataset.cdmd] = m && d ? m + "-" + d : ""; }); // v560: 결혼기념일 MM-DD (월·일 둘 다 골라야)
     btn.disabled = true; btn.textContent = "저장 중";
     try {
       const fresh = await stReadJsonIn(tmDir, CD_FILE);
       const q = fresh && Array.isArray(fresh.사람) ? fresh.사람.find((x) => String(x.id) === cdSel) : null;
       if (!q) throw new Error("후보자 파일에서 이 사람을 찾지 못했습니다");
       let n = 0;
-      Object.keys(vals).forEach((k) => { if (String(q[k] == null ? "" : q[k]) !== vals[k]) { q[k] = vals[k]; n++; } });
+      Object.keys(vals).forEach((k) => {
+        const old = String(q[k] == null ? "" : q[k]);
+        if (old === vals[k]) return;
+        if (old && ["고등학교", "최종학력", "병역", "결혼여부"].includes(k) && !(k + "_이전" in q) && !/^(고등학교|대학교|대학원|면제|육군|공군|해군|기혼)$/.test(old)) q[k + "_이전"] = old; // v560: 예전 글 값은 지우지 않고 남김
+        q[k] = vals[k]; n++;
+      });
       if (n) { const d = new Date(), z = (x) => String(x).padStart(2, "0"); q.수정일시 = `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; await stWriteJsonIn(tmDir, CD_FILE, fresh); }
       cdDoc = fresh; cdEdit = false; renderCandInfo(); toast(n ? "저장했습니다" : "바뀐 것이 없습니다");
     } catch (e) { btn.disabled = false; btn.textContent = "저장"; handleError(e); }
@@ -5349,6 +5374,7 @@
         <div id="gCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
         <div class="file-actions"><button type="button" class="primary" id="gCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml() + installCardHtml();
     $("adminBody").innerHTML = personal + `<h2 class="admin-sec">관리자</h2>
+      <div class="card ntf-entry"><div><h3 class="sec-title">전체 알림</h3><p class="hint">FC 로그인 직후 보여 줄 알림(날짜·요일·시스템)을 정합니다.</p></div><button type="button" class="secondary" data-ntf-open>열기 ›</button></div>
       <div class="card">
         <h3 class="sec-title org-h">FC 사용 설정</h3>
         <p class="hint org-note-top">고객·세일즈 페이지 접근과 민감정보 권한은 팀관리 메뉴의 [조직도]에서 정합니다.</p>
@@ -5686,7 +5712,8 @@
   // other = true: 구글 계정 선택 창을 띄워 다른 계정으로 로그인
   async function googleLogin(other) {
     try {
-      await requestGToken(other ? "select_account" : undefined, other);
+      await requestGToken(other || am6Pending() ? "select_account" : undefined, other); // v557: 6시 로그아웃 뒤 첫 로그인은 계정 고르기 창
+      try { localStorage.removeItem(AM6_KEY); } catch (e) { /* 무시 */ }
       const u = await gdFetch("https://www.googleapis.com/oauth2/v3/userinfo");
       const em = String(u.email || "").toLowerCase();
       if (!em) throw new Error("구글 계정 이메일을 읽지 못했습니다.");
@@ -5734,9 +5761,9 @@
     const s_start = sec("시작 화면", ["<b>2026-11-21부터 처음 화면은 대시보드로 고정</b>되어 시작 화면 고르기는 숨겼습니다(아래 설명은 다시 살릴 때를 위한 참고). 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능은 그대로입니다.", "<b>처음 보일 화면</b>: 설정 화면의 '화면' 카드 가운데 칸(시작 화면)에서 일정 · 고객(기본) · 세일즈 중 하나를 고르면 바로 저장되고, 다음에 앱을 열 때부터 적용됩니다. 같은 카드 왼쪽 칸은 ‘시작하면 AI 도우미 바로 열기’, 오른쪽 칸은 ‘오른손 모드’입니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '화면' 카드 왼쪽 칸을 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
     const s_ai = sec("AI 도우미", ["<b>2026-11-19부터 AI 버튼(아래 메뉴 맨 왼쪽 아이콘·떠 있는 버튼)은 우선 숨겼습니다.</b> 다시 보이게 할 때까지 아래 설명은 참고용입니다.", "<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 위 말처럼 규칙으로 알아듣는 말은 이 폰 안에서만 처리하고 밖으로 보내지 않습니다. 규칙으로 못 알아들은 말만 Gemini(외부 AI)에 '무슨 뜻인지'를 묻는데, 그때 고객 이름은 [고객1] 같은 자리표시로, 주민번호·전화·계좌·이메일·주소 같은 숫자·주소는 [숫자]·[주소]로 가려서 보내고 답을 받은 뒤 앱 안에서 되돌립니다. 말만해요 설정에 Gemini 키가 없거나 연결이 안 되면 규칙만 쓰며, 확인 카드에 ‘AI가 해석’이라고 표시되고 [실행]을 눌러야 처리됩니다."]);
     const s_task = sec("구글 할 일 (일정 화면)", ["<b>[일정으로]</b>: 할 일 줄의 [일정으로]를 누르면 그 할 일을 캘린더 일정으로 옮기고 할 일은 지웁니다. 일정에서 [할 일로] 옮길 때 메모에 적힌 <b>예전 시간</b>(‘시간: 09:00~10:00’)이 있으면 그 시간으로, 없으면 <b>종일 일정</b>으로 만듭니다. 날짜는 마감일(없으면 보고 있는 날), 캘린더는 원래 있던 캘린더(없으면 기본 캘린더)이고, 장소·메모·작성자·고객 연결도 이어집니다.", "<b>할 일 제목에 등록된 고객 이름이 있으면</b> 그 할 일 줄 아래에 <b>일정과 똑같은 고객 카드</b>(이름·생년월일·연락처·주소·미팅장소·상담기록, 이름을 누르면 고객 정보)가 붙습니다. <b>종일 일정</b>도 캘린더와 상관없이 이름으로 고객을 찾습니다. 같은 이름이 여러 명이면 [선택]으로 한 명을 고르고(나중에 [다시 선택]), 관계없으면 [해당 없음]([되돌리기]로 다시 연결). 고른 값은 할 일 메모의 ‘고객연결: …’ 줄에 저장되어 모든 기기에서 같게 보입니다.", "<b>관리자</b>는 할 일을 추가·수정할 때 <b>사용자</b>를 고를 수 있습니다(기본 = 본인). 구글 할 일은 로그인한 계정의 것이라, 다른 사용자를 고르면 할 일 메모 맨 윗줄에 ‘작성: 이름’이 적히고 목록에는 ‘- 이름’으로 보입니다(본인으로 되돌리면 그 줄이 지워짐).", "<b>모든 일정</b> 카드(종일이 아니어도)에는 <b>[할 일로]</b> 버튼이 있습니다(시간이 있는 일정은 할 일 메모에 시간이 적힙니다). 누르면 그 날짜가 마감인 구글 할 일(기본 목록)을 만들고 캘린더 일정은 지웁니다. 장소·메모는 할 일의 메모로 옮겨집니다. 지운 일정은 화면을 새로 고치기 전까지 [원위치]로 되살릴 수 있습니다(만든 할 일은 그대로 남음).", "그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
-    const s_nm = sec("일정 제목 → 고객 찾기 (2026-11-17)", ["일정 화면을 <b>좌우로 밀면</b> Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월로 넘어갑니다.", "일정 제목에 <b>등록된 고객 이름</b>이 있으면(‘고객’ 글자가 없어도, 날짜와 상관없이) 그 고객 카드가 일정에 붙고, 카드에서 장소 ‘입력’을 할 수 있습니다. 같은 이름의 고객이 여럿이면 [선택]으로 고르고, 상관없는 고객이면 [무시]로 숨깁니다. 등록된 고객에 없는 이름이면 아무것도 붙이지 않습니다. (2026-11-18: 하루 동안 쓰던 ‘이름 + 고객’ 규칙은 풀었습니다.)"]);
+    const s_nm = sec("일정 제목 → 고객 찾기 (2026-11-17)", ["<b>고객 연결 기록(v559)</b>: 일정에서 고객이 한 명으로 찾아지거나 [선택]·[무시]·[다시 선택]을 누르면, 그 연결(고객ID·담당 FC·고객의 FC·종류)을 구글 일정의 숨은 칸과 고객 폴더의 <b>일정매칭</b> 기록에 남깁니다. 그래서 다른 앱·관리 세션도 \"이 일정 = 어느 고객\"을 바로 알 수 있습니다. 화면 모양은 그대로이고, 설명란에는 적지 않습니다. 캘린더 수정 권한이 없으면 기록 파일에만 남깁니다.", "일정 화면을 <b>좌우로 밀면</b> Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월로 넘어갑니다.", "일정 제목에 <b>등록된 고객 이름</b>이 있으면(‘고객’ 글자가 없어도, 날짜와 상관없이) 그 고객 카드가 일정에 붙고, 카드에서 장소 ‘입력’을 할 수 있습니다. 같은 이름의 고객이 여럿이면 [선택]으로 고르고, 상관없는 고객이면 [무시]로 숨깁니다. 등록된 고객에 없는 이름이면 아무것도 붙이지 않습니다. (2026-11-18: 하루 동안 쓰던 ‘이름 + 고객’ 규칙은 풀었습니다.)"]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드의 <b>비영업</b> 버튼을 눌러 영업일정으로 바꾼 일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
-    const s_addev = sec("일정 추가 (일정 화면)", ["[선택]으로 고객과 묶은 일정·할 일에는 <b>[해당 없음]</b> 버튼이 보이지 않습니다. [다시 선택]으로 풀면 다시 보입니다.", "<b>일정과 고객이 묶여 있으면</b>(이름이 맞는 고객이 있어 [선택]을 눌러 한 명과 연결한 일정만, [다시 선택]이 보이는 상태) 카드 왼쪽에 <b>파란색 굵은 선</b>이 보입니다.", "<b>일정 카드의 [수정]·[삭제] 버튼은 평소에 접혀 있습니다.</b> ([할 일로]는 [영업/비영업] 왼쪽에 항상 보입니다.) 일정 칸(시간 줄이든 제목 줄이든)을 터치하면 제목 줄 아래 오른쪽 끝으로 펼쳐지고, 한 번 더 터치하면 접힙니다. [영업/비영업]은 예전처럼 윗줄 오른쪽에 항상 보입니다. <b>[수정]</b>에는 <b>종일</b> 체크가 있어, 종일 일정은 체크를 풀고 시작·종료 시간을 넣으면 시간 일정으로, 시간 일정은 체크하면 종일 일정으로 저장됩니다.", "<b>관리자</b>는 이미 있는 일정을 <b>[수정]</b>할 때도 맨 아래 <b>작성자</b>를 바꿀 수 있습니다(고르는 사람은 내가 쓸 수 있는(공유받은) 캘린더를 가진 사람만, 본인으로 되돌리면 작성자 표시가 지워짐). 할 일 [수정]의 <b>사용자</b>도 같은 사람들 중에서 고릅니다.", "<b>2026-11-18부터</b> 추가 칸 맨 위에서 <b>[일정]</b>과 <b>[할 일]</b>을 먼저 고릅니다. <b>일정</b>은 제목·캘린더·날짜·종일/시간·장소(관리자는 작성자), <b>할 일</b>은 제목·<b>마감일</b>·메모(관리자는 <b>사용자</b>도 고름)만 입력하고 [할 일 등록]을 누르면 구글 할 일(기본 목록)에 그 날짜가 마감인 할 일이 만들어집니다(처음 한 번은 할 일 연결 창이 뜰 수 있음).", "일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). (일정 위쪽의 [초기화] 버튼은 2026-11-19에 없앴습니다.) 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
+    const s_addev = sec("일정 추가 (일정 화면)", ["<b>날짜 고르기(v558)</b>: 일정 추가·수정에서 날짜 칸 어디를 눌러도 달력이 바로 떠서 날짜를 고를 수 있습니다.", "[선택]으로 고객과 묶은 일정·할 일에는 <b>[해당 없음]</b> 버튼이 보이지 않습니다. [다시 선택]으로 풀면 다시 보입니다.", "<b>일정과 고객이 묶여 있으면</b>(이름이 맞는 고객이 있어 [선택]을 눌러 한 명과 연결한 일정만, [다시 선택]이 보이는 상태) 카드 왼쪽에 <b>파란색 굵은 선</b>이 보입니다.", "<b>일정 카드의 [수정]·[삭제] 버튼은 평소에 접혀 있습니다.</b> ([할 일로]는 [영업/비영업] 왼쪽에 항상 보입니다.) 일정 칸(시간 줄이든 제목 줄이든)을 터치하면 제목 줄 아래 오른쪽 끝으로 펼쳐지고, 한 번 더 터치하면 접힙니다. [영업/비영업]은 예전처럼 윗줄 오른쪽에 항상 보입니다. <b>[수정]</b>에는 <b>종일</b> 체크가 있어, 종일 일정은 체크를 풀고 시작·종료 시간을 넣으면 시간 일정으로, 시간 일정은 체크하면 종일 일정으로 저장됩니다.", "<b>관리자</b>는 이미 있는 일정을 <b>[수정]</b>할 때도 맨 아래 <b>작성자</b>를 바꿀 수 있습니다(고르는 사람은 내가 쓸 수 있는(공유받은) 캘린더를 가진 사람만, 본인으로 되돌리면 작성자 표시가 지워짐). 할 일 [수정]의 <b>사용자</b>도 같은 사람들 중에서 고릅니다.", "<b>2026-11-18부터</b> 추가 칸 맨 위에서 <b>[일정]</b>과 <b>[할 일]</b>을 먼저 고릅니다. <b>일정</b>은 제목·캘린더·날짜·종일/시간·장소(관리자는 작성자), <b>할 일</b>은 제목·<b>마감일</b>·메모(관리자는 <b>사용자</b>도 고름)만 입력하고 [할 일 등록]을 누르면 구글 할 일(기본 목록)에 그 날짜가 마감인 할 일이 만들어집니다(처음 한 번은 할 일 연결 창이 뜰 수 있음).", "일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). (일정 위쪽의 [초기화] 버튼은 2026-11-19에 없앴습니다.) 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
     const s_sub = sec("세일즈 서브메뉴", ["세일즈 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>보고서</b>를 눌러 바꿉니다. <b>보고서</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 유형(따행/이관/DB, 여러 개) · <b>단계</b>(신규·계약·완료·지옥, 여러 개 — 계약은 DB의 계약 고객) · <b>기간</b>(년월 하나)을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 기간의 <b>[3개월]</b>·<b>[1년]</b>은 이번 달까지의 그 기간으로 <b>누르는 즉시 보고서</b>를 보여 줍니다(진행을 누르지 않아도 됨). 이관은 이관일, 따행은 대상년월이 기간 안인 고객입니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘세일즈 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘세일즈 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 보고서는 세일즈에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
     const s_inflow = sec("DB 받은 FC와 진행하는 FC (유입FC, v514)", ["고객마다 <b>유입FC</b>(DB를 배분받은 FC) 칸이 있으면, 그 고객은 <b>유입FC의 이달목표 DB 목록</b>에 나옵니다. 담당FC(메인FC)가 다른 FC여도 DB 목록은 받은 FC 쪽입니다.", "DB 목록의 <b>보관 · 지옥 · 원복</b>(DB상태)은 유입FC 파일의 그 고객 줄에 저장됩니다. 영업단계 칩·전화·문자·상담기록은 담당FC 쪽에 남습니다(진행은 다른 FC가 할 수 있음).", "유입FC가 비어 있으면 예전처럼 담당FC 기준입니다."]);
     const s_od = OD_ON && sec("연체/실효 리스트 (2026-11-21)", ["세일즈 > 보고서의 <b>조건 보고서</b> 아래에 있습니다. 각 FC는 <b>본인 것만</b>, ESL(관리자·직급 ESL)은 <b>팀 전체</b>(FC를 고르거나 ‘전체’)를 봅니다. 자료는 각 FC 폴더 안에만 있어 드라이브에서 열어도 남의 것은 보이지 않습니다.", "<b>연체</b>: 가장 최근 확인일의 리스트를 ‘○월 ○일자 연체리스트’로 알려 주고 아래에 연체 계약 중 <b>최종납입 2~24회</b>만 보여 줍니다(회차를 모르면 넣고 ‘회차 모름’ 표시)(바로 전 확인일에 없던 계약은 <b>신규</b>, 실효리스트는 회차와 상관없이 모두). 제목 줄 오른쪽 끝에 <b>[PDF 다운]</b>. 연락처 번호를 누르면 한 번 더 물은 뒤 전화가 걸리고, 세일즈 화면 전화 버튼처럼 그 FC 이력에 통화 시도가 남습니다.", "<b>실효</b>: 그 아래 ‘○○○○년 ○월 실효리스트’와 실효 표(실효일이 그 달인 계약, 메인FC 기준, 지금 상태 = 실효 그대로·부활·해약), 제목 줄 오른쪽 끝에 <b>[PDF 다운]</b>. 위 요약 줄의 실효 숫자는 이 표의 건수입니다.", "‘전체’ PDF는 앞부분에 모든 FC를 이어 붙인 묶음(ESL이 볼 것), 뒷부분에 FC마다 새 쪽에서 시작하는 페이지(인쇄 뒤 FC별로 나눠 줄 것)가 들어 있습니다. FC 한 명을 고르면 데이터수집이 만든 PDF를 그대로 받습니다. 정식 확인일 기록이 생기기 전에는 시험 기록을 ‘시험 기록’으로 표시합니다."]);
@@ -5751,6 +5778,7 @@
     const s_pg = sec("세일즈 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "세일즈 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 세일즈 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
+    const s_ntf = sec("중요 알림 · 오전 6시 로그아웃 (v557, 2026-11-24)", ["<b>중요 알림</b>: 로그인한 뒤 그날 처음 앱을 열면, 오늘에 해당하는 알림이 한 창에 모두 나옵니다. 버튼은 <b>[확인]</b> 하나뿐이고, 누르면 알림에 정해 둔 페이지로 이동합니다(시스템 알림이 먼저, 그다음 목록 위쪽 알림). 한 번 확인한 알림은 다시 나오지 않습니다(요일 알림은 그날만).", "<b>시스템 알림</b>: 내 FC에 새 이관 계약이나 새 밸류업DB가 생기면 자동으로 알립니다. 처음 한 번은 지금 목록을 기억만 하고, 그 뒤로 새로 생긴 건수를 알려 줍니다.", "<b>관리자 › 전체 알림</b>(관리자만): 알림 추가·수정·삭제, 알림마다 켜기·끄기, 시스템 알림 전체 켜기·끄기(기본 켬). 알림마다 날짜(시작~끝) 또는 요일, 대상(전체·FC별), 확인하면 이동할 페이지를 정합니다. 날짜 알림에는 확인한 사람 수가 나옵니다.", "<b>오전 6시 로그아웃</b>: 매일 오전 6시가 지나면 모든 앱(신한FC·말만해요 등 같은 로그인을 쓰는 앱)이 로그아웃되고, 다음 로그인 때 구글 계정 고르기 창이 한 번 나옵니다. 구글 비밀번호를 다시 넣게 하지는 못하며, 폰 시계를 기준으로 합니다."]);
     const s_login = sec("로그인 (공통 로그인)", ["<b>로그인 승인/거부(v513)</b>: 신한FC 로그인은 관리자 화면 FC 사용 설정의 계정 카드 오른쪽 <b>[승인]/[거부]</b> 토글로만 정합니다(이메일·사번이 있다고 저절로 들어가지 않음). 거부인 계정으로 로그인하면 로그인 화면에 ‘아직 신한FC 로그인이 승인되지 않았습니다’가 뜨고 [다른 계정으로 로그인]이 보입니다. 승인으로 켜면 그 계정의 FC 폴더(본인 FC와 체크한 FC)와 설정 폴더를 Google Drive로 공유합니다. 거부로 끌 때는 공유도 해제할지 묻습니다 — 공유를 남기면 앱은 막혀도 드라이브에서 파일을 직접 열 수 있습니다. 이메일이 아직 없는 사람은 조직도에서 이메일을 먼저 넣어야 승인할 수 있습니다.", "<b>새 팀원</b>: 팀관리 > 후보자정보에서 [전환]하면 팀원정보에 옮겨지고, FC 사용 목록에 ‘이메일 미등록’으로 올라가며 로그인은 거부로 시작합니다. 팀원정보에 등록되어 데이터가 있는 FC는 계정이 없어도 관리자 화면(이달목표 사용자 선택·고객 FC 선택)에서 볼 수 있습니다.", "한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
     const s_go = sec("말만해요 연결", ["말만해요에서 “김현성 고객 검색해줘”처럼 말하면 말만해요 화면 안에 이 앱의 고객 검색 목록이 나타납니다. 한 명만 나와도 목록이 먼저 보이고, 고객을 누르면 그 안에서 고객 정보가 열립니다. 이때는 앱 전체가 아니라 그 페이지만 보입니다(위쪽 바·아래 메뉴 없음). 목록→고객 정보, 정보·계약·분석·상담 탭 이동은 그대로이고, 뒤로가기는 말만해요의 왼쪽 위 버튼이 한 단계씩 되돌립니다.", "말만해요의 [앱으로 열기]를 누르면 보던 바로 그 화면(검색 목록 또는 그 고객 정보)으로 신한FC m이 전체 화면으로 열립니다. 말만해요 안에서는 로그아웃 버튼이 없고(로그아웃은 말만해요에서), 로그인이 풀렸으면 ‘말만해요에서 다시 로그인’ 안내가 나옵니다.", "“오늘 일정 보여줘”처럼 일정을 물으면 일정 화면(하루 보기)만 말만해요 안에 나타납니다. 날짜 이동·추가 버튼은 그대로 쓰고, [앱으로 열기]를 누르면 보던 날짜로 열립니다.", "검색한 이름은 주소의 # 뒤에만 실려 서버로 전송되지 않습니다."]);
     const s_map = sec("고객 주소 지도", ["고객 정보의 주소 오른쪽 <b>위치 아이콘</b>을 누르면 카카오맵에서 그 주소를 찾은 지도가 새 창으로 열립니다. 누를 때만 주소가 카카오맵에 전달됩니다."]);
@@ -5768,10 +5796,10 @@
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
-    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
+    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
@@ -5981,7 +6009,33 @@
       return a && typeof a.token === "string" && a.token && a.exp > 0 ? a : null;
     } catch (e) { return null; }
   }
-  function writeGAuth(a) { try { localStorage.setItem(GAUTH_KEY, JSON.stringify({ v: 1, token: a.token, exp: a.exp, scopes: a.scopes || [], email: a.email || "" })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ } }
+  // v557: login = 구글 창으로 출입증을 받은 시각(ms). 오전 6시 일괄 로그아웃 판단용(app\_공통\20261124 - 오전6시 일괄로그아웃 안.md). 모르는 칸은 지우지 않고 그대로 둠
+  function writeGAuth(a) { try { const { v, token, exp, scopes, email, login, ...rest } = a; localStorage.setItem(GAUTH_KEY, JSON.stringify({ ...rest, v: 1, token, exp, scopes: scopes || [], email: email || "", login: login > 0 ? login : exp - 3600000 })); } catch (e) { /* 저장 못 해도 이번엔 사용 */ } }
+  // ---- v557 오전 6시 일괄 로그아웃: 출입증을 받은 시각이 오늘 06:00(지금이 6시 전이면 어제 06:00)보다 앞이면 출입증을 지우고 로그인 화면으로 ----
+  const AM6_KEY = "blue10kp.gauth.am6"; // 6시 로그아웃이 된 날(YYYY-MM-DD) → 다음 로그인은 계정 고르기 창
+  const gLoginAt = (a) => (a && a.login > 0 ? a.login : a ? a.exp - 3600000 : 0); // login 칸이 없는 옛 출입증은 만료 1시간 전을 받은 시각으로 봄
+  function am6Cut() { const d = new Date(), c = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 6, 0, 0); if (d < c) c.setDate(c.getDate() - 1); return +c; }
+  const am6Today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  function am6Pending() { try { return localStorage.getItem(AM6_KEY) === am6Today(); } catch (e) { return false; } }
+  let am6Busy = false;
+  async function am6Check() {
+    if (!GD || am6Busy) return false;
+    const a = readGAuth();
+    if (!a || gLoginAt(a) >= am6Cut()) return false;
+    am6Busy = true;
+    try {
+      const shown = appStarted && $("loginView").hidden;
+      if (shown && typeof editMode !== "undefined" && editMode) { try { await confirmLeaveEdit(); } catch (e) { /* 저장 확인 못 해도 로그아웃 */ } }
+      try { localStorage.removeItem(GAUTH_KEY); localStorage.setItem(AM6_KEY, am6Today()); } catch (e) { /* 무시 */ }
+      gTokenMem = null;
+      if (shown || !$("loginView").hidden) {
+        appStarted = false; scanCache = null;
+        showGLogin();
+        const msg = $("lmsg"); if (msg && !EMBED) msg.textContent = "오전 6시가 지나 로그아웃되었습니다. 다시 로그인해 주세요.";
+      }
+      return true;
+    } finally { am6Busy = false; }
+  }
   // 예전 신한FC 전용 출입증(shlife.gtoken)을 한 번 공통 키로 옮기고 지움
   function migrateLegacyGToken() {
     try {
@@ -5993,7 +6047,7 @@
       if (!t || !t.token || !(t.exp > Date.now() + 60000) || t.v !== GTOKEN_V || !gAccount()) return;
       const sc = [GS + "calendar.readonly", GS + "calendar.events", GS + "drive", "openid", "email"];
       if (t.tk) sc.push(GS + "tasks");
-      writeGAuth({ token: t.token, exp: t.exp, scopes: sc, email: gAccount() });
+      writeGAuth({ token: t.token, exp: t.exp, scopes: sc, email: gAccount(), login: t.exp - 3600000 });
     } catch (e) { /* 무시 */ }
   }
   // 지금 쓸 수 있는 공통 출입증 (만료 1분 전까지, 필요한 권한이 다 있어야 함)
@@ -6022,7 +6076,7 @@
           if (GD && !google.accounts.oauth2.hasGrantedAllScopes(r, "https://www.googleapis.com/auth/drive")) return reject(new Error("Google Drive 권한을 허용해야 합니다. 다시 로그인하면서 모든 항목에 체크해 주세요."));
           // 공통 출입증에 기록(받은 권한 그대로). 이메일은 userinfo로 확인한 뒤 googleLogin이 채움
           const prev = readGAuth();
-          writeGAuth({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, scopes: String(r.scope || "").split(/\s+/).filter(Boolean), email: !noHint && prev ? prev.email : "" });
+          writeGAuth({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000, scopes: String(r.scope || "").split(/\s+/).filter(Boolean), email: !noHint && prev ? prev.email : "", login: Date.now() });
           gTokenMem = r.access_token;
           resolve(r.access_token);
         },
@@ -6184,7 +6238,8 @@
         title: String(e.summary || "(제목 없음)").trim(),
         desc: String(e.description || ""),
         location: String(e.location || "").trim(),
-        pick: String(((e.extendedProperties || {}).private || {}).shlifeCust || ""), // 동명이인 선택(모든 기기 공유)
+        priv: ((e.extendedProperties || {}).private) || {}, updated: e.updated || "", raw: { id: e.id, start: e.start, end: e.end, summary: e.summary, updated: e.updated, creator: e.creator }, creator: String((e.creator || {}).email || "").toLowerCase(), // v559: 캘린더 고객 연결(calcust.js)
+        pick: (() => { const l = CalCust.linkOf(((e.extendedProperties || {}).private) || {}); return l.manual ? l.value : ""; })(), // 사람이 고른 연결(선택·무시)만. 자동 연결은 화면에서 다시 찾음
         author: String(((e.extendedProperties || {}).shared || {}).shlifeAuthorName || ""), // v382: 관리자가 일정 추가 때 고른 작성자 이름
         sales: String(((e.extendedProperties || {}).private || {}).shlifeSales || ""), // 영업일정 표시: "1"=영업(확정), "0"=비영업(복귀), 없음=기본(아래 salesOf 규칙)
         created: e.created ? new Date(e.created) : null,
@@ -6849,7 +6904,7 @@
       if (pinned.length) {
         try {
           await ensureGWrite();
-          for (const it of pinned) await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: "" } } }).catch(() => {});
+          for (const it of pinned) await calLinkSave(it, { clear: true, how: "해제" });
         } catch (e) { /* 연결이 끊겼으면 이 기기 기록만 지움 */ }
       }
       if (filled.length) {
@@ -6882,6 +6937,7 @@
       return { e, custs, all, ignored, pinned };
     });
     dayItems = items;
+    setTimeout(() => calAutoLink(items, req), 0); // v559: 자동 연결·옛 값 고치기를 일정 숨은 칸과 기록 파일에 (화면은 기다리지 않음)
     { // 처리한 일이 하나라도 있으면 복귀 버튼 표시
       const done = items.some((it) => salesOf(it.e) || it.pinned || it.ignored || (it.e.location && it.all.some((c) => [currentValue(c, ["주소"]), meetingOf(c)].map((v) => String(v || "").trim()).filter(Boolean).includes(it.e.location.trim()))));
       if (pr) { pr.hidden = false; pr.dataset.done = done ? "1" : ""; } // v409: 항상 보이고, 처리한 일이 없으면 눌러도 안내만
@@ -7153,6 +7209,62 @@
     }
   }
 
+  // ---- v559 캘린더 일정 ↔ 고객 연결: 공통 모듈(calcust.js, 규칙 app\_공통\캘린더고객연결.md)로 숨은 칸과 기록 파일(고객\<FC>\일정매칭)에 남김 ----
+  if (window.CalCust) CalCust.config({ token: () => storedGToken() || gTokenMem || "" });
+  const calFailed = new Set(); // 이 세션에서 캘린더 쓰기가 막힌 일정(다시 시도하지 않음)
+  let calFolderMap = null;
+  async function calFolders() { if (!calFolderMap) { const P = await readPerms(); calFolderMap = { ...((P && P.fcFolders) || {}), ...fcFolderIds }; } return calFolderMap; }
+  function calInfo(it, o) {
+    const e = it.e, c = o.c || null;
+    // 담당 FC = 일정을 만든 계정(creator)을 권한 파일 names로 바꾼 이름(사용자 지시: 붙임말은 보기용, 실질 담당은 소유자). 붙임말 FC는 참고 칸만
+    return { fc: CalCust.fcOfCreator(e.creator, permNamesCache || {}), creator: e.creator || "", tagFc: CalCust.fcOfTitle(e.title, permPrefixCache || {}), custId: c ? custIdOf(c) : "", custFc: c ? primaryFc(c.entries || []) : "", kind: CalCust.kindOf(e.title), how: o.how };
+  }
+  async function calWrite(it, o, interactive) { // 숨은 칸 쓰기. 바뀌었으면 e.priv·e.updated를 새 값으로
+    const e = it.e, inf = calInfo(it, o);
+    if (calFailed.has(e.id) && !interactive) return { inf, ok: false };
+    try {
+      if (interactive) await ensureGWrite(); else if (!(storedGToken() || gTokenMem)) return { inf, ok: false };
+      const r = await CalCust.write({ calId: e.calId, eventId: e.eventId, custId: inf.custId, ignore: !!o.ignore, clear: !!o.clear, how: inf.how, fc: inf.fc, custFc: inf.custFc, kind: inf.kind, priv: e.priv });
+      if (r) { e.priv = (r.extendedProperties || {}).private || {}; e.updated = r.updated || e.updated; if (e.raw) e.raw.updated = e.updated; }
+      return { inf, ok: true };
+    } catch (er) { calFailed.add(e.id); console.warn("캘린더 고객 연결을 일정에 쓰지 못함(기록 파일만)", er.message); return { inf, ok: false }; }
+  }
+  const calRecSig = new Map(); // 일정ID → 마지막으로 기록 파일에 넘긴 내용(같으면 다시 안 넘김)
+  async function calRecord(list) { // list = [{it, inf}]
+    try {
+      const fm = await calFolders(), mine = await myFcName(), acc = me(), groups = {};
+      list.forEach(({ it, inf }) => {
+        const e = it.e, row = CalCust.rowOf({ calId: e.calId, eventId: e.eventId, calName: e.cal && e.cal.name, ev: e.raw || {}, title: e.title, fc: inf.fc, creator: inf.creator, tagFc: inf.tagFc, custId: inf.custId, custFc: inf.custFc, kind: inf.kind, how: inf.how, updated: e.updated, account: acc });
+        const sig = JSON.stringify([row.날짜, row.시작, row.끝, row.제목, row.FC, row.만든계정, row.붙임말FC, row.고객ID, row.고객FC, row.종류, row.방식, row.일정수정시각]);
+        if (calRecSig.get(row.일정ID) === sig) return;
+        const dest = (inf.fc && fm[inf.fc]) || fm[mine] || ""; // 일정 FC 폴더, FC 미정이면 내 FC 폴더
+        if (!dest) return;
+        (groups[dest] = groups[dest] || []).push([row, sig, inf.fc && fm[inf.fc] ? fm[mine] : ""]);
+      });
+      for (const [dest, rows] of Object.entries(groups)) {
+        const put = (fid) => CalCust.recordPut(fid, rows.map((x) => x[0]), acc);
+        try { await put(dest); } catch (er) { const alt = rows[0][2]; if (alt && alt !== dest) await put(alt); else throw er; } // 그 FC 폴더에 못 쓰면 내 FC 폴더
+        rows.forEach(([row, sig]) => calRecSig.set(row.일정ID, sig));
+      }
+    } catch (er) { console.warn("일정매칭 기록 파일을 쓰지 못함", er.message); }
+  }
+  async function calLinkSave(it, o) { const w = await calWrite(it, o, true); calRecord([{ it, inf: w.inf }]); return w.ok; }
+  async function calAutoLink(items, req) { // 화면에 보인 일정: 자동(한 명)·선택·무시를 숨은 칸과 기록 파일에 맞춤
+    if (!window.CalCust || EMBED) return;
+    try { if (!permPrefixCache || !permNamesCache) await readPerms(); } catch (e) { /* 이름표 없이 진행(담당 미정) */ }
+    const done = [];
+    for (const it of items) {
+      if (req !== schedReq) return;
+      let o = null;
+      if (it.ignored) o = { ignore: true, how: "무시" };
+      else if (it.pinned && it.custs.length === 1 && custIdOf(it.custs[0])) o = { c: it.custs[0], how: "선택" };
+      else if (!it.pinned && it.all.length === 1 && it.custs.length === 1 && custIdOf(it.custs[0])) o = { c: it.custs[0], how: "자동" };
+      if (!o) continue;
+      const w = await calWrite(it, o, false);
+      done.push({ it, inf: w.inf });
+    }
+    if (done.length) calRecord(done);
+  }
   // 동명이인 '선택': 이 일정을 그 고객으로 묶음 → 구글 일정의 비공개 속성에 저장(모든 기기·사용자 공유) + 이 기기에도 기록
   async function pickCustomer(it, c, btn) {
     if (!c) return;
@@ -7161,7 +7273,8 @@
     savePick(it.e.id, key);
     try {
       await ensureGWrite();
-      await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: key } } });
+      if (custIdOf(c)) { if (!(await calLinkSave(it, { c, how: "선택" }))) throw new Error("캘린더에 쓰지 못함"); } // v559: 공통 모듈로 고객ID·FC·종류 함께
+      else await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: key } } }); // 고객ID 없는 옛 고객
       it.e.pick = key;
     } catch (e) {
       console.warn("pick saved on this device only", e.message); // 수정 권한이 없는 캘린더 등: 이 기기에만
@@ -7175,7 +7288,7 @@
     savePick(it.e.id, on ? IGNORE_KEY : "");
     try {
       await ensureGWrite();
-      await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: on ? IGNORE_KEY : "" } } });
+      if (!(await calLinkSave(it, on ? { ignore: true, how: "무시" } : { clear: true, how: "해제" }))) throw new Error("캘린더에 쓰지 못함");
       it.e.pick = on ? IGNORE_KEY : "";
     } catch (e) {
       toast("구글 일정에 저장하지 못해 이 기기에만 적용했습니다.");
@@ -7191,7 +7304,7 @@
     if (it.e.pick) {
       try {
         await ensureGWrite();
-        await gcalPatch(it.e.calId, it.e.eventId, { extendedProperties: { private: { shlifeCust: "" } } });
+        if (!(await calLinkSave(it, { clear: true, how: "해제" }))) throw new Error("캘린더에 쓰지 못함");
       } catch (e) { console.warn("unpick on this device only", e.message); }
       it.e.pick = "";
     }
@@ -7347,6 +7460,13 @@
     document.querySelectorAll("#dayList [data-evedit], #dayList [data-evdel]").forEach((b) => { b.hidden = on; });
     $("ev" + i).classList.toggle("editing", on);
   }
+  // v558(2026-11-24 사용자 지시 "일정 수정에서 일자 선택을 달력에서 선택할 수 있게 달력이 뜨게"): 날짜 칸 어디를 눌러도 달력을 띄움
+  //   (폰에 따라 날짜 칸을 눌러도 숫자만 고치게 되고 달력은 작은 아이콘을 눌러야 뜸 → showPicker로 바로 달력. 지원 안 하는 브라우저는 예전 그대로)
+  document.addEventListener("click", (ev) => {
+    const inp = ev.target && ev.target.closest && ev.target.closest('input[type="date"]');
+    if (!inp || inp.disabled || inp.readOnly || typeof inp.showPicker !== "function") return;
+    try { inp.showPicker(); } catch (e) { /* 막히면 브라우저 기본 동작 */ }
+  });
   function toggleEventForm(it, i) {
     const box = $("evForm" + i);
     if (box.innerHTML) { setEventEditing(i, false); return; }
@@ -10397,6 +10517,7 @@
     if (GD) {
       // 구글 토큰이 살아 있으면 바로 시작, 아니면 로그인(다시 연결) 버튼 (팝업은 버튼을 눌러야 열림)
       migrateLegacyGToken();
+      await am6Check(); // v557: 6시 전에 받은 출입증이면 지우고 로그인 화면
       const sh = readGAuth();
       if (sh && sh.email && storedGToken()) { // 다른 앱에서 한 로그인도 인정: 계정이 다르면 이전 계정 자료를 비우고 새 계정으로 시작
         if (gAccount() && gAccount() !== String(sh.email).toLowerCase()) await photoCacheClear();
@@ -10416,7 +10537,8 @@
 
   // 화면이 다시 보일 때 공통 출입증을 다시 읽음: 다른 앱에서 새로 로그인했으면 이어서 쓰고, 계정이 바뀌었으면 새로 시작
   if (GD) window.addEventListener("storage", (e) => { if (e.key === GAUTH_KEY && !$("loginView").hidden) checkSharedLogin(); }); // 말만해요 안에서 보일 때: 부모가 로그인하면 바로 이어서
-  if (GD) document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkSharedLogin(); });
+  if (GD) document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") am6Check().then((out) => { if (!out) { checkSharedLogin(); if (appStarted && $("loginView").hidden) ntfCheck(); } }); });
+  if (GD) { setInterval(() => { am6Check(); }, 60000); window.addEventListener("focus", () => { am6Check(); }); } // v557: 켜 둔 동안 1분마다
   async function checkSharedLogin() {
     const sh = readGAuth();
     if (!sh || !sh.email || !storedGToken()) return;
@@ -10474,6 +10596,215 @@
       console.warn("등록 확인 못 함, 그대로 진행", e); return true;
     }
   }
+  // ---------- v557 전체 알림 (2026-11-24 사용자 "이대로 코딩": 로그인 직후 알림 창 + 관리자 > 전체 알림) ----------
+  //   알림 목록 = 앱 설정 폴더 shlife-알림.json {v, system, items:[{id, kind:"date"|"dow"|"system", sys, text, from, to, dows:[0~6], target:["*"]|[FC…], go, on}]}
+  //   확인 기록 = 그 사람 FC 폴더의 알림확인.json {이메일: {확인키: 시각}} + 이 기기(localStorage). Drive에 못 남겨도 이 기기 기록으로 동작
+  //   시스템 알림 = 새 이관·새 DB(내 FC, 지난번 확인 뒤 새로 생긴 줄). 처음 한 번은 지금 목록을 기억만 함
+  const NTF_FILE = "shlife-알림.json", NTF_ACK = "알림확인.json";
+  const NTF_GO = [["", "이동 없음"], ["sales:transfer", "세일즈 › 이달목표 › 이관"], ["sales:dda", "세일즈 › 이달목표 › 따행"], ["sales:valueup", "세일즈 › 이달목표 › DB"], ["sales:prog", "세일즈 › 계약진행"], ["sales:material", "세일즈 › 보고서"], ["sales:data", "세일즈 › 자료"], ["dash", "대시보드"], ["schedule", "일정"], ["customer", "고객"]];
+  const NTF_SYS = [["newTransfer", "새 이관 계약 {n}건이 이달목표에 올라왔습니다.", "sales:transfer"], ["newDb", "새 밸류업DB {n}건이 배분되었습니다.", "sales:valueup"]];
+  const NTF_DOW = "일월화수목금토";
+  const ntfGoLabel = (g) => (NTF_GO.find((x) => x[0] === (g || "")) || NTF_GO[0])[1];
+  const ntfDay = () => am6Today();
+  const ntfMd = (s) => { const m = String(s || "").match(/^\d{4}-(\d{2})-(\d{2})/); return m ? +m[1] + "월 " + +m[2] + "일" : ""; };
+  function ntfNorm(d) {
+    d = d && typeof d === "object" ? d : {};
+    const items = (Array.isArray(d.items) ? d.items : []).filter((x) => x && x.id);
+    NTF_SYS.forEach(([k, t, go]) => { if (!items.some((x) => x.kind === "system" && x.sys === k)) items.push({ id: "sys-" + k, kind: "system", sys: k, text: t, go, target: ["*"], on: true }); });
+    return { v: 1, system: d.system !== false, items };
+  }
+  async function ntfLoad() { await resolveAppDir(); return ntfNorm(await stReadJsonIn(appDir, NTF_FILE)); }
+  async function ntfSave(doc) { await resolveAppDir(); await stWriteJsonIn(appDir, NTF_FILE, { v: 1, system: doc.system, items: doc.items, at: new Date().toISOString(), by: me() }); }
+  function ntfToday(it, day, dow) {
+    if (it.on === false) return false;
+    if (it.kind === "date") { const f = String(it.from || ""), t = String(it.to || it.from || ""); return !!f && f <= day && day <= t; }
+    if (it.kind === "dow") return (it.dows || []).map(Number).includes(dow);
+    return false;
+  }
+  const ntfTargets = (it) => (it.target && it.target.length ? it.target : ["*"]);
+  const ntfForMe = (it, fc) => { const t = ntfTargets(it); return t.includes("*") || (!!fc && t.includes(fc)); };
+  const ntfAckKey = (it, day) => (it.kind === "date" ? it.id : it.id + "@" + day); // 날짜 알림은 한 번 확인하면 끝, 요일·시스템은 그날만
+  const ntfLsKey = () => "shlife.ntfAck." + (me() || "me");
+  function ntfLocal() { try { return JSON.parse(localStorage.getItem(ntfLsKey()) || "{}") || {}; } catch (e) { return {}; } }
+  function ntfLocalPut(o) { const ks = Object.keys(o); if (ks.length > 300) ks.sort((a, b) => String(o[a]).localeCompare(String(o[b]))).slice(0, ks.length - 300).forEach((k) => delete o[k]); try { localStorage.setItem(ntfLsKey(), JSON.stringify(o)); } catch (e) { /* 기기에 못 남겨도 진행 */ } }
+  async function ntfFcDir(fc) { try { const P = await readPerms(); const id = ((P && P.fcFolders) || {})[fc] || fcFolderIds[fc]; return id ? { id } : null; } catch (e) { return null; } }
+  const NTF_SEEN = () => "shlife.ntfSeen." + (me() || "me");
+  async function ntfSystem(doc, fc) {
+    if (!doc.system || !fc) return [];
+    const on = doc.items.filter((x) => x.kind === "system" && x.on !== false && ntfForMe(x, fc));
+    if (!on.length) return [];
+    let data; try { data = await loadSalesData(); } catch (e) { return []; }
+    const keys = {
+      newTransfer: () => transferRows(data, ymNow(), false).filter((r) => r.srcFc === fc && !r.archDay && !r.del && r.key).map((r) => r.key),
+      newDb: () => valueupRows(data).filter((r) => r.srcFc === fc && !r.dbOff).map((r) => r.key)
+    };
+    let seen = {}; try { seen = JSON.parse(localStorage.getItem(NTF_SEEN()) || "{}") || {}; } catch (e) { seen = {}; }
+    const out = []; let first = false;
+    on.forEach((it) => {
+      const f = keys[it.sys]; if (!f) return;
+      const now = f(), prev = seen[it.sys];
+      if (!Array.isArray(prev)) { seen[it.sys] = now; first = true; return; } // 처음 = 지금 목록을 기억만
+      const nw = now.filter((k) => !prev.includes(k));
+      if (nw.length) out.push({ ...it, text: String(it.text || "").replace("{n}", nw.length), _now: now });
+    });
+    if (first) { try { localStorage.setItem(NTF_SEEN(), JSON.stringify(seen)); } catch (e) { /* 무시 */ } }
+    return out;
+  }
+  let ntfShown = "";
+  async function ntfCheck() {
+    if (EMBED || !GD) return;
+    const day = ntfDay(); if (ntfShown === day || document.getElementById("ntfPop")) return; ntfShown = day;
+    try {
+      const doc = await ntfLoad(), fc = await myFcName(), dow = new Date().getDay();
+      const dir = fc ? await ntfFcDir(fc) : null;
+      let rem = null; if (dir) { try { rem = await stReadJsonIn(dir, NTF_ACK); } catch (e) { rem = null; } }
+      const done = Object.assign({}, ntfLocal(), (rem || {})[me()] || {});
+      const list = doc.items.filter((it) => it.kind !== "system" && ntfToday(it, day, dow) && ntfForMe(it, fc) && !done[ntfAckKey(it, day)]);
+      const all = [...(await ntfSystem(doc, fc)), ...list];
+      if (!all.length) return;
+      ntfPopup(all, fc, () => ntfAck(all, day, dir));
+    } catch (e) { ntfShown = ""; console.warn("알림 확인 못 함", e); }
+  }
+  async function ntfAck(all, day, dir) {
+    const stamp = new Date().toISOString(), loc = ntfLocal();
+    all.forEach((it) => { loc[ntfAckKey(it, day)] = stamp; });
+    ntfLocalPut(loc);
+    const sys = all.filter((it) => it._now);
+    if (sys.length) { let seen = {}; try { seen = JSON.parse(localStorage.getItem(NTF_SEEN()) || "{}") || {}; } catch (e) { seen = {}; } sys.forEach((it) => { seen[it.sys] = it._now; }); try { localStorage.setItem(NTF_SEEN(), JSON.stringify(seen)); } catch (e) { /* 무시 */ } }
+    const go = (all.find((x) => x.kind === "system" && x.go) || all.find((x) => x.go) || {}).go; // 이동: 시스템 알림 → 목록 위쪽
+    if (go) ntfGo(go);
+    if (dir) { // 확인 기록(관리자 화면 '확인 N명'용). 보기 전용 FC 등 못 쓰면 이 기기 기록만
+      try { const cur = (await stReadJsonIn(dir, NTF_ACK)) || {}; const m = cur[me()] || {}; all.forEach((it) => { m[ntfAckKey(it, day)] = stamp; }); cur[me()] = m; await stWriteJsonIn(dir, NTF_ACK, cur); } catch (e) { console.warn("알림 확인 기록을 Drive에 남기지 못함", e); }
+    }
+  }
+  function ntfGo(g) {
+    const [a, b] = String(g).split(":");
+    if (a === "sales") {
+      SALES.sub = ["prog", "material", "data"].includes(b) ? b : "check";
+      if (SALES.sub === "check") { SALES.tab = ["dda", "valueup"].includes(b) ? b : "transfer"; SALES.ym = ymNow(); }
+      loadSettings().then(() => openSales());
+    } else if (a === "dash") openDash();
+    else if (a === "schedule") { schedMode = "day"; schedDate = dayStart(new Date()); loadSettings().then(() => openSchedule()); }
+    else if (a === "customer") resetSearch();
+  }
+  function ntfMeta(it, fc) {
+    const t = ntfTargets(it), who = t.includes("*") ? (it.kind === "system" ? fc || "내 FC" : "전체") : t.join(" · ");
+    const when = it.kind === "system" ? `<span class="ntf-sys">시스템</span>` : it.kind === "dow" ? `매주 ${(it.dows || []).map((n) => NTF_DOW[n]).join("·")}요일` : esc(ntfMd(it.from) + (it.to && it.to !== it.from ? " ~ " + ntfMd(it.to) : ""));
+    return `${when} · ${esc(who)}`;
+  }
+  // 닫기·건너뛰기 없이 [확인]만 (바깥 터치·뒤로로 닫히지 않음)
+  function ntfPopup(list, fc, onOk) {
+    const d = new Date(), goIt = list.find((x) => x.kind === "system" && x.go) || list.find((x) => x.go);
+    const box = document.createElement("div");
+    box.id = "ntfPop"; box.className = "modal ntf-pop";
+    box.innerHTML = `<div class="modal-box ntf-box" role="alertdialog" aria-modal="true" aria-labelledby="ntfH">
+      <h3 id="ntfH"><span class="ntf-dot" aria-hidden="true"></span>중요 알림${list.length > 1 ? " " + list.length + "건" : ""}</h3>
+      <p class="ntf-sub">${d.getMonth() + 1}월 ${d.getDate()}일 (${NTF_DOW[d.getDay()]})</p>
+      <div class="ntf-list">${list.map((it) => `<div class="ntf-al"><div class="ntf-m">${ntfMeta(it, fc)}</div><p>${esc(it.text)}</p>${it === goIt ? `<div class="ntf-go">확인하면 이동 · ${esc(ntfGoLabel(it.go))}</div>` : ""}</div>`).join("")}</div>
+      <button type="button" class="ntf-ok">확인</button></div>`;
+    box.querySelector(".ntf-ok").addEventListener("click", () => { box.remove(); onOk(); });
+    document.body.appendChild(box);
+    setTimeout(() => { const b = box.querySelector(".ntf-ok"); if (b) b.focus(); }, 50);
+  }
+  // 관리자 > 전체 알림
+  const NTFA = { doc: null, f: "all", edit: null, acks: null };
+  async function openNtfAdmin() {
+    $("adminBody").innerHTML = '<p class="hint pad">알림을 불러오는 중…</p>';
+    window.scrollTo(0, 0);
+    try {
+      NTFA.doc = await ntfLoad(); NTFA.acks = null; NTFA.edit = null;
+      renderNtfAdmin();
+      ntfLoadAcks().then((a) => { NTFA.acks = a; if (document.querySelector(".ntf-adm")) renderNtfAdmin(); }).catch(() => {});
+    } catch (e) { handleError(e); }
+  }
+  async function ntfLoadAcks() {
+    const P = await readPerms().catch(() => null), out = {};
+    const ids = [...new Set(Object.values((P && P.fcFolders) || {}).filter(Boolean))];
+    await Promise.all(ids.map(async (id) => {
+      try { const d = await stReadJsonIn({ id }, NTF_ACK); Object.entries(d || {}).forEach(([em, m]) => Object.keys(m || {}).forEach((k) => (out[k] || (out[k] = new Set())).add(em))); } catch (e) { /* 그 폴더는 건너뜀 */ }
+    }));
+    return out;
+  }
+  const ntfSw = (attr, on) => `<button type="button" class="ntf-sw${on ? " on" : ""}" ${attr} role="switch" aria-checked="${on}" aria-label="켜기·끄기"></button>`;
+  function renderNtfAdmin() {
+    const doc = NTFA.doc, f = NTFA.f, day = ntfDay(), sysOff = !doc.system;
+    const shown = doc.items.filter((it) => f === "all" || it.kind === f);
+    const md = (s) => String(s || "").slice(5);
+    const when = (it) => (it.kind === "date" ? `<b>날짜</b> ${esc(md(it.from))}${it.to && it.to !== it.from ? " ~ " + esc(md(it.to)) : ""}` : it.kind === "dow" ? `<b>요일</b> 매주 ${(it.dows || []).map((n) => NTF_DOW[n]).join("·") || "—"}` : `<span class="ntf-sys">시스템</span>`);
+    const tgt = (it) => { const t = ntfTargets(it); return t.includes("*") ? (it.kind === "system" ? "해당 FC" : "전체") : t.join(" · "); };
+    const ackN = (it) => { if (it.kind === "system") return ""; if (!NTFA.acks) return `<span class="ntf-ack">확인 …</span>`; const s = NTFA.acks[ntfAckKey(it, day)]; return `<span class="ntf-ack">확인 ${s ? s.size : 0}명${it.kind === "dow" ? " (오늘)" : ""}</span>`; };
+    $("adminBody").innerHTML = `<div class="ntf-adm">
+      <div class="ntf-head"><button type="button" class="ev-edit org-back-btn" data-ntf-back>‹ 관리자</button><h3 class="sec-title">전체 알림</h3></div>
+      <div class="ntf-bar"><div><b>시스템 알림</b><small>새 이관·DB처럼 앱이 자동으로 만드는 알림</small></div>${ntfSw("data-ntf-sys", doc.system)}</div>
+      <div class="ntf-fl"><span class="ntf-seg">${[["all", "전체"], ["date", "날짜"], ["dow", "요일"], ["system", "시스템"]].map(([k, l]) => `<button type="button" data-ntf-f="${k}" class="${f === k ? "on" : ""}">${l}${k === "all" ? " " + doc.items.length : ""}</button>`).join("")}</span><button type="button" class="ntf-add" data-ntf-add>+ 추가</button></div>
+      ${shown.map((it) => `<div class="ntf-card${it.on === false || (it.kind === "system" && sysOff) ? " off" : ""}"><p>${esc(it.text)}</p>${ntfSw(`data-ntf-on="${esc(it.id)}"`, it.on !== false)}
+        <div class="ntf-tg"><span>${when(it)}</span><span><b>대상</b> ${esc(tgt(it))}</span><span><b>이동</b> ${esc(ntfGoLabel(it.go).replace(/^세일즈 › /, ""))}</span></div>
+        <div class="ntf-act"><button type="button" data-ntf-edit="${esc(it.id)}">수정</button>${it.kind === "system" ? "" : `<button type="button" class="del" data-ntf-del="${esc(it.id)}">삭제</button>`}${ackN(it)}</div></div>`).join("") || '<p class="hint pad">이 종류의 알림이 없습니다.</p>'}
+      <p class="hint ntf-note">켜진 알림 중 오늘에 해당하는 것이 FC 로그인 직후 한 창에 모두 보입니다. [확인]을 누르면 시스템 알림 → 목록 위쪽 알림의 페이지로 이동합니다.</p></div>`;
+  }
+  function ntfSheet() {
+    const it = NTFA.edit, sys = it.kind === "system", fcs0 = [...((adminState && adminState.fcs) || [])], nm = new Set(Object.values(((adminState && adminState.perms) || {}).names || {})), fcs = nm.size ? fcs0.filter((x) => nm.has(x)) : fcs0, tg = ntfTargets(it);
+    const old = $("ntfSheet"); if (old) old.remove();
+    const box = document.createElement("div");
+    box.id = "ntfSheet"; box.className = "modal ntf-shw";
+    box.innerHTML = `<div class="ntf-sh" role="dialog" aria-modal="true" aria-label="알림 ${it._new ? "추가" : "수정"}"><h3>알림 ${it._new ? "추가" : "수정"}<button type="button" data-ntfs-x>취소</button></h3>
+      <label class="ntf-f"><span>알림 내용${sys ? " ({n} 자리에 새 건수)" : ""}</span><textarea data-ntfs-text rows="2" maxlength="200">${esc(it.text || "")}</textarea></label>
+      ${sys ? "" : `<div class="ntf-f"><span>언제 보일까</span><div class="ntf-chips">${[["date", "날짜"], ["dow", "요일"]].map(([k, l]) => `<button type="button" data-ntfs-kind="${k}" class="${it.kind === k ? "on" : ""}">${l}</button>`).join("")}</div></div>
+      <div class="ntf-row2" data-ntfs-datebox ${it.kind === "date" ? "" : "hidden"}><label class="ntf-f"><span>시작</span><input type="date" data-ntfs-from value="${esc(it.from || "")}"></label><label class="ntf-f"><span>끝 (비우면 하루)</span><input type="date" data-ntfs-to value="${esc(it.to || "")}"></label></div>
+      <div class="ntf-f" data-ntfs-dowbox ${it.kind === "dow" ? "" : "hidden"}><span>요일</span><div class="ntf-chips">${[1, 2, 3, 4, 5, 6, 0].map((n) => `<button type="button" data-ntfs-dow="${n}" class="${(it.dows || []).map(Number).includes(n) ? "on" : ""}">${NTF_DOW[n]}</button>`).join("")}</div></div>`}
+      <div class="ntf-f"><span>대상</span><div class="ntf-chips">${["*", ...fcs].map((x) => `<button type="button" data-ntfs-tg="${esc(x)}" class="${tg.includes(x) ? "on" : ""}">${x === "*" ? (sys ? "해당 FC 모두" : "전체") : esc(x)}</button>`).join("")}</div></div>
+      <label class="ntf-f"><span>확인하면 이동할 페이지</span><select data-ntfs-go>${NTF_GO.map(([k, l]) => `<option value="${k}" ${(it.go || "") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      <p class="hint">같은 날 알림이 여러 개면 한 창에 모두 보이고, 이동은 시스템 알림 → 목록 위쪽 순입니다.</p>
+      <button type="button" class="ntf-save" data-ntfs-save>저장</button></div>`;
+    document.body.appendChild(box);
+  }
+  async function ntfCommit(next, msg) {
+    try { await ntfSave(next); NTFA.doc = next; toast(msg); } catch (e) { handleError(e); }
+    renderNtfAdmin();
+  }
+  async function ntfSaveEdit(btn) {
+    const box = $("ntfSheet"), it = { ...NTFA.edit };
+    it.text = box.querySelector("[data-ntfs-text]").value.trim();
+    if (!it.text) return toast("알림 내용을 입력해 주세요.");
+    if (it.kind !== "system") {
+      it.kind = (box.querySelector("[data-ntfs-kind].on") || {}).dataset ? box.querySelector("[data-ntfs-kind].on").dataset.ntfsKind : "date";
+      if (it.kind === "date") {
+        it.from = box.querySelector("[data-ntfs-from]").value; it.to = box.querySelector("[data-ntfs-to]").value || ""; delete it.dows;
+        if (!it.from) return toast("시작 날짜를 넣어 주세요.");
+        if (it.to && it.to < it.from) return toast("끝 날짜가 시작 날짜보다 앞입니다.");
+      } else {
+        it.dows = [...box.querySelectorAll("[data-ntfs-dow].on")].map((b) => +b.dataset.ntfsDow); delete it.from; delete it.to;
+        if (!it.dows.length) return toast("요일을 하나 이상 골라 주세요.");
+      }
+    }
+    const tg = [...box.querySelectorAll("[data-ntfs-tg].on")].map((b) => b.dataset.ntfsTg);
+    it.target = !tg.length || tg.includes("*") ? ["*"] : tg;
+    it.go = box.querySelector("[data-ntfs-go]").value;
+    const isNew = !!it._new; delete it._new; if (it.on == null) it.on = true;
+    btn.disabled = true; btn.textContent = "저장 중";
+    const doc = NTFA.doc, items = isNew ? [it, ...doc.items] : doc.items.map((x) => (x.id === it.id ? it : x)); // 새 알림은 맨 위(이동 우선)
+    NTFA.edit = null; box.remove();
+    await ntfCommit({ ...doc, items }, isNew ? "알림을 추가했습니다." : "알림을 고쳤습니다.");
+  }
+  document.addEventListener("click", async (ev) => {
+    const t = ev.target.closest && ev.target.closest("[data-ntf-open], [data-ntf-back], [data-ntf-sys], [data-ntf-f], [data-ntf-add], [data-ntf-on], [data-ntf-edit], [data-ntf-del], [data-ntfs-x], [data-ntfs-kind], [data-ntfs-dow], [data-ntfs-tg], [data-ntfs-save]");
+    if (!t) { const sh = ev.target.id === "ntfSheet" ? ev.target : null; if (sh) { NTFA.edit = null; sh.remove(); } return; }
+    const d = t.dataset;
+    if (d.ntfOpen != null) return openNtfAdmin();
+    if (d.ntfBack != null) { renderAdmin(); window.scrollTo(0, 0); return; }
+    if (d.ntfF) { NTFA.f = d.ntfF; return renderNtfAdmin(); }
+    if (d.ntfSys != null) return ntfCommit({ ...NTFA.doc, system: !NTFA.doc.system }, NTFA.doc.system ? "시스템 알림을 모두 껐습니다." : "시스템 알림을 켰습니다.");
+    if (d.ntfOn) return ntfCommit({ ...NTFA.doc, items: NTFA.doc.items.map((x) => (x.id === d.ntfOn ? { ...x, on: x.on === false } : x)) }, "알림을 " + ((NTFA.doc.items.find((x) => x.id === d.ntfOn) || {}).on === false ? "켰습니다." : "껐습니다."));
+    if (d.ntfAdd != null) { NTFA.edit = { _new: true, id: "n" + Date.now().toString(36), kind: "date", text: "", from: ntfDay(), to: "", target: ["*"], go: "", on: true }; return ntfSheet(); }
+    if (d.ntfEdit) { const it = NTFA.doc.items.find((x) => x.id === d.ntfEdit); if (it) { NTFA.edit = { ...it }; ntfSheet(); } return; }
+    if (d.ntfDel) { const it = NTFA.doc.items.find((x) => x.id === d.ntfDel); if (!it || !confirm(`이 알림을 삭제할까요?\n\n${it.text}`)) return; return ntfCommit({ ...NTFA.doc, items: NTFA.doc.items.filter((x) => x.id !== d.ntfDel) }, "알림을 삭제했습니다."); }
+    if (d.ntfsX != null) { NTFA.edit = null; const b = $("ntfSheet"); if (b) b.remove(); return; }
+    if (d.ntfsKind) { const box = $("ntfSheet"); box.querySelectorAll("[data-ntfs-kind]").forEach((b) => b.classList.toggle("on", b === t)); box.querySelector("[data-ntfs-datebox]").hidden = d.ntfsKind !== "date"; box.querySelector("[data-ntfs-dowbox]").hidden = d.ntfsKind !== "dow"; return; }
+    if (d.ntfsDow != null) { t.classList.toggle("on"); return; }
+    if (d.ntfsTg != null) { const box = $("ntfSheet"), all = d.ntfsTg === "*"; if (all) box.querySelectorAll("[data-ntfs-tg]").forEach((b) => b.classList.toggle("on", b === t)); else { t.classList.toggle("on"); box.querySelector('[data-ntfs-tg="*"]').classList.toggle("on", !box.querySelector("[data-ntfs-tg].on:not([data-ntfs-tg='*'])")); } return; }
+    if (d.ntfsSave != null) return ntfSaveEdit(t);
+  });
+
   function startApp() {
     isRegistered().then((ok) => {
       if (ok) return startApp0();
@@ -10517,6 +10848,7 @@
       }
     }
     setTimeout(() => { if (!goReq) checkNewCustomers(); }, 2500); // 로그인 때 새 고객 확인
+    setTimeout(() => { if (!goReq) ntfCheck(); }, 1200); // v557: 로그인 직후 중요 알림(그날 한 번)
     setTimeout(wakeStart, 4000); // '몰리야' 듣기(설정에서 켠 기기만)
     setTimeout(() => { loadMyPrefs().catch(() => {}); }, 1500); // 내 설정(다크/라이트 포함)을 일찍 읽어 둠
     if (!isAdmin()) syncStartShared();

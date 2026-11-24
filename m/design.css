@@ -1743,3 +1743,70 @@ html.sync-lock #salesView [data-stg], html.sync-lock #salesView [data-arx], html
 #adminView .card.org-wrap .sec-title { font-size: 15px; }
 #teamView .hint:not(.cd-conv .hint) { font-size: 12px; }
 #adminView .org-wrap .hint:not(small) { font-size: 13px; }
+
+/* v557(2026-11-24): 로그인 직후 중요 알림 창 + 관리자 > 전체 알림 */
+.ntf-pop { z-index: 80; }
+.ntf-pop .ntf-box { width: min(358px, 100%); max-height: 82vh; display: flex; flex-direction: column; padding: 20px 16px 16px; }
+.ntf-box h3 { font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 8px; margin: 0; }
+.ntf-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+.ntf-sub { font-size: 12px; color: var(--t3); margin: 2px 0 12px 16px; }
+.ntf-list { overflow: auto; }
+.ntf-al { border-top: 1px solid var(--line); padding: 12px 0; }
+.ntf-al .ntf-m { font-size: 12px; color: var(--t3); }
+.ntf-al p { font-size: 15px; line-height: 1.45; margin: 2px 0 0; color: var(--t1); }
+.ntf-al .ntf-go { font-size: 12px; color: var(--t2); margin-top: 4px; }
+.ntf-sys { color: var(--accent); font-weight: 600; }
+.ntf-ok, .ntf-save { display: block; width: 100%; height: 44px; border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font: 600 15px var(--font); margin-top: 8px; cursor: pointer; }
+.ntf-ok:focus-visible, .ntf-save:focus-visible { outline: 2px solid var(--t1); outline-offset: 2px; }
+.ntf-entry { display: flex; align-items: center; gap: 12px; }
+.ntf-entry > div { flex: 1; min-width: 0; }
+.ntf-entry .hint { margin: 2px 0 0; font-size: 12px; }
+.ntf-adm { display: grid; gap: 8px; }
+.ntf-head { display: flex; align-items: center; gap: 8px; }
+.ntf-head .sec-title { margin: 0; font-size: 16px; }
+.ntf-bar { display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 12px; padding: 10px 12px; }
+.ntf-bar b { font-size: 14px; font-weight: 600; } .ntf-bar small { display: block; font-size: 12px; color: var(--t3); }
+.ntf-sw { margin-left: auto; width: 40px; height: 24px; min-height: 0; padding: 0; border-radius: 12px; border: 1px solid var(--line); background: var(--raised); position: relative; flex: none; cursor: pointer; box-shadow: none; }
+.ntf-sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: var(--t3); transition: left var(--t-fast) var(--ease); }
+.ntf-sw.on { background: var(--accent); border-color: var(--accent); }
+.ntf-sw.on::after { left: 18px; background: #fff; }
+.ntf-fl { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.ntf-seg { display: flex; gap: 4px; flex-wrap: wrap; }
+.ntf-seg button, .ntf-chips button { font: 500 12px var(--font); padding: 3px 10px; min-height: 0; height: auto; border-radius: 12px; border: 1px solid var(--line); color: var(--t2); background: var(--surface); box-shadow: none; cursor: pointer; }
+.ntf-seg button.on { background: var(--t1); color: var(--surface); border-color: var(--t1); }
+.ntf-add { margin-left: auto; font: 600 12px var(--font); color: var(--accent); border: 1px solid currentColor; border-radius: 12px; padding: 3px 10px; min-height: 0; background: none; box-shadow: none; cursor: pointer; flex: none; }
+.ntf-card { background: var(--surface); border-radius: 12px; padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; }
+.ntf-card.off > p, .ntf-card.off .ntf-tg { opacity: .5; }
+.ntf-card > p { font-size: 14px; line-height: 1.4; margin: 0; color: var(--t1); }
+.ntf-tg { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11.5px; color: var(--t3); }
+.ntf-tg b { font-weight: 600; color: var(--t2); }
+.ntf-act { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); padding-top: 6px; margin-top: 2px; }
+.ntf-act button { font: 500 12px var(--font); color: var(--t2); background: none; border: 0; padding: 2px 0; min-height: 0; box-shadow: none; cursor: pointer; }
+.ntf-act button.del { color: var(--bad); }
+.ntf-ack { margin-left: auto; font-size: 12px; color: var(--t3); font-variant-numeric: tabular-nums; }
+.ntf-note { font-size: 12px; margin: 4px 0 0; }
+.ntf-shw { place-items: end stretch; padding: 0; z-index: 70; }
+.ntf-sh { background: var(--surface); border-radius: 16px 16px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); display: grid; gap: 12px; max-height: 90vh; overflow: auto; width: 100%; max-width: 560px; margin: 0 auto; }
+.ntf-sh h3 { font-size: 16px; font-weight: 600; display: flex; align-items: center; margin: 0; }
+.ntf-sh h3 button { margin-left: auto; font: 500 14px var(--font); color: var(--t2); background: none; border: 0; min-height: 0; padding: 4px; box-shadow: none; cursor: pointer; }
+.ntf-f { display: block; }
+.ntf-f > span { display: block; font-size: 12px; color: var(--t3); margin-bottom: 4px; }
+.ntf-f textarea, .ntf-f input, .ntf-f select { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: 16px var(--font); background: var(--bg); color: var(--t1); }
+.ntf-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ntf-chips button { font-size: 13px; padding: 4px 10px; border-radius: 14px; }
+.ntf-chips button.on { background: var(--accent-weak); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.ntf-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ntf-row2[hidden], .ntf-f[hidden] { display: none; }
+
+/* v560(2026-11-24): 후보자정보 고등학교·최종학력·병역·결혼여부 칸 */
+.cd-info.editing dd.tm-multi { flex-wrap: wrap; align-items: center; }
+.cd-info.editing input.cd-year { flex: 0 0 96px; }
+.cd-info.editing input.cd-month { flex: 1 1 120px; min-width: 0; }
+.cd-info.editing .cd-chk { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--t1); flex: none; }
+.cd-info.editing .cd-md { display: inline-flex; align-items: center; gap: 4px; flex: 1 1 auto; }
+.cd-info.editing .cd-md .cd-mdl { font-size: 12px; color: var(--t3); margin-right: 2px; }
+.cd-info.editing .cd-md select { flex: 0 0 auto; min-width: 58px; }
+.cd-info.editing .cd-chk input[type="checkbox"] { -webkit-appearance: auto; appearance: auto; width: 18px; height: 18px; min-width: 18px; flex: none; margin: 0; padding: 0; border: 0; background: none; accent-color: var(--accent); }
+.cd-info.editing input.cd-month { min-width: 128px; }
+.tm-info.cd-info.editing dd.tm-multi input.cd-month { flex: 1 1 104px; min-width: 104px; }
+.tm-info.cd-info.editing dd.tm-multi input.cd-year { flex: 0 0 96px; }
