@@ -1934,3 +1934,6 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 .rpt-pdf.rpt-dbp .rpt-pf { position: absolute; left: 32px; right: 32px; bottom: 18px; font-size: 10px; color: #6b7382; }
 .rpt-pdf.rpt-dbp td { overflow-wrap: anywhere; }
 .rpt-pdf.rpt-dbp .c-지역 { width: 72px; } .rpt-pdf.rpt-dbp .c-유입DB명 { width: 132px; font-size: 10px; }
+
+/* v572: DB 줄 진행FC 표시 */
+#salesView .srow .dbpg { font-size: 11px; color: var(--t2); font-weight: 500; margin-left: 6px; padding: 1px 6px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 6px; white-space: nowrap; }
