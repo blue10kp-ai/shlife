@@ -2530,11 +2530,11 @@
       const box = document.createElement("div"); box.id = "clmPop"; box.className = "modal";
       box.innerHTML = `<div class="modal-box cd-conv-box" role="dialog" aria-modal="true" aria-label="보험금청구서 만들기"><h3 class="sec-title">보험금청구서 만들기</h3>
         <p class="lead">청구서 ${targets.length}개 · 병원서류 ${hspN}개를 붙입니다(영수증 → 세부내역 → 나머지).</p>
-        <div class="clm-pop-row"><label class="fld"><span>사고일</span><input type="date" data-cp="accDate" value="${esc(last.accDate || "")}"></label><label class="fld"><span>시각(있으면)</span><input type="time" data-cp="accTime" value="${esc(last.accTime || "")}"></label></div>
+        <div class="clm-pop-row"><label class="fld"><span>사고일</span><input type="text" data-dp="date" data-cp="accDate" value="${esc(last.accDate || "")}"></label><label class="fld"><span>시각(있으면)</span><input type="time" data-cp="accTime" value="${esc(last.accTime || "")}"></label></div>
         <p class="hint clm-ai">${esc(aiNote)}</p>
         <label class="fld"><span>사고경위</span><input type="text" data-cp="story" maxlength="40" placeholder="예: 무릎 통증으로 정형외과 통원 치료" value="${esc(last.story || "")}"></label>
         <div class="clm-pop-row"><label class="fld"><span>병원</span><input type="text" data-cp="hosp" maxlength="30" value="${esc(last.hosp || "")}"></label><label class="fld clm-dept"><span>진료과</span><input type="text" data-cp="dept" maxlength="15" value="${esc(last.dept || "")}"></label><label class="fld clm-kind"><span>구분</span><select data-cp="kind"><option value=""${last.kind ? "" : " selected"}>-</option><option${last.kind === "통원" ? " selected" : ""}>통원</option><option${last.kind === "입원" ? " selected" : ""}>입원</option></select></label></div>
-        <label class="fld"><span>작성일</span><input type="date" data-cp="today" value="${esc(today)}"></label>
+        <label class="fld"><span>작성일</span><input type="text" data-dp="date" data-cp="today" value="${esc(today)}"></label>
         <p class="hint">${known.length ? `손글씨체로 적는 양식: ${esc([...new Set(known)].join(", "))}.` : ""}${unknown.length ? ` 칸 위치를 모르는 양식(${esc([...new Set(unknown)].join(", "))})은 글자 없이 합칩니다.` : ""}</p>
         <div class="file-actions"><button type="button" class="secondary" data-cp-cancel>취소</button><button type="button" class="primary" data-cp-ok>만들기</button></div></div>`;
       document.body.appendChild(box);
@@ -3434,7 +3434,7 @@
       if (k === "도입자") return introSel("tmf", p, ppl);
       if (k === "통신사") { const base = ["SKT", "KT", "LG U+", "SKT 알뜰폰", "KT 알뜰폰", "LG U+ 알뜰폰"], os = v && !base.includes(v) ? [v, ...base] : base; return `<select data-tmf="통신사" class="tm-narrow" aria-label="통신사"><option value=""${v ? "" : " selected"}>통신사</option>${os.map((o) => `<option${o === v ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`; } /* v478: 통신사는 고르기(고객 정보 수정과 같은 목록) */
       if (t === "area") return `<textarea data-tmf="${k}" rows="1">${esc(v)}</textarea>`;
-      return `<input data-tmf="${k}" type="${t === "secret" ? "text" : t}" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"${k === "통신사" ? ' class="tm-narrow"' : ""}>`;
+      return `<input data-tmf="${k}" type="${t === "secret" || t === "date" ? "text" : t}"${t === "date" ? ' data-dp="date"' : ""} value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"${k === "통신사" ? ' class="tm-narrow"' : ""}>`;
     };
     const rowHtml = ([lab, cells]) => {
       const ed = tmEdit && !cells.some(([k]) => TM_LOCK.has(k)); // v471: 주민번호·입사일·도입자는 바뀌지 않는 값이라 수정 중에도 보기 그대로
@@ -3520,7 +3520,7 @@
       const v = val(k);
       if (k === "도입자") { const n = introName(p, cdTeam); return n ? esc(n) : ""; }
       if (!v) return "";
-      if (t === "secret") return `<span class="tm-sec"><span class="tm-secv">${esc(v)}</span><button type="button" class="map-btn copy-btn" data-copy="${esc(v)}" data-copy-msg="복사했습니다">복사</button></span>`;
+      if (t === "secret") return `<span class="tm-sec"><span class="tm-secv">${esc(v)}</span></span>`; // v561(사용자 지시): 후보자정보 주민번호 복사 버튼 없앰
       if (k === "주소") return `${esc(v)} ${mapBtn(v)}`;
       if (k === "고등학교졸업") return /^\d{4}$/.test(v) ? esc(v) + "년 졸업" : esc(v);
       if (k === "병역시작") return esc(cdYm(v)) + " ~";
@@ -3531,13 +3531,13 @@
     const edit = ([k, t, ph]) => {
       const v = val(k);
       if (k === "도입자") return introSel("cdf", p, cdTeam);
-      if (t === "year") return `<input data-cdf="${k}" type="number" inputmode="numeric" min="1950" max="2100" class="tm-narrow cd-year" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}">`;
-      if (t === "month") return `<input data-cdf="${k}" type="month" class="cd-month" value="${esc(v)}" aria-label="${esc("병역 " + (ph || k))}">`;
+      if (t === "year") return `<input data-cdf="${k}" type="text" data-dp="year" class="tm-narrow cd-year" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}">`;
+      if (t === "month") return `<input data-cdf="${k}" type="text" data-dp="month" data-dp-range="cd-${k.replace(/(시작|끝)$/, "")}"${/끝$/.test(k) ? " data-dp-end" : ""} class="cd-month" value="${esc(v)}" aria-label="${esc("병역 " + (ph || k))}">`;
       if (/^pick:/.test(t)) { const os = t.slice(5).split("|"), old = v && !os.includes(v) ? v : ""; return `<select data-cdf="${k}" aria-label="${esc(k)}"><option value="">선택</option>${os.map((x) => `<option ${v === x ? "selected" : ""}>${esc(x)}</option>`).join("")}${old ? `<option value="${esc(old)}" selected>이전: ${esc(old)}</option>` : ""}</select>`; }
       if (t === "check") return `<label class="cd-chk"><input type="checkbox" class="cb" data-cdf="${k}" data-on="${esc(ph || "예")}" ${v ? "checked" : ""}> ${esc(ph || "예")}</label>`;
-      if (t === "md") { const m = /^(\d{2})-(\d{2})$/.exec(v) || [], opt = (n, cur) => Array.from({ length: n }, (_, i) => String(i + 1).padStart(2, "0")).map((x) => `<option value="${x}" ${cur === x ? "selected" : ""}>${+x}</option>`).join(""); return `<span class="cd-md" data-cdmd="${k}"><span class="cd-mdl">${esc(ph || "")}</span><select data-md="m" aria-label="${esc(ph)} 월"><option value="">월</option>${opt(12, m[1])}</select><select data-md="d" aria-label="${esc(ph)} 일"><option value="">일</option>${opt(31, m[2])}</select></span>`; }
+      if (t === "md") return `<input data-cdf="${k}" type="text" data-dp="md" class="cd-mdin" value="${esc(v)}" placeholder="${esc((ph || "") + " 월·일")}" aria-label="${esc(ph || k)}">`; // v561: 공통 날짜 달력(월일)
       if (k === "통신사") { const base = ["SKT", "KT", "LG U+", "SKT 알뜰폰", "KT 알뜰폰", "LG U+ 알뜰폰"], os = v && !base.includes(v) ? [v, ...base] : base; return `<select data-cdf="통신사" class="tm-narrow" aria-label="통신사"><option value=""${v ? "" : " selected"}>통신사</option>${os.map((o) => `<option${o === v ? " selected" : ""}>${esc(o)}</option>`).join("")}</select>`; }
-      return `<input data-cdf="${k}" type="${t === "secret" ? "text" : t}" value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">`;
+      return `<input data-cdf="${k}" type="${t === "secret" || t === "date" ? "text" : t}"${t === "date" ? ' data-dp="date"' : ""} value="${esc(v)}" placeholder="${esc(ph || "")}" aria-label="${esc(k)}"${t === "tel" ? ' inputmode="tel"' : ""} autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">`;
     };
     const rowHtml = ([lab, cells]) => {
       const parts = cdEdit ? cells.map(edit) : cells.map(view).filter(Boolean);
@@ -3562,7 +3562,7 @@
     box.id = "cdConvPop"; box.className = "modal";
     box.innerHTML = `<div class="modal-box cd-conv-box" role="dialog" aria-modal="true" aria-label="팀원 전환"><h3 class="sec-title">팀원 전환</h3>
       <p class="lead"><b>${esc(p.이름 || "")}</b> · 사번 ${esc(String(p.사번 || ""))}</p>
-      <label class="fld"><span>입사일</span><input type="date" data-cv="입사일" value="${esc(String(p.입사일 || today))}"></label>
+      <label class="fld"><span>입사일</span><input type="text" data-dp="date" data-cv="입사일" value="${esc(String(p.입사일 || today))}"></label>
       <label class="fld"><span>직급</span><select data-cv="직급"><option selected>FC</option><option>SL</option><option>ESL</option></select></label>
       <label class="fld"><span>도입자</span>${introSel("cv", p, cdTeam)}</label>
       <p class="hint">팀원정보에 등록하고 후보자 목록에서는 빠집니다. 후보자 기록은 지우지 않고 남겨 둡니다.</p>
@@ -3918,8 +3918,7 @@
   function carRowHtml(r) {
     const p = parseMonthDay(r.d) || [0, 0];
     return `<div class="car-row"><input class="car-num" value="${esc(r.num)}" placeholder="차량번호" autocomplete="off">
-      <select class="car-mm" aria-label="갱신 월"><option value="">월</option>${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}" ${p[0] === i + 1 ? "selected" : ""}>${i + 1}월</option>`).join("")}</select>
-      <select class="car-dd" aria-label="갱신 일"><option value="">일</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${p[1] === i + 1 ? "selected" : ""}>${i + 1}일</option>`).join("")}</select>
+      <input class="car-md" type="text" data-dp="md" data-dp-format="MMDD" value="${p[0] ? String(p[0]).padStart(2, "0") + String(p[1]).padStart(2, "0") : ""}" placeholder="갱신 월·일" aria-label="갱신 월일">
       <button type="button" class="car-del" aria-label="이 차량 삭제">삭제</button></div>`;
   }
   function carsFormHtml(ev) {
@@ -3936,8 +3935,7 @@
     const list = box.querySelector(".car-list"), hn = box.querySelector(`[data-ex="${CAR_NUM}"]`), hd = box.querySelector(`[data-ex="${CAR_DATE}"]`);
     const sync = () => {
       const rows = [...list.querySelectorAll(".car-row")].map((r) => {
-        const mm = r.querySelector(".car-mm").value, dd = r.querySelector(".car-dd").value;
-        return { num: r.querySelector(".car-num").value.trim().replace(/\|/g, ""), d: mm && dd ? pad2(mm) + pad2(dd) : "" };
+        return { num: r.querySelector(".car-num").value.trim().replace(/\|/g, ""), d: r.querySelector(".car-md").value }; // v561: 달력(월일) 'MMDD'
       }).filter((r) => r.num || r.d);
       hn.value = rows.some((r) => r.num) ? rows.map((r) => r.num).join(CAR_SEP) : "";
       hd.value = rows.some((r) => r.d) ? rows.map((r) => r.d).join(CAR_SEP) : "";
@@ -3950,7 +3948,7 @@
       if (!del) return;
       const row = del.closest(".car-row");
       if (list.querySelectorAll(".car-row").length > 1) row.remove();
-      else { row.querySelector(".car-num").value = ""; row.querySelector(".car-mm").value = ""; row.querySelector(".car-dd").value = ""; }
+      else { row.querySelector(".car-num").value = ""; row.querySelector(".car-md").value = ""; }
       sync();
     });
   }
@@ -3968,11 +3966,7 @@
       let input;
       if (EXTRA.monthDayCols.includes(k)) {
         const p = parseMonthDay(ev[k]) || [0, 0];
-        input = `<div class="mmdd">
-            <select data-mm aria-label="${esc(k)} 월"><option value="">월</option>${Array.from({ length: 12 }, (_, i) => `<option value="${i + 1}" ${p[0] === i + 1 ? "selected" : ""}>${i + 1}월</option>`).join("")}</select>
-            <select data-dd aria-label="${esc(k)} 일"><option value="">일</option>${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}" ${p[1] === i + 1 ? "selected" : ""}>${i + 1}일</option>`).join("")}</select>
-            <input type="hidden" data-ex="${esc(k)}" value="${p[0] ? pad2(p[0]) + pad2(p[1]) : v}">
-          </div>`;
+        input = `<input type="text" data-dp="md" data-dp-format="MMDD" data-ex="${esc(k)}" value="${p[0] ? pad2(p[0]) + pad2(p[1]) : v}" aria-label="${esc(k)}">`; // v561: 공통 날짜 달력(월일), 저장은 예전처럼 'MMDD'
       } else if (/메모/.test(k)) input = `<textarea data-ex="${esc(k)}" rows="4">${v}</textarea>`;
       else if (k === EXTRA.carrierCol) { // 통신사는 목록에서 고르기만 함 (예전에 다른 글자로 저장된 값은 그대로 보이게 목록에 추가)
         const cur = String(ev[k] || "").trim(), base = ["SKT", "KT", "LG U+", "SKT 알뜰폰", "KT 알뜰폰", "LG U+ 알뜰폰"], opts = cur && !base.includes(cur) ? [cur, ...base] : base;
@@ -5763,7 +5757,7 @@
     const s_task = sec("구글 할 일 (일정 화면)", ["<b>[일정으로]</b>: 할 일 줄의 [일정으로]를 누르면 그 할 일을 캘린더 일정으로 옮기고 할 일은 지웁니다. 일정에서 [할 일로] 옮길 때 메모에 적힌 <b>예전 시간</b>(‘시간: 09:00~10:00’)이 있으면 그 시간으로, 없으면 <b>종일 일정</b>으로 만듭니다. 날짜는 마감일(없으면 보고 있는 날), 캘린더는 원래 있던 캘린더(없으면 기본 캘린더)이고, 장소·메모·작성자·고객 연결도 이어집니다.", "<b>할 일 제목에 등록된 고객 이름이 있으면</b> 그 할 일 줄 아래에 <b>일정과 똑같은 고객 카드</b>(이름·생년월일·연락처·주소·미팅장소·상담기록, 이름을 누르면 고객 정보)가 붙습니다. <b>종일 일정</b>도 캘린더와 상관없이 이름으로 고객을 찾습니다. 같은 이름이 여러 명이면 [선택]으로 한 명을 고르고(나중에 [다시 선택]), 관계없으면 [해당 없음]([되돌리기]로 다시 연결). 고른 값은 할 일 메모의 ‘고객연결: …’ 줄에 저장되어 모든 기기에서 같게 보입니다.", "<b>관리자</b>는 할 일을 추가·수정할 때 <b>사용자</b>를 고를 수 있습니다(기본 = 본인). 구글 할 일은 로그인한 계정의 것이라, 다른 사용자를 고르면 할 일 메모 맨 윗줄에 ‘작성: 이름’이 적히고 목록에는 ‘- 이름’으로 보입니다(본인으로 되돌리면 그 줄이 지워짐).", "<b>모든 일정</b> 카드(종일이 아니어도)에는 <b>[할 일로]</b> 버튼이 있습니다(시간이 있는 일정은 할 일 메모에 시간이 적힙니다). 누르면 그 날짜가 마감인 구글 할 일(기본 목록)을 만들고 캘린더 일정은 지웁니다. 장소·메모는 할 일의 메모로 옮겨집니다. 지운 일정은 화면을 새로 고치기 전까지 [원위치]로 되살릴 수 있습니다(만든 할 일은 그대로 남음).", "그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
     const s_nm = sec("일정 제목 → 고객 찾기 (2026-11-17)", ["<b>고객 연결 기록(v559)</b>: 일정에서 고객이 한 명으로 찾아지거나 [선택]·[무시]·[다시 선택]을 누르면, 그 연결(고객ID·담당 FC·고객의 FC·종류)을 구글 일정의 숨은 칸과 고객 폴더의 <b>일정매칭</b> 기록에 남깁니다. 그래서 다른 앱·관리 세션도 \"이 일정 = 어느 고객\"을 바로 알 수 있습니다. 화면 모양은 그대로이고, 설명란에는 적지 않습니다. 캘린더 수정 권한이 없으면 기록 파일에만 남깁니다.", "일정 화면을 <b>좌우로 밀면</b> Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월로 넘어갑니다.", "일정 제목에 <b>등록된 고객 이름</b>이 있으면(‘고객’ 글자가 없어도, 날짜와 상관없이) 그 고객 카드가 일정에 붙고, 카드에서 장소 ‘입력’을 할 수 있습니다. 같은 이름의 고객이 여럿이면 [선택]으로 고르고, 상관없는 고객이면 [무시]로 숨깁니다. 등록된 고객에 없는 이름이면 아무것도 붙이지 않습니다. (2026-11-18: 하루 동안 쓰던 ‘이름 + 고객’ 규칙은 풀었습니다.)"]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드의 <b>비영업</b> 버튼을 눌러 영업일정으로 바꾼 일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
-    const s_addev = sec("일정 추가 (일정 화면)", ["<b>날짜 고르기(v558)</b>: 일정 추가·수정에서 날짜 칸 어디를 눌러도 달력이 바로 떠서 날짜를 고를 수 있습니다.", "[선택]으로 고객과 묶은 일정·할 일에는 <b>[해당 없음]</b> 버튼이 보이지 않습니다. [다시 선택]으로 풀면 다시 보입니다.", "<b>일정과 고객이 묶여 있으면</b>(이름이 맞는 고객이 있어 [선택]을 눌러 한 명과 연결한 일정만, [다시 선택]이 보이는 상태) 카드 왼쪽에 <b>파란색 굵은 선</b>이 보입니다.", "<b>일정 카드의 [수정]·[삭제] 버튼은 평소에 접혀 있습니다.</b> ([할 일로]는 [영업/비영업] 왼쪽에 항상 보입니다.) 일정 칸(시간 줄이든 제목 줄이든)을 터치하면 제목 줄 아래 오른쪽 끝으로 펼쳐지고, 한 번 더 터치하면 접힙니다. [영업/비영업]은 예전처럼 윗줄 오른쪽에 항상 보입니다. <b>[수정]</b>에는 <b>종일</b> 체크가 있어, 종일 일정은 체크를 풀고 시작·종료 시간을 넣으면 시간 일정으로, 시간 일정은 체크하면 종일 일정으로 저장됩니다.", "<b>관리자</b>는 이미 있는 일정을 <b>[수정]</b>할 때도 맨 아래 <b>작성자</b>를 바꿀 수 있습니다(고르는 사람은 내가 쓸 수 있는(공유받은) 캘린더를 가진 사람만, 본인으로 되돌리면 작성자 표시가 지워짐). 할 일 [수정]의 <b>사용자</b>도 같은 사람들 중에서 고릅니다.", "<b>2026-11-18부터</b> 추가 칸 맨 위에서 <b>[일정]</b>과 <b>[할 일]</b>을 먼저 고릅니다. <b>일정</b>은 제목·캘린더·날짜·종일/시간·장소(관리자는 작성자), <b>할 일</b>은 제목·<b>마감일</b>·메모(관리자는 <b>사용자</b>도 고름)만 입력하고 [할 일 등록]을 누르면 구글 할 일(기본 목록)에 그 날짜가 마감인 할 일이 만들어집니다(처음 한 번은 할 일 연결 창이 뜰 수 있음).", "일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). (일정 위쪽의 [초기화] 버튼은 2026-11-19에 없앴습니다.) 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
+    const s_addev = sec("일정 추가 (일정 화면)", ["<b>날짜 고르기(v561)</b>: 앱의 모든 날짜 칸(일정·할 일·청구·알림 기간·입사일·병역·졸업 연도·결혼기념일·자동차보험 갱신일)은 칸을 누르면 바로 아래에 달력이 떠서 고릅니다(직접 입력 없음). 기간은 시작과 끝을 차례로 누르고, [지우기]로 비울 수 있습니다. PC에서는 Enter로 열고 화살표·Enter로 고릅니다.", "[선택]으로 고객과 묶은 일정·할 일에는 <b>[해당 없음]</b> 버튼이 보이지 않습니다. [다시 선택]으로 풀면 다시 보입니다.", "<b>일정과 고객이 묶여 있으면</b>(이름이 맞는 고객이 있어 [선택]을 눌러 한 명과 연결한 일정만, [다시 선택]이 보이는 상태) 카드 왼쪽에 <b>파란색 굵은 선</b>이 보입니다.", "<b>일정 카드의 [수정]·[삭제] 버튼은 평소에 접혀 있습니다.</b> ([할 일로]는 [영업/비영업] 왼쪽에 항상 보입니다.) 일정 칸(시간 줄이든 제목 줄이든)을 터치하면 제목 줄 아래 오른쪽 끝으로 펼쳐지고, 한 번 더 터치하면 접힙니다. [영업/비영업]은 예전처럼 윗줄 오른쪽에 항상 보입니다. <b>[수정]</b>에는 <b>종일</b> 체크가 있어, 종일 일정은 체크를 풀고 시작·종료 시간을 넣으면 시간 일정으로, 시간 일정은 체크하면 종일 일정으로 저장됩니다.", "<b>관리자</b>는 이미 있는 일정을 <b>[수정]</b>할 때도 맨 아래 <b>작성자</b>를 바꿀 수 있습니다(고르는 사람은 내가 쓸 수 있는(공유받은) 캘린더를 가진 사람만, 본인으로 되돌리면 작성자 표시가 지워짐). 할 일 [수정]의 <b>사용자</b>도 같은 사람들 중에서 고릅니다.", "<b>2026-11-18부터</b> 추가 칸 맨 위에서 <b>[일정]</b>과 <b>[할 일]</b>을 먼저 고릅니다. <b>일정</b>은 제목·캘린더·날짜·종일/시간·장소(관리자는 작성자), <b>할 일</b>은 제목·<b>마감일</b>·메모(관리자는 <b>사용자</b>도 고름)만 입력하고 [할 일 등록]을 누르면 구글 할 일(기본 목록)에 그 날짜가 마감인 할 일이 만들어집니다(처음 한 번은 할 일 연결 창이 뜰 수 있음).", "일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). (일정 위쪽의 [초기화] 버튼은 2026-11-19에 없앴습니다.) 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
     const s_sub = sec("세일즈 서브메뉴", ["세일즈 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>보고서</b>를 눌러 바꿉니다. <b>보고서</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 유형(따행/이관/DB, 여러 개) · <b>단계</b>(신규·계약·완료·지옥, 여러 개 — 계약은 DB의 계약 고객) · <b>기간</b>(년월 하나)을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 기간의 <b>[3개월]</b>·<b>[1년]</b>은 이번 달까지의 그 기간으로 <b>누르는 즉시 보고서</b>를 보여 줍니다(진행을 누르지 않아도 됨). 이관은 이관일, 따행은 대상년월이 기간 안인 고객입니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘세일즈 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘세일즈 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 보고서는 세일즈에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
     const s_inflow = sec("DB 받은 FC와 진행하는 FC (유입FC, v514)", ["고객마다 <b>유입FC</b>(DB를 배분받은 FC) 칸이 있으면, 그 고객은 <b>유입FC의 이달목표 DB 목록</b>에 나옵니다. 담당FC(메인FC)가 다른 FC여도 DB 목록은 받은 FC 쪽입니다.", "DB 목록의 <b>보관 · 지옥 · 원복</b>(DB상태)은 유입FC 파일의 그 고객 줄에 저장됩니다. 영업단계 칩·전화·문자·상담기록은 담당FC 쪽에 남습니다(진행은 다른 FC가 할 수 있음).", "유입FC가 비어 있으면 예전처럼 담당FC 기준입니다."]);
     const s_od = OD_ON && sec("연체/실효 리스트 (2026-11-21)", ["세일즈 > 보고서의 <b>조건 보고서</b> 아래에 있습니다. 각 FC는 <b>본인 것만</b>, ESL(관리자·직급 ESL)은 <b>팀 전체</b>(FC를 고르거나 ‘전체’)를 봅니다. 자료는 각 FC 폴더 안에만 있어 드라이브에서 열어도 남의 것은 보이지 않습니다.", "<b>연체</b>: 가장 최근 확인일의 리스트를 ‘○월 ○일자 연체리스트’로 알려 주고 아래에 연체 계약 중 <b>최종납입 2~24회</b>만 보여 줍니다(회차를 모르면 넣고 ‘회차 모름’ 표시)(바로 전 확인일에 없던 계약은 <b>신규</b>, 실효리스트는 회차와 상관없이 모두). 제목 줄 오른쪽 끝에 <b>[PDF 다운]</b>. 연락처 번호를 누르면 한 번 더 물은 뒤 전화가 걸리고, 세일즈 화면 전화 버튼처럼 그 FC 이력에 통화 시도가 남습니다.", "<b>실효</b>: 그 아래 ‘○○○○년 ○월 실효리스트’와 실효 표(실효일이 그 달인 계약, 메인FC 기준, 지금 상태 = 실효 그대로·부활·해약), 제목 줄 오른쪽 끝에 <b>[PDF 다운]</b>. 위 요약 줄의 실효 숫자는 이 표의 건수입니다.", "‘전체’ PDF는 앞부분에 모든 FC를 이어 붙인 묶음(ESL이 볼 것), 뒷부분에 FC마다 새 쪽에서 시작하는 페이지(인쇄 뒤 FC별로 나눠 줄 것)가 들어 있습니다. FC 한 명을 고르면 데이터수집이 만든 PDF를 그대로 받습니다. 정식 확인일 기록이 생기기 전에는 시험 기록을 ‘시험 기록’으로 표시합니다."]);
@@ -6802,7 +6796,7 @@
     const tid = li.dataset.tid, card = li.closest(".task-card");
     if (t.hasAttribute("data-tedit")) {
       li.dataset.html = li.innerHTML; li.classList.add("editing");
-      li.innerHTML = `<input type="text" class="task-in" value="${esc(li.dataset.ttitle)}" aria-label="할 일 제목"><span class="task-ed"><input type="date" class="task-date" value="${esc(li.dataset.tdue)}" aria-label="마감일"><button type="button" class="ev-edit task-act" data-tcancel>취소</button><button type="button" class="ev-edit ev-done task-act" data-tsave>저장</button></span>`;
+      li.innerHTML = `<input type="text" class="task-in" value="${esc(li.dataset.ttitle)}" aria-label="할 일 제목"><span class="task-ed"><input type="text" data-dp="date" class="task-date" value="${esc(li.dataset.tdue)}" aria-label="마감일"><button type="button" class="ev-edit task-act" data-tcancel>취소</button><button type="button" class="ev-edit ev-done task-act" data-tsave>저장</button></span>`;
       if (isAdmin()) { // 관리자: 사용자 선택(기본 = 지금 사용자)
         const sel = document.createElement("select"); sel.className = "task-owner"; sel.setAttribute("aria-label", "사용자"); sel.innerHTML = taskSelfOpt();
         li.querySelector(".task-ed").insertBefore(sel, li.querySelector("[data-tcancel]")); /* 마감일 → 사용자 → 취소·저장 */ fillTaskUsers(sel, li.dataset.towner || "");
@@ -7373,7 +7367,7 @@
         <label class="fld"><span>제목</span><input data-a="title" autocomplete="off" placeholder="예: 김미례 고객 AP"></label>
         <div data-a-ev><label class="fld"><span>캘린더</span><select data-a="cal">${cals.map((c) => `<option value="${esc(c.id)}" ${c.id === def ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
         </div>
-        <label class="fld"><span data-a-datel>날짜</span><input data-a="date" type="date" value="${ymdStr(schedDate)}"></label>
+        <label class="fld"><span data-a-datel>날짜</span><input data-a="date" type="text" data-dp="date" value="${ymdStr(schedDate)}"></label>
         <div data-a-ev><label class="ev-allday"><input type="checkbox" class="cb" data-a="all"> 종일</label>
         <div class="fld-2" data-a-times><label class="fld"><span>시작</span><input data-a="start" type="time" value="${pad2(h0)}:00"></label>
           <label class="fld"><span>종료</span><input data-a="end" type="time" value="${pad2(Math.min(h0 + 1, 23))}:00"></label></div>
@@ -7460,13 +7454,7 @@
     document.querySelectorAll("#dayList [data-evedit], #dayList [data-evdel]").forEach((b) => { b.hidden = on; });
     $("ev" + i).classList.toggle("editing", on);
   }
-  // v558(2026-11-24 사용자 지시 "일정 수정에서 일자 선택을 달력에서 선택할 수 있게 달력이 뜨게"): 날짜 칸 어디를 눌러도 달력을 띄움
-  //   (폰에 따라 날짜 칸을 눌러도 숫자만 고치게 되고 달력은 작은 아이콘을 눌러야 뜸 → showPicker로 바로 달력. 지원 안 하는 브라우저는 예전 그대로)
-  document.addEventListener("click", (ev) => {
-    const inp = ev.target && ev.target.closest && ev.target.closest('input[type="date"]');
-    if (!inp || inp.disabled || inp.readOnly || typeof inp.showPicker !== "function") return;
-    try { inp.showPicker(); } catch (e) { /* 막히면 브라우저 기본 동작 */ }
-  });
+  // v561: 날짜 칸은 공통 날짜 달력(datepick.js, app\_공통\날짜달력.md)이 칸 아래에 띄움(v558의 브라우저 기본 달력 대신)
   function toggleEventForm(it, i) {
     const box = $("evForm" + i);
     if (box.innerHTML) { setEventEditing(i, false); return; }
@@ -7475,9 +7463,9 @@
     box.innerHTML = `<div class="ev-form">
         <label class="fld"><span>캘린더</span><select data-f="cal">${schedCals.filter((c) => (GCFG.calendars || []).includes(c.name) || c.id === e.calId).map((c) =>
           `<option value="${esc(c.id)}" ${c.id === e.calId ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
-        <label class="fld"><span>날짜</span><input data-f="date" type="date" value="${ymdStr(e.start)}"></label>
+        <label class="fld"><span>날짜</span><input data-f="date" type="text" data-dp="date" data-dp-range="ev" value="${ymdStr(e.start)}"></label>
         <label class="fld chk"><span>종일</span><input data-f="allday" type="checkbox" ${e.allDay ? "checked" : ""}></label>
-        <label class="fld" data-ad-only ${e.allDay ? "" : "hidden"}><span>종료 날짜</span><input data-f="endDate" type="date" value="${ymdStr(endDay)}"></label>
+        <label class="fld" data-ad-only ${e.allDay ? "" : "hidden"}><span>종료 날짜</span><input data-f="endDate" type="text" data-dp="date" data-dp-range="ev" data-dp-end value="${ymdStr(endDay)}"></label>
         <div class="fld-2" data-tm-only ${e.allDay ? "hidden" : ""}><label class="fld"><span>시작</span><input data-f="start" type="time" value="${e.allDay ? "09:00" : hm(e.start)}"></label>
              <label class="fld"><span>종료</span><input data-f="end" type="time" value="${e.allDay ? "10:00" : hm(e.end)}"></label></div>
         <label class="fld"><span>장소</span><input data-f="location" value="${esc(e.location)}" autocomplete="off"></label>
@@ -10750,7 +10738,7 @@
     box.innerHTML = `<div class="ntf-sh" role="dialog" aria-modal="true" aria-label="알림 ${it._new ? "추가" : "수정"}"><h3>알림 ${it._new ? "추가" : "수정"}<button type="button" data-ntfs-x>취소</button></h3>
       <label class="ntf-f"><span>알림 내용${sys ? " ({n} 자리에 새 건수)" : ""}</span><textarea data-ntfs-text rows="2" maxlength="200">${esc(it.text || "")}</textarea></label>
       ${sys ? "" : `<div class="ntf-f"><span>언제 보일까</span><div class="ntf-chips">${[["date", "날짜"], ["dow", "요일"]].map(([k, l]) => `<button type="button" data-ntfs-kind="${k}" class="${it.kind === k ? "on" : ""}">${l}</button>`).join("")}</div></div>
-      <div class="ntf-row2" data-ntfs-datebox ${it.kind === "date" ? "" : "hidden"}><label class="ntf-f"><span>시작</span><input type="date" data-ntfs-from value="${esc(it.from || "")}"></label><label class="ntf-f"><span>끝 (비우면 하루)</span><input type="date" data-ntfs-to value="${esc(it.to || "")}"></label></div>
+      <div class="ntf-row2" data-ntfs-datebox ${it.kind === "date" ? "" : "hidden"}><label class="ntf-f"><span>시작</span><input type="text" data-dp="date" data-dp-range="ntf" data-ntfs-from value="${esc(it.from || "")}"></label><label class="ntf-f"><span>끝 (비우면 하루)</span><input type="text" data-dp="date" data-dp-range="ntf" data-dp-end data-ntfs-to value="${esc(it.to || "")}"></label></div>
       <div class="ntf-f" data-ntfs-dowbox ${it.kind === "dow" ? "" : "hidden"}><span>요일</span><div class="ntf-chips">${[1, 2, 3, 4, 5, 6, 0].map((n) => `<button type="button" data-ntfs-dow="${n}" class="${(it.dows || []).map(Number).includes(n) ? "on" : ""}">${NTF_DOW[n]}</button>`).join("")}</div></div>`}
       <div class="ntf-f"><span>대상</span><div class="ntf-chips">${["*", ...fcs].map((x) => `<button type="button" data-ntfs-tg="${esc(x)}" class="${tg.includes(x) ? "on" : ""}">${x === "*" ? (sys ? "해당 FC 모두" : "전체") : esc(x)}</button>`).join("")}</div></div>
       <label class="ntf-f"><span>확인하면 이동할 페이지</span><select data-ntfs-go>${NTF_GO.map(([k, l]) => `<option value="${k}" ${(it.go || "") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
