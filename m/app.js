@@ -6210,6 +6210,7 @@
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·세일즈 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>팀관리 메뉴의 [조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>세일즈 페이지 접근</b>: 세일즈(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 세일즈 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 세일즈 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 세일즈 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: 아래 메뉴 <b>팀관리</b>의 [조직도]를 누르면(2026-11-19에 설정에서 옮김) 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘세일즈 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/세일즈 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
+    const s_rt = sec("세일즈 > 동선관리 (v580)", ["<b>출발·도착</b>은 [회사]·[집] 버튼으로 고르거나 주소를 직접 넣습니다. 집 주소는 처음 한 번 넣으면 내 설정 파일(드라이브)에 저장됩니다. 출발 시각, 미팅당 시간, <b>점심 1시간</b>(넣을 시간대)을 정합니다.", "고객을 이름·주소로 검색해 <b>[+ 담기]</b>로 고릅니다(최대 8명). 고른 고객마다 주소(미팅장소)와 미팅 시간을 바꿀 수 있습니다.", "장소는 고객의 <b>미팅장소</b>가 먼저, 없으면 저장된 주소입니다(v581). 고른 고객 줄의 장소 칸에서 바로 고칠 수 있습니다.", "<b>[최적동선 제안]</b>을 누르면 카카오 길찾기로 이동 시간 합이 가장 짧은 순서를 찾아, 출발 예상 시각·차 몇 분·몇 km와 함께 시간표를 보여 줍니다. 위 <b>지도</b>에 출발(출)·미팅 번호·도착(도)과 길이 그려집니다. 미팅 줄 오른쪽 손잡이를 <b>끌어서</b> 순서를 바꾸면 시간이 다시 계산됩니다. [구글 지도 길찾기]는 구글 지도로 엽니다.", "<b>[일정에 넣기]</b>: 날짜(달력)·캘린더를 고르면 출발·미팅·도착 일정을 넣습니다. 미팅 일정에는 고객 연결이 미리 들어가고, 메모에 출발 예상 시각과 이동이 적힙니다. 점심은 일정으로 넣지 않습니다."]);
     const s_ib = sec("팀관리 > 도입현황 (관리자, v578)", ["팀관리의 <b>[도입현황]</b>에서 연도를 고르면 그해 도입 합계, 도입자별 인원, 월별 '도입자 → 피도입자'가 나옵니다. <b>[최근 3개월]</b>을 누르면 이번 달을 포함한 3개월만 봅니다.", "도입 1건 = 팀원정보에서 도입자가 있는 팀원 1명입니다. 날짜는 <b>도입일</b>(없으면 입사일)로 셉니다. [팀원 전환]을 하면 도입일이 입사일로 자동으로 들어가고, 팀원정보 도입자 밑 도입일 칸(달력)에서 고칠 수 있습니다. 퇴직해도 도입 기록은 남고 '퇴직'으로 표시합니다."]);
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_num = sec("주민번호·전화번호 '-' 자동 (v576)", ["주민번호와 전화번호는 <b>숫자만</b> 저장합니다. 화면에 보일 때는 '-'를 알아서 넣습니다(800823-1234567, 010-1234-5678, 02-123-4567). 수정 칸에서도 숫자만 치면 자리에 맞춰 '-'가 들어갑니다. 고객 정보·팀원정보·후보자정보·세일즈 목록·보고서에 모두 같습니다."]);
@@ -6218,7 +6219,7 @@
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, s_rt, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
@@ -6787,7 +6788,10 @@
     try {
       const r = await (await fetch(`https://apis-navi.kakaomobility.com/v1/directions?origin=${a.x},${a.y}&destination=${b.x},${b.y}`, { headers: kakaoH() })).json();
       const s = r.routes && r.routes[0] && r.routes[0].summary;
-      return s ? { km: s.distance / 1000, min: Math.round(s.duration / 60) } : null;
+      if (!s) return null;
+      const path = []; // v581: 지도에 그릴 길 모양 [위도, 경도]
+      ((r.routes[0].sections) || []).forEach((sec) => (sec.roads || []).forEach((rd) => { const v = rd.vertexes || []; for (let i = 0; i + 1 < v.length; i += 2) path.push([v[i + 1], v[i]]); }));
+      return { km: s.distance / 1000, min: Math.round(s.duration / 60), path };
     } catch (e) { return null; }
   }
 
@@ -8970,7 +8974,7 @@
   window.addEventListener("pageshow", () => setTimeout(flushConsultQ, 3000));
   const attemptPage = () => { // 지금 화면 이름
     const v = document.documentElement.dataset.view;
-    if (v === "salesView") return SALES.sub === "material" ? "보고서" : SALES.sub === "data" ? "자료" : SALES.sub === "prog" ? "계약진행" : "이달목표 " + ({ transfer: "이관", dda: "따행", valueup: "DB" }[SALES.tab] || "");
+    if (v === "salesView") return SALES.sub === "route" ? "동선관리" : SALES.sub === "material" ? "보고서" : SALES.sub === "data" ? "자료" : SALES.sub === "prog" ? "계약진행" : "이달목표 " + ({ transfer: "이관", dda: "따행", valueup: "DB" }[SALES.tab] || "");
     return { scheduleView: "일정", searchView: "고객 목록", customerView: "고객 정보", dashView: "대시보드" }[v] || "앱";
   };
   document.addEventListener("click", (ev) => { // 확인창이 없는 전화·문자 링크(고객 정보·고객 목록·일정 등). 세일즈 이달목표 버튼·연체/실효 리스트는 확인창 뒤에 따로 남김
@@ -10192,6 +10196,7 @@
     const box = $("salesView");
     if (SALES.sub === "material") { await renderMaterial(req); return; } // 세일즈 > 보고서: 조건 보고서 (v360)
     if (SALES.sub === "data") { await renderMat(req); return; } // 세일즈 > 자료 (v554)
+    if (SALES.sub === "route") { await renderRoute(req); return; } // 세일즈 > 동선관리 (v580)
     if (!SALES.ym) SALES.ym = ymNow();
     let ym = SALES.ym;
     const top = (fcHtml) => `<div class="sales-top">
@@ -10780,11 +10785,257 @@
     const sh = ev.target.closest("[data-mat-share]"); if (sh) { const f = matFile(sh.dataset.matShare); if (f) matShare(f, sh); return; }
     const up = ev.target.closest("[data-mat-up]"); if (up) { const i = $("matFile"); if (i) i.click(); }
   });
+  // ===== v580(2026-11-25 사용자 지시 "동선관리") 세일즈 > 동선관리 =====
+  //   고객을 골라 [최적동선 제안] → 이동 시간 합이 가장 짧은 순서(카카오 길찾기) + 시간표(미팅 시간·점심 1시간) → [일정에 넣기](고객 연결을 미리 넣음)
+  //   출발·도착: 회사(관리자 설정의 회사 주소) / 집(내 설정 파일 homeAddress) / 주소 직접 입력. 한 번에 최대 8명
+  const RT_MAX = 8;
+  const RT = { from: { k: "company", a: "" }, to: { k: "home", a: "" }, start: "09:00", meet: 60, lunch: true, lunchFrom: "12:00", lunchTo: "13:30", q: "", picks: [], res: null, busy: false, reorder: false, msg: "", homeEdit: false };
+  const rtMin = (hm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hm || "")); return m ? +m[1] * 60 + +m[2] : 0; };
+  const rtHm = (n) => pad2(Math.floor(((n % 1440) + 1440) % 1440 / 60)) + ":" + pad2(((n % 60) + 60) % 60);
+  const rtHome = () => String((myPrefs && myPrefs.homeAddress) || "").trim();
+  const rtPlaceAddr = (p) => (p.k === "company" ? String(appSettings.companyAddress || "").trim() : p.k === "home" ? rtHome() : String(p.a || "").trim());
+  const rtPlaceName = (p) => (p.k === "company" ? "회사" : p.k === "home" ? "집" : String(p.a || "").trim() || "직접 입력");
+  const rtTimes = (from, to, step) => { const out = []; for (let m = rtMin(from); m <= rtMin(to); m += step) out.push(rtHm(m)); return out; };
+  let rtCustCache = null;
+  async function rtCustomers() { // 고객 목록(고객ID 기준 한 사람) — 이름·주소·FC
+    if (rtCustCache) return rtCustCache;
+    const lists = await loadLists(), by = new Map();
+    let x = null; try { x = await readExtra(); } catch (e) { x = null; } // 고객추가정보의 미팅장소
+    const xMeet = (fc, name) => { if (!x) return ""; const r = extraRowIndex(x, fc, name), ci = x.head.indexOf("미팅장소"); return r > 0 && ci >= 0 ? String(x.rows[r][ci] || "").trim() : ""; };
+    lists.forEach((e) => {
+      const id = idOf(e) || "n:" + norm(e.name) + "|" + String(e.birth || "").replace(/\D/g, "");
+      const addr = cleanAddr(fieldOf(e, "주소")), meet = String(fieldOf(e, "미팅장소") || "").trim();
+      const g = by.get(id);
+      if (!g) by.set(id, { id, custId: idOf(e), name: e.name, fc: e.fc, addr, meet, phone: e.phone || fieldOf(e, "연락처") });
+      else { if (!g.addr && addr) g.addr = addr; if (!g.meet && meet) g.meet = meet; }
+    });
+    rtCustCache = [...by.values()];
+    rtCustCache.forEach((c) => { if (!c.meet) c.meet = xMeet(c.fc, c.name); }); // v581(사용자 지시): 동선은 미팅장소 기준, 없으면 주소
+    return rtCustCache;
+  }
+  async function renderRoute(req) {
+    const box = $("salesView");
+    box.innerHTML = `<div class="card"><p class="hint">불러오는 중…</p></div>`;
+    try { await Promise.all([loadSettings().catch(() => {}), loadMyPrefs().catch(() => {}), rtCustomers()]); } catch (e) { if (req === salesReq) { box.innerHTML = ""; handleError(e); } return; }
+    if (req !== salesReq) return;
+    rtDraw();
+  }
+  function rtPlaceHtml(which) {
+    const p = RT[which], lab = which === "from" ? "출발" : "도착";
+    return `<div class="rt-row"><span>${lab}</span><div class="rt-pl"><button type="button" class="rt-b${p.k === "company" ? " on" : ""}" data-rt-pl="${which}:company">회사</button><button type="button" class="rt-b${p.k === "home" ? " on" : ""}" data-rt-pl="${which}:home">집</button><input class="rt-in" data-rt-addr="${which}" value="${esc(p.k === "addr" ? p.a : "")}" placeholder="주소 직접 입력" autocomplete="off"></div></div>`;
+  }
+  function rtHitsHtml() { // 검색 결과만(입력 중에는 이 부분만 다시 그려 한글 입력이 끊기지 않게)
+    const all = rtCustCache || [], qn = norm(RT.q), qd = onlyDigits(RT.q);
+    if (!qn) return "";
+    const hits = all.filter((c) => !RT.picks.some((p) => p.id === c.id) && (norm(c.name).includes(qn) || norm(c.addr).includes(qn) || (qd.length >= 4 && onlyDigits(c.phone).includes(qd)))).slice(0, 12);
+    return hits.map((c) => `<div class="rt-hit"><span>${esc(c.name)}<small>${esc((c.meet || c.addr) ? (c.meet ? "미팅 " : "") + (c.meet || c.addr).split(/\s+/).slice(0, 3).join(" ") : "주소 없음")} · ${esc(c.fc || "")}</small></span><button type="button" class="rt-add" data-rt-add="${esc(c.id)}"${RT.picks.length >= RT_MAX ? " disabled" : ""}>+ 담기</button></div>`).join("") || `<p class="hint2">찾는 고객이 없습니다.</p>`;
+  }
+  function rtDraw() {
+    const box = $("salesView"); if (!box || SALES.sub !== "route") return;
+    const needHome = (RT.from.k === "home" || RT.to.k === "home") && (!rtHome() || RT.homeEdit);
+    const noCompany = (RT.from.k === "company" || RT.to.k === "company") && !String(appSettings.companyAddress || "").trim();
+    const timeOpts = (cur, list) => list.map((t) => `<option${t === cur ? " selected" : ""}>${t}</option>`).join("");
+    const minOpts = (cur) => [30, 40, 60, 90, 120].map((m) => `<option value="${m}"${m === +cur ? " selected" : ""}>${m}분</option>`).join("");
+    box.innerHTML = `<div class="card rt">
+      ${rtPlaceHtml("from")}${rtPlaceHtml("to")}
+      ${needHome ? `<div class="rt-row"><span>집 주소</span><div class="rt-pl"><input class="rt-in" id="rtHomeIn" value="${esc(rtHome())}" placeholder="집 주소를 넣어 주세요(내 설정에 저장)" autocomplete="off"><button type="button" class="rt-b on" data-rt-homesave>저장</button></div></div>` : rtHome() && (RT.from.k === "home" || RT.to.k === "home") ? `<p class="hint2">집: ${esc(rtHome())} <a href="#" data-rt-homeedit>바꾸기</a></p>` : ""}
+      ${noCompany ? `<p class="hint2">회사 주소가 없습니다. 관리자 설정의 회사 주소를 넣거나 주소를 직접 넣어 주세요.</p>` : ""}
+      <div class="rt-opt"><label>출발 <select data-rt-set="start">${timeOpts(RT.start, rtTimes("06:00", "20:00", 10))}</select></label><label>미팅당 <select data-rt-set="meet">${minOpts(RT.meet)}</select></label><label class="rt-ck"><input type="checkbox" class="cb" data-rt-set="lunch"${RT.lunch ? " checked" : ""}> 점심 1시간</label>${RT.lunch ? `<label><select data-rt-set="lunchFrom">${timeOpts(RT.lunchFrom, rtTimes("11:00", "14:00", 30))}</select>~<select data-rt-set="lunchTo">${timeOpts(RT.lunchTo, rtTimes("11:30", "15:00", 30))}</select> 사이</label>` : ""}</div>
+      <div class="rt-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="rtQ" value="${esc(RT.q)}" placeholder="고객 이름·주소 검색" autocomplete="off"></div>
+      <div id="rtHits">${rtHitsHtml()}</div>
+      <div class="rt-pick">${RT.picks.map((p, i) => `<div class="rt-p"><span class="num">${i + 1}</span><b>${esc(p.name)}</b><span class="rt-src">${esc(p.src || "직접")}</span><input class="rt-pa" data-rt-pa="${i}" value="${esc(p.addr)}" placeholder="주소·미팅장소" autocomplete="off" aria-label="${esc(p.name)} 장소(바로 고칠 수 있음)"><select class="rt-pm" data-rt-pm="${i}" aria-label="미팅 시간">${minOpts(p.min || RT.meet)}</select><button type="button" class="x" data-rt-del="${i}" aria-label="빼기">×</button></div>`).join("")}</div>
+      <p class="hint2">고른 고객 ${RT.picks.length}명 (최대 ${RT_MAX}명) · 주소가 없으면 주소나 미팅장소를 넣어 주세요. 장소는 미팅장소가 먼저, 없으면 주소이며 칸에서 바로 고칠 수 있습니다. 고객마다 미팅 시간도 바꿀 수 있습니다.</p>
+      ${RT.msg ? `<p class="rt-msg">${esc(RT.msg)}</p>` : ""}
+      <button type="button" class="rt-go" data-rt-go${RT.busy || !RT.picks.length ? " disabled" : ""}>${RT.busy ? "계산하는 중…" : "최적동선 제안"}</button>
+    </div>${RT.res ? rtResultHtml() : ""}`;
+    if (RT.res) rtMapDraw();
+  }
+  // v581(사용자 지시 "지도에 각 일정의 위치와 동선"): Leaflet + 오픈스트리트맵 바탕, 카카오 길찾기 길 모양을 선으로
+  const rtLib = (u, css) => new Promise((res, rej) => { if (document.querySelector(`[data-rtlib="${u}"]`)) return res(); const el = document.createElement(css ? "link" : "script"); el.dataset.rtlib = u; if (css) { el.rel = "stylesheet"; el.href = u; res(); } else { el.src = u; el.onload = res; el.onerror = () => rej(new Error("지도 도구를 불러오지 못했습니다")); } document.head.appendChild(el); });
+  async function rtMapDraw() {
+    const el = $("rtMap"); if (!el || !RT.res) return;
+    try {
+      await rtLib("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css", true);
+      await rtLib("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js");
+      if (!$("rtMap") || !window.L) return;
+      const R = RT.res, L = window.L, seq = [0, ...R.order, R.pts.length - 1];
+      const map = L.map(el, { zoomControl: true, attributionControl: true });
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
+      const ll = (i) => [R.geo[i].y, R.geo[i].x], bounds = [];
+      const lineC = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#2b5aa6";
+      for (let k = 0; k + 1 < seq.length; k++) { const r = R.M[seq[k]][seq[k + 1]]; const path = r && r.path && r.path.length ? r.path : [ll(seq[k]), ll(seq[k + 1])]; L.polyline(path, { color: lineC, weight: 4, opacity: 0.8 }).addTo(map); path.forEach((q) => bounds.push(q)); }
+      seq.forEach((i, k) => {
+        const end = k === 0 || k === seq.length - 1, txt = k === 0 ? "출" : k === seq.length - 1 ? "도" : String(k);
+        if (k === seq.length - 1 && seq[0] !== i && Math.abs(R.geo[i].x - R.geo[seq[0]].x) < 1e-6 && Math.abs(R.geo[i].y - R.geo[seq[0]].y) < 1e-6) return;
+        L.marker(ll(i), { icon: L.divIcon({ className: "rt-mk" + (end ? " end" : ""), html: `<span>${txt}</span>`, iconSize: [24, 24], iconAnchor: [12, 12] }), title: R.pts[i].name }).addTo(map);
+        bounds.push(ll(i));
+      });
+      map.fitBounds(bounds, { padding: [20, 20] });
+    } catch (e) { el.innerHTML = `<p class="hint2 pad">${esc(String(e.message || e))}</p>`; }
+  }
+  // 미팅 줄을 손잡이로 끌어 순서 바꾸기 (손가락·마우스)
+  (() => {
+    let drag = null;
+    document.addEventListener("pointerdown", (ev) => {
+      const g = ev.target.closest && ev.target.closest("#rtRes [data-rt-grip]"); if (!g) return;
+      ev.preventDefault();
+      const row = g.closest(".tl-s"), rows = [...document.querySelectorAll("#rtRes .tl-s.meet")];
+      drag = { idx: +g.dataset.rtGrip, row, y0: ev.clientY, mids: rows.map((r) => { const b = r.getBoundingClientRect(); return b.top + b.height / 2; }), rows };
+      row.classList.add("dragging"); try { g.setPointerCapture(ev.pointerId); } catch (e) {}
+    });
+    document.addEventListener("pointermove", (ev) => { if (!drag) return; ev.preventDefault(); drag.row.style.transform = `translateY(${ev.clientY - drag.y0}px)`; }, { passive: false });
+    const end = (ev) => {
+      if (!drag) return;
+      const d = drag; drag = null; d.row.classList.remove("dragging"); d.row.style.transform = "";
+      const o = RT.res.order, from = o.indexOf(d.idx); if (from < 0) return;
+      const y = d.mids[from] + (ev.clientY - d.y0);
+      let to = d.mids.filter((m, k) => k !== from && m < y).length;
+      if (to === from) return;
+      o.splice(from, 1); o.splice(to, 0, d.idx); RT.res.manual = true; rtDraw();
+    };
+    document.addEventListener("pointerup", end); document.addEventListener("pointercancel", end);
+  })();
+  function rtPlan(order) { // order = 고객 번호(1..n) 순서 → 시간표
+    const R = RT.res, M = R.M, steps = [], n = R.pts.length - 2, last = n + 1;
+    let t = rtMin(RT.start), prev = 0, lunchDone = !RT.lunch, km = 0, mv = 0;
+    const lf = rtMin(RT.lunchFrom), lt = rtMin(RT.lunchTo);
+    steps.push({ k: "start", t, name: R.pts[0].name + " 출발", addr: R.pts[0].addr });
+    const go = (to, label) => { const r = M[prev][to]; steps.push({ k: "move", dep: t, min: r.min, km: r.km, from: R.pts[prev].name }); t += r.min; km += r.km; mv += r.min; prev = to; };
+    order.forEach((i) => {
+      if (!lunchDone && t >= lf) { steps.push({ k: "lunch", t, end: t + 60 }); t += 60; lunchDone = true; } // 이미 점심 시간대면 이동 전에
+      go(i);
+      const p = R.pts[i];
+      if (!lunchDone && t + p.min > lt && t >= lf - 30) { steps.push({ k: "lunch", t, end: t + 60 }); t += 60; lunchDone = true; } // 미팅이 점심 끝 시각을 넘기면 먼저 점심
+      steps.push({ k: "meet", t, end: t + p.min, p, idx: i }); t += p.min;
+      if (!lunchDone && t >= lf) { steps.push({ k: "lunch", t, end: t + 60 }); t += 60; lunchDone = true; }
+    });
+    go(last);
+    steps.push({ k: "end", t, name: R.pts[last].name + " 도착", addr: R.pts[last].addr });
+    return { steps, km, mv, end: t };
+  }
+  function rtResultHtml() {
+    const R = RT.res, P = rtPlan(R.order);
+    const row = (s) => s.k === "move" ? `<div class="tl-mv">${rtHm(s.dep)} 출발 · 차 ${s.min}분 · ${s.km.toFixed(1)}km</div>`
+      : s.k === "lunch" ? `<div class="tl-s lunch"><span class="t">${rtHm(s.t)}</span><span class="dot"></span><b>점심</b> <span class="sub">1시간</span></div>`
+      : s.k === "meet" ? `<div class="tl-s meet"><span class="t">${rtHm(s.t)}</span><span class="dot"></span><b>${esc(s.p.name)}</b> <span class="sub">미팅 ${s.p.min}분 · ${esc(s.p.addr.split(/\s+/).slice(0, 3).join(" "))}</span><span class="rt-grip" data-rt-grip="${s.idx}" aria-label="끌어서 순서 바꾸기"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M4 8h16M4 12h16M4 16h16"/></svg></span></div>`
+      : `<div class="tl-s"><span class="t">${rtHm(s.t)}</span><span class="dot"></span><b>${esc(s.name)}</b></div>`;
+    return `<div class="card rt" id="rtRes"><div class="rt-sum"><span><b>${P.km.toFixed(1)}</b>km</span><span>이동 <b>${Math.floor(P.mv / 60)}:${pad2(P.mv % 60)}</b></span><span>도착 <b>${rtHm(P.end)}</b></span></div>
+      <div id="rtMap" class="rt-map" aria-label="동선 지도"></div>
+      <div class="tl">${P.steps.map(row).join("")}</div>
+      <div class="rt-acts"><button type="button" data-rt-map>구글 지도 길찾기</button><button type="button" class="pri" data-rt-cal>일정에 넣기</button></div>
+      <p class="hint2">${R.manual ? "직접 바꾼 순서입니다." : "순서는 이동 시간 합이 가장 짧게 정했습니다."} 미팅 줄 오른쪽 손잡이를 끌어 순서를 바꿀 수 있습니다. 시간은 출발 시각 기준 예상이며 실제와 다를 수 있습니다.</p></div>`;
+  }
+  async function rtCompute() {
+    if (!KAKAO.restKey) { RT.msg = "카카오 키가 없어 거리를 계산할 수 없습니다(관리자 설정)."; return rtDraw(); }
+    const fromA = rtPlaceAddr(RT.from), toA = rtPlaceAddr(RT.to);
+    if (!fromA) { RT.msg = "출발지 주소가 없습니다."; return rtDraw(); }
+    if (!toA) { RT.msg = "도착지 주소가 없습니다."; return rtDraw(); }
+    const miss = RT.picks.filter((p) => !String(p.addr || "").trim()).map((p) => p.name);
+    if (miss.length) { RT.msg = "주소가 없는 고객: " + miss.join(", "); return rtDraw(); }
+    RT.busy = true; RT.msg = ""; RT.res = null; rtDraw();
+    try {
+      const pts = [{ name: rtPlaceName(RT.from), addr: fromA }, ...RT.picks.map((p) => ({ name: p.name, addr: p.addr, min: +p.min || +RT.meet, pick: p })), { name: rtPlaceName(RT.to), addr: toA }];
+      const geo = await Promise.all(pts.map((p) => geocode(p.addr)));
+      const bad = pts.filter((p, i) => !geo[i]).map((p) => p.name);
+      if (bad.length) throw new Error("주소로 위치를 찾지 못했습니다: " + bad.join(", "));
+      const n = pts.length - 2, M = pts.map(() => []), jobs = [];
+      for (let i = 0; i <= n; i++) for (let j = 1; j <= n + 1; j++) if (i !== j && !(i === 0 && j === n + 1 && n > 0)) jobs.push([i, j]);
+      let k = 0; const worker = async () => { while (k < jobs.length) { const [i, j] = jobs[k++]; M[i][j] = await route(geo[i], geo[j]); } };
+      await Promise.all(Array.from({ length: 6 }, worker));
+      const nil = jobs.filter(([i, j]) => !M[i][j]);
+      if (nil.length) throw new Error("길찾기를 받지 못한 구간이 있습니다. 잠시 뒤 다시 눌러 주세요.");
+      // 가장 짧은 순서(이동 시간 합, 같으면 거리) — 8명까지 모든 순서를 봄
+      const ids = Array.from({ length: n }, (_, i) => i + 1);
+      let best = null, bestV = Infinity;
+      const perm = (arr, used, cost, km, prev) => {
+        if (cost > bestV) return;
+        if (arr.length === n) { const r = M[prev][n + 1], v = cost + r.min + (km + r.km) / 1000; if (v < bestV) { bestV = v; best = arr.slice(); } return; }
+        for (const i of ids) { if (used & (1 << i)) continue; const r = M[prev][i]; arr.push(i); perm(arr, used | (1 << i), cost + r.min, km + r.km, i); arr.pop(); }
+      };
+      perm([], 0, 0, 0, 0);
+      RT.res = { pts, M, geo, order: best || ids, manual: false };
+    } catch (e) { RT.msg = String(e && e.message || e); }
+    RT.busy = false; rtDraw();
+    const r = $("rtRes"); if (r) r.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  function rtMapUrl() { // 구글 지도 길찾기(경유지 포함)
+    const R = RT.res, seq = [0, ...R.order, R.pts.length - 1].map((i) => R.pts[i].addr);
+    return "https://www.google.com/maps/dir/" + seq.map((a) => encodeURIComponent(a)).join("/");
+  }
+  async function rtCalAsk() {
+    const R = RT.res, P = rtPlan(R.order);
+    let cals = [];
+    try { cals = (await scheduleCalendars()).map(withAlias).filter((c) => !c.accessRole || c.accessRole === "owner" || c.accessRole === "writer"); } catch (e) { return handleError(e); }
+    if (!cals.length) return toast("일정을 넣을 캘린더가 없습니다.");
+    const team = (GCFG && GCFG.teamCalendar) || "1팀", def = (cals.find((c) => c.name === team) || cals[0]).id;
+    const today = ymdStr(new Date()), meets = P.steps.filter((s) => s.k === "meet"), st = P.steps[0], en = P.steps[P.steps.length - 1];
+    const old = document.getElementById("rtCalPop"); if (old) old.remove();
+    const box = document.createElement("div"); box.id = "rtCalPop"; box.className = "modal";
+    box.innerHTML = `<div class="modal-box rt-cal" role="dialog" aria-modal="true" aria-label="일정에 넣기"><h3 class="sec-title">일정 ${meets.length + 2}건 넣기</h3>
+      <label class="fld"><span>날짜</span><input type="text" data-dp="date" id="rtCalDate" value="${today}"></label>
+      <label class="fld"><span>캘린더</span><select id="rtCalId">${cals.map((c) => `<option value="${esc(c.id)}"${c.id === def ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
+      <div class="rt-pick"><div class="rt-p"><span class="num">·</span>${rtHm(st.t)} ${esc(st.name)}<small>출발 예상</small></div>
+      ${meets.map((s, i) => `<div class="rt-p"><span class="num">${i + 1}</span>${rtHm(s.t)}~${rtHm(s.end)} ${esc(s.p.name)}<small>${s.p.pick.custId ? "고객 연결 ✓" : "고객ID 없음"} · ${esc(s.p.addr.split(/\s+/).slice(0, 3).join(" "))}</small></div>`).join("")}
+      <div class="rt-p"><span class="num">·</span>${rtHm(en.t)} ${esc(en.name)}<small>도착 예상</small></div></div>
+      <p class="hint2">미팅 일정 메모에 출발 예상 시각과 이동(차 몇 분·몇 km)이 적힙니다. 점심은 일정으로 넣지 않습니다.</p>
+      <div class="file-actions"><button type="button" class="secondary" data-rtc-cancel>취소</button><button type="button" class="primary" data-rtc-ok>일정 넣기</button></div></div>`;
+    document.body.appendChild(box);
+    box.addEventListener("click", async (e) => {
+      if (e.target === box || e.target.closest("[data-rtc-cancel]")) { box.remove(); return; }
+      const ok = e.target.closest("[data-rtc-ok]"); if (!ok) return;
+      const date = String($("rtCalDate").value || "").trim(), calId = $("rtCalId").value;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return toast("날짜를 골라 주세요.");
+      ok.disabled = true; ok.textContent = "넣는 중…";
+      const tz = (Intl.DateTimeFormat().resolvedOptions() || {}).timeZone || "Asia/Seoul";
+      const at = (m) => ({ dateTime: `${date}T${rtHm(m)}:00`, timeZone: tz });
+      const mine = await myFcName().catch(() => "");
+      const evs = [{ summary: `${st.name} (동선)`, start: at(st.t), end: at(st.t + 10), location: st.addr, description: "동선관리에서 만든 출발 예상 시각" }];
+      P.steps.forEach((s, i) => {
+        if (s.k !== "meet") return;
+        const mvS = P.steps[i - 1] && P.steps[i - 1].k === "move" ? P.steps[i - 1] : null;
+        const c = s.p.pick, priv = c.custId ? { shlifeCust: "id:" + c.custId, shlifeHow: "선택", shlifeFc: c.fc || mine || "", shlifeCustFc: c.fc || "", shlifeKind: "" } : null;
+        evs.push({ summary: `${s.p.name} 미팅`, start: at(s.t), end: at(s.end), location: s.p.addr,
+          description: (mvS ? `${rtHm(mvS.dep)} ${mvS.from}에서 출발 · 차 ${mvS.min}분 · ${mvS.km.toFixed(1)}km` : "") + "\n동선관리에서 만든 일정",
+          ...(priv ? { extendedProperties: { private: priv } } : {}) });
+      });
+      evs.push({ summary: `${en.name} (동선)`, start: at(en.t), end: at(en.t + 10), location: en.addr, description: "동선관리에서 만든 도착 예상 시각" });
+      let made = 0;
+      try { await ensureGWrite(); for (const b of evs) { await gcalInsert(calId, b); made++; } box.remove(); toast(`일정 ${made}건을 넣었습니다`); }
+      catch (err) { ok.disabled = false; ok.textContent = "일정 넣기"; toast((made ? `${made}건까지 넣고 멈췄습니다: ` : "") + String(err && err.message || err)); }
+    });
+  }
+  document.addEventListener("input", (ev) => {
+    const t = ev.target; if (!t || !t.closest || !t.closest("#salesView .rt")) return;
+    if (t.id === "rtQ") { RT.q = t.value; const h = $("rtHits"); if (h) h.innerHTML = rtHitsHtml(); return; }
+    if (t.dataset.rtAddr) { const p = RT[t.dataset.rtAddr]; p.a = t.value; if (t.value.trim()) { p.k = "addr"; t.closest(".rt-pl").querySelectorAll(".rt-b").forEach((b) => b.classList.remove("on")); } return; }
+    if (t.dataset.rtPa != null) { const p = RT.picks[+t.dataset.rtPa]; if (p) { p.addr = t.value; p.src = "직접"; const sp = t.parentNode.querySelector(".rt-src"); if (sp) sp.textContent = "직접"; if (RT.res) { RT.res = null; const r = $("rtRes"); if (r) r.remove(); } } }
+  });
+  document.addEventListener("change", (ev) => {
+    const t = ev.target; if (!t || !t.closest || !t.closest("#salesView .rt")) return;
+    if (t.dataset.rtSet) { const k = t.dataset.rtSet; RT[k] = t.type === "checkbox" ? t.checked : k === "meet" ? +t.value : t.value; if (k === "meet") RT.picks.forEach((p) => { if (!p.minSet) p.min = +t.value; }); if (RT.res) RT.res.pts.forEach((p) => { if (p.pick && !p.pick.minSet) p.min = +RT.meet; }); rtDraw(); return; }
+    if (t.dataset.rtPm != null) { const p = RT.picks[+t.dataset.rtPm]; if (p) { p.min = +t.value; p.minSet = true; if (RT.res) { const q = RT.res.pts.find((x) => x.pick === p); if (q) q.min = p.min; rtDraw(); } } }
+  });
+  document.addEventListener("click", async (ev) => {
+    const t = ev.target && ev.target.closest && ev.target.closest("#salesView [data-rt-pl],#salesView [data-rt-add],#salesView [data-rt-del],#salesView [data-rt-go],#salesView [data-rt-homesave],#salesView [data-rt-homeedit],#salesView [data-rt-reorder],#salesView [data-rt-up],#salesView [data-rt-down],#salesView [data-rt-map],#salesView [data-rt-cal]");
+    if (!t) return;
+    ev.preventDefault();
+    const d = t.dataset;
+    if (d.rtPl) { const [w, k] = d.rtPl.split(":"); RT[w] = { k, a: "" }; RT.homeEdit = false; return rtDraw(); }
+    if (d.rtAdd) { const c = (rtCustCache || []).find((x) => x.id === d.rtAdd); if (c && RT.picks.length < RT_MAX) { RT.picks.push({ ...c, addr: c.meet || c.addr, src: c.meet ? "미팅장소" : c.addr ? "주소" : "", min: RT.meet }); RT.q = ""; RT.res = null; } return rtDraw(); }
+    if (d.rtDel != null) { RT.picks.splice(+d.rtDel, 1); RT.res = null; return rtDraw(); }
+    if (t.hasAttribute("data-rt-go")) return rtCompute();
+    if (t.hasAttribute("data-rt-homeedit")) { RT.homeEdit = true; return rtDraw(); }
+    if (t.hasAttribute("data-rt-homesave")) { const v = String(($("rtHomeIn") || {}).value || "").trim(); if (!v) return toast("집 주소를 넣어 주세요."); try { await saveMyPrefs({ ...(myPrefs || {}), homeAddress: v }); RT.homeEdit = false; toast("집 주소를 저장했습니다"); } catch (e) { handleError(e); } return rtDraw(); }
+    if (t.hasAttribute("data-rt-reorder")) { RT.reorder = !RT.reorder; return rtDraw(); }
+    if (d.rtUp || d.rtDown) { const o = RT.res.order, i = o.indexOf(+(d.rtUp || d.rtDown)), j = d.rtUp ? i - 1 : i + 1; if (i >= 0 && j >= 0 && j < o.length) { [o[i], o[j]] = [o[j], o[i]]; RT.res.manual = true; } return rtDraw(); }
+    if (t.hasAttribute("data-rt-map")) { window.open(rtMapUrl(), "_blank", "noopener"); return; }
+    if (t.hasAttribute("data-rt-cal")) return rtCalAsk();
+  });
   function openSales() { renderSales(); flushContacts(); }
   $("salesSub").addEventListener("click", (ev) => { // 세일즈 서브메뉴: 이달목표 / 자료 (세일즈 화면 위, 화면 바깥 줄)
     const b = ev.target.closest("[data-ssub]");
     if (!b) return;
-    SALES.sub = b.dataset.ssub === "material" ? "material" : b.dataset.ssub === "data" ? "data" : b.dataset.ssub === "prog" ? "prog" : "check";
+    SALES.sub = b.dataset.ssub === "material" ? "material" : b.dataset.ssub === "data" ? "data" : b.dataset.ssub === "prog" ? "prog" : b.dataset.ssub === "route" ? "route" : "check";
     renderSales();
   });
   $("salesView").addEventListener("click", (ev) => {
