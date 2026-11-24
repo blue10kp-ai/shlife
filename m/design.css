@@ -1937,3 +1937,17 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 
 /* v572: DB 줄 진행FC 표시 */
 #salesView .srow .dbpg { font-size: 11px; color: var(--t2); font-weight: 500; margin-left: 6px; padding: 1px 6px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 6px; white-space: nowrap; }
+
+/* v573: 밸류업DB 보고서 — 유입DB명 칸 삭제, 유입메모·지역은 잘리지 않게 줄바꿈 */
+.rpt-t.rpt-db td.dbmemo, .rpt-t.rpt-db td.dbarea { max-width: none; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; word-break: keep-all; }
+.rpt-t.rpt-db td.dbmemo { min-width: 220px; text-align: left !important; }
+.rpt-t.rpt-db td.dbarea { min-width: 72px; }
+.rpt-pdf.rpt-dbp td.c-유입메모, .rpt-pdf.rpt-dbp td.c-지역 { overflow: visible; height: auto; min-height: 40px; }
+.rpt-pdf.rpt-dbp td.c-유입메모 { text-align: left; }
+.rpt-pdf.rpt-dbp .c-지역 { width: 104px; }
+.rpt-pdf.rpt-dbp .c-지역 { width: 150px; } .rpt-pdf.rpt-dbp td.c-지역, .rpt-pdf.rpt-dbp td.c-유입메모, .rpt-t.rpt-db td.dbarea, .rpt-t.rpt-db td.dbmemo { word-break: normal; overflow-wrap: anywhere; }
+.rpt-t.rpt-db { width: auto; min-width: 100%; } .rpt-t.rpt-db td { white-space: nowrap; } .rpt-t.rpt-db td.dbmemo, .rpt-t.rpt-db td.dbarea { white-space: normal; } .rpt-t.rpt-db td.dbmemo { min-width: 260px; } .rpt-t.rpt-db td.dbarea { min-width: 110px; }
+.rpt-pdf.rpt-dbp td.c-유입메모 { padding-right: 10px; }
+.rpt-pdf.rpt-dbp table { font-variant-numeric: normal; } .rpt-pdf.rpt-dbp .c-지역 { width: 136px; }
+.rpt-t.rpt-db td.dbmemo { min-width: 210px; } .rpt-t.rpt-db td.dbarea { min-width: 92px; }
+.rpt-t.rpt-db td.dbmemo, .rpt-t.rpt-db td.dbarea { word-break: keep-all; overflow-wrap: anywhere; }
