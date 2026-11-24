@@ -6107,6 +6107,7 @@
     const s_pg = sec("세일즈 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "세일즈 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 세일즈 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
+    const s_db = sec("밸류업DB 목록·보고서 (v570, 2026-11-24)", ["<b>이달목표 › DB</b>: 배분 건마다 한 줄 — 이름·성별/나이 / 연락처와 [전화][문자] / 유입회사·유입일 / 유입메모(SOL DB 메모, 있을 때만). 정렬은 최신 유입일시가 위, 같으면 이름 가나다순입니다(유입일시가 없는 줄은 아래에 배분일 최신순).", "<b>세일즈 › 보고서</b>에서 DB를 고르면 DB 표는 이름·성별/나이·연락처·유입회사·유입일·유입메모·지역·유입DB명 칸이고 모든 칸이 가운데 정렬입니다. <b>PDF</b>는 A4 가로 한 쪽 폭, 쪽마다 12명, 맨 왼쪽에 손글씨 메모 칸과 성향·통화·미팅 칸이 있습니다. <b>엑셀</b>도 같은 칸 순서입니다.", "성별/나이는 주민번호 앞 7자리로 계산하고, 유입일은 회사 유입 날짜(FC 배분일과 다름)입니다.", "<b>DB 시트(v571)</b>: 밸류업DB는 배분 1건마다 'DB' 시트 한 줄(배분받은 FC 파일)에 있습니다. DB 시트에 줄이 있는 FC는 그 시트를 읽고, [보관으로]·[지옥으로]·[신규로]도 그 줄의 DB상태·완료일에 씁니다(이력에 DB 번호를 함께 적음). 아직 DB 시트가 없는 FC는 예전처럼 고객 시트 칸을 읽습니다."]);
     const s_ct = sec("설정 > 다양한 기능 > 주소록 관리 (v568, 2026-11-24)", ["설정 맨 위 <b>다양한 기능</b> 상자에 앞으로 여러 기능 버튼이 모입니다. 첫 번째가 <b>주소록 관리</b>입니다.", "<b>주소록 넣기</b>: 이번 달 이관 고객을 <b>내 구글 주소록</b>(로그인한 계정)에 '202611이관' 같은 라벨과 '신한FC' 라벨을 붙여 넣습니다. 이름·휴대전화·주소·메모 한 줄(상품·보험료·담당)을 넣고, 휴대전화가 같은 연락처가 이미 있으면 새로 만들지 않고 라벨과 빈 칸만 채웁니다. 번호가 없는 고객은 넣지 않습니다.", "<b>주소록 정리</b>: 앱이 넣은 연락처(신한FC 라벨)만 보여 주고, 이달목표에서 빠진 고객을 먼저 골라 둡니다. 고른 것만 지우며, 구글 주소록에서 <b>영구 삭제</b>되어 되돌릴 수 없습니다(고객 정보는 그대로).", "처음 누를 때 구글 창에서 주소록 권한을 한 번 허용합니다(이 앱에서만, 1시간마다 다시 연결). 관리자가 구글 콘솔에서 People API를 켜 두어야 합니다."]);
     const s_ntf = sec("중요 알림 · 오전 6시 로그아웃 (v557, 2026-11-24)", ["<b>중요 알림</b>: 로그인한 뒤 그날 처음 앱을 열면, 오늘에 해당하는 알림이 한 창에 모두 나옵니다. 버튼은 <b>[확인]</b> 하나뿐이고, 누르면 알림에 정해 둔 페이지로 이동합니다(시스템 알림이 먼저, 그다음 목록 위쪽 알림). 한 번 확인한 알림은 다시 나오지 않습니다(요일 알림은 그날만).", "<b>연체·실효 알림(v564)</b>: 내 FC의 연체리스트(나온 지 7일 안)나 실효리스트(이번 달·지난달)가 새로 나오면 로그인 직후 알림이 뜨고, [확인]을 누르면 세일즈 › 보고서의 연체/실효 리스트로 바로 갑니다. 한 번 확인하면 다시 뜨지 않고, 다음에 앱을 열면 첫 화면(대시보드)부터 보입니다. 연체나 실효가 없으면 PDF 다운 버튼은 숨깁니다.", "<b>시스템 알림</b>: 내 FC에 새 이관 계약이나 새 밸류업DB가 생기면 자동으로 알립니다. 처음 한 번은 지금 목록을 기억만 하고, 그 뒤로 새로 생긴 건수를 알려 줍니다.", "<b>관리자 › 전체 알림</b>(관리자만): 알림 추가·수정·삭제, 알림마다 켜기·끄기, 시스템 알림 전체 켜기·끄기(기본 켬). 알림마다 날짜(시작~끝) 또는 요일, 대상(전체·FC별), 확인하면 이동할 페이지를 정합니다. 날짜 알림에는 확인한 사람 수가 나옵니다.", "<b>오전 6시 로그아웃</b>: 매일 오전 6시가 지나면 모든 앱(신한FC·말만해요 등 같은 로그인을 쓰는 앱)이 로그아웃되고, 다음 로그인 때 구글 계정 고르기 창이 한 번 나옵니다. 구글 비밀번호를 다시 넣게 하지는 못하며, 폰 시계를 기준으로 합니다."]);
     const s_login = sec("로그인 (공통 로그인)", ["<b>로그인 승인/거부(v513)</b>: 신한FC 로그인은 관리자 화면 FC 사용 설정의 계정 카드 오른쪽 <b>[승인]/[거부]</b> 토글로만 정합니다(이메일·사번이 있다고 저절로 들어가지 않음). 거부인 계정으로 로그인하면 로그인 화면에 ‘아직 신한FC 로그인이 승인되지 않았습니다’가 뜨고 [다른 계정으로 로그인]이 보입니다. 승인으로 켜면 그 계정의 FC 폴더(본인 FC와 체크한 FC)와 설정 폴더를 Google Drive로 공유합니다. 거부로 끌 때는 공유도 해제할지 묻습니다 — 공유를 남기면 앱은 막혀도 드라이브에서 파일을 직접 열 수 있습니다. 이메일이 아직 없는 사람은 조직도에서 이메일을 먼저 넣어야 승인할 수 있습니다.", "<b>새 팀원</b>: 팀관리 > 후보자정보에서 [전환]하면 팀원정보에 옮겨지고, FC 사용 목록에 ‘이메일 미등록’으로 올라가며 로그인은 거부로 시작합니다. 팀원정보에 등록되어 데이터가 있는 FC는 계정이 없어도 관리자 화면(이달목표 사용자 선택·고객 FC 선택)에서 볼 수 있습니다.", "한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
@@ -6129,7 +6130,7 @@
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
@@ -8727,6 +8728,34 @@
     followCache.catch(() => { followCache = null; });
     return followCache;
   }
+  // v571(2026-11-24 사용자 승인 'DB 시트'): 밸류업DB 배분 1건 = 'DB' 시트 1줄(유입FC 파일에만). 전환 기간: 읽기 = DB 시트 줄이 있는 FC는 DB 시트, 없으면 옛 칸 / 쓰기 = DB 시트에만
+  let dbsCache = null;
+  const DBS_BY_ID = new Map(); // 고객ID → DB 시트 줄들(화면·쓰기 공용, 같은 객체)
+  function loadDbs() {
+    if (dbsCache) return dbsCache;
+    dbsCache = (async () => {
+      const { files } = await scanFiles();
+      const spec = CFG.lists.find((l) => l.fileRegex || l.fileKeyword);
+      const out = { rows: [] };
+      await Promise.all(pickSourceFiles(files, spec).map(async (f) => {
+        const wb = await readBook(f.id);
+        const rows = sheetRows(wb, "DB");
+        if (!rows) return;
+        const h = headIndex(rows, "DB ID");
+        if (h < 0) return;
+        const head = rows[h].map((c) => String(c).trim());
+        rows.slice(h + 1).forEach((r) => {
+          const o = {};
+          head.forEach((k, j) => { if (k) o[k] = String(r[j] ?? "").trim(); });
+          if (o["DB ID"] && o["고객ID"]) out.rows.push({ ...o, _fc: f.fc, _fileId: f.id });
+        });
+      }));
+      DBS_BY_ID.clear(); out.rows.forEach((r) => (DBS_BY_ID.get(r["고객ID"]) || DBS_BY_ID.set(r["고객ID"], []).get(r["고객ID"])).push(r));
+      return out;
+    })();
+    dbsCache.catch(() => { dbsCache = null; });
+    return dbsCache;
+  }
   const ymOfFollow = (v) => monthOf(v); // '2026-11' → '202611'
   // ---------- 세일즈 > 계약진행 (4단계 ①, 2026-11-17 확정안 5-1) ----------
   // 계약진행 표(FC별 data.json): 한 줄 = 한 회차. 단계 고객등록 > 전화 > AP > PC > 계약, 상태 진행/보관/삭제/완료(단계가 계약이면 자동 완료). 단계·상태가 바뀔 때마다 이력에 '계약진행' 한 줄(진행ID로 이음)
@@ -9255,10 +9284,10 @@
 
   // ---- 데이터 → 목록 ----
   async function loadSalesData() {
-    const [lists, contracts, hist, follow, prog] = await Promise.all([loadLists(), loadContracts(), loadHistory().catch(() => []), loadFollow().catch(() => ({ files: new Set(), rows: [] })), loadProg().catch(() => ({ rows: [] }))]);
+    const [lists, contracts, hist, follow, prog, dbs] = await Promise.all([loadLists(), loadContracts(), loadHistory().catch(() => []), loadFollow().catch(() => ({ files: new Set(), rows: [] })), loadProg().catch(() => ({ rows: [] })), loadDbs().catch(() => ({ rows: [] }))]);
     const custById = new Map();
     lists.forEach((e) => { const id = idOf(e); if (id) (custById.get(id) || custById.set(id, []).get(id)).push(e); });
-    return { lists, contracts, hist, custById, follow, prog };
+    return { lists, contracts, hist, custById, follow, prog, dbs };
   }
   // ym 달에 시도한 기록: key('c:계약ID' | 'u:고객ID') → { call: ts, sms: ts }
   function contactMarks(data, ym) {
@@ -9316,8 +9345,29 @@
     const st = data._stageBy.get(id) || "";
     return st && st !== "고객등록" && STAGE_NEW_OLD[st] != null ? STAGE_NEW_OLD[st] : own;
   }
+  function dbSexAge(ssn) { // 주민번호(앞 6 + 뒤 첫 자리) → '남 45' (만 나이). 모르면 ""
+    const m = /^(\d{2})(\d{2})(\d{2})-?([1-8])/.exec(String(ssn || "").trim()); if (!m) return "";
+    const c = +m[4], y = (c === 1 || c === 2 || c === 5 || c === 6 ? 1900 : 2000) + +m[1], now = new Date();
+    let age = now.getFullYear() - y; if (now.getMonth() + 1 < +m[2] || (now.getMonth() + 1 === +m[2] && now.getDate() < +m[3])) age--;
+    return (c % 2 ? "남" : "여") + " " + age;
+  }
   function valueupRows(data) {
     const out = [], seen = new Set();
+    const dbRows = (data.dbs && data.dbs.rows) || [], dbFcs = new Set(dbRows.map((r) => r._fc)); // DB 시트 줄이 있는 FC 파일 = 새 방식
+    const perId = new Map(); dbRows.forEach((r) => perId.set(r["고객ID"], (perId.get(r["고객ID"]) || 0) + 1));
+    dbRows.forEach((d) => {
+      const id = d["고객ID"], mine = data.custById.get(id) || []; if (!mine.length) return;
+      const own = mine.find((x) => x.fc === primaryFc(mine)) || mine[0], e = mine.find((x) => x.fc === d._fc && x.sheet === CUST_SHEET) || own;
+      const st = String(d["DB상태"] || "").trim() || "신규";
+      const cts = data.contracts.filter((c) => String(c.row["계약자ID"] || "").trim() === id && !DEAD_STATUS.includes(c.row["계약상태"] || c.row["상태"] || ""));
+      out.push({
+        key: perId.get(id) > 1 ? "d:" + d["DB ID"] : "u:" + id, cid: "", custId: id, fc: d._fc, srcFc: d["유입FC"] || d._fc, ref: false, fileId: own.src && own.src.fileId, holder: own.name, ins: "", ent: own, stage: stageOfPerson(data, id, fieldOf(own, "영업단계")),
+        product: String(d["유입DB명"] || "").replace(/^[\s■□▪▫◼◾]+/, "") || "DB 고객", fee: "", cdLabel: "배분일", cdate: d["FC 배분일"] || fieldOf(e, "유입일"),
+        comp: d["유입회사"] || "", inAtReal: d["유입일시"] || "", inAt: d["유입일시"] || d["FC 배분일"] || "", sexAge: dbSexAge(fieldOf(own, "주민번호")), dbMemo: d["유입메모"] || "",
+        db: true, dbRow: d, dbAuto: cts.length > 0 || st === "계약" || d["계약체결"] === "Y", dbOffM: st === "보관", stCtr: st === "계약", del: st === "삭제", delDay: st === "삭제" ? d["완료일"] : "", dbDay: st === "보관" ? d["완료일"] : "",
+        bday: fieldOf(own, "생년월일"), phone: firstPhone(own.phone || fieldOf(own, "연락처")), phoneText: own.phone || fieldOf(own, "연락처"), job: fieldOf(own, "직업"), addr: cleanAddr(fieldOf(own, "주소")), recFc: "", status: ""
+      });
+    });
     const arDays = new Map(), delDays = new Map(); // 고객ID → 가장 최근 '이동(보관)' / '삭제' 이력 일시
     (data.hist || []).forEach((h) => { const t = String(h["유형"] || "").trim(); const mp = t === "이동(보관)" ? arDays : t === "삭제" ? delDays : null; if (!mp) return; const id = String(h["고객ID"] || "").trim(), d = String(h["일시"] || "").trim(); if (id && d && (!mp.has(id) || dateKey(d) > dateKey(mp.get(id)))) mp.set(id, d); });
     data.lists.forEach((e) => {
@@ -9329,11 +9379,12 @@
       //   영업단계·전화·문자·메모는 담당FC(메인FC) 줄로(진행은 다른 FC가 할 수 있음). 유입FC가 없거나 그 FC 파일에 줄이 없으면 예전처럼 담당FC 줄 기준
       const dbE = dbLineOf(mine);
       if (dbE ? dbE !== e : (own !== e || fieldOf(e, "최초유입경로") !== "DB")) return;
+      if (dbFcs.has(e.fc) || DBS_BY_ID.has(id)) return; // v571: 이 FC는 DB 시트 기준(옛 칸 줄은 읽지 않음)
       seen.add(id);
       const cts = data.contracts.filter((c) => String(c.row["계약자ID"] || "").trim() === id && !DEAD_STATUS.includes(c.row["계약상태"] || c.row["상태"] || ""));
       out.push({
         key: "u:" + id, cid: "", custId: id, fc: e.fc, srcFc: e.fc, ref: false, fileId: own.src && own.src.fileId, holder: e.name, ins: "", ent: own, stage: stageOfPerson(data, id, fieldOf(own, "영업단계")), // 영업단계 칩(통화·AP·PC·계약)은 이관 목록과 같은 방식
-        product: fieldOf(e, "유입DB명").replace(/^[\s■□▪▫◼◾]+/, "") || (cts.length ? "계약 " + cts.length + "건" : "DB 고객"), fee: "", cdLabel: "유입일", cdate: fieldOf(e, "유입일"),
+        product: fieldOf(e, "유입DB명").replace(/^[\s■□▪▫◼◾]+/, "") || (cts.length ? "계약 " + cts.length + "건" : "DB 고객"), fee: "", cdLabel: "배분일", cdate: fieldOf(e, "유입일"), comp: fieldOf(e, "유입회사"), inAtReal: fieldOf(e, "유입일시"), inAt: fieldOf(e, "유입일시") || fieldOf(e, "유입일"), sexAge: fieldOf(e, "성별나이") || fieldOf(e, "성별/나이") || dbSexAge(fieldOf(e, "주민번호")), dbMemo: fieldOf(e, "유입메모") || fieldOf(e, "메모"), // v569(사용자 다시 정함): DB 줄 = 이름·연락처·유입회사·성별/나이·메모·유입일시. 새 칸(유입회사·유입일시·성별나이·유입메모)이 생기면 바로 읽고, 없으면 유입일·주민번호·메모로 대신
         db: true, dbAuto: cts.length > 0 || mine.some(dbAutoRec), dbOffM: dbState(e) === "보관", stCtr: dbState(e) === "계약", del: (dbE ? [e] : mine).some((x) => dbState(x) === "삭제"), delDay: delDays.get(id) || "", dbDay: fieldOf(e, "DB제외") || arDays.get(id) || "", // DB 보관: 'DB상태'=보관 또는 계약 고객(자동). 날짜는 이력 '이동(보관)' 줄(옛 DB제외 날짜가 있으면 그것)
         bday: fieldOf(e, "생년월일"), phone: firstPhone(e.phone || fieldOf(e, "연락처")), phoneText: e.phone || fieldOf(e, "연락처"),
         job: fieldOf(e, "직업"), addr: cleanAddr(fieldOf(e, "주소")), recFc: fieldOf(e, "원모집FC") || "", status: ""
@@ -9341,8 +9392,15 @@
     });
     out.forEach((r) => { r.ctr = !r.del && (r.dbAuto || r.stCtr); r.dbAuto = r.ctr; r.dbOffM = r.dbOffM && !r.ctr; r.dbOff = r.del || r.ctr || r.dbOffM; r.archDay = r.del ? r.delDay : r.dbOffM ? r.dbDay : ""; });
     // 유입일 최신순, 같은 날은 이름 가나다순 (삭제 목록은 삭제한 날 최신순, 계약 자동은 유입일)
+    // v569(2026-11-24 사용자 지시, 데이터정리 전달): 최신 유입일시가 맨 위, 같으면 이름 오름순(가나다). 유입일시가 빈 줄은 맨 아래에 FC 배분일(유입일) 최신 → 이름 오름순. 보관·지옥 목록은 예전처럼 옮긴 날 최신순
     const day = (r) => dateKey(r.dbOffM && r.dbDay ? r.dbDay : r.cdate);
-    out.sort((a, b) => day(b).localeCompare(day(a)) || a.holder.localeCompare(b.holder, "ko"));
+    const nmDesc = (a, b) => a.holder.localeCompare(b.holder, "ko"); // 사용자 지시(같은 날): 이름은 오름순(가나다)
+    out.sort((a, b) => {
+      if ((a.dbOffM || a.del) || (b.dbOffM || b.del)) return day(b).localeCompare(day(a)) || nmDesc(a, b);
+      const ia = String(a.inAtReal || ""), ib = String(b.inAtReal || "");
+      if (!ia !== !ib) return ia ? -1 : 1; // 유입일시 있는 줄이 먼저
+      return ib.localeCompare(ia) || day(b).localeCompare(day(a)) || nmDesc(a, b);
+    });
     return out;
   }
   // 따행 대상(v384): 새 칸 '따행상태'가 있으면 그것('목표'면 대상, 빈칸이면 활동기한이 안 끝난 줄만 대상, 보관·삭제는 대상 아님), 없으면 옛 칸 '캠페인대상여부'
@@ -9457,11 +9515,13 @@
         : [{ name: r.product, fee: r.fee }];
       const detail = isD ? `<div class="sline sub detail">방문완료 ${esc(r.dda.done || "-")} · 설문발송일 ${esc(r.dda.send || "-")} · 설문응답일 ${esc(r.dda.resp || "-")} · 쿠폰발송일 ${esc(r.dda.coupon || "-")}</div>` : "";
       return gh + `<div class="srow${lv ? " lv lv-" + lv : ""}${r.ref ? " ref" : ""}${isD ? (r.dda.done ? " d-done" : " d-open") + " fold" + (openSet && openSet.has(r.key) ? " open" : "") : ""}" data-fold="${esc(r.key)}">
-        <div class="sline l1"><span class="no">${idx + 1}</span><span class="nmw ${isD ? "n30" : "n50"} ${gradeClass(gradeOf({ entries: (SALES.data && SALES.data.custById && SALES.data.custById.get(r.custId)) || [] })) || "grade-good"}">${r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder)}${r.ins ? ` <small class="ins">→ ${esc(r.ins)}</small>` : ""}</span><span class="rt">${chips}${arBtn}</span></div>
-        ${prodLines.map((p) => `<div class="sline prod"><span class="si pd">${esc(p.name)}${isD ? "" : st}</span><span class="si fe">${esc(p.fee ? wonText(p.fee) : "")}</span></div>`).join("")}
-        <div class="sline l2">${it("", r.cdLabel || "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span></div>
+        <div class="sline l1"><span class="no">${idx + 1}</span><span class="nmw ${isD ? "n30" : "n50"} ${gradeClass(gradeOf({ entries: (SALES.data && SALES.data.custById && SALES.data.custById.get(r.custId)) || [] })) || "grade-good"}">${r.custId ? `<a href="#" data-cust="${esc(r.custId)}">${esc(r.holder)}</a>` : esc(r.holder)}${r.ins ? ` <small class="ins">→ ${esc(r.ins)}</small>` : ""}${r.db && r.sexAge ? ` <small class="dbsa">${esc(r.sexAge)}</small>` : ""}</span><span class="rt">${chips}${arBtn}</span></div>
+        ${(r.db ? [] : prodLines).map((p) => `<div class="sline prod"><span class="si pd">${esc(p.name)}${isD ? "" : st}</span><span class="si fe">${esc(p.fee ? wonText(p.fee) : "")}</span></div>`).join("")}
+        ${r.db ? `<div class="sline l2 dbl"><span class="si ph">${esc(r.phoneText || "연락처 없음")}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span></div>
+        <div class="sline l3 dbl">${r.comp ? `<b class="dbco">${esc(r.comp)}</b>` : ""}${it("", "유입", esc(String(r.inAt || "").slice(0, 10) || "-"))}${arHtml}</div>
+        ${r.dbMemo ? `<div class="sline dbm"><small>유입메모</small>${esc(r.dbMemo)}</div>` : ""}` : `<div class="sline l2">${it("", r.cdLabel || "계약일", esc(r.cdate))}${it("", "생일", esc(r.bday))}<span class="si ph">${esc(r.phoneText)} ${r.ref ? `<span class="hint">참고(기록 안 함)</span>` : ""}<span class="sbtns">${salesBtn(r, "call", mk, ctx)}${salesBtn(r, "sms", mk, ctx)}</span></span></div>
         <div class="sline l3">${it("", "직업", esc(r.job))}${it("", "모집", esc(r.recFc))}${arHtml}</div>
-        <div class="sline l4">${it("ad", "", esc(r.addr))}${mapBtn(r.addr)}</div>
+        <div class="sline l4">${it("ad", "", esc(r.addr))}${mapBtn(r.addr)}</div>`}
         ${times ? `<div class="sline sub ok">${times}</div>` : ""}${detail}${r.ref || !r.custId ? "" : smemoHtml(r.holder, smemoFc(r.custId, r.fc || r.srcFc), isRO(r.fc || r.srcFc))}</div>`;
     }).join("") + `</div>`;
   }
@@ -9603,7 +9663,27 @@
     db: { field: "DB상태", val: "보관", offVal: "신규", on: "이동(보관)", off: "원복", onText: "DB → 보관 (앱에서 이동, 고객 정보는 그대로)", offText: "보관 → DB (앱에서 원복)", type: false },
     dbdel: { field: "DB상태", val: "삭제", offVal: "보관", on: "삭제", off: "삭제취소", onText: "DB 보관 → 삭제 표시 (앱에서 삭제, 자료는 그대로 두고 목록에서만 숨김)", offText: "DB 삭제 표시 취소 (앱에서 되돌림, 보관 목록으로)", type: false } // v364: 'DB상태' 칸에 '삭제' (v363의 DB삭제 칸은 더 쓰지 않음)
   };
+  function dbSheetTarget(ents) { // 이 고객의 DB 시트 줄(여럿이면 계약 아닌 것 중 배분일 최신)
+    const id = idOf(ents[0]), rs = (DBS_BY_ID.get(id) || []).filter((r) => r["DB상태"] !== "계약");
+    return rs.sort((a, b) => String(b["FC 배분일"] || "").localeCompare(String(a["FC 배분일"] || "")))[0] || (DBS_BY_ID.get(id) || [])[0] || null;
+  }
+  async function saveDbSheet(mode, ents, exclude, d) {
+    const M = EXCL[mode], e0 = ents[0], stamp = tsDigits(nowStamp()), val = exclude ? M.val : M.offVal, done = val === "보관" || val === "삭제";
+    const wb = await stGetBook(d._fileId), info = sheetInfo(wb, "DB", "DB ID");
+    if (!info) throw new Error("DB 시트를 찾지 못했습니다.");
+    const kc = info.colOf("DB ID"); let r0 = -1;
+    for (let r = info.hr + 1; r <= info.rg.e.r; r++) if (info.txt(r, kc) === d["DB ID"]) { r0 = r; break; }
+    if (r0 < 0) throw new Error("DB 시트에서 이 줄을 찾지 못했습니다.");
+    const setc = (col, v) => { const c = ensureColumn(info, col); if (v === "") delete info.ws[info.enc(r0, c)]; else info.ws[info.enc(r0, c)] = { t: "s", v }; };
+    setc("DB상태", val === "신규" ? "" : val); setc("완료일", done ? todayStr() : ""); setc("완료사유", done ? "사용자" : "");
+    const kind = exclude ? M.on : M.off, text = (exclude ? M.onText : M.offText) + " DB:" + d["DB ID"];
+    const hist = sheetInfo(wb, "이력", "고객ID");
+    if (hist) appendRow(hist, { 일시: { stamp }, 고객ID: idOf(e0), 계약ID: "", 담당FC: d._fc || "", 유형: kind, 결과: "입력", 내용: text, 입력일시: { stamp } });
+    await stPutBook(d._fileId, wb); cacheBook(d._fileId, wb);
+    if (histCache) histCache.then((a) => a.push({ fc: d._fc, fileId: d._fileId, 일시: nowStamp(), 고객ID: idOf(e0), 계약ID: "", 담당FC: d._fc || "", 유형: kind, 결과: "입력", 내용: text })).catch(() => {});
+  }
   async function saveExclude(mode, ents, exclude) {
+    if (mode === "db" || mode === "dbdel") { const d = dbSheetTarget(ents); if (d) return saveDbSheet(mode, ents, exclude, d); } // v571: DB 시트 줄이 있으면 거기에만 씀(옛 칸에는 안 씀)
     const M = EXCL[mode], e0 = ents[0], stamp = tsDigits(nowStamp());
     const kind = exclude ? M.on : M.off, text = exclude ? M.onText : M.offText;
     await writeEntryCells(ents, { [M.field]: exclude ? (M.val || todayStr()) : (M.offVal || "") }, (wb, fileId) => {
@@ -9627,12 +9707,13 @@
   function exclApply(mode, ents, exclude, after) {
     const M = EXCL[mode];
     const prev = ents.map((e) => [e.type, fieldOf(e, M.field)]);
-    const setUi = (i, type, day) => { const e = ents[i]; if (M.type) e.type = type; setEntField(e, M.field, day); };
+    const dRow = (mode === "db" || mode === "dbdel") ? dbSheetTarget(ents) : null, dPrev = dRow ? [dRow["DB상태"], dRow["완료일"]] : null;
+    const setUi = (i, type, day) => { const e = ents[i]; if (M.type) e.type = type; if (dRow) { if (i === 0) { dRow["DB상태"] = day === "신규" ? "" : day; dRow["완료일"] = day === "보관" || day === "삭제" ? todayStr() : ""; } return; } setEntField(e, M.field, day); };
     ents.forEach((e, i) => setUi(i, exclude ? "진행제외" : "진행", exclude ? (M.val || todayStr()) : (M.offVal || "")));
     if (after) after();
     progBusy(1);
     progQ = progQ.then(() => saveExclude(mode, ents, exclude)).then(() => true, (err) => {
-      ents.forEach((e, i) => setUi(i, prev[i][0], prev[i][1])); // 저장 실패 → 화면 되돌림
+      if (dRow) { dRow["DB상태"] = dPrev[0]; dRow["완료일"] = dPrev[1]; } else ents.forEach((e, i) => setUi(i, prev[i][0], prev[i][1])); // 저장 실패 → 화면 되돌림
       if (after) after();
       handleError(err);
       return false;
@@ -10163,6 +10244,7 @@
     const sk = rptStOf(type, r), sd = type === "valueup" ? (r.del ? dshow(r.delDay) : r.dbAuto ? "" : dshow(r.dbDay)) : dshow(r.archDay);
     const arch = sk === "new" ? "신규" : sk === "ctr" ? "계약" : (sk === "hell" ? "지옥" : "완료") + (sd ? " " + sd : "");
     return { 구분: RPT_T.find((t) => t[0] === type)[1], FC: r.srcFc || "", 이름: r.holder || "", 피보: r.ins || "", 상품: prod, 보험료: fee, 기준일: type === "transfer" ? dshow(r.idate) : type === "valueup" ? dshow(r.cdate) : (r.follow && r.follow["대상년월"] ? ymLabel(ymOfFollow(r.follow["대상년월"])) : ymLab),
+      ...(type === "valueup" ? { "성별/나이": r.sexAge || "", 유입회사: r.comp || "", 유입일: String(r.inAt || "").slice(0, 10), 유입메모: r.dbMemo || "", 지역: String((r.ent && (fieldOf(r.ent, "지역") || fieldOf(r.ent, "주소"))) || r.addr || "").replace(/^\[[^\]]*\]\s*/, "").split(/\s+/).slice(0, 2).join(" "), 유입DB명: prod, 메모: "", 성향: "", 통화: "", 미팅: "" } : {}), // v570: 밸류업DB 보고서 칸(사용자 지시)
       계약일: type === "valueup" ? "" : dshow(r.cdate), 생일: dshow(r.bday), 연락처: r.phoneText || r.phone || "", 직업: r.job || "", 주소: r.addr || "", 모집FC: r.recFc || "", 상태: r.status || "", 진행: prog, 단계: arch };
   }
   function rptBuild() {
@@ -10173,13 +10255,13 @@
     const now = new Date(), stamp = now.getFullYear() + "-" + pad2(now.getMonth() + 1) + "-" + pad2(now.getDate()) + " " + pad2(now.getHours()) + ":" + pad2(now.getMinutes());
     return { title: "세일즈 보고서", cond, stamp, user: o.label, ym: rptPeriodKey(), groups, total, multiFc: o.fcs.length > 1 };
   }
-  const rptView = (rep) => ["구분", ...(rep.multiFc ? ["FC"] : []), "이름", "상품", "보험료", "기준일", "연락처", "주소", "진행", "단계"];
+  const rptView = (rep, type) => type === "valueup" ? ["구분", ...(rep.multiFc ? ["FC"] : []), "이름", "성별/나이", "연락처", "유입회사", "유입일", "유입메모", "지역", "유입DB명", "진행", "단계"] : ["구분", ...(rep.multiFc ? ["FC"] : []), "이름", "상품", "보험료", "기준일", "연락처", "주소", "진행", "단계"];
+  const RPT_DBP = ["메모", "No", "이름", "성별/나이", "연락처", "유입회사", "유입일", "유입메모", "지역", "유입DB명", "성향", "통화", "미팅"]; // v570: 밸류업DB 인쇄(엑셀·PDF) 칸 — 맨 왼쪽 손글씨 메모, 성향·통화·미팅은 손으로 적는 칸
   const rptCell = (c, v) => (c === "보험료" && typeof v === "number" ? v.toLocaleString("ko-KR") : esc(String(v == null ? "" : v)));
   function rptTableHtml(rep) {
-    const cols = rptView(rep).filter((c) => c !== "구분");
-    return rep.groups.map((g) => `<div class="rpt-grp"><div class="rpt-gh"><b>${g.label}</b> <span>${g.recs.length}건</span></div>` + (g.recs.length
-      ? `<div class="rpt-tw"><table class="rpt-t"><thead><tr><th>#</th>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${g.recs.map((r, i) => `<tr><td>${i + 1}</td>${cols.map((c) => `<td class="${c === "보험료" ? "n" : ""}">${rptCell(c, r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
-      : `<p class="hint pad">해당 고객이 없습니다.</p>`) + `</div>`).join("");
+    return rep.groups.map((g) => { const cols = rptView(rep, g.type).filter((c) => c !== "구분"); return `<div class="rpt-grp"><div class="rpt-gh"><b>${g.label}</b> <span>${g.recs.length}건</span></div>` + (g.recs.length
+      ? `<div class="rpt-tw"><table class="rpt-t${g.type === "valueup" ? " rpt-db" : ""}"><thead><tr><th>#</th>${cols.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${g.recs.map((r, i) => `<tr><td>${i + 1}</td>${cols.map((c) => `<td class="${c === "보험료" ? "n" : ""}">${rptCell(c, r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+      : `<p class="hint pad">해당 고객이 없습니다.</p>`) + `</div>`; }).join("");
   }
   const rptFileName = (rep, ext) => { const n = new Date(); return `${n.getFullYear()}${pad2(n.getMonth() + 1)}${pad2(n.getDate())} - 세일즈 보고서 - ${rep.user} - ${rep.ym}.${ext}`.replace(/[\\/:*?"<>|]/g, ""); };
   function rptSave(blob, name) { const a = document.createElement("a"), u = URL.createObjectURL(blob); a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); }
@@ -10189,6 +10271,15 @@
     const sum = [["세일즈 보고서"], ["조건", rep.cond], ["만든 시각", rep.stamp], [], ["구분", "건수"], ...rep.groups.map((g) => [g.label, g.recs.length]), ["합계", rep.total]];
     const ws0 = XLSX.utils.aoa_to_sheet(sum); ws0["!cols"] = [{ wch: 12 }, { wch: 48 }]; XLSX.utils.book_append_sheet(wb, ws0, "요약");
     rep.groups.forEach((g) => {
+      if (g.type === "valueup") { // v570: 밸류업DB = 인쇄 양식 칸(손글씨 메모·성향·통화·미팅은 빈 칸), 가로·폭 한 쪽
+        const cols = [...(rep.multiFc ? ["FC"] : []), ...RPT_DBP];
+        const ws = XLSX.utils.aoa_to_sheet([cols, ...g.recs.map((r, i) => cols.map((c) => (c === "No" ? i + 1 : c === "FC" ? r.FC : r[c] == null ? "" : r[c])))]);
+        ws["!cols"] = cols.map((c) => ({ wch: { 메모: 22, No: 4, 이름: 9, "성별/나이": 8, 연락처: 14, 유입회사: 9, 유입일: 11, 유입메모: 34, 지역: 9, 유입DB명: 24, 성향: 5, 통화: 5, 미팅: 5, FC: 7 }[c] || 9 }));
+        ws["!rows"] = [{ hpt: 18 }, ...g.recs.map(() => ({ hpt: 30 }))];
+        ws["!pageSetup"] = { orientation: "landscape", fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
+        XLSX.utils.book_append_sheet(wb, ws, g.label);
+        return;
+      }
       const ws = XLSX.utils.aoa_to_sheet([RPT_COLS, ...g.recs.map((r) => RPT_COLS.map((c) => r[c]))]);
       ws["!cols"] = RPT_COLS.map((c) => ({ wch: { 주소: 36, 상품: 28, 이름: 10, 연락처: 14, 보험료: 11 }[c] || 11 }));
       const fi = RPT_COLS.indexOf("보험료"); g.recs.forEach((r, i) => { const cell = ws[XLSX.utils.encode_cell({ r: i + 1, c: fi })]; if (cell && cell.t === "n") cell.z = "#,##0"; });
@@ -10202,14 +10293,20 @@
     await rptLoad("https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js");
     await rptLoad("https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js");
     const { jsPDF } = window.jspdf, doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4", compress: true });
-    const th = rptView(rep).filter((c) => c !== "구분"), PER = 20, pages = [];
-    rep.groups.forEach((g) => { const n = Math.max(1, Math.ceil(g.recs.length / PER)); for (let p = 0; p < n; p++) pages.push({ g, rows: g.recs.slice(p * PER, p * PER + PER), from: p * PER }); });
+    const pages = [];
+    rep.groups.forEach((g) => { const PER = g.type === "valueup" ? 12 : 20, n = Math.max(1, Math.ceil(g.recs.length / PER)); for (let p = 0; p < n; p++) pages.push({ g, rows: g.recs.slice(p * PER, p * PER + PER), from: p * PER }); });
     if (!pages.length) pages.push({ g: { label: "", recs: [] }, rows: [], from: 0 });
     const host = document.createElement("div"); host.style.cssText = "position:fixed;left:-20000px;top:0;"; document.body.appendChild(host);
     try {
       for (let i = 0; i < pages.length; i++) {
         const pg = pages[i];
-        host.innerHTML = `<div class="rpt-pdf"><div class="rpt-ph"><b>${esc(rep.title)}</b><span>${esc(rep.cond)}</span></div><div class="rpt-pg"><b>${esc(pg.g.label)}</b> ${pg.g.recs.length}건</div><table><thead><tr><th>#</th>${th.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${pg.rows.map((r, k) => `<tr><td>${pg.from + k + 1}</td>${th.map((c) => `<td class="${c === "보험료" ? "n" : ""}">${rptCell(c, r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table><div class="rpt-pf">${esc(rep.stamp)} · ${i + 1} / ${pages.length}</div></div>`;
+        if (pg.g.type === "valueup") { // v570: 밸류업DB 인쇄 양식(시안 ③)
+          const dc = [...(rep.multiFc ? ["FC"] : []), ...RPT_DBP], box = '<span class="dbx"></span>';
+          host.innerHTML = `<div class="rpt-pdf rpt-dbp"><div class="rpt-ph"><b>${esc(ymLabel(rptYm()))} 밸류업DB 고객 리스트</b><span>${esc(rep.user)} · ${pg.g.recs.length}명 · ${esc(rep.stamp)}</span></div><table><thead><tr>${dc.map((c) => `<th class="c-${esc(c.replace("/", ""))}">${c}</th>`).join("")}</tr></thead><tbody>${pg.rows.map((r, k) => `<tr>${dc.map((c) => `<td class="c-${esc(c.replace("/", ""))}">${c === "No" ? pg.from + k + 1 : c === "통화" || c === "미팅" ? box : c === "FC" ? esc(r.FC) : esc(String(r[c] == null ? "" : r[c]))}</td>`).join("")}</tr>`).join("")}</tbody></table><div class="rpt-pf">성별/나이 = 주민번호 앞 7자리로 계산 · 유입일 = 회사 유입 날짜 · 유입메모 = SOL DB 메모 · ${i + 1} / ${pages.length}</div></div>`;
+        } else {
+          const th = rptView(rep, pg.g.type).filter((c) => c !== "구분");
+          host.innerHTML = `<div class="rpt-pdf"><div class="rpt-ph"><b>${esc(rep.title)}</b><span>${esc(rep.cond)}</span></div><div class="rpt-pg"><b>${esc(pg.g.label)}</b> ${pg.g.recs.length}건</div><table><thead><tr><th>#</th>${th.map((c) => `<th>${c}</th>`).join("")}</tr></thead><tbody>${pg.rows.map((r, k) => `<tr><td>${pg.from + k + 1}</td>${th.map((c) => `<td class="${c === "보험료" ? "n" : ""}">${rptCell(c, r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table><div class="rpt-pf">${esc(rep.stamp)} · ${i + 1} / ${pages.length}</div></div>`;
+        }
         const cv = await window.html2canvas(host.firstChild, { scale: 1.6, backgroundColor: "#ffffff", logging: false });
         if (i) doc.addPage();
         doc.addImage(cv.toDataURL("image/jpeg", 0.88), "JPEG", 0, 0, 841.89, 595.28);

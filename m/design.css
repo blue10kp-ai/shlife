@@ -1915,3 +1915,22 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 .ct-wrap .ntf-save { margin-top: 8px; }
 .ct-wrap .ct-del { background: var(--bad); color: #fff; }
 .ct-acts { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+
+/* v570(2026-11-24): 밸류업DB 목록·보고서(시안 확인 "이대로 코딩") */
+#salesView .srow .dbsa { font-size: 12px; color: var(--t2); font-weight: 500; margin-left: 4px; font-variant-numeric: tabular-nums; }
+#salesView .srow .dbco { font-weight: 600; font-size: 12px; color: var(--t1); margin-right: 8px; }
+#salesView .srow .sline.dbm { display: block; font-size: 12.5px; background: var(--raised); border-radius: 8px; padding: 4px 8px; color: var(--t1); line-height: 1.4; margin-top: 2px; }
+#salesView .srow .sline.dbm small { color: var(--t3); font-size: 11px; margin-right: 4px; }
+.rpt-t.rpt-db th, .rpt-t.rpt-db td { text-align: center !important; vertical-align: middle !important; }
+.rpt-t.rpt-db td { white-space: normal; }
+.rpt-pdf.rpt-dbp { padding: 28px 32px; }
+.rpt-pdf.rpt-dbp table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 11px; font-variant-numeric: tabular-nums; }
+.rpt-pdf.rpt-dbp th { background: #eef1f5; font-weight: 600; padding: 5px 4px; border: 1px solid #c8cdd5; text-align: center; vertical-align: middle; }
+.rpt-pdf.rpt-dbp td { padding: 4px; border: 1px solid #c8cdd5; height: 40px; text-align: center; vertical-align: middle; line-height: 1.35; word-break: keep-all; overflow: hidden; }
+.rpt-pdf.rpt-dbp .c-메모 { width: 150px; } .rpt-pdf.rpt-dbp .c-No { width: 28px; } .rpt-pdf.rpt-dbp .c-이름 { width: 62px; } .rpt-pdf.rpt-dbp .c-성별나이 { width: 54px; }
+.rpt-pdf.rpt-dbp .c-연락처 { width: 96px; } .rpt-pdf.rpt-dbp .c-유입회사 { width: 62px; } .rpt-pdf.rpt-dbp .c-유입일 { width: 72px; } .rpt-pdf.rpt-dbp .c-지역 { width: 54px; }
+.rpt-pdf.rpt-dbp .c-유입DB명 { width: 120px; } .rpt-pdf.rpt-dbp .c-성향, .rpt-pdf.rpt-dbp .c-통화, .rpt-pdf.rpt-dbp .c-미팅 { width: 38px; } .rpt-pdf.rpt-dbp .c-FC { width: 48px; }
+.rpt-pdf.rpt-dbp .dbx { display: inline-block; width: 12px; height: 12px; border: 1px solid #6b7382; }
+.rpt-pdf.rpt-dbp .rpt-pf { position: absolute; left: 32px; right: 32px; bottom: 18px; font-size: 10px; color: #6b7382; }
+.rpt-pdf.rpt-dbp td { overflow-wrap: anywhere; }
+.rpt-pdf.rpt-dbp .c-지역 { width: 72px; } .rpt-pdf.rpt-dbp .c-유입DB명 { width: 132px; font-size: 10px; }
