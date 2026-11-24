@@ -2068,3 +2068,13 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 .rt .rd-acts { display: flex; gap: 6px; margin-top: 4px; }
 .rt .rd-acts button { height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--t2); font: inherit; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
 .rt .rd-acts button.del { color: var(--danger, #c0392b); }
+/* v585: 동선관리 날짜 줄이 출발 칸을 가리던 것 — style.css의 sticky top(상단바 높이)이 relative에도 적용돼 아래로 밀렸음. 세일즈 탭 밑에 붙는 sticky로 */
+#salesView .rd-nav { position: sticky; top: calc(var(--tbh, 52px) + var(--subh, 0px)); z-index: 4; background: var(--bg); margin: 0 0 8px; padding: 4px 0; }
+
+/* v585: 고른 고객 줄 — 1줄: 번호·이름·출처·[시작][끝]·시간·×, 2줄: 장소 칸 */
+.rt .rt-pick .rt-p { flex-wrap: wrap; row-gap: 4px; }
+.rt .rt-pick .rt-pa { order: 9; flex: 1 1 100%; margin-left: 26px; }
+.rt .rt-se { display: inline-flex; gap: 4px; margin-left: auto; }
+.rt .rt-se button { height: 26px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--t2); font: inherit; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
+.rt .rt-se button.on { background: var(--t1); color: var(--bg); border-color: var(--t1); }
+.rt .rt-p .x { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; }

@@ -10855,6 +10855,7 @@
   //   고객을 골라 [최적동선 제안] → 이동 시간 합이 가장 짧은 순서(카카오 길찾기) + 시간표(미팅 시간·점심 1시간) → [일정에 넣기](고객 연결을 미리 넣음)
   //   출발·도착: 회사(관리자 설정의 회사 주소) / 집(내 설정 파일 homeAddress) / 주소 직접 입력. 한 번에 최대 8명
   const RT_MAX = 8;
+  const RT_SE_ON = false; // v585 [시작]·[끝] 버튼 — 2026-11-25 사용자 "우선 보류"로 숨김(true로 바꾸면 다시 보임, 계산 코드는 그대로)
   const RT = { view: "day", day: dayStart(new Date()), from: { k: "company", a: "" }, to: { k: "company", a: "" }, start: "09:00", meet: 60, lunch: true, lunchFrom: "12:00", lunchTo: "13:30", q: "", picks: [], res: null, busy: false, reorder: false, msg: "", homeEdit: false };
   const rtMin = (hm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hm || "")); return m ? +m[1] * 60 + +m[2] : 0; };
   const rtHm = (n) => pad2(Math.floor(((n % 1440) + 1440) % 1440 / 60)) + ":" + pad2(((n % 60) + 60) % 60);
@@ -10914,7 +10915,7 @@
       <div class="rt-opt"><label>출발 <select data-rt-set="start">${timeOpts(RT.start, rtTimes("06:00", "20:00", 10))}</select></label><label>미팅당 <select data-rt-set="meet">${minOpts(RT.meet)}</select></label><label class="rt-ck"><input type="checkbox" class="cb" data-rt-set="lunch"${RT.lunch ? " checked" : ""}> 점심 1시간</label>${RT.lunch ? `<label><select data-rt-set="lunchFrom">${timeOpts(RT.lunchFrom, rtTimes("11:00", "14:00", 30))}</select>~<select data-rt-set="lunchTo">${timeOpts(RT.lunchTo, rtTimes("11:30", "15:00", 30))}</select> 사이</label>` : ""}</div>
       <div class="rt-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input type="search" id="rtQ" value="${esc(RT.q)}" placeholder="고객 이름·주소 검색" autocomplete="off"></div>
       <div id="rtHits">${rtHitsHtml()}</div>
-      <div class="rt-pick">${RT.picks.map((p, i) => `<div class="rt-p"><span class="num">${i + 1}</span><b>${esc(p.name)}</b><span class="rt-src">${esc(p.src || "직접")}</span><input class="rt-pa" data-rt-pa="${i}" value="${esc(p.addr)}" placeholder="주소·미팅장소" autocomplete="off" aria-label="${esc(p.name)} 장소(바로 고칠 수 있음)"><select class="rt-pm" data-rt-pm="${i}" aria-label="미팅 시간">${minOpts(p.min || RT.meet)}</select><button type="button" class="x" data-rt-del="${i}" aria-label="빼기">×</button></div>`).join("")}</div>
+      <div class="rt-pick">${RT.picks.map((p, i) => `<div class="rt-p"><span class="num">${i + 1}</span><b>${esc(p.name)}</b><span class="rt-src">${esc(p.src || "직접")}</span><input class="rt-pa" data-rt-pa="${i}" value="${esc(p.addr)}" placeholder="주소·미팅장소" autocomplete="off" aria-label="${esc(p.name)} 장소(바로 고칠 수 있음)">${RT_SE_ON ? `<span class="rt-se"><button type="button" class="${RT.startId === p.id ? "on" : ""}" data-rt-first="${i}" aria-pressed="${RT.startId === p.id}">시작</button><button type="button" class="${RT.endId === p.id ? "on" : ""}" data-rt-last="${i}" aria-pressed="${RT.endId === p.id}">끝</button></span>` : ""}<select class="rt-pm" data-rt-pm="${i}" aria-label="미팅 시간">${minOpts(p.min || RT.meet)}</select><button type="button" class="x" data-rt-del="${i}" aria-label="빼기">×</button></div>`).join("")}</div>
       <p class="hint2">고른 고객 ${RT.picks.length}명 (최대 ${RT_MAX}명) · 주소가 없으면 주소나 미팅장소를 넣어 주세요. 장소는 미팅장소가 먼저, 없으면 주소이며 칸에서 바로 고칠 수 있습니다. 고객마다 미팅 시간도 바꿀 수 있습니다.</p>
       ${RT.msg ? `<p class="rt-msg">${esc(RT.msg)}</p>` : ""}
       <button type="button" class="rt-go" data-rt-go${RT.busy || !RT.picks.length ? " disabled" : ""}>${RT.busy ? "계산하는 중…" : "최적동선 제안"}</button>
@@ -10994,7 +10995,7 @@
       <div id="rtMap" class="rt-map" aria-label="동선 지도"></div>
       <div class="tl">${P.steps.map(row).join("")}</div>
       <div class="rt-acts"><button type="button" data-rt-map>구글 지도 길찾기</button><button type="button" class="pri" data-rt-cal>일정에 넣기</button></div>
-      <p class="hint2">${R.manual ? "직접 바꾼 순서입니다." : "순서는 이동 시간 합이 가장 짧게 정했습니다."} 미팅 줄 오른쪽 손잡이를 끌어 순서를 바꿀 수 있습니다. 시간은 출발 시각 기준 예상이며 실제와 다를 수 있습니다.</p></div>`;
+      <p class="hint2">${R.manual ? "직접 바꾼 순서입니다." : R.fixed ? "시작·끝으로 정한 고객은 그 자리에 두고, 나머지는 이동 시간 합이 가장 짧게 정했습니다." : "순서는 이동 시간 합이 가장 짧게 정했습니다."} 미팅 줄 오른쪽 손잡이를 끌어 순서를 바꿀 수 있습니다. 시간은 출발 시각 기준 예상이며 실제와 다를 수 있습니다.</p></div>`;
   }
   async function rtCompute() {
     if (!KAKAO.restKey) { RT.msg = "카카오 키가 없어 거리를 계산할 수 없습니다(관리자 설정)."; return rtDraw(); }
@@ -11017,14 +11018,21 @@
       if (nil.length) throw new Error("길찾기를 받지 못한 구간이 있습니다. 잠시 뒤 다시 눌러 주세요.");
       // 가장 짧은 순서(이동 시간 합, 같으면 거리) — 8명까지 모든 순서를 봄
       const ids = Array.from({ length: n }, (_, i) => i + 1);
+      const fi = RT.startId ? RT.picks.findIndex((p) => p.id === RT.startId) + 1 : 0, li = RT.endId ? RT.picks.findIndex((p) => p.id === RT.endId) + 1 : 0; // v585: 시작·끝 고정(0 = 없음)
       let best = null, bestV = Infinity;
       const perm = (arr, used, cost, km, prev) => {
         if (cost > bestV) return;
         if (arr.length === n) { const r = M[prev][n + 1], v = cost + r.min + (km + r.km) / 1000; if (v < bestV) { bestV = v; best = arr.slice(); } return; }
-        for (const i of ids) { if (used & (1 << i)) continue; const r = M[prev][i]; arr.push(i); perm(arr, used | (1 << i), cost + r.min, km + r.km, i); arr.pop(); }
+        for (const i of ids) {
+          if (used & (1 << i)) continue;
+          if (fi > 0 && arr.length === 0 && i !== fi) continue; // 첫 고객 고정
+          if (li > 0 && i === li && arr.length !== n - 1) continue; // 끝 고객은 맨 마지막에만
+          if (li > 0 && arr.length === n - 1 && i !== li) continue;
+          const r = M[prev][i]; arr.push(i); perm(arr, used | (1 << i), cost + r.min, km + r.km, i); arr.pop();
+        }
       };
       perm([], 0, 0, 0, 0);
-      RT.res = { pts, M, geo, order: best || ids, manual: false };
+      RT.res = { pts, M, geo, order: best || ids, manual: false, fixed: !!(fi || li) };
     } catch (e) { RT.msg = String(e && e.message || e); }
     RT.busy = false; rtDraw();
     const r = $("rtRes"); if (r) r.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -11087,13 +11095,19 @@
     if (t.dataset.rtPm != null) { const p = RT.picks[+t.dataset.rtPm]; if (p) { p.min = +t.value; p.minSet = true; if (RT.res) { const q = RT.res.pts.find((x) => x.pick === p); if (q) q.min = p.min; rtDraw(); } } }
   });
   document.addEventListener("click", async (ev) => {
-    const t = ev.target && ev.target.closest && ev.target.closest("#salesView [data-rt-pl],#salesView [data-rt-add],#salesView [data-rt-del],#salesView [data-rt-go],#salesView [data-rt-homesave],#salesView [data-rt-homeedit],#salesView [data-rt-reorder],#salesView [data-rt-up],#salesView [data-rt-down],#salesView [data-rt-map],#salesView [data-rt-cal]");
+    const t = ev.target && ev.target.closest && ev.target.closest("#salesView [data-rt-first],#salesView [data-rt-last],#salesView [data-rt-pl],#salesView [data-rt-add],#salesView [data-rt-del],#salesView [data-rt-go],#salesView [data-rt-homesave],#salesView [data-rt-homeedit],#salesView [data-rt-reorder],#salesView [data-rt-up],#salesView [data-rt-down],#salesView [data-rt-map],#salesView [data-rt-cal]");
     if (!t) return;
     ev.preventDefault();
     const d = t.dataset;
     if (d.rtPl) { const [w, k] = d.rtPl.split(":"); RT[w] = { k, a: "" }; RT.homeEdit = false; if (RT.view !== "add") { RD.key = ""; return rdLoad(); } return rtDraw(); }
     if (d.rtAdd) { const c = (rtCustCache || []).find((x) => x.id === d.rtAdd); if (c && RT.picks.length < RT_MAX) { RT.picks.push({ ...c, addr: c.meet || c.addr, src: c.meet ? "미팅장소" : c.addr ? "주소" : "", min: RT.meet }); RT.q = ""; RT.res = null; } return rtDraw(); }
-    if (d.rtDel != null) { RT.picks.splice(+d.rtDel, 1); RT.res = null; return rtDraw(); }
+    if (d.rtDel != null) { const gone = RT.picks.splice(+d.rtDel, 1)[0]; if (gone && RT.startId === gone.id) RT.startId = ""; if (gone && RT.endId === gone.id) RT.endId = ""; RT.res = null; return rtDraw(); }
+    if (d.rtFirst != null || d.rtLast != null) { // v585(사용자 지시): 그 고객으로 시작·끝. 다른 고객을 누르면 바뀜, 같은 고객을 다시 누르면 풀림
+      const p = RT.picks[+(d.rtFirst != null ? d.rtFirst : d.rtLast)]; if (!p) return;
+      if (d.rtFirst != null) { RT.startId = RT.startId === p.id ? "" : p.id; if (RT.endId === p.id) RT.endId = ""; }
+      else { RT.endId = RT.endId === p.id ? "" : p.id; if (RT.startId === p.id) RT.startId = ""; }
+      RT.res = null; return rtDraw();
+    }
     if (t.hasAttribute("data-rt-go")) return rtCompute();
     if (t.hasAttribute("data-rt-homeedit")) { RT.homeEdit = true; return rtRender(); }
     if (t.hasAttribute("data-rt-homesave")) { const v = String(($("rtHomeIn") || {}).value || "").trim(); if (!v) return toast("집 주소를 넣어 주세요."); try { await saveMyPrefs({ ...(myPrefs || {}), homeAddress: v }); RT.homeEdit = false; toast("집 주소를 저장했습니다"); } catch (e) { handleError(e); } if (RT.view !== "add") { RD.key = ""; return rdLoad(); } return rtDraw(); }
