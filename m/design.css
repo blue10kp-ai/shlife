@@ -1960,3 +1960,26 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 .rpt-pdf.rpt-dbp td { height: 28px; padding: 2px 4px; line-height: 1.3; }
 .rpt-pdf.rpt-dbp td.c-유입메모, .rpt-pdf.rpt-dbp td.c-지역 { min-height: 0; }
 .rpt-pdf td { padding-top: 3px; padding-bottom: 3px; }
+
+/* v578: 팀관리 > 도입현황 */
+.team-btns { flex-wrap: wrap; }
+.ib .ib-bar select { flex: 0 1 auto; margin: 0; }
+.ib .ib-bar select:disabled { opacity: .5; }
+.ib-chip { height: 30px; padding: 0 10px; border-radius: 15px; border: 1px solid var(--line); background: transparent; color: var(--t2); font: inherit; font-size: 13px; flex: none; }
+.ib-chip.on { background: var(--t1); color: var(--bg); border-color: var(--t1); }
+.ib-sum { display: flex; align-items: baseline; gap: 8px; margin: 4px 0 8px; }
+.ib-sum b { font-size: 26px; font-variant-numeric: tabular-nums; }
+.ib-sum span { color: var(--t2); font-size: 13px; }
+.ib-rank { display: grid; grid-template-columns: minmax(56px, auto) 1fr 36px; gap: 6px 8px; align-items: center; font-size: 14px; margin-bottom: 10px; }
+.ib-rank .bar { height: 8px; border-radius: 4px; background: var(--line); }
+.ib-rank .bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent, #3b6fd8); }
+.ib-rank .n { text-align: right; font-variant-numeric: tabular-nums; color: var(--t2); }
+.ib-m { border-top: 1px solid var(--line); padding: 8px 0 4px; }
+.ib-m h4 { margin: 0 0 4px; font-size: 14px; display: flex; justify-content: space-between; }
+.ib-m h4 span { color: var(--t3); font-weight: 500; font-size: 12px; }
+.ib-r { display: flex; align-items: center; gap: 6px; font-size: 14px; padding: 3px 0; }
+.ib-r .ar { color: var(--t3); }
+.ib-r small { margin-left: auto; color: var(--t3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ib-r .out { font-size: 11px; color: var(--t3); border: 1px solid var(--line); border-radius: 6px; padding: 0 4px; }
+.ib-none { color: var(--t3); font-size: 13px; padding: 2px 0 6px; }
+.ib-foot { margin-top: 8px; font-size: 12px; }

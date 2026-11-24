@@ -3430,7 +3430,7 @@
   function openTeam() {
     if (!isAdmin()) return;
     show("teamView");
-    $("teamView").innerHTML = `<div class="card"><div class="team-head"><h3 class="sec-title">팀관리</h3><div class="team-btns"><button type="button" class="ev-edit" data-team-org>조직도</button><button type="button" class="ev-edit" data-team-info>팀원정보</button><button type="button" class="ev-edit" data-team-cand>후보자정보</button></div></div></div>`;
+    $("teamView").innerHTML = `<div class="card"><div class="team-head"><h3 class="sec-title">팀관리</h3><div class="team-btns"><button type="button" class="ev-edit" data-team-org>조직도</button><button type="button" class="ev-edit" data-team-info>팀원정보</button><button type="button" class="ev-edit" data-team-cand>후보자정보</button><button type="button" class="ev-edit" data-team-intro>도입현황</button></div></div></div>`;
   }
   // v465(2026-11-19 사용자 지시): 팀관리 > [팀원정보]. 관리자만. 관리자 드라이브의 Claude/팀 폴더에 있는 팀원 파일을 그때그때 읽어 보여 주고(기기에 내용을 남기지 않음), 기본 항목을 고쳐 같은 파일에 저장
   //   위 드롭다운 = 팀원(직급순 → 사번순), 처음에는 로그인한 본인이 선택됨
@@ -3438,7 +3438,7 @@
   const TM_RANK = { ESL: 0, SL: 1, FC: 2 };
   // v468(2026-11-19 사용자 지시): 이름·사번·직급은 위 드롭다운에 있어 줄에서 뺌, 단계·신분 삭제, 맨 위 주민번호, 연락처 앞에 통신사, 메모 밑 구분선 뒤 사이트 계정(비번)
   //   줄 = [라벨, [[파일의 칸 이름, 입력 종류, 입력칸 안내]…]]. 종류 secret = 가려서 보여 주고 [보기]·[복사]
-  const TM_ROWS = [["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["도입자", [["도입자", "text", ""]]], ["소개자", [["소개자", "text", "도입자에게 소개한 사람"]]], ["입사일", [["입사일", "date", ""]]], ["메모", [["메모", "area", ""]]]];
+  const TM_ROWS = [["주민번호", [["주민번호", "secret", "000000-0000000"]]], ["연락처", [["통신사", "text", "통신사"], ["연락처", "tel", "010-0000-0000"]]], ["이메일", [["이메일", "email", ""]]], ["주소", [["주소", "text", ""]]], ["도입자", [["도입자", "text", ""]]], ["도입일", [["도입일", "date", ""]]], ["소개자", [["소개자", "text", "도입자에게 소개한 사람"]]], ["입사일", [["입사일", "date", ""]]], ["메모", [["메모", "area", ""]]]];
   const TM_LOCK = new Set(); // v492(2026-11-19 사용자 지시): 관리자만 쓰는 화면이라 주민번호·입사일도 수정 가능
   // v485(2026-11-19 사용자 지시): 도입자는 팀원 중에서 고르고 '도입자사번'으로 연결(화면에는 이름). 사번이 없는 사람(팀원이 아닌 사람)은 바로 아래 '소개자' 칸에 글자로 적음
   const introName = (p, list) => { const t = (list || []).find((x) => String(x.사번) === String(p.도입자사번 || "")); return t ? String(t.이름 || "") : String(p.도입자 || ""); };
@@ -3458,6 +3458,54 @@
   let tmDoc = null, tmDir = null, tmSel = "", tmEdit = false;
   const tmRank = (p) => { const r = TM_RANK[String(p.직급 || "").trim().toUpperCase()]; return r == null ? 9 : r; };
   const tmPeople = () => ((tmDoc && tmDoc.사람) || []).slice().sort((a, b) => tmRank(a) - tmRank(b) || String(a.사번 || "").localeCompare(String(b.사번 || "")) || String(a.이름 || "").localeCompare(String(b.이름 || ""), "ko"));
+  // ===== v578(2026-11-25 사용자 지시 "도입현황") 팀관리 > [도입현황] =====
+  //   도입 1건 = 팀원 파일에서 도입자(도입자사번·도입자)가 있는 팀원 1명. 날짜 = 도입일(없으면 입사일). 퇴직해도 남음
+  const IB = { y: 0, recent: false, ppl: [] };
+  const ibDay = (p) => String(p.도입일 || p.입사일 || "").replace(/\./g, "-").slice(0, 10);
+  async function openIntroBoard() {
+    if (!isAdmin()) return;
+    show("teamView");
+    const box = $("teamView");
+    box.innerHTML = `<p class="hint pad">도입현황을 불러오는 중…</p>`;
+    try {
+      const dir = await stFindPath(TM_DIR), doc = dir ? await stReadJsonIn(dir, TM_FILE) : null;
+      IB.ppl = (doc && Array.isArray(doc.사람) && doc.사람) || [];
+      if (!IB.y) IB.y = new Date().getFullYear();
+      renderIntroBoard();
+    } catch (e) { box.innerHTML = ""; handleError(e); }
+  }
+  function renderIntroBoard() {
+    const box = $("teamView"), ppl = IB.ppl, now = new Date(), z = (x) => String(x).padStart(2, "0");
+    const recs = ppl.filter((p) => (p.도입자사번 || p.도입자) && /^\d{4}-\d{2}/.test(ibDay(p))).map((p) => {
+      const t = ppl.find((x) => String(x.사번) === String(p.도입자사번 || ""));
+      return { by: t ? String(t.이름 || "") : String(p.도입자 || "") + (p.도입자사번 ? "" : " (팀 밖)"), who: String(p.이름 || ""), day: ibDay(p), out: !!String(p.퇴직일 || "").trim() };
+    });
+    const ymOf = (d) => d.slice(0, 7);
+    let months;
+    if (IB.recent) { months = [0, 1, 2].map((k) => { const d = new Date(now.getFullYear(), now.getMonth() - k, 1); return d.getFullYear() + "-" + z(d.getMonth() + 1); }); }
+    else { const last = IB.y === now.getFullYear() ? now.getMonth() + 1 : 12; months = []; for (let m = last; m >= 1; m--) months.push(IB.y + "-" + z(m)); }
+    const mset = new Set(months), sel = recs.filter((r) => mset.has(ymOf(r.day)));
+    const cnt = new Map(); sel.forEach((r) => cnt.set(r.by, (cnt.get(r.by) || 0) + 1));
+    const rank = [...cnt].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ko")), mx = rank.length ? rank[0][1] : 1;
+    const years = [...new Set([now.getFullYear(), ...recs.map((r) => +r.day.slice(0, 4))])].sort((a, b) => b - a);
+    const ymL = (m) => m.slice(0, 4) + "년 " + +m.slice(5) + "월", period = IB.recent ? `최근 3개월 (${ymL(months[2])}~${ymL(months[0])})` : `${IB.y}년 1월~${IB.y === now.getFullYear() ? now.getMonth() + 1 : 12}월`;
+    // 연도 보기에서는 도입이 있는 달과, 올해는 이번 달까지 모두(없는 달은 '도입 없음'), 지난해는 도입 있는 달만
+    const showM = IB.recent || IB.y === now.getFullYear() ? months : months.filter((m) => sel.some((r) => ymOf(r.day) === m));
+    box.innerHTML = `<div class="card ib"><h3 class="sec-title">도입현황</h3>
+      <div class="tm-bar ib-bar"><button type="button" class="ev-edit org-back-btn" data-ib-back>‹ 팀관리</button><select data-ib-year aria-label="연도"${IB.recent ? " disabled" : ""}>${years.map((y) => `<option value="${y}"${y === IB.y ? " selected" : ""}>${y}년</option>`).join("")}</select><button type="button" class="ib-chip${IB.recent ? " on" : ""}" data-ib-recent aria-pressed="${IB.recent}">최근 3개월</button></div>
+      <div class="ib-sum"><b>${sel.length}</b><span>명 도입 · ${esc(period)}</span></div>
+      ${rank.length ? `<div class="ib-rank">${rank.map(([n, c]) => `<span>${esc(n)}</span><span class="bar"><i style="width:${Math.max(6, Math.round((c / mx) * 100))}%"></i></span><span class="n">${c}명</span>`).join("")}</div>` : `<p class="hint">이 기간에 도입이 없습니다.</p>`}
+      <div class="ib-ms">${showM.map((m) => { const rs = sel.filter((r) => ymOf(r.day) === m).sort((a, b) => a.day.localeCompare(b.day)); return `<div class="ib-m"><h4>${IB.recent ? ymL(m) : +m.slice(5) + "월"} <span>${rs.length}명</span></h4>${rs.length ? rs.map((r) => `<div class="ib-r">${esc(r.by)} <span class="ar">→</span> ${esc(r.who)}${r.out ? ' <span class="out">퇴직</span>' : ""}<small>${esc(r.day.slice(5))} 도입</small></div>`).join("") : '<div class="ib-none">도입 없음</div>'}</div>`; }).join("")}</div>
+      <p class="hint ib-foot">도입 = 팀원정보에서 도입자가 있는 팀원. 날짜는 도입일(없으면 입사일)입니다. 팀원정보에서 도입자·도입일을 고치면 여기도 바뀝니다.</p></div>`;
+  }
+  document.addEventListener("click", (ev) => {
+    const t = ev.target && ev.target.closest && ev.target.closest("[data-team-intro],[data-ib-back],[data-ib-recent]");
+    if (!t) return;
+    if (t.hasAttribute("data-team-intro")) { IB.recent = false; IB.y = new Date().getFullYear(); openIntroBoard(); return; }
+    if (t.hasAttribute("data-ib-back")) { openTeam(); window.scrollTo(0, 0); return; }
+    if (t.hasAttribute("data-ib-recent")) { IB.recent = !IB.recent; renderIntroBoard(); }
+  });
+  document.addEventListener("change", (ev) => { const t = ev.target; if (t && t.matches && t.matches("[data-ib-year]")) { IB.y = +t.value; renderIntroBoard(); } });
   async function openTeamInfo() {
     if (!isAdmin()) return;
     show("teamView");
@@ -3958,6 +4006,7 @@
       Object.keys(c).forEach((k) => { if (!["id", "사번", "이름", "입사일", "도입자", "도입자사번", "등록일시", "수정일시", "전환일시"].includes(k)) np[k] = c[k]; });
       if (np.메모 == null) np.메모 = "";
       np.후보자id = id; np.전환일시 = now; np.수정일시 = now;
+      if (np.도입자사번 || np.도입자) np.도입일 = extra.입사일; // v578(2026-11-25 사용자 지시): 도입 기록 = 도입일(기본 입사일)
       team.사람.push(np);
       await stWriteJsonIn(tmDir, TM_FILE, team);
     }
@@ -6159,6 +6208,7 @@
     const s_perm = sec("FC 사용 설정 (권한)", ["[추가]를 누르면 확인창 뒤 바로 저장되어 조직도에 나옵니다. 이름(FC명)을 FC 폴더 이름과 같게 적으면 본인 FC(보기+수정)로 시작하고, 같은 폴더가 없으면 권한 없이 등록되어 조직도에서 받은 권한으로 열립니다. 다른 FC의 고객·세일즈 페이지 접근과 민감정보 권한은 계정 카드가 아니라 <b>팀관리 메뉴의 [조직도]</b>에서 정합니다(2026-11-15부터)." + (GD ? " 저장하면 Google Drive 폴더 공유도 함께 바뀝니다." : ""), "<b>구글 캘린더</b>: 설정 화면 맨 위 ‘구글 캘린더’ 카드에서 관리자의 기본 캘린더와 영업·정보 캘린더를 고르고 그 카드의 [저장]을 누릅니다.", "<b>민감정보</b>: 조직도에서 체크한 사용자만 주민번호·계좌를 보고 고칠 수 있습니다.", "<b>세일즈 페이지 접근</b>: 세일즈(이달이관·따행) 선택창에 나올 FC로, 조직도의 보기·수정대로 정해집니다. 관리자는 세일즈 화면의 사용자 선택에서 사용자를 고르면 그 사용자의 FC를 봅니다. 관리자는 세일즈 화면의 사용자 선택으로 모든 사용자를 볼 수 있어 관리자 줄의 세일즈 페이지 접근 허용은 없앴습니다.", "관리자는 모든 FC를 볼 수 있어서 별도 체크가 필요 없습니다.", "<b>조직도</b>: 아래 메뉴 <b>팀관리</b>의 [조직도]를 누르면(2026-11-19에 설정에서 옮김) 관리자(ESL) 밑으로 조직을 짭니다. 이름 왼쪽 점 6개(⠿)를 끌어 다른 사람 위에 놓으면 그 사람 밑으로 옮겨지고, 이름 아래 <b>보기</b>를 켜면 그 사용자의 FC 고객을 위 사용자들(관리자 제외, 바로 위부터 맨 위까지)이 볼 수 있고, <b>수정</b>을 켜면 수정 권한까지 위임합니다(수정을 누르면 보기도 함께 켜짐). 카드 아래 ‘받은 권한’은 아래 사용자들에게서 받은 FC입니다. 카드 아래 작은 글씨에 그 결과 FC가 보이고, 아래 오른쪽 [저장]을 누르면 바뀌는 권한을 확인창으로 보여 준 뒤 ‘고객 페이지 접근 허용’(보기 = 보기만, 수정 = 보기+수정)·‘세일즈 페이지 접근 허용’(보기·수정 모두 아래 조직 FC 추가)과 Google Drive 폴더 공유를 함께 바꿉니다. 조직도가 유일한 기준이라, 저장하면 각 사용자의 권한이 ‘본인 FC + 조직도 권한’으로 맞춰지고 그 밖의 권한은 빠집니다(권한이 조직도와 다르면 조직도 위에 안내가 나오고 [저장]이 켜짐). 이름 아래 <b>민감정보</b>는 그 사용자 본인만의 주민번호·계좌 보기·고치기 허용이고(아래 조직에는 내려가지 않음), 계정 카드의 ‘민감정보 접근 허용’과 같은 값입니다. 이름 옆 드롭박스로 <b>직책</b>(ESL·SSL·GSL·FC)을 정하고 [저장]합니다. 직책은 관리자 화면의 계정 카드 이름 옆에도 보입니다. 카드 오른쪽 작은 상자는 그 사용자의 <b>시작 화면 · AI 바로 열기 · 오른손 모드</b>입니다(보기만, 시작 화면·AI는 계정 카드에서 바꿈). 오른손 모드는 사용자가 앱을 열거나 바꿀 때 기록되며, 아직 기록이 없으면 ‘–’로 보입니다. 관리자 줄은 지금 이 기기의 설정이라 이름 옆에 ‘(이 기기)’가 붙습니다.", "<b>사용자 추가</b>: 이름과 이메일을 넣고 [추가]를 누르면 사용자 정보 팝업이 수정 모드로 열리고, 나머지 정보를 채워 [저장]하면 확인창 뒤 등록됩니다(×로 닫으면 추가 취소).", "<b>삭제 = 보관</b>: 계정 카드의 [삭제]는 계정을 지우지 않고 보관합니다. 앱 사용과 Drive 공유는 막히지만 이름·권한·직책·조직 위치·사용자 정보는 남고, 계정 목록 아래 ‘보관된 사용자’에서 [원복]하면 그대로 돌아옵니다.", "<b>사용자 정보</b>(팝업): 사용자 추가에서 이메일을 비우고 이름만 넣어도 바로 등록되고 조직도에서 그 사용자가 펼쳐진 수정 화면으로 열립니다(이메일·사번은 나중에 채움). 폴더 공유는 이름·이메일·사번이 모두 채워졌을 때만 합니다. 조직도에서 이름을 눌러 펼친 뒤 [정보]를 누르거나(조직도는 처음에 이름만 보이고 이름을 누르면 펼쳐짐) 보기 모드로(칸이 잠겨 고칠 수 없음; 관리자 화면 계정 카드는 눌러도 열리지 않음), 계정 카드의 [수정](또는 팝업 위 [수정])을 누를 때만 수정 모드로(위에 [저장]·[취소], [취소]는 바꾼 내용을 버리고 보기 모드로) 그 사용자의 이름·사번·이메일·통신사·연락처·주소·입사일·직책·메모를 보고 고칠 수 있고, 아래 ‘신한FC 설정’에 조직 위치·권한·민감정보·고객/세일즈 페이지 접근·일정 구분·시작 화면·AI·오른손 모드가 모여 보입니다. 일정 구분·시작 화면·AI 바로 열기도 이 팝업에서 바꿉니다. 보기 모드의 [취소]나 바깥, 폰의 뒤로가기로 닫습니다. 개인 정보는 사용자에게 공유되지 않는 ‘관리자전용’ 폴더에 저장됩니다(이메일은 로그인 계정이라 바꿀 수 없음)."]);
     const s_add = sec("사용자 추가", ["이름과 구글 계정 이메일을 넣고 [추가]를 누르면 위 표에 줄이 생깁니다. 볼 FC를 체크하고 [저장]을 눌러야 적용됩니다."]);
     const s_set = sec("설정", ["<b>회사 주소</b>: 일정 이동시간 계산의 출발·도착 기준입니다.", "<b>카카오 REST API 키</b>: 이동 거리·시간 계산에 씁니다. 실수로 바뀌지 않게 잠겨 있고, [수정]을 눌러야 고칠 수 있습니다. 저장하면 다시 잠깁니다."]);
+    const s_ib = sec("팀관리 > 도입현황 (관리자, v578)", ["팀관리의 <b>[도입현황]</b>에서 연도를 고르면 그해 도입 합계, 도입자별 인원, 월별 '도입자 → 피도입자'가 나옵니다. <b>[최근 3개월]</b>을 누르면 이번 달을 포함한 3개월만 봅니다.", "도입 1건 = 팀원정보에서 도입자가 있는 팀원 1명입니다. 날짜는 <b>도입일</b>(없으면 입사일)로 셉니다. [팀원 전환]을 하면 도입일이 입사일로 자동으로 들어가고, 팀원정보 도입자 밑 도입일 칸(달력)에서 고칠 수 있습니다. 퇴직해도 도입 기록은 남고 '퇴직'으로 표시합니다."]);
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_num = sec("주민번호·전화번호 '-' 자동 (v576)", ["주민번호와 전화번호는 <b>숫자만</b> 저장합니다. 화면에 보일 때는 '-'를 알아서 넣습니다(800823-1234567, 010-1234-5678, 02-123-4567). 수정 칸에서도 숫자만 치면 자리에 맞춰 '-'가 들어갑니다. 고객 정보·팀원정보·후보자정보·세일즈 목록·보고서에 모두 같습니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
@@ -6166,7 +6216,7 @@
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
