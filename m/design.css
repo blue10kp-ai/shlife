@@ -2059,3 +2059,12 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 #salesView .mt-dl { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 2px; flex: none; }
 #salesView .mt-fill { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--t2); white-space: nowrap; }
 #salesView .mt-fill .cb { width: 14px; height: 14px; }
+
+/* v584: 동선관리 날짜 줄 [추가] 오른쪽 끝·가운데 글자, 일정 수정·삭제 */
+#salesView .rd-nav { position: relative; display: flex; align-items: center; justify-content: center; min-height: 40px; }
+#salesView .rd-nav .sched-rt { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+#salesView .rd-nav .sched-rt button { display: inline-flex; align-items: center; justify-content: center; text-align: center; line-height: 1; }
+#salesView .rd-nav > button:not(.sched-label) { width: 34px; height: 34px; border-radius: 50%; background: var(--raised); color: var(--t1); display: inline-flex; align-items: center; justify-content: center; border: 0; }
+.rt .rd-acts { display: flex; gap: 6px; margin-top: 4px; }
+.rt .rd-acts button { height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--t2); font: inherit; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
+.rt .rd-acts button.del { color: var(--danger, #c0392b); }
