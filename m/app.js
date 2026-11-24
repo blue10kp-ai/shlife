@@ -3249,7 +3249,7 @@
     const st = p.introId ? `소개: ${esc(introNameOf(p.introId) || "등록 고객")}` : p.introName ? `소개: ${esc(p.introName)}` : p.conf === "아님" ? "소개 아님" : p.conf === "모름" ? "모름" : "";
     const lead = mode === "pick" ? `<input type="checkbox" class="is-cb" data-is-sel="${esc(p.id)}" ${IS.sel.has(p.id) ? "checked" : ""} aria-label="${esc(p.name)} 선택">` : "";
     return `<li class="is-row">${lead}<span class="is-nm"><a href="#" data-cust="${esc(p.id)}">${trophyHtml(introCounts().get(p.id) || 0)}${esc(p.name)}</a>${p.yy ? ` <small>${p.yy}년생</small>` : ""}${p.route ? ` <small class="rt">${esc(p.route)}</small>` : ""}${p.sex ? ` <small>${esc(p.sex)}</small>` : ""}</span>
-      <span class="is-st">${st}</span>${mode === "cust" ? `<button type="button" class="ev-edit" data-is-find="${esc(p.id)}">소개자 찾기</button>` : ""}</li>`;
+      <span class="is-st">${st}</span>${mode === "cust" ? `${p.conf ? "" : `<button type="button" class="ev-edit is-none" data-is-none="${esc(p.id)}" title="소개자 없음으로 저장(다시 묻지 않음)">없음</button>`}<button type="button" class="ev-edit" data-is-find="${esc(p.id)}">소개자 찾기</button>` : ""}</li>`; // v567: [없음] = 소개 아님으로 저장 → 다시 묻지 않음
   }
   // 로그인 때 새 고객 확인(확정안 3-4 화면 1): 지난번 접속 뒤 입력된 내 FC 고객(유입경로 상관없음) 중 소개를 아직 안 물은 고객이 있으면 소개찾기 화면이 뜸. 처음 접속은 기준 시각만 기록(기존 고객은 소개찾기에서 점검)
   const introSeenKey = () => "shlife.introSeen." + (typeof me === "function" ? me() : "");
@@ -3274,6 +3274,7 @@
   async function checkNewCustomers() {
     try {
       if (EMBED || !account()) return;
+      { let lt = ""; try { lt = localStorage.getItem(introLaterKey()) || ""; } catch (e) { /* 무시 */ } if (lt && lt === introLoginMark()) return; } // v567: [다음에]를 누른 로그인 동안은 묻지 않음 → 다음 구글 로그인 뒤에 다시
       await loadLists();
       const last = await readIntroSeen();
       if (!last) { await writeIntroSeen(introStamp()); return; }
@@ -3284,13 +3285,15 @@
       show("introView"); renderIntro();
     } catch (e) { console.warn("새 고객 확인 건너뜀", e && e.message); }
   }
+  const introLaterKey = () => "shlife.introLater." + (typeof me === "function" ? me() : "");
+  const introLoginMark = () => { const a = readGAuth(); return a ? String(gLoginAt(a)) : ""; }; // 지금 구글 로그인(출입증을 받은 시각)
   function introFreshDone(saveSeen) { if (saveSeen) writeIntroSeen(introStamp()); IS.fresh = null; IS.sheet = null; resetSearch(); }
   function renderIntroFresh(box) {
     const map = new Map(introPeople().map((p) => [p.id, p])), ps = IS.fresh.map((id) => map.get(id)).filter((p) => p && !p.conf);
     if (!ps.length) { introFreshDone(true); return; }
-    box.innerHTML = `<div class="is-head"><b>새 고객 확인</b></div><p class="hint">새로 들어온 고객 ${ps.length}명입니다. 소개고객이 있으면 소개자를 알려 주세요.</p>
+    box.innerHTML = `<div class="is-head"><b>새 고객 확인</b></div><p class="hint">새로 들어온 고객 ${ps.length}명입니다. 소개고객이 있으면 소개자를 알려 주세요. 소개자가 없으면 [없음]을 누르면 다시 묻지 않습니다.</p>
       <ul class="is-list">${ps.map((p) => isRowHtml(p, "cust")).join("")}</ul>
-      <div class="is-fresh-act"><button type="button" class="primary" data-is-rest="1">나머지는 소개 없음</button><button type="button" class="secondary" data-is-later="1">나중에</button></div>` + (IS.sheet ? isSheetHtml() : "");
+      <div class="is-fresh-act"><button type="button" class="primary" data-is-rest="1">나머지는 소개 없음</button><button type="button" class="secondary" data-is-later="1">다음에</button></div>` + (IS.sheet ? isSheetHtml() : "");
     if (IS.sheet) { const i = $("isQ"); if (i) i.focus(); }
   }
   function renderIntro() {
@@ -3347,11 +3350,12 @@
     let b;
     if ((b = g("[data-is-dir]"))) { IS.dir = b.dataset.isDir; IS.sel.clear(); IS.sheet = null; return renderIntro(); }
     if ((b = g("[data-is-key]"))) { const k = b.dataset.isKey; IS.keys.has(k) ? IS.keys.delete(k) : IS.keys.add(k); return renderIntro(); }
+    if ((b = g("[data-is-none]"))) { const p = introPeople().find((x) => x.id === b.dataset.isNone); b.disabled = true; await isApply([b.dataset.isNone], isVals("conf", "아님"), `${p ? p.name + "님은 " : ""}소개자 없음으로 저장했습니다. 다시 묻지 않습니다.`); return; }
     if ((b = g("[data-is-find]"))) { const p = introPeople().find((x) => x.id === b.dataset.isFind); if (p) { IS.sheet = { title: `${p.name}님의 소개자`, q: "", selfId: p.id, ids: [p.id] }; renderIntro(); } return; }
     if ((b = g("[data-is-who]"))) { IS.sheet = { title: "소개자 고르기", q: "", selfId: "", who: true }; return renderIntro(); }
     if ((b = g("[data-is-link]"))) { IS.sheet = { title: `‘${b.dataset.isLink}’ 님을 등록 고객으로 연결`, q: b.dataset.isLink, selfId: "", link: b.dataset.isLink, noName: true }; return renderIntro(); }
     if (g("[data-is-close]")) { IS.sheet = null; return renderIntro(); }
-    if (g("[data-is-later]")) return introFreshDone(false);
+    if (g("[data-is-later]")) { try { localStorage.setItem(introLaterKey(), introLoginMark()); } catch (e) { /* 무시 */ } toast("다음 구글 로그인 뒤에 다시 물어봅니다."); return introFreshDone(false); } // v567
     if (g("[data-is-rest]")) { const map = new Map(introPeople().map((p) => [p.id, p])), ids = (IS.fresh || []).filter((id) => map.get(id) && !map.get(id).conf); await isApply(ids, isVals("conf", "아님"), `${ids.length}명을 소개 없음으로 저장했습니다.`); return; }
     if ((b = g("[data-is-sel]"))) { const id = b.dataset.isSel; b.checked ? IS.sel.add(id) : IS.sel.delete(id); return renderIntro(); }
     if (g("[data-is-go]")) { if (IS.who) return isApply([...IS.sel], IS.who.id ? isVals("id", IS.who.id) : isVals("name", IS.who.name), `${IS.sel.size}명을 연결했습니다.`); return; }
@@ -5224,7 +5228,7 @@
   async function openMySettings() {
     show("adminView");
     const body = $("adminBody");
-    body.innerHTML = `<div class="card" id="myCalCard"><details class="fold">
+    body.innerHTML = featCardHtml() + `<div class="card" id="myCalCard"><details class="fold">
         <summary class="sec-title">구글 캘린더</summary>
         <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
         <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml() + installCardHtml();
@@ -5695,7 +5699,7 @@
     const pfxHtml = (em) => { const nm = nameOfEm(em); return `<label class="pfx-l"><span>일정 구분</span><input type="text" class="perm-name" data-pfx="${esc(em)}" maxlength="10" value="${esc(nm ? (perms.prefixes || {})[nm] || "" : "")}" placeholder="예: 최" autocomplete="off" ${nm ? "" : "disabled"} aria-label="${esc(em)} 일정 구분"><button type="button" class="secondary" data-pfx-save="${esc(em)}" disabled>저장</button></label>${nm ? "" : '<p class="hint">이름(FC명)을 먼저 입력·저장하면 정할 수 있습니다.</p>'}`; };
 
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
-    const personal = `<div class="card" id="adminCalCard"><details class="fold" id="gFold"><summary class="sec-title">구글 캘린더</summary>
+    const personal = featCardHtml() + `<div class="card" id="adminCalCard"><details class="fold" id="gFold"><summary class="sec-title">구글 캘린더</summary>
         <div id="gCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
         <div class="file-actions"><button type="button" class="primary" id="gCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml() + installCardHtml();
     $("adminBody").innerHTML = personal + `<h2 class="admin-sec">관리자</h2>
@@ -6097,12 +6101,13 @@
     const s_wake = sec("“몰리야”로 AI 부르기 (시험용)", ["오른쪽 아래에 떠 있는 <b>몰리(두더지) 선 그림 버튼</b>을 누르면 AI 창이 열립니다(아래 메뉴 맨 왼쪽 AI 버튼과 같음). 반투명이라 밑의 내용이 비쳐 보입니다. 누르면 AI 창이 열리면서 <b>바로 듣기(마이크)</b>가 켜져 말하면 됩니다. 버튼을 <b>꾹 눌러 끌면</b> 원하는 자리로 옮겨지고, 그 자리는 이 기기에 기억됩니다. 말만해요 안에서는 그 자리를 비워 두므로 나오지 않습니다.", "설정 > 화면의 <b>“몰리야”로 AI 부르기</b>를 켜면, 이 기기에서 앱 화면이 열려 있는 동안 마이크로 듣다가 <b>‘몰리야’</b>라고 부르면 AI 창이 뜹니다. ‘몰리야 내일 일정 알려줘’처럼 이어 말하면 그 말이 바로 AI에 들어가고, 이름만 부르면 AI 창의 마이크가 켜집니다.", "듣는 동안 화면 위에 작은 <b>‘몰리 듣는 중’</b> 표시가 나오고, 누르면 바로 꺼집니다. 화면이 꺼지거나 다른 앱으로 가면 듣지 않고, AI 창이나 다른 음성 입력을 쓰는 동안에도 멈춥니다. 안드로이드 크롬에서만 되며(아이폰 사파리는 거의 안 됨), 음성은 크롬이 구글 서버로 보내 글자로 바꿉니다. 상담 중에는 꺼 두세요. 설정은 이 기기에만 저장됩니다."]);
     const s_theme = sec("다크 모드", ["설정 > 화면의 <b>다크 모드</b>를 체크하면 어두운 화면, 끄면 밝은 화면으로 이 기기에서 고정됩니다. 한 번도 고르지 않았으면 <b>다크 모드가 기본</b>입니다(2026-11-18부터, 폰의 밝은·어두운 설정과 상관없음). 고른 값은 내 설정 파일(드라이브)에 저장되어 다른 기기에서도 같게 따르고, 이 기기에는 화면 깜빡임을 막으려고 같이 기억합니다. 로그인 화면도 같은 값을 따릅니다. 말만해요 안에서 열면 말만해요의 설정(다크/라이트)을 따르고, 말만해요에서 바꾸면 바로 바뀝니다(이 앱에는 저장하지 않음)."]);
     const s_dsh = sec("대시보드 (2026-11-21 바뀜)", ["아래 메뉴 <b>AI 오른쪽 [대시보드]</b>입니다. 보는 범위 선택(오른쪽 위)은 <b>ESL만</b> 보입니다: 맨 위 <b>팀</b>(팀 합계) → 김현성 · 임지섭 … 순서이고, 관리자는 처음에 <b>팀</b>을 봅니다. 그 밖의 계정은 본인 FC만 봅니다.", "<b>이달 실적</b>: 이번 달 <b>건수 · CMIP(월납환산보험료) · CANP</b> 세 칸입니다(금액은 원 단위). 청약 목록(계약 자료)에서 이번 달 청약 중 <b>철회·거절을 뺀 것</b>을 더하고, 세 값 모두 <b>기여율</b>을 곱해 더합니다. 팀은 팀원 합계입니다.", "<b>이달 청약상태</b>: 이달 실적 바로 아래에 이번 달 청약을 지난달 청약상태와 같은 칸으로 보여 줍니다.", "<b>지난달 청약상태</b>: 지난달 청약을 계약일자 최근 순으로 보여 줍니다(청약상태 · 심사상태 · 진단종류 · FC명(팀일 때만) · 상품명 · 계약일자 · 계약자 · 주피보험자 · CMIP · CANP). 표는 옆으로 밀어 봅니다. 철회·거절 줄은 흐리게, 금액은 계약 금액 그대로입니다.", "<b>지난달 FC별 실적</b>(팀일 때만): FC마다 지난달 철회·거절을 뺀 건수 · CMIP · CANP를 기여율을 곱해 보여 줍니다(예: 2건 중 1건이 기여율 50%면 1.5건). 맨 아래 합계.", "<b>최근 6개월 평균 실적</b>: 이번 달 전 6개월의 월평균 건수 · CMIP · CANP · 수수료(실지급금)입니다. 입사한 지 6개월이 안 된 FC는 입사한 달부터의 합계를 그 달 수로 나눕니다. 팀은 FC별 월평균의 평균입니다(더한 값이 아님). 팀을 볼 때는 그 아래에 <b>FC별 최근 6개월 평균</b> 표가 나옵니다(6개월이 안 된 FC는 이름 옆에 개월 수, 입사 전 FC는 빠짐). 지난달 FC별 실적에서도 그달에 입사 전인 FC는 빠집니다. 이 상자들은 민감정보 허용 계정만 보입니다.", "<b>최근 수수료</b>(가장 최근 달 실지급, 팀은 합계)와 <b>계약진행</b> 인원 카드가 그 아래에 있습니다.", "<b>이달목표 이행 점수</b>: (이관 중 통화 이상 + 따행 중 쿠폰발송 + DB 중 AP 이상) ÷ (이관 + 따행 + DB 목표 전체) × 100을 점수로 보여 주고(80%면 80점), 그 아래 한 줄 막대가 진도입니다. 계약진행 막대는 최근 3개월에 시작한 계약진행의 고객등록·전화·AP·PC·계약별 건수입니다. 위쪽 <b>계약진행 카드</b>는 ‘이달 계약 건 / 최근 3개월 계약진행 건’입니다. 최근 3개월에 시작한 계약진행 중 이번 달에 계약한 건(진행 단계가 이달 계약이거나, 그 고객의 이번 달 청약이 있음 — 청약철회·거절도 계약한 뒤 일이라 계약으로 셈. 여러 FC가 나눈 청약은 메인FC(계약자의 담당FC)에게만 셈)이 앞의 초록 숫자입니다. 목표는 보관하지 않은 이관·따행(목표)·신규 DB입니다. 맨 아래는 <b>소개 랭킹</b> 상위 3명입니다."]);
-    const s_in = sec("소개 (2026-11-17)", ["<b>고객 정보 > 수정</b>의 <b>소개</b>: <b>소개 · 아님 · 모름</b> 중 고르고, <b>소개</b>이면 소개자 이름을 적습니다. 같은 FC의 등록 고객 후보(이름·출생 두 자리·유입경로)가 나오고, 고르면 <b>등록 고객과 연결</b>(소개고객ID 저장), 고르지 않거나 후보에 없으면 <b>이름만 남기기</b>(소개자명 저장)입니다. 다시 누르면 풀리고 이름을 비우면 지워집니다. 소개만 고치면 ‘직접 수정’ 표시는 붙지 않습니다.", "<b>소개자 트로피</b>: 소개해 준 고객 이름 앞에 1~2명 동, 3~4명 은, 5명 이상 금 트로피가 붙습니다(소개고객ID를 세어 계산, 고객 정보 머리·고객 검색 결과·소개찾기에 나옵니다).", "<b>소개찾기</b>(고객 화면 GBS 옆 버튼): 등록 고객 전부를 대상으로 ‘등록고객 N명 중 M명 확인’을 보여 줍니다. <b>소개고객부터</b>는 고객마다 [소개자 찾기](창에서 이름 검색 → 고객 고르기 · 이미 적힌 이름 · 이름만 · 소개 아님 · 모름), <b>소개자부터</b>는 소개자를 먼저 고른 뒤 그분이 소개한 고객을 체크해 한 번에 연결, <b>랭킹</b>은 소개한 수 순서로 보여 주며 고객이 아닌 소개자는 ‘미등록’으로 묶고 [고객으로 연결]로 한 번에 고객ID에 이어 줍니다. 묶음 <b>지역·성별·직업·직장·유입 시기·가족(같은 주소)·유입경로</b>를 겹쳐 눌러 같은 사람끼리 묶어 볼 수 있고, ‘확인한 고객도 보기’를 켜면 이미 확인한 고객도 나옵니다.", "<b>새 고객 확인</b>: 지난번 접속 뒤 입력된 내 FC 고객이 있으면 로그인 때 소개찾기 화면이 먼저 뜹니다. 고객마다 [소개자 찾기], 모두 끝내려면 <b>나머지는 소개 없음</b>, 미루려면 <b>나중에</b>(다음 접속 때 다시 뜹니다). 처음 접속한 기기는 기준 시각만 기록하고 묻지 않습니다(기존 고객은 소개찾기에서 점검)."]);
+    const s_in = sec("소개 (2026-11-17)", ["<b>새 고객 확인의 [없음](v567)</b>: 새로 들어온 고객 줄의 [없음]을 누르면 그 고객은 소개자 없음(소개 아님)으로 저장되고, 다음부터 소개자를 묻지 않습니다. [나머지는 소개 없음]은 남은 고객을 한꺼번에 같은 방식으로 저장합니다. [다음에]는 이번 로그인 동안은 묻지 않고, 다음 구글 로그인 뒤에 다시 묻습니다.", "<b>고객 정보 > 수정</b>의 <b>소개</b>: <b>소개 · 아님 · 모름</b> 중 고르고, <b>소개</b>이면 소개자 이름을 적습니다. 같은 FC의 등록 고객 후보(이름·출생 두 자리·유입경로)가 나오고, 고르면 <b>등록 고객과 연결</b>(소개고객ID 저장), 고르지 않거나 후보에 없으면 <b>이름만 남기기</b>(소개자명 저장)입니다. 다시 누르면 풀리고 이름을 비우면 지워집니다. 소개만 고치면 ‘직접 수정’ 표시는 붙지 않습니다.", "<b>소개자 트로피</b>: 소개해 준 고객 이름 앞에 1~2명 동, 3~4명 은, 5명 이상 금 트로피가 붙습니다(소개고객ID를 세어 계산, 고객 정보 머리·고객 검색 결과·소개찾기에 나옵니다).", "<b>소개찾기</b>(고객 화면 GBS 옆 버튼): 등록 고객 전부를 대상으로 ‘등록고객 N명 중 M명 확인’을 보여 줍니다. <b>소개고객부터</b>는 고객마다 [소개자 찾기](창에서 이름 검색 → 고객 고르기 · 이미 적힌 이름 · 이름만 · 소개 아님 · 모름), <b>소개자부터</b>는 소개자를 먼저 고른 뒤 그분이 소개한 고객을 체크해 한 번에 연결, <b>랭킹</b>은 소개한 수 순서로 보여 주며 고객이 아닌 소개자는 ‘미등록’으로 묶고 [고객으로 연결]로 한 번에 고객ID에 이어 줍니다. 묶음 <b>지역·성별·직업·직장·유입 시기·가족(같은 주소)·유입경로</b>를 겹쳐 눌러 같은 사람끼리 묶어 볼 수 있고, ‘확인한 고객도 보기’를 켜면 이미 확인한 고객도 나옵니다.", "<b>새 고객 확인</b>: 지난번 접속 뒤 입력된 내 FC 고객이 있으면 로그인 때 소개찾기 화면이 먼저 뜹니다. 고객마다 [소개자 찾기], 모두 끝내려면 <b>나머지는 소개 없음</b>, 미루려면 <b>나중에</b>(다음 접속 때 다시 뜹니다). 처음 접속한 기기는 기준 시각만 기록하고 묻지 않습니다(기존 고객은 소개찾기에서 점검)."]);
     const s_smemo = sec("영업 상담기록 칸 (2026-11-18)", ["<b>전화·문자 시도 기록(2026-11-21)</b>: 고객에게 전화·문자를 누르면 상담기록에 ‘<b>○○에서 전화 시도</b>’ / ‘○○에서 문자 시도’가 저절로 남습니다(○○ = 누른 화면: 연체리스트·실효리스트·이달목표 이관/따행/DB·고객 목록·고객 정보·일정). 세일즈 화면과 연체/실효 리스트는 ‘정말로 거시겠습니까?’에 확인을 눌렀을 때만 남습니다. 전화·문자 앱이 열린 사이에는 이 폰에 적어 두었다가 앱으로 돌아오면 저장합니다.", "세일즈 화면(이달목표의 이관·따행·DB, 계약진행)의 고객 줄 맨 아래에 <b>가장 최근 상담기록 한 줄</b>이 나오고, 그 오른쪽에 <b>[수정]</b> · <b>[삭제]</b>가 있습니다. 수정하면 처음 날짜·시간은 그대로이고 내용만 바뀌며, 삭제는 확인을 거쳐 엑셀에서 지워집니다. 최근 1년 안의 상담기록이 2건 이상이면 오른쪽 끝에 <b>[더보기]</b>가 생겨 전체를 팝업으로 볼 수 있습니다(보기 전용).", "<b>일정 화면의 고객 카드</b>도 같은 상담기록 줄입니다: 카드 맨 아래 최근 상담기록 <b>최대 5줄(날짜와 함께)</b>과 [수정]·[삭제]·[더보기], 고객 정보 칸(주소 등 글자가 있는 곳)을 터치하면 위에 추가칸(마이크 포함)과 최근 6개월 상담기록이 펼쳐지고 한 번 더 터치하면 접힙니다.", "고객 정보가 있는 줄(버튼·링크가 아닌 곳)을 <b>한 번 터치</b>하면 아래로 상담기록 칸이 펼쳐집니다. <b>맨 위 줄은 상담기록 추가칸</b>([저장]을 누르면 일정 화면의 한 줄 메모처럼 상담기록에 저장되어 고객 정보 > 상담 탭에서도 보임)이고, 그 아래에 <b>최근 6개월 안의 상담기록이 날짜와 함께</b> 나옵니다(각 기록에 [수정]·[삭제], 6개월보다 오래된 것은 ‘6개월 이전 N건 더보기’로 팝업). <b>한 번 더 터치</b>하면 위로 올라가며 사라지고 최근 상담기록 한 줄만 남습니다. (예전 설정의 ‘영업 메모 칸’ 옵션은 없앴고 항상 사용합니다.)"]);
     const s_mat = sec("세일즈 > 자료 (v554, 2026-11-22)", ["세일즈 위 서브메뉴 맨 오른쪽 <b>자료</b>: 팀이 함께 보는 상품 안내장·설계안·교육자료·모의고사·서식 파일 목록입니다. 위쪽 칩(전체·분류별, 옆 숫자 = 파일 수)을 누르면 그 분류만, 검색 칸에 글자를 넣으면 이름으로 바로 걸러집니다.", "<b>줄을 누르면 바로 열립니다</b>(PDF는 새 창, 사진은 화면 안). <b>[공유]</b>를 누르면 파일을 받아 휴대폰 공유창(카톡·문자 등)이 바로 열립니다. 큰 파일이라 공유창이 바로 안 열리면 버튼이 <b>[보내기]</b>로 바뀌고, 한 번 더 누르면 열립니다.", "관리자는 <b>[올리기]</b>로 파일을 올립니다. 고른 분류 폴더에 저장되고, ‘전체’일 때는 ‘기타’로 들어갑니다. 파일은 드라이브 <b>app › 신한FC › 설정 › 자료</b>에 있고, 그 안에 폴더를 만들면 분류가 하나 생깁니다(폴더 이름 앞 숫자는 순서용으로 화면에선 빠짐)."]);
     const s_pg = sec("세일즈 > 계약진행 (2026-11-17)", ["<b>2026-11-18부터</b> 계약진행의 보기는 <b>진행 · 보관 · 완료</b> 세 가지입니다. 예전의 ‘삭제’는 ‘완료’로 합쳐, 전에 삭제로 둔 고객도 완료에 보입니다. 보관에서는 [진행으로]·[완료로], 완료에서는 [진행으로]·[보관으로]로 옮깁니다.", "세일즈 화면 위 서브메뉴가 <b>이달목표 · 계약진행 · 자료</b>입니다. <b>계약진행</b>은 설계를 시작한 고객 한 줄이 한 회차이고, 이름 옆에 유입경로(신규유입·이관유입·DB유입), 아래에 단계 5칸 <b>고객등록 · 전화 · AP · PC · 계약</b>(지금 단계만 색)과 시작일·단계일이 보입니다. 단계를 눌러 바꾸고(건너뛰어도 됩니다), <b>계약</b>을 누르면 상태가 <b>완료</b>가 됩니다.", "목록 위 칩 <b>진행 N · 보관 N · 삭제 N · 완료 N</b>(기본은 진행)으로 상태별 목록을 봅니다. <b>완료</b>는 단계가 ‘계약’이 되어 끝난 회차입니다(계약이 되면 진행 목록에서 완료로 옮겨지고, 다른 단계를 누르면 진행으로 되돌아옵니다). 줄 오른쪽 버튼은 진행·완료 줄은 <b>보관으로</b>, 보관 줄은 <b>진행으로 · 삭제로</b>, 삭제 줄은 <b>진행으로 · 보관으로</b>입니다. 삭제는 자료를 지우지 않고 삭제 칩으로 옮기는 것이며 확인창이 뜹니다. 바꿀 때마다 이력에 ‘계약진행’ 한 줄이 남고, 6초 안에 [되돌리기]가 나옵니다. 고객 화면의 <b>[진행] 칩은 없어졌고</b> 계약진행은 이곳 한 곳에서만 봅니다.", "<b>이달목표</b>의 이관·따행 목록은 이제 달 이동 없이 <b>목표</b> 상태 기준입니다. 이번 달 것이 위, 달이 지나도 보관·삭제하지 않은 것은 아래 ‘지난 목표’에 남습니다."]);
     const s_sup = sec("지원 기능 (관리자)", ["관리자 화면 ‘문자 문구 (팀 기본)’ 바로 위의 <b>지원 기능</b> 박스에 있는 <b>[고객 등록]</b>을 누르면 새 고객 등록 페이지가 새 탭으로 열립니다. 담당 FC·이름·연락처·유입경로(신규유입/DB유입)를 넣어 저장하며, 같은 연락처나 같은 신한라이프 고객번호가 이미 있으면 멈춥니다. 등록 직후에는 고객 목록이 새로 읽을 때까지 보이지 않을 수 있습니다."]);
     const s_sms = sec("문자 문구", ["설정 화면의 ‘문자 문구’ 카드는 접혀 있으니 제목을 눌러 펼칩니다. 세일즈 화면에서 [문자]를 누르면 이 문구가 채워진 문자 작성 화면이 열립니다. 내가 저장한 문구가 있으면 그것을 쓰고, 없으면 관리자가 정해 준 팀 기본 문구(관리자 화면의 ‘문자 문구 (팀 기본)’)가 미리 들어 있습니다. 고치거나 지우면 내 설정으로 저장됩니다. 지우면 문구 없이 작성 화면만 열립니다.", `쓸 수 있는 항목: <b>${SMS_VARS}</b> — {고객명}=계약자 이름, {FC명}=담당 FC 이름, {상품명}, {이관일}(예: 11월 9일, 따행 목록에서는 비어 있음)`, "문자는 작성 화면을 연 뒤 직접 '보내기'를 눌러야 발송되며, 앱에는 '시도'만 기록됩니다. 일부 폰·문자앱·카카오톡 안의 브라우저에서는 문구가 채워지지 않을 수 있고, 45자를 넘으면 장문 문자로 나가거나 잘릴 수 있습니다."]);
+    const s_ct = sec("설정 > 다양한 기능 > 주소록 관리 (v568, 2026-11-24)", ["설정 맨 위 <b>다양한 기능</b> 상자에 앞으로 여러 기능 버튼이 모입니다. 첫 번째가 <b>주소록 관리</b>입니다.", "<b>주소록 넣기</b>: 이번 달 이관 고객을 <b>내 구글 주소록</b>(로그인한 계정)에 '202611이관' 같은 라벨과 '신한FC' 라벨을 붙여 넣습니다. 이름·휴대전화·주소·메모 한 줄(상품·보험료·담당)을 넣고, 휴대전화가 같은 연락처가 이미 있으면 새로 만들지 않고 라벨과 빈 칸만 채웁니다. 번호가 없는 고객은 넣지 않습니다.", "<b>주소록 정리</b>: 앱이 넣은 연락처(신한FC 라벨)만 보여 주고, 이달목표에서 빠진 고객을 먼저 골라 둡니다. 고른 것만 지우며, 구글 주소록에서 <b>영구 삭제</b>되어 되돌릴 수 없습니다(고객 정보는 그대로).", "처음 누를 때 구글 창에서 주소록 권한을 한 번 허용합니다(이 앱에서만, 1시간마다 다시 연결). 관리자가 구글 콘솔에서 People API를 켜 두어야 합니다."]);
     const s_ntf = sec("중요 알림 · 오전 6시 로그아웃 (v557, 2026-11-24)", ["<b>중요 알림</b>: 로그인한 뒤 그날 처음 앱을 열면, 오늘에 해당하는 알림이 한 창에 모두 나옵니다. 버튼은 <b>[확인]</b> 하나뿐이고, 누르면 알림에 정해 둔 페이지로 이동합니다(시스템 알림이 먼저, 그다음 목록 위쪽 알림). 한 번 확인한 알림은 다시 나오지 않습니다(요일 알림은 그날만).", "<b>연체·실효 알림(v564)</b>: 내 FC의 연체리스트(나온 지 7일 안)나 실효리스트(이번 달·지난달)가 새로 나오면 로그인 직후 알림이 뜨고, [확인]을 누르면 세일즈 › 보고서의 연체/실효 리스트로 바로 갑니다. 한 번 확인하면 다시 뜨지 않고, 다음에 앱을 열면 첫 화면(대시보드)부터 보입니다. 연체나 실효가 없으면 PDF 다운 버튼은 숨깁니다.", "<b>시스템 알림</b>: 내 FC에 새 이관 계약이나 새 밸류업DB가 생기면 자동으로 알립니다. 처음 한 번은 지금 목록을 기억만 하고, 그 뒤로 새로 생긴 건수를 알려 줍니다.", "<b>관리자 › 전체 알림</b>(관리자만): 알림 추가·수정·삭제, 알림마다 켜기·끄기, 시스템 알림 전체 켜기·끄기(기본 켬). 알림마다 날짜(시작~끝) 또는 요일, 대상(전체·FC별), 확인하면 이동할 페이지를 정합니다. 날짜 알림에는 확인한 사람 수가 나옵니다.", "<b>오전 6시 로그아웃</b>: 매일 오전 6시가 지나면 모든 앱(신한FC·말만해요 등 같은 로그인을 쓰는 앱)이 로그아웃되고, 다음 로그인 때 구글 계정 고르기 창이 한 번 나옵니다. 구글 비밀번호를 다시 넣게 하지는 못하며, 폰 시계를 기준으로 합니다."]);
     const s_login = sec("로그인 (공통 로그인)", ["<b>로그인 승인/거부(v513)</b>: 신한FC 로그인은 관리자 화면 FC 사용 설정의 계정 카드 오른쪽 <b>[승인]/[거부]</b> 토글로만 정합니다(이메일·사번이 있다고 저절로 들어가지 않음). 거부인 계정으로 로그인하면 로그인 화면에 ‘아직 신한FC 로그인이 승인되지 않았습니다’가 뜨고 [다른 계정으로 로그인]이 보입니다. 승인으로 켜면 그 계정의 FC 폴더(본인 FC와 체크한 FC)와 설정 폴더를 Google Drive로 공유합니다. 거부로 끌 때는 공유도 해제할지 묻습니다 — 공유를 남기면 앱은 막혀도 드라이브에서 파일을 직접 열 수 있습니다. 이메일이 아직 없는 사람은 조직도에서 이메일을 먼저 넣어야 승인할 수 있습니다.", "<b>새 팀원</b>: 팀관리 > 후보자정보에서 [전환]하면 팀원정보에 옮겨지고, FC 사용 목록에 ‘이메일 미등록’으로 올라가며 로그인은 거부로 시작합니다. 팀원정보에 등록되어 데이터가 있는 FC는 계정이 없어도 관리자 화면(이달목표 사용자 선택·고객 FC 선택)에서 볼 수 있습니다.", "한 번 로그인하면 같은 브라우저(크롬·사파리 등)에서 다른 내 앱(차차차·항상일상·말만해요·메뉴메이커)도 다시 로그인하지 않고 바로 열립니다. 로그인은 약 1시간 유지되고, 끊기면 아무 앱에서 [다시 연결]을 한 번 누르면 나머지도 이어집니다.", "다른 앱에서만 로그인했고 이 앱에 필요한 권한이 모자라면 버튼이 ‘구글 연결 (권한 추가)’로 바뀝니다. 한 번 눌러 허용하세요.", "<b>로그아웃은 모든 앱에서</b> 함께 됩니다(오른쪽 위 전원 버튼). 아이폰은 홈 화면에 추가한 앱마다 저장 공간이 따로라 서로 나눠 쓰지 못합니다."]);
     const s_go = sec("말만해요 연결", ["말만해요에서 “김현성 고객 검색해줘”처럼 말하면 말만해요 화면 안에 이 앱의 고객 검색 목록이 나타납니다. 한 명만 나와도 목록이 먼저 보이고, 고객을 누르면 그 안에서 고객 정보가 열립니다. 이때는 앱 전체가 아니라 그 페이지만 보입니다(위쪽 바·아래 메뉴 없음). 목록→고객 정보, 정보·계약·분석·상담 탭 이동은 그대로이고, 뒤로가기는 말만해요의 왼쪽 위 버튼이 한 단계씩 되돌립니다.", "말만해요의 [앱으로 열기]를 누르면 보던 바로 그 화면(검색 목록 또는 그 고객 정보)으로 신한FC m이 전체 화면으로 열립니다. 말만해요 안에서는 로그아웃 버튼이 없고(로그아웃은 말만해요에서), 로그인이 풀렸으면 ‘말만해요에서 다시 로그인’ 안내가 나옵니다.", "“오늘 일정 보여줘”처럼 일정을 물으면 일정 화면(하루 보기)만 말만해요 안에 나타납니다. 날짜 이동·추가 버튼은 그대로 쓰고, [앱으로 열기]를 누르면 보던 날짜로 열립니다.", "검색한 이름은 주소의 # 뒤에만 실려 서버로 전송되지 않습니다."]);
@@ -6124,7 +6129,7 @@
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_ntf, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
@@ -11145,6 +11150,161 @@
     if (d.ntfsSave != null) return ntfSaveEdit(t);
   });
 
+  // ---------- v568(2026-11-24 사용자 "그대로 코딩 진행"): 설정 맨 위 '다양한 기능' 상자 + [주소록 관리] ----------
+  //   로그인한 사람 본인 구글 주소록(People API)에 이달이관 고객을 'YYYYMM이관' 라벨로 넣고(번호가 같은 연락처는 라벨·빈 칸만), 앱이 넣은 연락처('신한FC' 라벨) 중 고른 것만 지움.
+  //   권한(contacts)은 [주소록 관리]에서 처음 넣기·정리할 때만 따로 요청, 출입증은 이 앱 전용 키(shlife.gcontacts). 연락처 값은 화면(메모리)과 구글에만 둠. 안: 작업데이터\20261124 - 주소록 연동 안.md
+  const CT_SCOPE = "https://www.googleapis.com/auth/contacts", CT_KEY = "shlife.gcontacts", CT_API = "https://people.googleapis.com/v1/", CT_APP = "신한FC", CT_IDT = "신한FC고객ID";
+  const featCardHtml = () => `<div class="card feat-card"><h3 class="sec-title">다양한 기능</h3><div class="feat-btns"><button type="button" class="secondary" data-feat="contacts">주소록 관리</button></div></div>`;
+  document.addEventListener("click", (ev) => { const b = ev.target.closest && ev.target.closest("[data-feat]"); if (b && b.dataset.feat === "contacts") openContacts(); });
+  function ctStored() { try { const t = JSON.parse(localStorage.getItem(CT_KEY) || "null"); if (t && t.exp > Date.now() + 60000) return t.token; } catch (e) { /* 무시 */ } return ""; }
+  function ctRequest() {
+    return new Promise((resolve, reject) => {
+      const g = window.google && window.google.accounts && window.google.accounts.oauth2;
+      if (!g) return reject(new Error("구글 로그인 모듈을 불러오지 못했습니다. 잠시 후 다시 시도하세요."));
+      const client = g.initTokenClient({
+        client_id: GCFG.clientId, scope: CT_SCOPE, hint: gAccount() || undefined,
+        callback: (r) => {
+          if (r.error) return reject(new Error("구글 연결 실패: " + r.error));
+          if (!g.hasGrantedAllScopes(r, CT_SCOPE)) return reject(new Error("주소록 권한을 허용해야 넣을 수 있습니다."));
+          try { localStorage.setItem(CT_KEY, JSON.stringify({ token: r.access_token, exp: Date.now() + (r.expires_in || 3600) * 1000 })); } catch (e) { /* 이번엔 사용 */ }
+          resolve(r.access_token);
+        },
+        error_callback: (e) => reject(new Error(e && e.type === "popup_closed" ? "구글 로그인 창이 닫혔습니다." : "구글 로그인 창을 열 수 없습니다. 팝업 차단을 확인하세요."))
+      });
+      client.requestAccessToken({ prompt: "" });
+    });
+  }
+  async function ctApi(path, opt) {
+    const t = ctStored() || (await ctRequest());
+    const o = opt || {};
+    const res = await fetch(CT_API + path, { method: o.method || "GET", headers: { Authorization: "Bearer " + t, ...(o.body ? { "Content-Type": "application/json" } : {}) }, body: o.body ? JSON.stringify(o.body) : undefined });
+    if (res.status === 401) { try { localStorage.removeItem(CT_KEY); } catch (e) { /* 무시 */ } throw new Error("주소록 연결 시간이 지났습니다. 다시 눌러 주세요."); }
+    if (res.status === 403) { const tx = await res.text().catch(() => ""); throw new Error(/SERVICE_DISABLED|has not been used|disabled/i.test(tx) ? "구글 콘솔에서 People API를 켜야 합니다(관리자 할 일)." : "주소록 권한이 없습니다(403)."); }
+    if (!res.ok) throw new Error("주소록 " + res.status + ": " + (await res.text().catch(() => "")).slice(0, 120));
+    return res.status === 204 ? {} : res.json();
+  }
+  const ctDigits = (v) => { let d = String(v || "").replace(/\D/g, ""); if (d.startsWith("82")) d = "0" + d.slice(2); return d; };
+  const CT = { fc: "", ym: "", rows: [], people: [], groups: [], mode: "", sel: new Set(), busy: false, msg: "" };
+  async function ctLoadAll() { // 내 주소록 전체(번호·라벨·고객ID·메모·주소)와 라벨 목록
+    let people = [], pt = "";
+    do { const d = await ctApi("people/me/connections?pageSize=1000&personFields=names,phoneNumbers,memberships,externalIds,biographies,addresses" + (pt ? "&pageToken=" + encodeURIComponent(pt) : "")); people = people.concat(d.connections || []); pt = d.nextPageToken || ""; } while (pt);
+    const g = await ctApi("contactGroups?pageSize=1000");
+    CT.people = people; CT.groups = (g.contactGroups || []).filter((x) => x.groupType === "USER_CONTACT_GROUP" || !x.groupType);
+  }
+  const ctGroupName = (rn) => (CT.groups.find((g) => g.resourceName === rn) || {}).name || "";
+  const ctLabels = (p) => (p.memberships || []).map((m) => m.contactGroupMembership && ctGroupName(m.contactGroupMembership.contactGroupResourceName)).filter(Boolean);
+  const ctCustId = (p) => ((p.externalIds || []).find((x) => x.type === CT_IDT) || {}).value || "";
+  const ctIsApp = (p) => ctLabels(p).includes(CT_APP) || !!ctCustId(p);
+  async function ctGroup(name) { // 라벨 찾기·없으면 만들기 → resourceName
+    const g = CT.groups.find((x) => x.name === name); if (g) return g.resourceName;
+    const r = await ctApi("contactGroups", { method: "POST", body: { contactGroup: { name } } });
+    CT.groups.push(r); return r.resourceName;
+  }
+  async function openContacts() {
+    show("adminView");
+    const body = $("adminBody");
+    body.innerHTML = `<div class="card ct-wrap"><p class="hint">불러오는 중…</p></div>`;
+    try {
+      const data = await loadSalesData(), myFc = await myFcName();
+      const fcs = [...new Set(data.lists.map((e) => e.fc).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko"));
+      CT.fcs = fcs; CT.fc = CT.fc && fcs.includes(CT.fc) ? CT.fc : fcs.includes(myFc) ? myFc : fcs[0] || ""; CT.ym = ymNow(); CT.data = data;
+      CT.mode = ""; CT.sel = new Set(); CT.msg = ""; ctRows(); renderContacts(); window.scrollTo(0, 0);
+    } catch (e) { body.innerHTML = ""; handleError(e); }
+  }
+  function ctRows() { // 이달이관(이 FC, 보관·삭제 아닌 줄) → 고객 한 명씩
+    const seen = new Set();
+    CT.rows = transferRows(CT.data, CT.ym, false).filter((r) => r.srcFc === CT.fc && !r.archDay && !r.del).filter((r) => { const k = r.custId || r.holder; if (seen.has(k)) return false; seen.add(k); return true; })
+      .map((r) => ({ custId: r.custId, name: r.holder, phone: firstPhone(r.phoneText || r.phone || ""), addr: r.addr || "", note: `${CT_APP} 이관 ${CT.ym.slice(0, 4)}-${CT.ym.slice(4)} · ${r.product || ""}${r.fee ? " · " + wonText(r.fee) : ""} · 담당 ${CT.fc}` }));
+  }
+  const ctLabel = () => CT.ym + "이관";
+  function renderContacts() {
+    const body = $("adminBody"), acc = gAccount();
+    const fcSel = CT.fcs.length > 1 ? `<select id="ctFc" aria-label="FC">${CT.fcs.map((f) => `<option${f === CT.fc ? " selected" : ""}>${esc(f)}</option>`).join("")}</select>` : `<b>${esc(CT.fc)}</b>`;
+    let list = "";
+    if (CT.mode === "add") {
+      const items = CT.rows.map((r, i) => { const d = ctDigits(r.phone), hit = d ? CT.people.find((p) => (p.phoneNumbers || []).some((x) => ctDigits(x.value) === d)) : null, has = hit && ctLabels(hit).includes(ctLabel()); return { r, i, d, hit, st: !d ? "번호 없음" : has ? "이미 있음" : hit ? "라벨만 더함" : "새로 넣음" }; });
+      CT.addItems = items;
+      const n = { new: items.filter((x) => x.st === "새로 넣음").length, lab: items.filter((x) => x.st === "라벨만 더함").length, no: items.filter((x) => x.st === "번호 없음").length, has: items.filter((x) => x.st === "이미 있음").length };
+      list = `<div class="ct-sum">라벨 <b>${esc(ctLabel())}</b> · 새로 ${n.new} · 라벨만 더함 ${n.lab}${n.has ? ` · 이미 있음 ${n.has}` : ""}${n.no ? ` · 번호 없음 ${n.no}` : ""}</div>
+        <div class="ct-list">${items.map((x) => `<label class="ct-it${x.st === "번호 없음" || x.st === "이미 있음" ? " off" : ""}"><input type="checkbox" class="cb" data-ct-sel="${x.i}" ${CT.sel.has(x.i) ? "checked" : ""} ${x.st === "번호 없음" || x.st === "이미 있음" ? "disabled" : ""}><span class="ct-nm">${esc(x.r.name)}<small>${x.r.phone ? esc(String(x.r.phone).replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-$3")) : "번호가 없어 넣을 수 없음"}${x.hit ? " · 이미 있는 연락처" : ""}</small></span><span class="ct-tg ${x.st === "새로 넣음" ? "new" : x.st === "번호 없음" ? "no" : ""}">${x.st}</span></label>`).join("") || '<p class="hint">이번 달 이관 고객이 없습니다.</p>'}</div>
+        <p class="hint ct-note">이름·휴대전화·주소와 메모 한 줄(상품·보험료·담당)을 넣습니다. 이미 있는 사람은 새로 만들지 않고 라벨과 빈 칸만 채웁니다.</p>
+        <button type="button" class="ntf-save" data-ct-go="add" ${CT.sel.size && !CT.busy ? "" : "disabled"}>${CT.busy ? esc(CT.busy) : CT.sel.size + "명 넣기"}</button>`;
+    } else if (CT.mode === "clean") {
+      const keep = new Set(CT.rows.map((r) => r.custId).filter(Boolean));
+      const items = CT.people.filter(ctIsApp).map((p, i) => { const id = ctCustId(p), labs = ctLabels(p).filter((l) => /^\d{6}/.test(l)); return { p, i, id, labs, cand: !id || !keep.has(id) }; }).sort((a, b) => (b.cand - a.cand) || String(a.labs[0] || "").localeCompare(String(b.labs[0] || "")));
+      CT.cleanItems = items;
+      list = `<div class="ct-sum">앱이 넣은 연락처 ${items.length}명 · 이달목표에서 빠진 고객 ${items.filter((x) => x.cand).length}명을 먼저 골라 두었습니다</div>
+        <div class="ct-list">${items.map((x, k) => `<label class="ct-it"><input type="checkbox" class="cb" data-ct-sel="${k}" ${CT.sel.has(k) ? "checked" : ""}><span class="ct-nm">${esc(((x.p.names || [])[0] || {}).displayName || "(이름 없음)")}<small>${esc(x.labs.join(" · ") || CT_APP)}${x.cand ? " · 이달목표에 없음" : " · 이달목표에 있음"}</small></span><span class="ct-tg ${x.cand ? "del" : ""}">${x.cand ? "지울 후보" : "남김"}</span></label>`).join("") || '<p class="hint">앱이 넣은 연락처가 없습니다.</p>'}</div>
+        <button type="button" class="ntf-save ct-del" data-ct-go="clean" ${CT.sel.size && !CT.busy ? "" : "disabled"}>${CT.busy ? esc(CT.busy) : CT.sel.size + "명 지우기"}</button>`;
+    }
+    body.innerHTML = `<div class="card ct-wrap"><div class="ct-head"><button type="button" class="ev-edit org-back-btn" data-ct-back>‹ 설정</button><h3 class="sec-title">주소록 관리</h3></div>
+      <p class="hint ct-acc">내 구글 주소록${acc ? `(${esc(acc)})` : ""}에 넣고 지웁니다. 앱이 넣은 연락처만 지울 수 있습니다.</p>
+      <div class="ct-bar"><span>이관 · ${fcSel} · ${esc(CT.ym.slice(0, 4))}-${esc(CT.ym.slice(4))} · ${CT.rows.length}명</span></div><div class="ct-acts"><button type="button" class="ct-b${CT.mode === "add" ? " on" : ""}" data-ct-mode="add">주소록 넣기</button><button type="button" class="ct-b${CT.mode === "clean" ? " on" : ""}" data-ct-mode="clean">주소록 정리</button></div>
+      ${CT.msg ? `<div class="ct-msg">${CT.msg}</div>` : ""}${list}</div>`;
+  }
+  async function ctMode(m) {
+    CT.mode = m; CT.sel = new Set(); CT.msg = ""; CT.busy = "주소록을 읽는 중…"; renderContacts();
+    try { await ctLoadAll(); }
+    catch (e) { CT.mode = ""; CT.busy = false; CT.msg = esc(e.message || String(e)) + ` <button type="button" class="ev-edit" data-ct-mode="${m}">다시 연결</button>`; renderContacts(); return; }
+    CT.busy = false;
+    if (m === "add") { renderContacts(); (CT.addItems || []).forEach((x) => { if (x.st === "새로 넣음" || x.st === "라벨만 더함") CT.sel.add(x.i); }); }
+    else { renderContacts(); (CT.cleanItems || []).forEach((x, k) => { if (x.cand) CT.sel.add(k); }); }
+    renderContacts();
+  }
+  async function ctAdd() {
+    const items = (CT.addItems || []).filter((x) => CT.sel.has(x.i)); if (!items.length) return;
+    let ok = 0, lab = 0; const fail = [];
+    try {
+      const gLab = await ctGroup(ctLabel()), gApp = await ctGroup(CT_APP);
+      for (let k = 0; k < items.length; k++) { // 같은 사용자 쓰기는 차례로(People API 안내)
+        const x = items[k]; CT.busy = `넣는 중 ${k + 1}/${items.length}`; renderContacts();
+        try {
+          if (x.hit) {
+            const add = [gLab, gApp].filter((g) => !(x.hit.memberships || []).some((m) => m.contactGroupMembership && m.contactGroupMembership.contactGroupResourceName === g));
+            for (const g of add) await ctApi(g + "/members:modify", { method: "POST", body: { resourceNamesToAdd: [x.hit.resourceName] } });
+            const upd = {}, fields = [];
+            if (!(x.hit.addresses || []).length && x.r.addr) { upd.addresses = [{ formattedValue: x.r.addr, type: "home" }]; fields.push("addresses"); }
+            if (!(x.hit.biographies || []).length) { upd.biographies = [{ value: x.r.note, contentType: "TEXT_PLAIN" }]; fields.push("biographies"); }
+            if (!ctCustId(x.hit) && x.r.custId) { upd.externalIds = [...(x.hit.externalIds || []), { value: x.r.custId, type: CT_IDT }]; fields.push("externalIds"); }
+            if (fields.length) await ctApi(x.hit.resourceName + ":updateContact?updatePersonFields=" + fields.join(","), { method: "PATCH", body: { etag: x.hit.etag, ...upd } });
+            lab++;
+          } else {
+            await ctApi("people:createContact?personFields=names", { method: "POST", body: { names: [{ unstructuredName: x.r.name }], phoneNumbers: [{ value: x.r.phone, type: "mobile" }], ...(x.r.addr ? { addresses: [{ formattedValue: x.r.addr, type: "home" }] } : {}), biographies: [{ value: x.r.note, contentType: "TEXT_PLAIN" }], ...(x.r.custId ? { externalIds: [{ value: x.r.custId, type: CT_IDT }] } : {}), memberships: [{ contactGroupMembership: { contactGroupResourceName: gLab } }, { contactGroupMembership: { contactGroupResourceName: gApp } }] } });
+            ok++;
+          }
+        } catch (e) { fail.push(x.r.name + "(" + String(e.message || e).slice(0, 40) + ")"); if (/People API|시간이 지났|권한/.test(e.message)) break; }
+      }
+    } catch (e) { fail.push(String(e.message || e)); }
+    CT.busy = false; CT.mode = ""; CT.sel = new Set();
+    CT.msg = `넣음 ${ok} · 라벨 더함 ${lab}${fail.length ? ` · 실패 ${fail.length}: ${esc(fail.join(", "))}` : ""}`;
+    renderContacts(); toast(fail.length ? "일부를 넣지 못했습니다." : "주소록에 넣었습니다.");
+  }
+  async function ctClean() {
+    const items = (CT.cleanItems || []).filter((x, k) => CT.sel.has(k)); if (!items.length) return;
+    if (!confirm(`${items.length}명을 주소록에서 지울까요?\n\n구글 주소록에서 영구 삭제되며 되돌릴 수 없습니다. 고객 정보(앱 데이터)는 지워지지 않습니다.`)) return;
+    let ok = 0; const fail = [];
+    for (let k = 0; k < items.length; k++) {
+      CT.busy = `지우는 중 ${k + 1}/${items.length}`; renderContacts();
+      try { await ctApi(items[k].p.resourceName + ":deleteContact", { method: "DELETE" }); ok++; } catch (e) { fail.push((((items[k].p.names || [])[0] || {}).displayName || "") + "(" + String(e.message || e).slice(0, 40) + ")"); }
+    }
+    CT.busy = false; CT.mode = ""; CT.sel = new Set();
+    CT.msg = `지움 ${ok}${fail.length ? ` · 실패 ${fail.length}: ${esc(fail.join(", "))}` : ""}`;
+    renderContacts(); toast(fail.length ? "일부를 지우지 못했습니다." : "주소록에서 지웠습니다.");
+  }
+  document.addEventListener("click", (ev) => {
+    const t = ev.target.closest && ev.target.closest("[data-ct-back],[data-ct-mode],[data-ct-go]"); if (!t || CT.busy) return;
+    if (t.dataset.ctBack != null) { if (isAdmin()) openAdmin(); else openMySettings(); return; }
+    if (t.dataset.ctMode) return ctMode(t.dataset.ctMode);
+    if (t.dataset.ctGo === "add") return ctAdd();
+    if (t.dataset.ctGo === "clean") return ctClean();
+  });
+  document.addEventListener("change", (ev) => {
+    const t = ev.target;
+    if (t && t.id === "ctFc") { CT.fc = t.value; CT.mode = ""; CT.sel = new Set(); CT.msg = ""; ctRows(); renderContacts(); return; }
+    const s = t && t.closest && t.closest("[data-ct-sel]"); if (!s) return;
+    const i = +s.dataset.ctSel; s.checked ? CT.sel.add(i) : CT.sel.delete(i);
+    const b = document.querySelector("[data-ct-go]"); if (b) { b.disabled = !CT.sel.size; b.textContent = CT.sel.size + (CT.mode === "add" ? "명 넣기" : "명 지우기"); }
+  });
   function startApp() {
     isRegistered().then((ok) => {
       if (ok) return startApp0();
