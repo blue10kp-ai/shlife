@@ -1951,3 +1951,6 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 .rpt-pdf.rpt-dbp table { font-variant-numeric: normal; } .rpt-pdf.rpt-dbp .c-지역 { width: 136px; }
 .rpt-t.rpt-db td.dbmemo { min-width: 210px; } .rpt-t.rpt-db td.dbarea { min-width: 92px; }
 .rpt-t.rpt-db td.dbmemo, .rpt-t.rpt-db td.dbarea { word-break: keep-all; overflow-wrap: anywhere; }
+
+/* v574: 이달목표 DB 줄 지역 */
+#salesView .srow .dbar { font-size: 12px; color: var(--t2); margin-left: 8px; white-space: nowrap; }
