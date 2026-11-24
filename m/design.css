@@ -2078,3 +2078,12 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 .rt .rt-se button { height: 26px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--t2); font: inherit; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; }
 .rt .rt-se button.on { background: var(--t1); color: var(--bg); border-color: var(--t1); }
 .rt .rt-p .x { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; }
+
+/* v586: 날짜 줄 [수정][추가], 수정 중 표시 */
+#salesView .rd-nav .sched-seg { display: inline-flex; gap: 6px; }
+#salesView .rd-nav .sched-rt button:disabled { opacity: .4; }
+.rt-backbar { display: flex; align-items: center; gap: 8px; }
+.rt-backbar .rt-mode { font-size: 12px; color: #d97706; font-weight: 600; }
+#salesView .rd-nav { justify-content: flex-start; gap: 4px; }
+#salesView .rd-nav .sched-rt { position: static; transform: none; order: 9; margin-left: auto; }
+#salesView .rd-nav .sched-label { font-size: 16px; padding: 0 4px; }
