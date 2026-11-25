@@ -11157,7 +11157,7 @@
       await rtLib("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js");
       if (!el.isConnected || !window.L) return;
       const R0 = RT.res, O = o || { geo: R0.geo, M: R0.M, seq: [0, ...R0.order, R0.pts.length - 1], names: R0.pts.map((p) => p.name) }, L = window.L, seq = O.seq, R = { geo: O.geo, M: O.M };
-      const map = L.map(el, { zoomControl: true, attributionControl: true });
+      const map = L.map(el, { zoomControl: true, attributionControl: true, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false }); // v599(사용자 지시): 확대·축소는 +/- 버튼으로만
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
       const ll = (i) => [R.geo[i].y, R.geo[i].x], bounds = [];
       const lineC = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#2b5aa6";
