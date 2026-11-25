@@ -6300,7 +6300,7 @@
     const s_start = sec("시작 화면", ["<b>2026-11-21부터 처음 화면은 대시보드로 고정</b>되어 시작 화면 고르기는 숨겼습니다(아래 설명은 다시 살릴 때를 위한 참고). 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능은 그대로입니다.", "<b>처음 보일 화면</b>: 설정 화면의 '화면' 카드 가운데 칸(시작 화면)에서 일정 · 고객(기본) · 세일즈 중 하나를 고르면 바로 저장되고, 다음에 앱을 열 때부터 적용됩니다. 같은 카드 왼쪽 칸은 ‘시작하면 AI 도우미 바로 열기’, 오른쪽 칸은 ‘오른손 모드’입니다. 저장한 값은 내 FC 폴더 안 '_앱설정' 폴더에도 기록되어 관리자가 확인·수정할 수 있고, 다른 폰에도 따라갑니다. 관리자는 설정 화면 아래 ‘관리자’의 각 사용자 카드(눌러서 펼침) 안 ‘시작 화면’에서 그 사용자의 값을 보고 바꿀 수 있습니다.", "<b>AI 도우미 바로 열기</b>: '화면' 카드 왼쪽 칸을 켜면 앱을 열자마자 AI 도우미 창이 올라옵니다.", "내 FC 폴더에 쓸 수 없는 계정은 이 폰에만 저장됩니다. 앱을 쓰다 잠깐 나갔다 30분 안에 돌아오면 보던 화면(일정·영업)을 이어서 보여 주는 기능이 먼저 적용될 수 있습니다."]);
     const s_ai = sec("AI 도우미", ["<b>2026-11-19부터 AI 버튼(아래 메뉴 맨 왼쪽 아이콘·떠 있는 버튼)은 우선 숨겼습니다.</b> 다시 보이게 할 때까지 아래 설명은 참고용입니다.", "<b>열기·닫기</b>: 아래 메뉴 맨 왼쪽의 앱 아이콘을 누르면 AI 도우미가 아래에서 올라옵니다. 아래로 끌어내리거나, 아이콘을 한 번 더 누르거나, 바깥 어두운 곳을 누르거나, 폰의 뒤로가기를 누르면 내려갑니다.", "<b>말하기·입력</b>: 큰 마이크 버튼을 눌러 말하면 입력칸에 글자로 들어가고, 키보드로 직접 써도 됩니다. 아래 예시 문구를 누르면 입력칸에 들어갑니다.", "<b>지금 알아듣는 말</b>: ① “홍길동 검색” → 고객 검색 ② “내일 오후 3시 홍길동 상담 일정 추가” → 구글 캘린더(1팀)에 1시간짜리 일정 등록 (“내 일정에 …”이라고 하면 내 FC 이름과 같은 이름의 내 캘린더에 등록, 이때는 앞 글자를 붙이지 않음) (시간을 말하지 않으면 종일 일정, 날짜를 말하지 않으면 오늘) ③ “오늘 일정 보여줘” → 일정 화면. 말한 뒤에는 \"이렇게 이해했습니다\" 확인 카드가 뜨고, [실행]을 눌러야 실제로 처리됩니다. 못 알아들으면 말하는 방법을 안내합니다.", "<b>일정 구분(제목 앞 글자)</b>: 관리자가 사용자마다 정해 두면(설정 화면 아래 ‘관리자’의 각 사용자 카드 안 ‘일정 구분’) 등록할 때 제목 맨 앞에 붙습니다. 예: 최)홍길동 상담. 칸에는 글자만 적어도 뒤에 ‘)’가 자동으로 붙고, ‘)’까지 적어도 하나만 붙습니다", "<b>이름 보호</b>: 위 말처럼 규칙으로 알아듣는 말은 이 폰 안에서만 처리하고 밖으로 보내지 않습니다. 규칙으로 못 알아들은 말만 Gemini(외부 AI)에 '무슨 뜻인지'를 묻는데, 그때 고객 이름은 [고객1] 같은 자리표시로, 주민번호·전화·계좌·이메일·주소 같은 숫자·주소는 [숫자]·[주소]로 가려서 보내고 답을 받은 뒤 앱 안에서 되돌립니다. 말만해요 설정에 Gemini 키가 없거나 연결이 안 되면 규칙만 쓰며, 확인 카드에 ‘AI가 해석’이라고 표시되고 [실행]을 눌러야 처리됩니다."]);
     const s_task = sec("구글 할 일 (일정 화면)", ["<b>[일정으로]</b>: 할 일 줄의 [일정으로]를 누르면 그 할 일을 캘린더 일정으로 옮기고 할 일은 지웁니다. 일정에서 [할 일로] 옮길 때 메모에 적힌 <b>예전 시간</b>(‘시간: 09:00~10:00’)이 있으면 그 시간으로, 없으면 <b>종일 일정</b>으로 만듭니다. 날짜는 마감일(없으면 보고 있는 날), 캘린더는 원래 있던 캘린더(없으면 기본 캘린더)이고, 장소·메모·작성자·고객 연결도 이어집니다.", "<b>할 일 제목에 등록된 고객 이름이 있으면</b> 그 할 일 줄 아래에 <b>일정과 똑같은 고객 카드</b>(이름·생년월일·연락처·주소·미팅장소·상담기록, 이름을 누르면 고객 정보)가 붙습니다. <b>종일 일정</b>도 캘린더와 상관없이 이름으로 고객을 찾습니다. 같은 이름이 여러 명이면 [선택]으로 한 명을 고르고(나중에 [다시 선택]), 관계없으면 [해당 없음]([되돌리기]로 다시 연결). 고른 값은 할 일 메모의 ‘고객연결: …’ 줄에 저장되어 모든 기기에서 같게 보입니다.", "<b>관리자</b>는 할 일을 추가·수정할 때 <b>사용자</b>를 고를 수 있습니다(기본 = 본인). 구글 할 일은 로그인한 계정의 것이라, 다른 사용자를 고르면 할 일 메모 맨 윗줄에 ‘작성: 이름’이 적히고 목록에는 ‘- 이름’으로 보입니다(본인으로 되돌리면 그 줄이 지워짐).", "<b>모든 일정</b> 카드(종일이 아니어도)에는 <b>[할 일로]</b> 버튼이 있습니다(시간이 있는 일정은 할 일 메모에 시간이 적힙니다). 누르면 그 날짜가 마감인 구글 할 일(기본 목록)을 만들고 캘린더 일정은 지웁니다. 장소·메모는 할 일의 메모로 옮겨집니다. 지운 일정은 화면을 새로 고치기 전까지 [원위치]로 되살릴 수 있습니다(만든 할 일은 그대로 남음).", "그날 마감인 구글 할 일이 일정 화면 맨 위에 나오고, 체크하면 완료로 바뀝니다.", "오늘(Today)을 볼 때는 아래에 작은 묶음 두 개가 더 나옵니다: '밀린 할 일'(마감이 지났는데 아직 안 한 일, 오래된 것부터, 앞에 마감일)과 '날짜 없음'(마감일이 없는 일). 체크하면 완료되어 묶음에서 빠지고, 6.5초 안에 [되돌리기]로 되살릴 수 있습니다. 제목 옆 숫자는 남은 할 일/전체입니다.", "할 일 줄 오른쪽 [수정]으로 제목·마감일을 고치고(마감일을 비우면 '날짜 없음'), [삭제]는 확인 뒤 지우며 6.5초 안에 [되돌리기]로 다시 만들 수 있습니다. 목록 이름은 할 일 목록이 둘 이상일 때만 보입니다.", "로그인할 때 할 일 권한도 함께 허용하면 따로 연결하지 않아도 됩니다. 연결이 풀리면(약 1시간 뒤) 앱이 먼저 조용히 다시 연결을 시도하고, 안 되면 나오는 [연결] 버튼을 한 번 누르세요."]);
-    const s_nm = sec("일정 제목 → 고객 찾기 (2026-11-17)", ["<b>낱말로 찾기(v579)</b>: 일정 제목에 고객의 전체 이름이 없어도, 제목의 낱말이 이름 안에 들어 있으면 고객을 추천합니다(예: 'Keiko 상담' → Okamoto Keiko). 미팅·상담 같은 흔한 말은 빼고 찾습니다. 영어 이름은 낱말마다 첫 글자만 대문자로 보입니다.", "<b>고객 연결 기록(v559)</b>: 일정에서 고객이 한 명으로 찾아지거나 [선택]·[무시]·[다시 선택]을 누르면, 그 연결(고객ID·담당 FC·고객의 FC·종류)을 구글 일정의 숨은 칸과 고객 폴더의 <b>일정매칭</b> 기록에 남깁니다. 그래서 다른 앱·관리 세션도 \"이 일정 = 어느 고객\"을 바로 알 수 있습니다. 화면 모양은 그대로이고, 설명란에는 적지 않습니다. 캘린더 수정 권한이 없으면 기록 파일에만 남깁니다.", "일정 화면을 <b>좌우로 밀면</b> Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월로 넘어갑니다.", "일정 제목에 <b>등록된 고객 이름</b>이 있으면(‘고객’ 글자가 없어도, 날짜와 상관없이) 그 고객 카드가 일정에 붙고, 카드에서 장소 ‘입력’을 할 수 있습니다. 같은 이름의 고객이 여럿이면 [선택]으로 고르고, 상관없는 고객이면 [무시]로 숨깁니다. 등록된 고객에 없는 이름이면 아무것도 붙이지 않습니다. (2026-11-18: 하루 동안 쓰던 ‘이름 + 고객’ 규칙은 풀었습니다.)"]);
+    const s_nm = sec("일정 제목 → 고객 찾기 (2026-11-17)", ["<b>낱말로 찾기(v579)</b>: 일정 제목에 고객의 전체 이름이 없어도, 제목의 낱말이 이름 안에 들어 있으면 고객을 추천합니다(예: 'Keiko 상담' → Okamoto Keiko). 미팅·상담 같은 흔한 말은 빼고 찾습니다. 영어 이름은 낱말마다 첫 글자만 대문자로 보입니다.", "<b>고객 연결 기록(v559)</b>: 일정에서 고객이 한 명으로 찾아지거나 [선택]·[무시]·[다시 선택]을 누르면, 그 연결(고객ID·담당 FC·고객의 FC·종류)을 구글 일정의 숨은 칸과 고객 폴더의 <b>일정매칭</b> 기록에 남깁니다. 그래서 다른 앱·관리 세션도 \"이 일정 = 어느 고객\"을 바로 알 수 있습니다. 화면 모양은 그대로이고, 설명란에는 적지 않습니다. 캘린더 수정 권한이 없으면 기록 파일에만 남깁니다.", "일정 화면을 <b>좌우로 밀면</b> Today는 전날·다음날, Week는 전주·다음주, Month는 전월·다음월로 넘어갑니다.", "Today 화면 맨 밑의 <b>오늘 동선</b> 카드: 회사 출발 → 영업일정(시간 순) → 회사 도착을 지도에 길로 그리고 총 거리·이동 시간을 보여 줍니다(세일즈 › 동선관리와 같은 지도). 위치를 못 찾은 일정은 지도에서 뺍니다.","일정 제목에 <b>등록된 고객 이름</b>이 있으면(‘고객’ 글자가 없어도, 날짜와 상관없이) 그 고객 카드가 일정에 붙고, 카드에서 장소 ‘입력’을 할 수 있습니다. 같은 이름의 고객이 여럿이면 [선택]으로 고르고, 상관없는 고객이면 [무시]로 숨깁니다. 등록된 고객에 없는 이름이면 아무것도 붙이지 않습니다. (2026-11-18: 하루 동안 쓰던 ‘이름 + 고객’ 규칙은 풀었습니다.)"]);
     const s_cal = sec("구글 캘린더 (표)", ["<b>Show</b>: 일정 화면에 보일 캘린더를 고릅니다. 꺼 두면 일정·정보를 켤 수 없습니다.", "<b>일정</b>: 영업 일정으로 쓸 캘린더입니다. 고객 매칭을 하고, 이동 거리·예상 시간·회사 출발·도착은 그 일정 카드의 <b>비영업</b> 버튼을 눌러 영업일정으로 바꾼 일정에만 계산됩니다(예전에 1팀 캘린더에 만든 일정은 그대로 영업일정). 켜면 정보도 함께 켜집니다.", "<b>정보</b>: 이 캘린더의 일정에서 고객 정보를 찾아 붙입니다. 끄면 일정도 꺼집니다."]);
     const s_addev = sec("일정 추가 (일정 화면)", ["<b>날짜 고르기(v561)</b>: 앱의 모든 날짜 칸(일정·할 일·청구·알림 기간·입사일·병역·졸업 연도·결혼기념일·자동차보험 갱신일)은 칸을 누르면 바로 아래에 달력이 떠서 고릅니다(직접 입력 없음). 기간은 시작과 끝을 차례로 누르고, [지우기]로 비울 수 있습니다. PC에서는 Enter로 열고 화살표·Enter로 고릅니다.", "[선택]으로 고객과 묶은 일정·할 일에는 <b>[해당 없음]</b> 버튼이 보이지 않습니다. [다시 선택]으로 풀면 다시 보입니다.", "<b>일정과 고객이 묶여 있으면</b>(이름이 맞는 고객이 있어 [선택]을 눌러 한 명과 연결한 일정만, [다시 선택]이 보이는 상태) 카드 왼쪽에 <b>파란색 굵은 선</b>이 보입니다.", "<b>일정 카드의 [수정]·[삭제] 버튼은 평소에 접혀 있습니다.</b> ([할 일로]는 [영업/비영업] 왼쪽에 항상 보입니다.) 일정 칸(시간 줄이든 제목 줄이든)을 터치하면 제목 줄 아래 오른쪽 끝으로 펼쳐지고, 한 번 더 터치하면 접힙니다. [영업/비영업]은 예전처럼 윗줄 오른쪽에 항상 보입니다. <b>[수정]</b>에는 <b>종일</b> 체크가 있어, 종일 일정은 체크를 풀고 시작·종료 시간을 넣으면 시간 일정으로, 시간 일정은 체크하면 종일 일정으로 저장됩니다.", "<b>관리자</b>는 이미 있는 일정을 <b>[수정]</b>할 때도 맨 아래 <b>작성자</b>를 바꿀 수 있습니다(고르는 사람은 내가 쓸 수 있는(공유받은) 캘린더를 가진 사람만, 본인으로 되돌리면 작성자 표시가 지워짐). 할 일 [수정]의 <b>사용자</b>도 같은 사람들 중에서 고릅니다.", "<b>2026-11-18부터</b> 추가 칸 맨 위에서 <b>[일정]</b>과 <b>[할 일]</b>을 먼저 고릅니다. <b>일정</b>은 제목·캘린더·날짜·종일/시간·장소(관리자는 작성자), <b>할 일</b>은 제목·<b>마감일</b>·메모(관리자는 <b>사용자</b>도 고름)만 입력하고 [할 일 등록]을 누르면 구글 할 일(기본 목록)에 그 날짜가 마감인 할 일이 만들어집니다(처음 한 번은 할 일 연결 창이 뜰 수 있음).", "일정 화면 오른쪽 위의 <b>추가</b> 버튼을 누르면 제목·캘린더·날짜·시간(또는 종일)·장소를 넣어 새 일정을 구글 캘린더에 등록할 수 있습니다. 처음 열 때 캘린더는 1팀이 선택되어 있습니다.", "일정은 처음에 모두 <b>비영업일정</b>입니다. 카드의 <b>비영업</b> 버튼(수정 왼쪽)을 누르면 <b>영업일정</b>이 되어 이동 거리·시간이 나옵니다(영업일정 카드에는 ‘영업’ 버튼이 나오고, 누르면 다시 비영업일정으로 돌아갑니다. 버튼 글자는 지금 상태입니다). (일정 위쪽의 [초기화] 버튼은 2026-11-19에 없앴습니다.) 새로 만든 일정과 1팀 외 캘린더의 일정은 비영업일정으로 시작합니다."]);
     const s_sub = sec("세일즈 서브메뉴", ["세일즈 화면 맨 위의 <b>이달목표</b>(이관·따행·DB 목록)와 <b>보고서</b>를 눌러 바꿉니다. <b>보고서</b>에는 <b>조건 보고서</b>가 있습니다: 사용자(내 권한 범위) · 유형(따행/이관/DB, 여러 개) · <b>단계</b>(신규·계약·완료·지옥, 여러 개 — 계약은 DB의 계약 고객) · <b>기간</b>(년월 하나)을 고르면 건수가 바로 나오고, <b>진행</b>을 누르면 보고서가 화면에 나타납니다. 기간의 <b>[3개월]</b>·<b>[1년]</b>은 이번 달까지의 그 기간으로 <b>누르는 즉시 보고서</b>를 보여 줍니다(진행을 누르지 않아도 됨). 이관은 이관일, 따행은 대상년월이 기간 안인 고객입니다. 그 아래 <b>엑셀 다운</b> · <b>PDF 다운</b> · <b>PDF 열람</b> · <b>이메일(나에게)</b>(본문에 명단만, 파일 첨부는 안 됨) 버튼이 있습니다. DB는 월과 상관없이 지금 DB 고객 전체입니다. 이달목표 안에는 월 줄 오른쪽 드롭박스로 고르는 <b>따행</b> · <b>이관</b>(이달 이관) · <b>DB</b>(고객 시트의 유입경로가 ‘DB’인 고객, 유입일 최신순·같은 날은 이름순, 전화·문자 버튼 포함, 줄 오른쪽에 이관과 같은 영업단계 칩)가 있습니다. 이관·따행·DB 모두 줄의 작은 <b>이동</b>으로 보관에 넣고, ‘N명’ 줄 오른쪽 <b>보관 M</b> 칩에서 보관된 고객을 보며 <b>원복</b>으로 되돌립니다(자세한 것은 ‘보관 (이동 · 원복)’). 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보입니다. 이관·따행·DB 줄 왼쪽의 굵은 색 선은 지금 단계(이관·DB = 통화·AP·PC·계약, 따행 = 마지막으로 한 단계)의 색이고, 따행 칩은 방문완료 > 설문발송 > 설문응답 > 쿠폰발송 중 마지막으로 한 칩만 색이 들어옵니다(설문·쿠폰 필터는 그대로 값이 있는 고객을 모두 보여 줌). 월 옆 FC 선택창에는 본인 FC와, 관리자 화면 계정 카드의 ‘세일즈 페이지 접근 허용’에 체크한 FC만 나옵니다(하나뿐이면 선택창 없음). 관리자는 월 왼쪽 <b>사용자 선택</b>에서 아무 사용자나 고를 수 있고, 그러면 오른쪽 FC 선택창에 그 사용자의 본인 FC와 ‘세일즈 페이지 접근 허용’ FC만 나옵니다(그 사용자 화면과 같은 기준). 보고서는 세일즈에 쓰는 자료를 모아 둘 자리이며, 담을 내용은 정해지는 대로 채웁니다."]);
@@ -7502,7 +7502,7 @@
     items.forEach((it) => { it.cust = it.custs[0] || null; });
     const list = $("dayList");
     list.innerHTML = items.map((it, i) => `<div class="travel" id="tr${i}" hidden></div>${dayCardHtml(it, i)}`).join("") +
-      `<div class="travel" id="tr${items.length}" hidden></div>`;
+      `<div class="travel" id="tr${items.length}" hidden></div><div id="schedMapBox"></div>`; // v595: 맨 밑 동선 지도 카드 자리(renderTravel이 채움)
     items.forEach((it, i) => bindDayCard(it, i, req));
     schedApplyResume();
     // 추가정보(미팅장소, 상담기록)
@@ -8141,14 +8141,14 @@
     const legTxt = (r) => r ? `🚗 ${r.km.toFixed(1)}km · ${r.min}분` : '🚗 <span class="hint">경로를 계산할 수 없음</span>';
     // 회사 출발
     if (company && pts[0]) {
-      const r = await route(company, pts[0].p);
+      const r = await rtRoute(company, pts[0].p); // v595: 같은 구간은 한 번만 길찾기(지도에서 다시 씀)
       const leave = r ? new Date(timed[0].e.start - r.min * 60000) : null;
       show(timed[0].i, `<span class="tl">${leave ? `🏢 회사 출발 ${hm(leave)}` : "🏢 회사에서"}</span><span class="tr">${legTxt(r)}</span>`); // 왼쪽: 회사 출발 / 오른쪽: 🚗 거리·시간
     }
     for (let k = 1; k < timed.length; k++) {
       if (req !== schedReq) return;
       const a = pts[k - 1], b = pts[k];
-      const r = a && b ? await route(a.p, b.p) : null;
+      const r = a && b ? await rtRoute(a.p, b.p) : null;
       const gap = Math.round((timed[k].e.start - timed[k - 1].e.end) / 60000);
       const late = r && gap < r.min ? `<span class="warn" title="이동시간 부족 (여유 ${Math.max(gap, 0)}분)" aria-label="이동시간 부족">⚠</span> ` : ""; // 문구 없이 빨간 ⚠ 표시만, 맨 앞에
       show(timed[k].i, `<span class="tr">${late}${legTxt(r)}</span>`);
@@ -8156,10 +8156,28 @@
     // 회사 복귀: 마지막 1팀 일정 뒤
     const last = timed[timed.length - 1], lp = pts[pts.length - 1];
     if (company && lp) {
-      const r = await route(lp.p, company);
+      const r = await rtRoute(lp.p, company);
       const back = r ? new Date(+last.e.end + r.min * 60000) : null;
       show(last.i + 1, `<span class="tl">${back ? `🏢 회사 도착 ${hm(back)}` : ""}</span><span class="tr">${legTxt(r)}</span>`);
     }
+    if (req === schedReq) await schedMapDraw(timed, pts, company, req);
+  }
+  // v595(2026-11-25 사용자 지시, 시안 확인 "이대로 코딩"): 일정 Today 맨 밑 '오늘 동선' 카드 — 세일즈 > 동선관리와 같은 지도(회사 출발 → 영업일정 시간 순 → 회사 도착)
+  async function schedMapDraw(timed, pts, company, req) {
+    const box = $("schedMapBox"); if (!box) return;
+    const ok = timed.map((it, k) => ({ it, p: pts[k] && pts[k].p })).filter((x) => x.p); // 위치를 못 찾은 일정은 뺌
+    if (!ok.length || (!company && ok.length < 2)) { box.innerHTML = ""; return; }
+    const geo = company ? [company, ...ok.map((x) => x.p), company] : ok.map((x) => x.p);
+    const M = geo.map(() => []);
+    let km = 0, mv = 0;
+    for (let k = 0; k + 1 < geo.length; k++) { const r = await rtRoute(geo[k], geo[k + 1]); M[k][k + 1] = r; if (r) { km += r.km; mv += r.min; } }
+    if (req !== schedReq || !box.isConnected) return;
+    const lab = sameDay(schedDate, new Date()) ? "오늘 동선" : `${schedDate.getMonth() + 1}월 ${schedDate.getDate()}일 동선`;
+    const route0 = company ? `회사 출발 → ${ok.map((_, k) => k + 1).join(" → ")} → 회사 도착` : ok.map((_, k) => k + 1).join(" → ");
+    box.innerHTML = `<div class="card rt sched-map"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b>${lab}</b><div class="rt-sum" style="margin:0 0 6px"><span><b>${km.toFixed(1)}</b>km</span><span>이동 <b>${Math.floor(mv / 60)}:${pad2(mv % 60)}</b></span></div></div>
+      <div id="schedMap" class="rt-map" aria-label="${esc(lab)} 지도"></div>
+      <p class="hint2">영업일정 ${ok.length}건 · ${route0} (일정 시간 순서)${ok.length < timed.length ? ` · 위치를 못 찾은 ${timed.length - ok.length}건은 뺌` : ""}</p></div>`;
+    rtMapDraw({ el: "schedMap", geo, M, seq: geo.map((_, k) => k), names: company ? ["회사", ...ok.map((x) => x.it.e.title), "회사"] : ok.map((x) => x.it.e.title), noEnds: !company });
   }
 
 
@@ -11090,11 +11108,11 @@
   // v581(사용자 지시 "지도에 각 일정의 위치와 동선"): Leaflet + 오픈스트리트맵 바탕, 카카오 길찾기 길 모양을 선으로
   const rtLib = (u, css) => new Promise((res, rej) => { if (document.querySelector(`[data-rtlib="${u}"]`)) return res(); const el = document.createElement(css ? "link" : "script"); el.dataset.rtlib = u; if (css) { el.rel = "stylesheet"; el.href = u; res(); } else { el.src = u; el.onload = res; el.onerror = () => rej(new Error("지도 도구를 불러오지 못했습니다")); } document.head.appendChild(el); });
   async function rtMapDraw(o) {
-    const el = $("rtMap"); if (!el || (!o && !RT.res)) return;
+    const el = $((o && o.el) || "rtMap"); if (!el || (!o && !RT.res)) return; // v595: o.el = 다른 화면의 지도 칸(일정 Today 맨 밑), o.noEnds = 출발·도착 없이 1·2·3만
     try {
       await rtLib("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css", true);
       await rtLib("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js");
-      if (!$("rtMap") || !window.L) return;
+      if (!el.isConnected || !window.L) return;
       const R0 = RT.res, O = o || { geo: R0.geo, M: R0.M, seq: [0, ...R0.order, R0.pts.length - 1], names: R0.pts.map((p) => p.name) }, L = window.L, seq = O.seq, R = { geo: O.geo, M: O.M };
       const map = L.map(el, { zoomControl: true, attributionControl: true });
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(map);
@@ -11102,8 +11120,8 @@
       const lineC = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#2b5aa6";
       for (let k = 0; k + 1 < seq.length; k++) { const r = R.M[seq[k]][seq[k + 1]]; const path = r && r.path && r.path.length ? r.path : [ll(seq[k]), ll(seq[k + 1])]; L.polyline(path, { color: lineC, weight: 4, opacity: 0.8 }).addTo(map); path.forEach((q) => bounds.push(q)); }
       seq.forEach((i, k) => {
-        const end = k === 0 || k === seq.length - 1, txt = k === 0 ? "출" : k === seq.length - 1 ? "도" : String(k);
-        if (k === seq.length - 1 && seq[0] !== i && Math.abs(R.geo[i].x - R.geo[seq[0]].x) < 1e-6 && Math.abs(R.geo[i].y - R.geo[seq[0]].y) < 1e-6) return;
+        const end = !O.noEnds && (k === 0 || k === seq.length - 1), txt = O.noEnds ? String(k + 1) : k === 0 ? "출" : k === seq.length - 1 ? "도" : String(k);
+        if (!O.noEnds && k === seq.length - 1 && seq[0] !== i && Math.abs(R.geo[i].x - R.geo[seq[0]].x) < 1e-6 && Math.abs(R.geo[i].y - R.geo[seq[0]].y) < 1e-6) return;
         L.marker(ll(i), { icon: L.divIcon({ className: "rt-mk" + (end ? " end" : ""), html: `<span>${txt}</span>`, iconSize: [24, 24], iconAnchor: [12, 12] }), title: O.names[i] }).addTo(map);
         bounds.push(ll(i));
       });
