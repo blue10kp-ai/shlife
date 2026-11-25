@@ -800,18 +800,25 @@
   //   { companyAddress, kakaoRestKey, google: { account, calendars: [] } }
   const SETTINGS_FILE = CFG.settingsFile || "shlife-설정.json";
   let appSettings = { companyAddress: "", google: { account: "", calendars: [] } };
-  async function loadSettings() {
-    try {
-      await resolveAppDir();
-      const s = await stReadJsonIn(appDir, SETTINGS_FILE);
-      if (s) appSettings = { ...appSettings, ...s, google: { ...appSettings.google, ...(s.google || {}) } };
-    } catch (e) { /* 설정 파일을 못 읽으면 기본값 */ }
-    return appSettings;
+  // v597: 설정 파일은 5분 동안 다시 읽지 않음(진행 중인 요청은 같이 기다림). 관리자 화면은 loadSettings(true)로 늘 새로, 저장하면 캐시를 새 값으로
+  let settingsP = null, settingsAt = 0;
+  function loadSettings(fresh) {
+    if (!fresh && settingsP && Date.now() - settingsAt < 300000) return settingsP;
+    settingsAt = Date.now();
+    return (settingsP = (async () => {
+      try {
+        await resolveAppDir();
+        const s = await stReadJsonIn(appDir, SETTINGS_FILE);
+        if (s) appSettings = { ...appSettings, ...s, google: { ...appSettings.google, ...(s.google || {}) } };
+      } catch (e) { settingsAt = 0; /* 설정 파일을 못 읽으면 기본값(다음에 다시 읽음) */ }
+      return appSettings;
+    })());
   }
   async function saveSettings(next) {
     await resolveAppDir();
     await stWriteJsonIn(appDir, SETTINGS_FILE, next);
     appSettings = next;
+    settingsP = Promise.resolve(appSettings); settingsAt = Date.now();
   }
   // 세일즈 화면이 매번 권한 파일을 다시 읽지 않도록 'FC 이름(names)'만 세션 캐시. 권한 파일을 읽거나 쓸 때마다 갱신 (관리자 화면은 열 때 최신을 읽음). 접근 FC 판단(myAllowedFcs)은 캐시를 쓰지 않음
   let permNamesCache = null, permPrefixCache = null; // permPrefixCache: { FC이름: 일정 제목 앞 글자 }
@@ -1800,6 +1807,7 @@
   function prefetchCust() {
     if (!GD || !appStarted) return;
     loadContracts().catch(() => {}); loadFollow().catch(() => {}); readExtraCached().catch(() => {});
+    loadLists().catch(() => {}); loadHistory().catch(() => {}); loadProg().catch(() => {}); loadDbs().catch(() => {}); dashJson().catch(() => {}); // v597: 세일즈·대시보드에 쓰는 리스트도(이미 받는 중이면 같은 요청)
   }
   async function loadExtraFor(fc, name, cust) {
     const x = await readExtraCached();
@@ -3544,6 +3552,16 @@
   // 가운데: 이관·따행·DB·계약진행 목표의 단계별 막대 / 아래: 소개 랭킹 상위 3명. 보는 범위는 FC 선택(내 권한으로 보이는 FC만, 기본은 본인)
   const DSH = { fc: "" };
   async function readClaudeJson(dirPath, name) { try { const d = await stFindPathCached(dirPath); if (!d) return null; return await stReadJsonIn(d, name); } catch (e) { return null; } }
+  // v597: 대시보드의 업적·수수료·계약 파일은 앱이 쓰지 않는 파일이라 5분 동안 다시 씀(진행 중인 요청도 같이 기다림)
+  const cjCache = new Map();
+  function readClaudeJsonCached(dirPath, name) {
+    const k = dirPath + "|" + name, c = cjCache.get(k);
+    if (c && Date.now() - c.at < 300000) return c.p;
+    const p = readClaudeJson(dirPath, name); cjCache.set(k, { p, at: Date.now() });
+    return p;
+  }
+  const DASH_JSON = [["Claude/업적", "performance.json"], ["Claude/수수료", "수수료명세서.json"], ["Claude/계약", "contracts.json"]];
+  const dashJson = () => scanFiles().then(() => (canSens() ? Promise.all(DASH_JSON.map(([d, n]) => readClaudeJsonCached(d, n))) : [null, null, null]), () => [null, null, null]); // 리스트 파일을 다 받기 전에(폴더 확인만 끝나면) 시작
   const wonShort = (v) => { const n = Math.round(+v || 0); return n >= 10000 ? (Math.round(n / 1000) / 10).toLocaleString("ko-KR") + "만원" : n.toLocaleString("ko-KR") + "원"; };
   function dashBar(label, total, segs) { // segs: [[이름, 수, 색 클래스]]
     const sum = segs.reduce((a, x) => a + x[1], 0) || 1;
@@ -4207,11 +4225,12 @@
     const box = $("dashView"); if (!box) return;
     box.innerHTML = `<p class="hint pad">불러오는 중…</p>`;
     try {
-      const data = await loadSalesData(), myFc = await myFcName(), ord = CFG.fcOrder || [];
+      const jsonP = dashJson(); // v597: 세일즈 데이터와 동시에
+      const [data, myFc, pm0] = await Promise.all([loadSalesData(), myFcName(), salesPermsAll ? Promise.resolve(salesPermsAll) : readPerms().catch(() => null)]), ord = CFG.fcOrder || [];
       // v516(2026-11-21 사용자 지시): 보는 범위 선택은 ESL만(맨 위 '팀' → 팀 합계). 관리자는 처음에 팀. 그 밖의 계정은 본인 FC만
-      const pm = salesPermsAll || (await readPerms().catch(() => null));
+      const pm = salesPermsAll || pm0;
       const esl = isAdmin() || (!!pm && titleOf(pm, me()) === "ESL");
-      const [perf, fee, ctj] = canSens() ? await Promise.all([readClaudeJson("Claude/업적", "performance.json"), readClaudeJson("Claude/수수료", "수수료명세서.json"), readClaudeJson("Claude/계약", "contracts.json")]) : [null, null, null];
+      const [perf, fee, ctj] = await jsonP;
       const curFcs = ((perf && perf.currentFcs) || []).map((x) => x.name).filter(Boolean);
       const byOrd = (a, b) => ((ord.indexOf(a) + 1 || 999) - (ord.indexOf(b) + 1 || 999)) || a.localeCompare(b, "ko");
       const fcs = [...new Set([...data.lists.map((e) => e.fc), ...knownFcs, ...(esl ? curFcs : [])].filter(Boolean))].sort(byOrd);
@@ -5485,7 +5504,7 @@
     show("adminView");
     $("adminBody").innerHTML = '<p class="hint pad">권한 정보를 불러오는 중…</p>';
     try {
-      await Promise.all([loadAdminState(), loadSettings()]);
+      await Promise.all([loadAdminState(), loadSettings(true)]);
       renderAdmin();
     } catch (e) {
       $("adminBody").innerHTML = "";
@@ -5584,7 +5603,7 @@
     show("adminView");
     $("mainNav").querySelectorAll("button[data-section]").forEach((b) => b.classList.toggle("on", b.dataset.section === "team"));
     $("adminBody").innerHTML = '<p class="hint pad">권한 정보를 불러오는 중…</p>';
-    try { await Promise.all([loadAdminState(), loadSettings()]); orgOpen.clear(); openOrg(); }
+    try { await Promise.all([loadAdminState(), loadSettings(true)]); orgOpen.clear(); openOrg(); }
     catch (e) { orgFromTeam = false; $("adminBody").innerHTML = ""; handleError(e); openTeam(); }
   }
   // v485(2026-11-19 사용자 지시): 조직도는 '도입자' 기준. 팀원 파일의 도입자사번을 따라 그 사람 밑에 두고, 도입자가 팀원(이 앱 사용자)에 없으면 관리자 바로 밑.
@@ -8123,6 +8142,11 @@
 
   // 이동 거리·시간 (1팀 일정만): 회사 → 일정1 → 일정2 … → 회사
   //   장소: 미팅장소 → 고객 주소 → 일정 장소 → 일정 지역(제목)의 시청·군청
+  async function pMap(list, n, fn) { // v597: 한 번에 n개까지만 동시에 실행, 결과 순서는 그대로
+    const out = new Array(list.length); let k = 0;
+    await Promise.all(Array.from({ length: Math.min(n, list.length) }, async () => { while (k < list.length) { const i = k++; out[i] = await fn(list[i], i); } }));
+    return out;
+  }
   async function renderTravel(items, req) {
     const timed = items.map((it, i) => ({ ...it, i })).filter((it) => isTeamEvent(it.e));
     if (!timed.length || !KAKAO.restKey) return;
@@ -8139,9 +8163,16 @@
       const p = await geocode(cityHall(city));
       return p ? { p } : null;
     };
-    const pts = [];
-    for (const it of timed) pts.push(await pointOf(it));
+    const pts = await pMap(timed, 4, pointOf); // v597: 위치 찾기를 4개씩 동시에(카카오 한도에 걸리지 않게 제한)
     if (req !== schedReq) return;
+    { // v597: 길찾기도 4개씩 미리 동시에 → 아래에서는 기억해 둔 결과(rtRoute)를 바로 씀
+      const legs = [];
+      if (company && pts[0]) legs.push([company, pts[0].p]);
+      for (let k = 1; k < pts.length; k++) if (pts[k - 1] && pts[k]) legs.push([pts[k - 1].p, pts[k].p]);
+      if (company && pts[pts.length - 1]) legs.push([pts[pts.length - 1].p, company]);
+      await pMap(legs, 4, ([a, b]) => rtRoute(a, b));
+      if (req !== schedReq) return;
+    }
     const show = (slot, html) => { const el = $("tr" + slot); if (el) { el.innerHTML = html; el.hidden = false; } };
     const legTxt = (r) => r ? `🚗 ${r.km.toFixed(1)}km · ${r.min}분` : '🚗 <span class="hint">경로를 계산할 수 없음</span>';
     // 회사 출발
@@ -9085,7 +9116,7 @@
   async function smemoPrep() { // 세일즈 화면을 그리기 전에 상담기록 파일을 한 번 읽어 둠(1분 안에는 다시 읽지 않음)
     if (!smemoOn()) return;
     if (SMEMO.x && Date.now() - SMEMO.at < 60000) return;
-    try { SMEMO.x = await readExtra(); } catch (e) { SMEMO.x = null; }
+    try { SMEMO.x = await readExtraCached(); } catch (e) { SMEMO.x = null; } // v597: 고객 정보 화면과 같은 캐시(저장하면 새로 읽음)
     SMEMO.at = Date.now(); SMEMO.map = new Map();
   }
   const smemoFc = (custId, fb) => { const ents = (SALES.data && SALES.data.custById && SALES.data.custById.get(custId)) || []; return (ents.length && memoFcOf({ entries: ents })) || fb || ""; };
@@ -10379,11 +10410,8 @@
         <div class="sline2 sl3${SALES.userHtml || fcHtml ? "" : " center"}"><div class="ymnav">${SALES.stateTab ? `<b>이달목표 · ${ymLabel(ym)}</b>` : `<button type="button" data-ym="-1" aria-label="이전 달"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button><b>${ymLabel(ym)}</b><button type="button" data-ym="1" aria-label="다음 달"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>`}${top.note || ""}</div><span class="sl-rt">${SALES.userHtml || ""}${fcHtml}<select id="salesTab" aria-label="따행·이관·DB">${[["dda", "따행"], ["transfer", "이관"], ["valueup", "DB"]].map(([k, l]) => `<option value="${k}" ${SALES.tab === k ? "selected" : ""}>${l}</option>`).join("")}</select></span></div></div>`; // v348: 넓은 화면 = 월 이동 가운데, 오른쪽 [사용자][FC][따행]. v345(2026-11-15 사용자 지시): 따행·이관·DB 탭 → 월 줄 오른쪽 드롭박스, 사용자·FC 선택도 같은 줄
     if (!keep || !box.querySelector("#salesBody .slist, #salesBody .sales-info")) box.innerHTML = top(SALES.fcHtml || "") + `<div id="salesBody"><p class="hint pad">불러오는 중…</p></div>`; // 불러오는 동안에도 지난번 FC 선택창을 그대로 두어 월 줄이 위아래로 흔들리지 않게 // keep이면 기존 목록을 그대로 두고 새 내용으로 바꿈
     try {
-      const data = await loadSalesData();
+      const [data] = await Promise.all([loadSalesData(), loadMyPrefs().catch(() => {}).then(() => smemoPrep()), refreshSalesExtra()]); // v597: 데이터·내 설정·권한 확인(1분 간격 그대로)·상담기록을 동시에. v411: 메모 칸을 켠 경우만 상담기록 파일을 읽음
       if (req !== salesReq) return;
-      await loadMyPrefs().catch(() => {});
-      await refreshSalesExtra();
-      await smemoPrep(); // v411: 메모 칸을 켠 경우만 상담기록 파일을 읽음
       // v394(2026-11-17, 확정안 5-3·5-4): 이관상태·따행상태 칸이 있는 파일은 '목표' 상태 기준 목록(달 이동 없음, 이번 달 것이 위·지난 목표가 아래)
       { const hasTrState = data.contracts.some((c) => c.row && "이관상태" in c.row), hasFoState = (data.follow ? data.follow.rows : []).some((f) => "따행상태" in f);
         SALES.stateTab = (SALES.tab === "transfer" && hasTrState) || (SALES.tab === "dda" && hasFoState);
@@ -10809,8 +10837,7 @@
     const box = $("salesView");
     box.innerHTML = `<div class="card"><h3 class="sec-title">조건 보고서</h3><p class="hint">불러오는 중…</p></div>`;
     try {
-      const data = await loadSalesData(); if (req !== salesReq) return;
-      await loadMyPrefs().catch(() => {}); await refreshSalesExtra();
+      const [data] = await Promise.all([loadSalesData(), loadMyPrefs().catch(() => {}), refreshSalesExtra()]); if (req !== salesReq) return; // v597: 동시에
       const opts = await rptOptions(data); if (req !== salesReq) return;
       RPT.data = data; RPT.opts = opts; RPT.cache = null; RPT.built = null;
       if (!RPT.y) { const n = new Date(); RPT.y = n.getFullYear(); RPT.m = n.getMonth() + 1; }
