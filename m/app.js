@@ -1797,6 +1797,10 @@
     p.catch(() => { if (extraCache && extraCache.p === p) extraCache = null; });
     return p;
   }
+  function prefetchCust() {
+    if (!GD || !appStarted) return;
+    loadContracts().catch(() => {}); loadFollow().catch(() => {}); readExtraCached().catch(() => {});
+  }
   async function loadExtraFor(fc, name, cust) {
     const x = await readExtraCached();
     let base;
@@ -2040,8 +2044,9 @@
       current.fc = primaryFc(cust.entries) || fcs[0] || (folders[0] && folders[0].fc) || "";
       $("editBtn").hidden = isRO(current.fc); // 보기만 권한 FC는 수정 버튼 숨김
       $("editBtn").hidden = isRO(current.fc); // 보기 전용 FC는 수정 버튼 숨김
-      const [contracts, extra] = await Promise.all([
+      const [contracts, fw0, extra] = await Promise.all([ // v596: 따행도 같이 읽음(예전엔 계약·고객추가정보 다음에 차례로)
         loadContracts().catch((e) => { console.error(e); return []; }),
+        loadFollow().catch(() => null),
         loadExtraFor(current.fc, cust.name, cust).catch((e) => { console.error(e); return { error: true, values: {} }; })
       ]);
       const phones = new Set(cust.entries.map((e) => String(e.phone || "").replace(/\D/g, "")).filter(Boolean));
@@ -2071,7 +2076,7 @@
         note.textContent = k === "해지" && noInfo ? "해지 고객이라 정보 조회 불가" : ""; note.hidden = !note.textContent;
       }
       try { // 따행 시트(B): 이 고객의 대상년월별 기록, 최신 월부터
-        const fw = await loadFollow(), ids = new Set(cust.entries.map(idOf).filter(Boolean));
+        const fw = fw0 || { rows: [] }, ids = new Set(cust.entries.map(idOf).filter(Boolean));
         current.follows = fw.rows.filter((r) => ids.has(r["고객ID"])).sort((a, b) => ymOfFollow(b["대상년월"]).localeCompare(ymOfFollow(a["대상년월"])));
         current.followIdx = 0;
       } catch (e) { current.follows = []; }
@@ -12300,6 +12305,7 @@
     setTimeout(() => { if (!goReq) ntfCheck(); }, 1200); // v557: 로그인 직후 중요 알림(그날 한 번)
     setTimeout(wakeStart, 4000); // '몰리야' 듣기(설정에서 켠 기기만)
     setTimeout(() => { loadMyPrefs().catch(() => {}); }, 1500); // 내 설정(다크/라이트 포함)을 일찍 읽어 둠
+    setTimeout(prefetchCust, 3000); // v596(2026-11-25 사용자 "미리 받기"): 첫 화면이 뜬 뒤 계약·따행·고객추가정보를 뒤에서 미리 받음. 받는 중에 고객을 열면 같은 요청을 기다림(캐시 약속을 같이 씀)
     if (!isAdmin()) syncStartShared();
     if (readStartPref().ai && !EMBED) setTimeout(aiOpen, 400); // 설정 > 시작 화면 > AI 도우미 바로 열기
     setTimeout(askContactNote, 1500); // 전화·문자 중에 앱이 닫혔다가 다시 열린 경우
