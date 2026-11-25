@@ -2672,9 +2672,9 @@
   // ===== v551(2026-11-22 사용자 지시, 시안 확인 "이대로 코딩") 청구 탭 새 구조 =====
   //   맨 위 메뉴 4개(개인청구서 업로드 / 기본청구서 선택 / 병원서류 업로드 / 청구기록) → 누른 것의 칸이 아래에 열림(처음 = 개인청구서)
   //   기본청구서 = 앱 설정 폴더 > 보험금청구서식(안내 박스 없는 원본 + 위치.json). 1쪽 안내 박스를 담당 FC(이름·연락처)로 새로 그려 넣음(예전 공용 샘플 '김신한' 자리)
-  //   보험사 순서: 자주 쓴 서식(내설정 clmUse 횟수 많은 순) → 추천 7곳 → 나머지 이름순, 묶음 사이 가로줄
+  //   보험사 순서: 자주 쓴 서식(내설정 clmUse 횟수 많은 순) → 추천 8곳(v591: 신한EZ손해보험 추가) → 나머지 이름순, 묶음 사이 가로줄
   //   [보험금청구서 다운로드]: 고른 개인청구서 → 고른 기본청구서 → (있으면) 병원서류를 A4 회색조 300dpi JPEG 품질 70%로 끝에 → 한 PDF. 보험금청구 기록 폴더에 저장 + 기기에 내려받기 + 청구기록.json에 한 줄
-  const CLM_PIN = ["신한라이프", "삼성화재", "메리츠화재", "현대해상", "한화손해보험", "DB손해보험", "KB손해보험"];
+  const CLM_PIN = ["신한라이프", "신한EZ손해보험", "삼성화재", "메리츠화재", "현대해상", "한화손해보험", "DB손해보험", "KB손해보험"];
   const BF_DIR = "보험금청구서식", BF_POS = "위치.json", REC_FILE = "청구기록.json";
   let bfP = null; // 기본청구서 목록 { files: Map(보험사 → 파일), pos: {보험사: {x,y,w,alpha}}, ratio }
   function bfLoad() {
@@ -2701,6 +2701,7 @@
   }
   async function clmFcDefault() { // 로그인한 FC의 이름·연락처: 내설정에 적어 둔 것 → (관리자) 팀원 파일 → 이름만
     const nm = await myFcName(), pr = (await loadMyPrefs().catch(() => null)) || {}, sv = pr.clmFc || {};
+    try { if (GD && nm) { const pm = salesPermsAll || await readPerms(), inf = await readInfoShared(pm, me(), pm.fcFolders); if (inf && inf.phone) return { name: nm, phone: inf.phone }; } } catch (e) { console.warn("본인 정보 읽기", e); } // v592: 내 FC 폴더 _앱설정의 본인 정보가 먼저
     if (sv.name && (!nm || sv.name === nm)) return { name: sv.name, phone: sv.phone || "" };
     let phone = "";
     try { if (isAdmin()) { const d = await stFindPath(TM_DIR), doc = d ? await stReadJsonIn(d, TM_FILE) : null; const p = ((doc && doc.사람) || []).find((x) => (nm && x.이름 === nm) || String(x.이메일 || "").toLowerCase() === me()); if (p) phone = String(p.연락처 || ""); } } catch (e) { /* 없으면 빈칸 */ }
@@ -2877,6 +2878,7 @@
         cos.forEach((c) => { use[c] = (use[c] || 0) + 1; }); pr.clmUse = use;
         const nm = await myFcName(); if (fc.name && fc.phone && (!nm || fc.name === nm)) pr.clmFc = { name: fc.name, phone: fc.phone };
         await saveMyPrefs(pr);
+        if (nm && fc.name === nm && fc.phone && fc.phone !== ((current.clmFcDef || {}).phone || "")) { const pm = salesPermsAll || await readPerms(); if (await writeInfoShared(pm, me(), { name: nm, phone: fc.phone }, pm.fcFolders)) current.clmFcDef = { name: nm, phone: fc.phone }; } // v592: 본인이 고친 연락처를 본인 정보 파일에도
       } catch (e) { console.warn("청구 횟수 저장", e); }
     } catch (e) { handleError(e); }
     clmGray = false; clmDpi = 300; current.clmBusy = "";
@@ -5091,6 +5093,7 @@
     const perms = await permsP;
     const shares = sharesP ? await sharesP : null;
     adminState = { fcs, perms, shares, fcIds };
+    copyInfoAll(); // v592: 본인 정보 파일이 없는 사용자에게 이름·연락처 복사(기다리지 않음)
   }
 
   // ---------- Google Drive 공유 (관리자: 고객 폴더 = 편집, 설정 폴더 = 보기) ----------
@@ -5673,7 +5676,7 @@
         ${kv("오른손 모드", onoff(st.rh))}
         ${pr.at ? kv("정보 저장", esc(String(pr.at).slice(0, 16).replace("T", " "))) : ""}
       </div>`}
-      <p class="hint pf-note">권한·민감정보·위치는 조직도에서 바꿉니다. 오른손 모드는 그 사용자 폰의 설정입니다. 개인 정보는 관리자만 보는 '관리자전용' 폴더에 저장됩니다.</p>`;
+      <p class="hint pf-note">권한·민감정보·위치는 조직도에서 바꿉니다. 오른손 모드는 그 사용자 폰의 설정입니다. 개인 정보는 관리자만 보는 '관리자전용' 폴더에 저장됩니다. 이름·연락처만 그 사용자의 FC 폴더에도 복사됩니다(청구서 안내 박스용).</p>`;
   }
   function profApplyMode() { const sh = $("profSheet"); if (!sh) return; sh.classList.toggle("pf-view", !profEdit); sh.querySelectorAll(".pf-form input, .pf-form select, .pf-form textarea").forEach((x) => { if (!x.classList.contains("ro")) x.disabled = !profEdit; }); }
   async function saveOrgProfile(btn) {
@@ -5703,7 +5706,11 @@
       return saveOrgProfile(btn);
     }
     btn.disabled = true; btn.textContent = "저장 중…";
-    const after = () => { if (orgTitles) { orgTitles[em] = newTitle; try { const t = JSON.parse(orgTitlesSaved || "{}"); t[em] = newTitle; orgTitlesSaved = JSON.stringify(t); } catch (e) { /* 무시 */ } } profStart = { ...st0, ...newStart }; toast("사용자 정보를 저장했습니다."); profEdit = false; renderOrgProfile(); profApplyMode(); };
+    const phOld = String(((profAll || {})[em] || {}).phone || "");
+    const infoSync = async () => { // v592: 그 사용자의 FC 폴더 _앱설정에 본인 이름·연락처만 복사(연락처·이름이 바뀌었거나 파일이 없을 때)
+      try { if (isPend(em) || !prof.phone) return; const pm = await readPerms(); if (prof.phone !== phOld || newName !== oldName || !(await readInfoShared(pm, em, adminState.fcIds))) await writeInfoShared(pm, em, { name: newName, phone: prof.phone }, adminState.fcIds); } catch (e) { console.warn("본인 정보 복사", e); }
+    };
+    const after = () => { infoSync(); if (orgTitles) { orgTitles[em] = newTitle; try { const t = JSON.parse(orgTitlesSaved || "{}"); t[em] = newTitle; orgTitlesSaved = JSON.stringify(t); } catch (e) { /* 무시 */ } } profStart = { ...st0, ...newStart }; toast("사용자 정보를 저장했습니다."); profEdit = false; renderOrgProfile(); profApplyMode(); };
     try {
       const all = await readProfiles(); all[em] = { ...prof, at: new Date().toISOString(), by: me() }; await writeProfiles(all); profAll = all;
       const nameCh = newName !== oldName, titleCh = newTitle !== titleOf(P, em), pfxCh = newPfx !== oldPfx || (nameCh && !!oldPfx);
@@ -6217,7 +6224,7 @@
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
-    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC, 고칠 수 있음)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 7곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
+    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC의 이름·연락처, 고칠 수 있음. 연락처는 내 FC 폴더의 본인 정보에서 가져오고, 고쳐서 내려받으면 다음부터 그 번호가 나옵니다)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 8곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, s_rt, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
@@ -8651,6 +8658,34 @@
     const d = await startSubDir(d0, true);
     await stWriteJsonIn(d, startFile(em), { page: v.page, ai: !!v.ai, ...(typeof v.rh === "boolean" ? { rh: v.rh } : {}), by: me(), at: new Date().toISOString() });
     return true;
+  }
+  // v592(2026-11-25 사용자 지시 "진행"): 사용자 본인 정보(이름·연락처)만 그 사용자의 FC 폴더 > _앱설정 > shlife-내정보-<아이디>.json 에 둠
+  //   전체 사용자 정보(관리자전용 폴더)는 공유하지 않음. 관리자가 사용자 정보를 저장할 때·관리자 화면을 열 때(파일이 없을 때만) 그 사람 것만 복사, 본인이 청구 탭에서 고치면 같은 파일에 저장
+  const infoFile = (em) => "shlife-내정보-" + String(em).toLowerCase() + ".json";
+  async function readInfoShared(perms, em, fcMap) {
+    const d0 = startDirOf(perms, em, fcMap); if (!d0) return null;
+    const d = await startSubDir(d0, false); if (!d) return null;
+    const v = await stReadJsonIn(d, infoFile(em));
+    return v && typeof v === "object" ? { name: String(v.name || ""), phone: String(v.phone || "") } : null;
+  }
+  async function writeInfoShared(perms, em, v, fcMap) {
+    const d0 = startDirOf(perms, em, fcMap); if (!d0) return false;
+    const d = await startSubDir(d0, true);
+    await stWriteJsonIn(d, infoFile(em), { name: String(v.name || ""), phone: String(v.phone || ""), by: me(), at: new Date().toISOString() });
+    return true;
+  }
+  let infoCopied = false;
+  async function copyInfoAll() { // 관리자: 연락처가 있는데 본인 정보 파일이 아직 없는 사용자만 복사(있는 파일은 본인이 고쳤을 수 있어 덮지 않음)
+    if (infoCopied || !isAdmin() || !GD || !adminState) return;
+    infoCopied = true;
+    try {
+      const P = adminState.perms || {}, all = await readProfiles();
+      for (const em of Object.keys(P.users || {})) {
+        const ph = String((all[em] || {}).phone || "").trim(), nm = (P.names || {})[em] || "";
+        if (!ph || !nm || isPend(em)) continue;
+        try { if (!(await readInfoShared(P, em, adminState.fcIds))) await writeInfoShared(P, em, { name: nm, phone: ph }, adminState.fcIds); } catch (e) { console.warn("본인 정보 복사", em, e); }
+      }
+    } catch (e) { infoCopied = false; console.warn("본인 정보 복사", e); }
   }
   async function syncStartShared() { // 관리자·다른 폰에서 바꾼 값을 이 폰에 반영 (다음 실행부터 적용)
     try {
