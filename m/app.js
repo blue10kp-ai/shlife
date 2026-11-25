@@ -580,6 +580,7 @@
     if (!GD) return gx("PUT", "/drives/" + (dir.driveId || base.driveId) + "/items/" + dir.id + ":/" + encodeURIComponent(name) + ":/content", data, mime);
     const ex = await gdFindIn(dir.id, name);
     if (ex) return stPut(ex.id, data, mime);
+    try { fixTouch(dir.id); } catch (e) { /* 무시 */ } // v594: 고객 폴더에 새 파일이면 색인 갱신 예약
     const b = "shlife" + Date.now();
     const body = new Blob([
       "--" + b + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + JSON.stringify({ name, parents: [dir.id] }) +
@@ -590,6 +591,7 @@
   // 삭제 (휴지통으로)
   async function stDel(id) {
     if (!GD) return gx("DELETE", itemPath(id));
+    try { fixTouch(id); } catch (e) { /* 무시 */ } // v594: 고객 폴더의 파일이면 색인 갱신 예약
     return gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?supportsAllDrives=true&fields=id",
       { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ trashed: true }) });
   }
@@ -893,6 +895,8 @@
   //   고객/_계약/<고객폴더>, 고객/계약고객리스트.xlsx               ← FC 폴더 없이 (예전 구조)
   // "_"로 시작하는 폴더 = 분류(계약/이관/진행), 그 안의 폴더 = 고객 폴더
   let scanCache = null, scanFilesCache = null; // Promise<{ folders, files, fcs }>
+  const FIX_FILE = "파일목록.json", FIX_VER = 1, FIX_TTL = 30 * 60000; // v594 고객 파일 색인(아래 '고객 파일 색인' 참고)
+  const fcDirIds = {}, fixMem = {}, fixTimer = {}; // FC 이름 → FC 폴더 ID (scanOnce가 채움) / 색인 Promise / 저장 타이머
   // scanFiles: 처음 화면에 필요한 '리스트 파일' 위치만(빠름). scanBase: 고객 폴더 목록(사진·파일용)까지(고객을 열 때만)
   function scanFiles() { return scanFilesCache || (scanFilesCache = scanRun(false).catch((e) => { scanFilesCache = null; throw e; })); }
   let scanAt = 0; // 고객 폴더 목록을 마지막으로 읽기 시작한 때
@@ -911,6 +915,7 @@
       const folders = [], files = [], done = new Set(); // done: 폴더 ID로 이미 읽은 FC (루트 목록에서 다시 읽지 않음)
       async function scan(id, fc) {
         const items = await stList(id);
+        if (fc && !fcDirIds[fc]) { fcDirIds[fc] = id; fixLoad(fc); } // v594: FC 폴더 ID 기억 + 파일 색인 미리 읽기(기다리지 않음)
         // FC 폴더 바깥(고객 폴더 바로 아래) 파일·분류폴더는 '전체' 권한만
         const rootOk = !!fc || allowed === "*";
         if (rootOk) items.filter((i) => i.file && i.name !== PERM_FILE).forEach((f) => files.push({ ...f, fc }));
@@ -1784,8 +1789,16 @@
   // 새 구조: 메모·통신사·차량번호 등은 '고객' 시트의 같은 이름 열이 있으면 거기서 읽고 쓴다 (없는 값은 옛 고객추가정보 파일에서)
   const sheetExtraKeys = () => [...new Set([...EXTRA.primary, EXTRA.carrierCol, ...EXTRA.afterAddress])].filter(Boolean);
   const sheetEntriesOf = (cust) => (cust ? ownEntries(cust.entries).filter((e) => e.sheet === CUST_SHEET && e.src) : []);
+  // v593: 고객 열 때 읽는 고객추가정보는 2분 동안 다시 쓰고, 이 기기에서 저장하면(uploadExtra) 바로 버림. 저장할 때는 예전처럼 readExtra로 최신 파일을 새로 읽음
+  let extraCache = null; // { p, at }
+  function readExtraCached() {
+    if (extraCache && Date.now() - extraCache.at < 120000) return extraCache.p;
+    const p = readExtra(); extraCache = { p, at: Date.now() };
+    p.catch(() => { if (extraCache && extraCache.p === p) extraCache = null; });
+    return p;
+  }
   async function loadExtraFor(fc, name, cust) {
-    const x = await readExtra();
+    const x = await readExtraCached();
     let base;
     if (!x) base = { missing: true, fields: [], values: {}, consults: [] };
     else {
@@ -1819,6 +1832,7 @@
   async function uploadExtra(x) {
     await stPutBook(x.file.id, x.wb);
     delete bookCache[x.file.id];
+    extraCache = null; // v593: 저장 뒤에는 새로 읽기
   }
 
   async function saveExtraFor(fc, name, values, before) {
@@ -2019,19 +2033,10 @@
       // 새 규칙(_고객)의 폴더를 먼저, 그다음 FC 바로 아래, 옛 분류 폴더 순 (사진 올리기 등은 첫 폴더에 저장)
       const gRank = (f) => (f.group === "고객" ? 0 : f.group === "" ? 1 : 2);
       const folders = [...(sameFc.length ? sameFc : byName)].sort((a, b) => gRank(a) - gRank(b));
-      let files = [];
-      for (const f of folders) files = files.concat(await collectFiles(f.id, folders.length > 1 ? f.name + "/" : "", 0));
       current.folders = folders;
-      current.files = files;
-      current.profilePhoto = findProfilePhoto(files);
-      if (current.profilePhoto) loadProfilePhoto(); // 머리 부분 동그라미에 사진 (기기 저장 사진 확인 → 필요할 때만 받음)
-      else if (current.cachedPhoto) { // 사진이 지워짐 → 기기 저장도 지움
-        photoCacheDel(photoKey(current.cust));
-        current.cachedPhoto = null;
-        if (current.photoUrl) URL.revokeObjectURL(current.photoUrl);
-        current.photoUrl = null;
-        const a = $("avatar"); a.style.backgroundImage = ""; a.classList.remove("has-photo"); a.textContent = current.cust.name[0];
-      }
+      // v593(2026-11-25, 첫 화면 속도): 고객 폴더 파일 목록(계약·분석·연락처 탭·사진용)은 기다리지 않고 뒤에서 받음 → 정보 탭이 먼저 뜸. 받으면 탭 숫자·지금 탭을 다시 그림
+      current.filesLoading = folders.length > 0;
+      if (current.filesLoading) loadCustFiles(current, folders);
       current.fc = primaryFc(cust.entries) || fcs[0] || (folders[0] && folders[0].fc) || "";
       $("editBtn").hidden = isRO(current.fc); // 보기만 권한 FC는 수정 버튼 숨김
       $("editBtn").hidden = isRO(current.fc); // 보기 전용 FC는 수정 버튼 숨김
@@ -2085,17 +2090,104 @@
   });
 
   // 고객 폴더 안 파일 (하위 폴더 2단계까지)
-  async function collectFiles(id, prefix, depth) {
+  async function collectFiles(id, prefix, depth, dirs) { // v593: 하위 폴더를 차례로 기다리지 않고 동시에 조회(결과 순서는 예전과 같음). v594: dirs가 있으면 하위 폴더 {경로: ID}도 모음, 파일에 dir(부모 폴더 ID)
     const items = await stList(id);
-    let out = [];
-    for (const it of items) {
-      if (it.folder && depth < 2) {
-        out = out.concat(await collectFiles(it.id, prefix + it.name + "/", depth + 1));
-      } else if (it.file) {
-        out.push({ ...it, path: prefix + it.name });
-      }
+    const parts = await Promise.all(items.map((it) => {
+      if (it.folder && depth < 2) { if (dirs) dirs[prefix + it.name] = it.id; return collectFiles(it.id, prefix + it.name + "/", depth + 1, dirs); }
+      return Promise.resolve(it.file ? [{ ...it, path: prefix + it.name, dir: id }] : []);
+    }));
+    return parts.flat();
+  }
+  const FILE_TABS = ["contract", "analysis", "all", "contact"]; // 파일 목록이 있어야 그릴 수 있는 탭
+
+  // ===== v594(2026-11-25 사용자 지시 "진행") 고객 파일 색인 =====
+  //   FC 폴더 > _앱설정 > 파일목록.json = { ver, f: { 고객폴더ID: { at, dirs: {경로: 폴더ID}, files: [{id,name,size,mod,web,mime,path,dir}] } } }
+  //   고객을 열면 드라이브 폴더를 뒤지지 않고 색인에서 바로 꺼냄. 앱이 그 고객 폴더에 올리기·지우기를 하면 잠시 뒤 그 고객만 다시 읽어 색인을 고침
+  //   색인에 없거나 오래된(FIX_TTL) 고객만 드라이브에서 읽음(PC에서 넣은 파일을 따라잡는 장치). 고객 화면 ↻ = 그 고객 바로 다시 읽기
+  //   운영 데이터(data.json)와는 따로 둠 — 틀리거나 깨져도 드라이브에서 다시 만들면 됨
+  function fixLoad(fc) {
+    if (!GD || !fc || !fcDirIds[fc]) return Promise.resolve(null);
+    return fixMem[fc] || (fixMem[fc] = (async () => {
+      const sub = await startSubDir({ id: fcDirIds[fc] }, false);
+      let doc = null; try { doc = sub ? await stReadJsonIn(sub, FIX_FILE) : null; } catch (e) { console.warn("파일 색인 읽기", fc, e); }
+      return doc && doc.ver === FIX_VER && doc.f && typeof doc.f === "object" ? doc : { ver: FIX_VER, f: {} };
+    })().catch((e) => { delete fixMem[fc]; console.warn("파일 색인", e); return null; }));
+  }
+  function fixSave(fc) { // 바뀐 뒤 2초 모아서 한 번 저장. 보기만 권한 FC는 저장 안 함
+    if (!GD || !fc || !fcDirIds[fc] || isRO(fc)) return;
+    clearTimeout(fixTimer[fc]);
+    fixTimer[fc] = setTimeout(async () => {
+      try { const doc = await fixLoad(fc); if (!doc) return; doc.at = new Date().toISOString(); doc.by = me(); const sub = await startSubDir({ id: fcDirIds[fc] }, true); await stWriteJsonIn(sub, FIX_FILE, doc); }
+      catch (e) { console.warn("파일 색인 저장", fc, e); }
+    }, 2000);
+  }
+  const fixPack = (f) => ({ id: f.id, name: f.name, size: f.size || 0, mod: f.lastModifiedDateTime || "", web: f.webUrl || "", mime: (f.file && f.file.mimeType) || "", path: f.path, dir: f.dir });
+  const fixUnpack = (x, prefix) => ({ id: x.id, name: x.name, size: x.size || 0, lastModifiedDateTime: x.mod, webUrl: x.web, file: { mimeType: x.mime }, path: prefix + x.path, dir: x.dir });
+  async function fixScan(folders) { // 드라이브에서 고객 폴더들을 읽어 색인 항목을 새로 만들고 저장
+    const prefixOf = (f) => (folders.length > 1 ? f.name + "/" : "");
+    const ents = await Promise.all(folders.map(async (f) => { const dirs = {}; const files = await collectFiles(f.id, "", 0, dirs); return { f, ent: { at: new Date().toISOString(), dirs, files: files.map(fixPack) } }; }));
+    for (const { f, ent } of ents) { const doc = await fixLoad(f.fc); if (doc) { doc.f[f.id] = ent; fixSave(f.fc); } }
+    return treeOf(ents.map((x) => [x.f, x.ent]), prefixOf);
+  }
+  function treeOf(pairs, prefixOf) { // [[고객폴더, 색인항목]] → { files, dirs(첫 폴더 기준 경로→ID), ids(이 고객 폴더 트리의 폴더 ID 모음), at }
+    const files = [], ids = new Set(), dirs = {}; let at = "";
+    pairs.forEach(([f, ent], i) => {
+      ids.add(f.id);
+      Object.entries(ent.dirs || {}).forEach(([p, id]) => { ids.add(id); if (i === 0) dirs[p] = id; });
+      (ent.files || []).forEach((x) => files.push(fixUnpack(x, prefixOf(f))));
+      if (!at || ent.at < at) at = ent.at;
+    });
+    return { files, dirs, ids, at };
+  }
+  async function loadCustFiles(cur, folders, force) {
+    const prefixOf = (f) => (folders.length > 1 ? f.name + "/" : "");
+    let tree = null, err = null;
+    if (!force) { // 색인에 모든 폴더가 있으면 바로
+      try {
+        const docs = await Promise.all(folders.map((f) => fixLoad(f.fc)));
+        const ents = folders.map((f, i) => docs[i] && docs[i].f[f.id]);
+        if (ents.every(Boolean)) tree = treeOf(folders.map((f, i) => [f, ents[i]]), prefixOf);
+      } catch (e) { console.warn("파일 색인", e); }
     }
-    return out;
+    const stale = !tree || Date.now() - Date.parse(tree.at || 0) > FIX_TTL;
+    if (tree) applyCustFiles(cur, tree, null);
+    if (!stale) return;
+    try { tree = await fixScan(folders); } catch (e) { err = e; }
+    applyCustFiles(cur, tree || { files: [], dirs: {}, ids: new Set(folders.map((f) => f.id)) }, err);
+  }
+  let fixTouchT = null;
+  function fixTouch(id) { // 앱이 드라이브에 올리기·지우기·폴더 만들기를 했을 때: 지금 고객의 폴더 트리 안이면 4초 뒤 그 고객만 다시 읽어 색인 고침
+    const cur = current; if (!GD || !cur || !cur.folders || !cur.folders.length) return;
+    const t = cur.tree, inTree = !id || (t && (t.ids.has(id) || t.files.some((f) => f.id === id))) || [cur.clmTop, cur.clmDir, cur.hspDir, cur.recDir, cur.docsDir].some((d) => d && d.id === id);
+    if (!inTree) return;
+    clearTimeout(fixTouchT);
+    fixTouchT = setTimeout(() => { if (current === cur) loadCustFiles(cur, cur.folders, true).catch((e) => console.warn("파일 색인 갱신", e)); }, 4000);
+  }
+  function applyCustFiles(cur, tree, err) {
+    if (current !== cur) return; // 그사이 다른 고객을 열었음
+    const files = tree.files;
+    const before = (cur.files || []).map((f) => f.id).sort().join();
+    cur.tree = tree;
+    cur.files = files.concat(cur.filesLoading ? (cur.files || []).filter((x) => !files.some((f) => f.id === x.id)) : []); // 처음 받는 사이 올린 사진 등은 남김
+    const changed = before !== cur.files.map((f) => f.id).sort().join() || cur.filesLoading;
+    cur.filesLoading = false;
+    if (err) handleError(err);
+    cur.profilePhoto = cur.profilePhoto || findProfilePhoto(cur.files);
+    if (cur.profilePhoto) loadProfilePhoto(); // 머리 부분 동그라미에 사진 (기기 저장 사진 확인 → 필요할 때만 받음)
+    else if (cur.cachedPhoto && !err) { // 사진이 지워짐 → 기기 저장도 지움
+      photoCacheDel(photoKey(cur.cust));
+      cur.cachedPhoto = null;
+      if (cur.photoUrl) URL.revokeObjectURL(cur.photoUrl);
+      cur.photoUrl = null;
+      const a = $("avatar"); a.style.backgroundImage = ""; a.classList.remove("has-photo"); a.textContent = cur.cust.name[0];
+    }
+    if (!changed || $("customerView").hidden || !$("tabs").children.length) return; // 탭을 아직 안 그렸으면 openCustomer가 그림
+    const on = ($("tabs").querySelector("button.on") || {}).dataset;
+    renderTabs();
+    const id = on && on.tab;
+    if (id) $("tabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.tab === id));
+    if (FILE_TABS.includes(id)) selectTab(id); // 정보 탭(수정 중일 수 있음)·상담·자료는 다시 그리지 않음
+    else if (id === "claim" && !cur.clmBusy && !$("tabBody").contains(document.activeElement)) renderClaim(); // v594: 청구 탭은 색인에서 그리므로 바뀌면 다시(입력 중이면 그대로)
   }
 
   function filesForTab(tab) {
@@ -2118,8 +2210,9 @@
         filesForTab(t).length + (t.id === "contract" ? ownContracts().length : 0);
       const refN = t.id === "contract" ? refContracts().length : 0;
       return `<button data-tab="${t.id}">${esc(t.label)}${n !== "" ? `<small>${n}${refN ? ` (+참고 ${refN})` : ""}</small>` : ""}</button>`;
-    }).join("");
-    $("tabs").querySelectorAll("button").forEach((b) =>
+    }).join("") + (GD && current.folders && current.folders.length ? `<button type="button" class="tab-rf" data-fix-refresh title="이 고객 폴더 파일을 드라이브에서 다시 읽기" aria-label="파일 다시 읽기">↻</button>` : ""); // v594
+    { const rf = $("tabs").querySelector("[data-fix-refresh]"); if (rf) rf.addEventListener("click", () => { const cur = current; rf.disabled = true; rf.classList.add("spin"); loadCustFiles(cur, cur.folders, true).catch(handleError).finally(() => { rf.disabled = false; rf.classList.remove("spin"); toast("파일 목록을 다시 읽었습니다."); }); }); }
+    $("tabs").querySelectorAll("button[data-tab]").forEach((b) =>
       b.addEventListener("click", async () => {
         if (b.dataset.tab !== "basic" && !(await confirmLeaveEdit())) return; // 수정 중이면 저장·취소·이동 취소 확인
         selectTab(b.dataset.tab);
@@ -2239,6 +2332,7 @@
     const mime = file.type || "application/octet-stream";
     if (file.size <= 4.5 * 1024 * 1024) return stPutIn(dir, name, await file.arrayBuffer(), mime);
     const t = storedGToken() || gTokenMem; if (!t) throw new Error("GOOGLE_AUTH");
+    fixTouch(dir.id); // v594
     const r1 = await fetch(GDUP + "/files?uploadType=resumable&supportsAllDrives=true", { method: "POST", headers: { Authorization: "Bearer " + t, "Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": mime }, body: JSON.stringify({ name, parents: [dir.id] }) });
     const loc = r1.ok ? r1.headers.get("Location") : "";
     if (!loc) throw new Error("Drive " + r1.status + ": 큰 파일 올리기를 시작하지 못했습니다");
@@ -2677,8 +2771,17 @@
   const CLM_PIN = ["신한라이프", "신한EZ손해보험", "삼성화재", "메리츠화재", "현대해상", "한화손해보험", "DB손해보험", "KB손해보험"];
   const BF_DIR = "보험금청구서식", BF_POS = "위치.json", REC_FILE = "청구기록.json";
   let bfP = null; // 기본청구서 목록 { files: Map(보험사 → 파일), pos: {보험사: {x,y,w,alpha}}, ratio }
+  const BF_LS = "shlife.bfCache"; // v594: 기본청구서 목록을 기기에 기억 → 청구 탭이 바로 뜸. 앱을 열 때마다 한 번 뒤에서 새로 받아 바꿈
   function bfLoad() {
-    return bfP || (bfP = (async () => {
+    if (bfP) return bfP;
+    let cached = null;
+    try { const j = JSON.parse(localStorage.getItem(BF_LS) || "null"); if (j && Array.isArray(j.files)) cached = { files: new Map(j.files), pos: j.pos || {}, ratio: Number(j.ratio) || 1168 / 401 }; } catch (e) { cached = null; }
+    const fresh = bfLoadDrive().then((v) => { try { localStorage.setItem(BF_LS, JSON.stringify({ files: [...v.files], pos: v.pos, ratio: v.ratio })); } catch (e) { /* 무시 */ } bfP = Promise.resolve(v); return v; });
+    if (cached && cached.files.size) { fresh.catch((e) => console.warn("기본청구서 목록 새로 받기", e)); return (bfP = Promise.resolve(cached)); }
+    return (bfP = fresh.catch((e) => { bfP = null; throw e; }));
+  }
+  function bfLoadDrive() {
+    return ((async () => {
       const dir = await resolveAppDir(); if (!dir || !dir.id) return { files: new Map(), pos: {}, ratio: 1168 / 401 };
       const sub = (await gdQuery("'" + qv(dir.id) + "' in parents and name='" + qv(BF_DIR) + "' and mimeType='" + GD_FOLDER + "' and trashed=false"))[0];
       if (!sub) return { files: new Map(), pos: {}, ratio: 1168 / 401 };
@@ -2689,7 +2792,7 @@
         else if (f.name === BF_POS) { try { const j = parseDoc(await stGet0(f.id)); pos = j.서식 || {}; ratio = Number(j.박스비율) || ratio; } catch (e) { console.warn("기본청구서 위치 파일", e); } }
       }
       return { files, pos, ratio };
-    })().catch((e) => { bfP = null; throw e; }));
+    })());
   }
   const clmUse = () => ((myPrefs && myPrefs.clmUse) || {});
   function bfGroups(cos) { // [[묶음 이름, [보험사…]]…]
@@ -2699,7 +2802,9 @@
     const rest = cos.filter((c) => !used.includes(c) && !pin.includes(c)).sort((a, b) => a.localeCompare(b, "ko"));
     return [["자주 쓴 서식", used], ["추천 보험사", pin], ["나머지 (이름순)", rest]].filter(([, l]) => l.length);
   }
-  async function clmFcDefault() { // 로그인한 FC의 이름·연락처: 내설정에 적어 둔 것 → (관리자) 팀원 파일 → 이름만
+  let clmFcMemo = null; // v594: 담당 FC 기본값은 앱을 연 동안 한 번만 읽음(고객마다 다시 읽지 않음). 연락처를 고쳐 저장하면 같이 바뀜
+  function clmFcDefault() { const k = me(); if (!clmFcMemo || clmFcMemo.k !== k) clmFcMemo = { k, p: clmFcDefault0().catch((e) => { clmFcMemo = null; throw e; }) }; return clmFcMemo.p; }
+  async function clmFcDefault0() { // 로그인한 FC의 이름·연락처: 내설정에 적어 둔 것 → (관리자) 팀원 파일 → 이름만
     const nm = await myFcName(), pr = (await loadMyPrefs().catch(() => null)) || {}, sv = pr.clmFc || {};
     try { if (GD && nm) { const pm = salesPermsAll || await readPerms(), inf = await readInfoShared(pm, me(), pm.fcFolders); if (inf && inf.phone) return { name: nm, phone: inf.phone }; } } catch (e) { console.warn("본인 정보 읽기", e); } // v592: 내 FC 폴더 _앱설정의 본인 정보가 먼저
     if (sv.name && (!nm || sv.name === nm)) return { name: sv.name, phone: sv.phone || "" };
@@ -2710,7 +2815,8 @@
   const recDay = (f) => { const m = String(f.name || "").match(/^(\d{4})(\d{2})(\d{2})\b/); return m ? `${m[1]}-${m[2]}-${m[3]}` : String(f.mod || "").slice(0, 10); };
   async function recRead() { // 청구기록.json(보험금청구 폴더) + 예전에 만든 PDF(기록 파일에 없는 것)
     const top = current.clmTop; let doc = null;
-    try { doc = top ? await stReadJsonIn(top, REC_FILE) : null; } catch (e) { console.warn("청구기록 읽기", e); }
+    if (top && current.recDoc !== undefined && current.recDocTop === top.id) doc = current.recDoc; // v594: 이 고객의 청구기록은 한 번만 읽음(다운로드로 고치면 같이 바뀜)
+    else { try { doc = top ? await stReadJsonIn(top, REC_FILE) : null; if (top) { current.recDoc = doc; current.recDocTop = top.id; } } catch (e) { console.warn("청구기록 읽기", e); } }
     const items = Array.isArray(doc && doc.기록) ? doc.기록.slice() : [];
     const known = new Set(items.map((x) => x.pdfId).filter(Boolean));
     (current.recList || []).forEach((f) => { if (!known.has(f.id)) { const m = String(f.name).match(/보험금청구서 - (.+?)(?: \(\d+\))?\.pdf$/i); items.push({ date: recDay(f), acc: "", cos: m ? m[1].split("·") : [], pdfId: f.id, pdfName: f.name, old: true }); } });
@@ -2735,19 +2841,29 @@
     if (!current.folders[0]) { body.innerHTML = '<div class="card"><p class="hint">이 고객의 폴더가 없어 보험금 청구를 쓸 수 없습니다.</p></div>'; return; }
     if (!current.clmList) body.innerHTML = '<p class="hint pad">보험금 청구 자료를 확인하는 중…</p>';
     try {
-      const dir = await clmDir(false);
+      // v594: 고객 파일 색인(current.tree)이 있으면 청구 폴더·파일을 드라이브에 묻지 않고 거기서 꺼냄(병원서류는 올린 것만 바로 붙임)
+      const tr = current.tree, fromTree = !!tr && !current.filesLoading;
+      const tDir = (p) => (tr && tr.dirs[p] ? { id: tr.dirs[p] } : null);
+      const tList = (d) => (d && tr ? tr.files.filter((f) => f.dir === d.id).map((f) => ({ id: f.id, name: f.name, mime: (f.file && f.file.mimeType) || "", size: f.size || 0, mod: f.lastModifiedDateTime || "", webUrl: f.webUrl || "", thumb: "" })).sort((a, b) => String(b.mod).localeCompare(String(a.mod))) : []);
+      if (fromTree) {
+        if (!current.clmTop && tDir(CLM_DIR)) current.clmTop = tDir(CLM_DIR);
+        if (!current.clmDir && tDir(CLM_DIR + "/" + CLM_SUB)) current.clmDir = tDir(CLM_DIR + "/" + CLM_SUB);
+        if (!current.hspDir && tDir(CLM_DIR + "/" + HSP_SUB)) current.hspDir = tDir(CLM_DIR + "/" + HSP_SUB);
+        if (!current.recDir && tDir(CLM_DIR + "/" + REC_SUB)) current.recDir = tDir(CLM_DIR + "/" + REC_SUB);
+      }
+      const dir = fromTree ? current.clmDir || null : await clmDir(false);
       if (!clmOnTab(cust)) return;
-      let list = dir ? await docsList(dir) : [];
+      let list = fromTree ? tList(dir) : dir ? await docsList(dir) : [];
       if (!clmOnTab(cust)) return;
       const pend = (current.clmPend || []).filter((x) => !list.some((f) => f.id === x.id)); current.clmPend = pend; list = pend.concat(list);
       if (pend.length && !current.clmRetry) { current.clmRetry = 1; setTimeout(() => { if (clmOnTab(cust)) renderClaim(note); }, 3000); } else if (!pend.length) current.clmRetry = 0;
       current.clmList = list;
-      const hdir = dir ? await hspDir(false) : null; let hlist = hdir ? await docsList(hdir) : [];
+      const hdir = fromTree ? current.hspDir || null : dir ? await hspDir(false) : null; let hlist = fromTree ? tList(hdir) : hdir ? await docsList(hdir) : [];
       if (!clmOnTab(cust)) return;
       const hpend = (current.hspPend || []).filter((x) => !hlist.some((f) => f.id === x.id)); current.hspPend = hpend; hlist = hpend.concat(hlist);
       if (hpend.length && !current.clmRetry) { current.clmRetry = 1; setTimeout(() => { if (clmOnTab(cust)) renderClaim(note); }, 3000); }
       current.hspList = hlist;
-      const rdir = dir ? await recDir(false) : null; let rlist = rdir ? await docsList(rdir) : [];
+      const rdir = fromTree ? current.recDir || null : dir ? await recDir(false) : null; let rlist = fromTree ? tList(rdir) : rdir ? await docsList(rdir) : [];
       if (!clmOnTab(cust)) return;
       const rpend = (current.recPend || []).filter((x) => !rlist.some((f) => f.id === x.id)); current.recPend = rpend; rlist = rpend.concat(rlist);
       current.recList = rlist;
@@ -2871,14 +2987,14 @@
       if (made) { // 청구기록.json에 한 줄
         const top = current.clmTop, doc0 = (await stReadJsonIn(top, REC_FILE).catch(() => null)) || {}, rows = Array.isArray(doc0.기록) ? doc0.기록 : [];
         rows.push({ date: `${clmYmd().slice(0, 4)}-${clmYmd().slice(4, 6)}-${clmYmd().slice(6)}`, acc, cos: label, own: own.map((f) => f.name), hsp: hsp.filter((f) => !skipped.includes(f.name)).map((f) => f.name), fc: `${fc.name || ""} ${fc.phone || ""}`.trim(), pdfId: made.id, pdfName: made.name, at: new Date().toISOString(), by: me() });
-        await stWriteJsonIn(top, REC_FILE, { 설명: "신한FC m 청구 탭 청구기록(다운로드할 때마다 한 줄)", 기록: rows });
+        { const nd = { 설명: "신한FC m 청구 탭 청구기록(다운로드할 때마다 한 줄)", 기록: rows }; await stWriteJsonIn(top, REC_FILE, nd); current.recDoc = nd; current.recDocTop = top.id; } // v594: 읽어 둔 청구기록도 같이
       }
       try { // 자주 쓴 서식 횟수 + 내 담당 FC 정보(로그인한 FC 이름일 때만) 기억
         const pr = { ...((await loadMyPrefs()) || {}) }, use = { ...(pr.clmUse || {}) };
         cos.forEach((c) => { use[c] = (use[c] || 0) + 1; }); pr.clmUse = use;
         const nm = await myFcName(); if (fc.name && fc.phone && (!nm || fc.name === nm)) pr.clmFc = { name: fc.name, phone: fc.phone };
         await saveMyPrefs(pr);
-        if (nm && fc.name === nm && fc.phone && fc.phone !== ((current.clmFcDef || {}).phone || "")) { const pm = salesPermsAll || await readPerms(); if (await writeInfoShared(pm, me(), { name: nm, phone: fc.phone }, pm.fcFolders)) current.clmFcDef = { name: nm, phone: fc.phone }; } // v592: 본인이 고친 연락처를 본인 정보 파일에도
+        if (nm && fc.name === nm && fc.phone && fc.phone !== ((current.clmFcDef || {}).phone || "")) { const pm = salesPermsAll || await readPerms(); if (await writeInfoShared(pm, me(), { name: nm, phone: fc.phone }, pm.fcFolders)) { current.clmFcDef = { name: nm, phone: fc.phone }; clmFcMemo = { k: me(), p: Promise.resolve({ name: nm, phone: fc.phone }) }; } } // v592: 본인이 고친 연락처를 본인 정보 파일에도
       } catch (e) { console.warn("청구 횟수 저장", e); }
     } catch (e) { handleError(e); }
     clmGray = false; clmDpi = 300; current.clmBusy = "";
@@ -3064,7 +3180,8 @@
     $("customerView").classList.toggle("on-docs", id === "docs"); // v488: 자료 탭 = 아래 줄 왼쪽 끝 [업로드], [수정]은 숨김
     $("customerView").classList.toggle("no-edit", id !== "basic"); // v489(2026-11-19 사용자 지시): [수정]은 고칠 수 있는 정보 탭에서만(계약·분석·상담·청구·자료에서는 숨김)
 
-    if (id === "contact") return renderContact();
+    const loadingHint = current && current.filesLoading && FILE_TABS.includes(id) ? '<p class="hint pad">파일 목록을 불러오는 중…</p>' : ""; // v593: 목록을 받으면 이 탭을 다시 그림
+    if (id === "contact") { if (loadingHint) { body.innerHTML = loadingHint; return; } return renderContact(); }
     if (id === "consult") { body.innerHTML = consultHtml(); bindConsult(); return; }
     if (id === "claim") return renderClaim(); // v494: 보험금 청구
     if (id === "docs") return renderDocs();
@@ -3072,7 +3189,7 @@
     const files = filesForTab(tab);
     const listHtml = id === "basic" ? basicHtml() : id === "contract" ? contractHtml() : id === "analysis" ? coverageSummaryHtml() : ""; // 보장 요약은 분석 탭 맨 위
     if (!files.length) {
-      body.innerHTML = listHtml; // 파일이 없으면 안내 문구 없이 비워 둠
+      body.innerHTML = listHtml + loadingHint; // 파일이 없으면 안내 문구 없이 비워 둠
       if (id === "basic") bindExtra();
       return;
     }
@@ -6224,7 +6341,7 @@
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 졸업 연도, 최종학력은 고등학교·대학교·대학원 중 고르기, 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(졸업 연도) · 최종학력 · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
-    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC의 이름·연락처, 고칠 수 있음. 연락처는 내 FC 폴더의 본인 정보에서 가져오고, 고쳐서 내려받으면 다음부터 그 번호가 나옵니다)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 8곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
+    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC의 이름·연락처, 고칠 수 있음. 연락처는 내 FC 폴더의 본인 정보에서 가져오고, 고쳐서 내려받으면 다음부터 그 번호가 나옵니다)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 8곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>빠른 열기</b>: 고객 폴더의 파일 목록(계약·분석·청구서·청구기록)은 미리 정리해 둔 목록에서 바로 보여 줍니다. 앱에서 올리거나 지우면 몇 초 뒤 목록이 저절로 고쳐지고, PC에서 넣은 파일은 30분 안에 따라잡습니다. 바로 보고 싶으면 탭 줄 오른쪽 끝 ↻를 누르세요.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, s_rt, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);

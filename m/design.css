@@ -2097,3 +2097,8 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 
 /* v588: [저장] 꺼짐을 더 분명하게 */
 .rt-backbar .rt-eb button.pri:disabled { background: transparent; border: 1px solid var(--line); color: var(--t3); opacity: .5; }
+
+/* v594: 고객 탭 줄 끝 파일 다시 읽기(↻) */
+#tabs .tab-rf { flex: 0 0 auto; min-width: 32px; padding: 0 6px; margin-left: auto; opacity: .6; font-size: 15px; }
+#tabs .tab-rf.spin { animation: tabrf 1s linear infinite; }
+@keyframes tabrf { to { transform: rotate(360deg); } }
