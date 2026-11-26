@@ -2285,3 +2285,51 @@ html.hw-lock, html.hw-lock body { overflow: hidden; }
 .hw-pad.sq { height: 190px; }
 .hw-tools .sp { flex: 1; }
 .hw-tools button.del { color: #e5534b; }
+/* v628: 관리자 모드 버튼(예전 AI 버튼 자리) */
+.mode-fab { position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); z-index: 2500; width: 56px; border-radius: 28px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 6px 18px rgba(0,0,0,.3); display: flex; flex-direction: column; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.mode-fab.dragging { opacity: .85; }
+.mode-fab button { border: 0; background: none; color: var(--t1); font: inherit; padding: 0; width: 56px; }
+.mode-fab .mf-cur { height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 700; line-height: 1.15; }
+.mode-fab .mf-cur .dot { width: 8px; height: 8px; border-radius: 50%; margin-bottom: 3px; }
+.mode-fab .mf-cur small { font-size: 9.5px; font-weight: 400; color: var(--t3); }
+.mode-fab.open .mf-cur { height: 42px; font-size: 11px; font-weight: 600; color: var(--t2); }
+.mode-fab .mf-opt { height: 52px; font-size: 12px; font-weight: 600; line-height: 1.2; border-bottom: 1px solid var(--line); }
+.mode-fab .mf-opt.on { background: var(--accent); color: #fff; }
+html[data-view="customerView"] .mode-fab:not([style*="top"]), html[data-view="introView"] .mode-fab:not([style*="top"]) { bottom: calc(env(safe-area-inset-bottom, 0px) + 140px); }
+html[data-view="loginView"] .mode-fab { display: none; }
+.mode-band { position: fixed; top: 0; left: 0; right: 0; z-index: 2400; height: 4px; pointer-events: none; font-size: 0; }
+.mode-band.fc { background: #e0a63a; }
+.mode-band.newbie { background: #3fb37f; }
+html.mode-fc .mode-band, html.mode-newbie .mode-band { height: calc(env(safe-area-inset-top, 0px) + 16px); padding-top: env(safe-area-inset-top, 0px); font-size: 11px; font-weight: 600; color: #111; display: flex; align-items: center; justify-content: center; opacity: .92; }
+.nb-view { position: fixed; inset: 20px 0 0 0; z-index: 2300; background: var(--bg); padding: 16px; overflow: auto; }
+/* v629: 신입 메뉴(영업 › 영업 1~5, 펼침) */
+.nb-wrap { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.nb-title { margin: 6px 2px 2px; font-size: 16px; }
+.nb-grp, .nb-sub { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.nb-h1, .nb-h2 { width: 100%; display: flex; align-items: center; justify-content: space-between; border: 0; background: none; color: var(--t1); font: inherit; text-align: left; cursor: pointer; }
+.nb-h1 { height: 50px; padding: 0 14px; font-size: 15.5px; font-weight: 700; }
+.nb-h2 { height: 44px; padding: 0 12px; font-size: 14px; font-weight: 600; }
+.nb-ar { color: var(--t3); transition: transform .15s; font-size: 18px; }
+.nb-grp.open > .nb-h1 .nb-ar, .nb-sub.open > .nb-h2 .nb-ar { transform: rotate(90deg); }
+.nb-subs { display: flex; flex-direction: column; gap: 6px; padding: 0 10px 10px; }
+.nb-sub { background: var(--raised); }
+.nb-items { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.nb-items .hint { margin: 0; padding: 4px 2px; }
+.nb-act { height: 44px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; }
+.nb-act:disabled { opacity: .35; filter: grayscale(1); cursor: not-allowed; }
+.nb-foot { margin-top: 6px; }
+html.mode-newbie .join-modal { z-index: 2600; }
+/* v630: 신입 메뉴 = 위 탭(영업1~5) + 아래 페이지 */
+.nb-tabs { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.nb-tabs::-webkit-scrollbar { display: none; }
+.nb-tab { flex: 1 0 auto; min-width: 60px; height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--t2); font: inherit; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+.nb-tab.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+.nb-page { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 12px; display: flex; flex-direction: column; gap: 8px; min-height: 160px; }
+.nb-page .nb-title { margin: 0 0 2px; font-size: 15px; }
+/* v631: FC 모드 = 일반 · J/W, 설정 › 모드 기준 사용자 */
+.mode-fab .mf-opt.sub { height: 48px; font-size: 13px; }
+.mode-band.jw { background: #c77dd8; }
+html.mode-jw .mode-band { height: calc(env(safe-area-inset-top, 0px) + 16px); padding-top: env(safe-area-inset-top, 0px); font-size: 11px; font-weight: 600; color: #111; display: flex; align-items: center; justify-content: center; opacity: .92; }
+.mode-users { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
+.mode-users label { flex: 1 1 140px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--t2); }
+.mode-users select { height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t1); font: inherit; font-size: 14px; padding: 0 8px; }
