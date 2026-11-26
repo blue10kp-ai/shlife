@@ -3292,7 +3292,10 @@
   let fwState = null; // { root, items: { id: {id(drive), blob, url} } } — 앱을 연 동안 기억
   let fwP = null;
   async function fwRoot(make) {
-    const perms = salesPermsAll || await readPerms(), d0 = startDirOf(perms, me(), perms.fcFolders); if (!d0) return null;
+    let d0 = null; // v626: 내 FC 이름의 폴더가 먼저(관리자는 권한이 '*'라 startDirOf가 못 찾음), 없으면 예전 방식
+    try { const fc = await myFcName(); if (fc) { try { await scanFiles(); } catch (e) { /* 아래에서 */ } if (fcDirIds[fc]) d0 = { id: fcDirIds[fc] }; } } catch (e) { /* 아래에서 */ }
+    if (!d0) { const perms = salesPermsAll || await readPerms(); d0 = startDirOf(perms, me(), perms.fcFolders); }
+    if (!d0) { if (make) throw new Error("내 FC 폴더를 찾지 못했습니다(설정의 내 이름과 FC 폴더 이름이 같은지 확인해 주세요)"); return null; }
     const app = await startSubDir(d0, make); if (!app) return null;
     return clmFolder(app.id, HW_DIR, make);
   }
