@@ -2804,23 +2804,23 @@
   function bfLoad() {
     if (bfP) return bfP;
     let cached = null;
-    try { const j = JSON.parse(localStorage.getItem(BF_LS) || "null"); if (j && Array.isArray(j.files)) cached = { files: new Map(j.files), pos: j.pos || {}, ratio: Number(j.ratio) || 1168 / 401, names: j.names || {} }; } catch (e) { cached = null; }
-    const fresh = bfLoadDrive().then((v) => { try { localStorage.setItem(BF_LS, JSON.stringify({ files: [...v.files], pos: v.pos, ratio: v.ratio, names: v.names })); } catch (e) { /* 무시 */ } bfP = Promise.resolve(v); return v; });
+    try { const j = JSON.parse(localStorage.getItem(BF_LS) || "null"); if (j && Array.isArray(j.files)) cached = { files: new Map(j.files), pos: j.pos || {}, ratio: Number(j.ratio) || 1168 / 401, names: j.names || {}, hw: j.hw || {} }; } catch (e) { cached = null; }
+    const fresh = bfLoadDrive().then((v) => { try { localStorage.setItem(BF_LS, JSON.stringify({ files: [...v.files], pos: v.pos, ratio: v.ratio, names: v.names, hw: v.hw })); } catch (e) { /* 무시 */ } bfP = Promise.resolve(v); return v; });
     if (cached && cached.files.size) { fresh.catch((e) => console.warn("기본청구서 목록 새로 받기", e)); return (bfP = Promise.resolve(cached)); }
     return (bfP = fresh.catch((e) => { bfP = null; throw e; }));
   }
   function bfLoadDrive() {
     return ((async () => {
-      const dir = await resolveAppDir(); if (!dir || !dir.id) return { files: new Map(), pos: {}, ratio: 1168 / 401, names: {} };
+      const dir = await resolveAppDir(); if (!dir || !dir.id) return { files: new Map(), pos: {}, ratio: 1168 / 401, names: {}, hw: {} };
       const sub = (await gdQuery("'" + qv(dir.id) + "' in parents and name='" + qv(BF_DIR) + "' and mimeType='" + GD_FOLDER + "' and trashed=false"))[0];
-      if (!sub) return { files: new Map(), pos: {}, ratio: 1168 / 401, names: {} };
+      if (!sub) return { files: new Map(), pos: {}, ratio: 1168 / 401, names: {}, hw: {} };
       const list = await gdQuery("'" + qv(sub.id) + "' in parents and trashed=false"), files = new Map();
-      let pos = {}, ratio = 1168 / 401, names = {}; // names(v620): { 보험사: [[쪽,x,y,w,h]…] } 고객 이름 필기 넣을 칸
+      let pos = {}, ratio = 1168 / 401, names = {}, hw = {}; // hw(v621): { 보험사: { bank: [[쪽,x,y,w,h]], account: [...] } } 고객 손글씨 칸 // // names(v620): { 보험사: [[쪽,x,y,w,h]…] } 고객 이름 필기 넣을 칸
       for (const f of list) {
         if (/\.pdf$/i.test(f.name)) files.set(f.name.replace(/\.pdf$/i, ""), { id: f.id, name: f.name, mime: "application/pdf" });
-        else if (f.name === BF_POS) { try { const j = parseDoc(await stGet0(f.id)); pos = j.서식 || {}; ratio = Number(j.박스비율) || ratio; names = (j.이름칸 && typeof j.이름칸 === "object") ? j.이름칸 : {}; } catch (e) { console.warn("기본청구서 위치 파일", e); } }
+        else if (f.name === BF_POS) { try { const j = parseDoc(await stGet0(f.id)); pos = j.서식 || {}; ratio = Number(j.박스비율) || ratio; names = (j.이름칸 && typeof j.이름칸 === "object") ? j.이름칸 : {}; hw = (j.손글씨칸 && typeof j.손글씨칸 === "object") ? j.손글씨칸 : {}; } catch (e) { console.warn("기본청구서 위치 파일", e); } }
       }
-      return { files, pos, ratio, names };
+      return { files, pos, ratio, names, hw };
     })());
   }
   const clmUse = () => ((myPrefs && myPrefs.clmUse) || {});
@@ -2917,8 +2917,8 @@
         [...baseSel].forEach((c) => { if (!bf.files.has(c)) baseSel.delete(c); });
         const use = clmUse();
         panel = `<div class="cx-fc"><div class="lb">청구서 안내 박스의 담당 FC (공용 샘플 ‘김신한’ 대신 넣을 사람)</div>
-          <div class="in"><label for="clmFcN">이름</label><input id="clmFcN" class="nmI" data-clmfc="name" value="${esc(fc.name || "")}" maxlength="10"${ro ? " disabled" : ""}><label for="clmFcP">연락처</label><input id="clmFcP" class="phI" data-clmfc="phone" type="tel" value="${esc(fc.phone || "")}" placeholder="010-0000-0000" maxlength="16"${ro ? " disabled" : ""}>${hwBtn(ro)}</div>
-          <div class="pv" id="clmFcPv">${clmFcPv()}</div>${(setTimeout(hwCheck, 0), "")}
+          <div class="in"><label for="clmFcN">이름</label><input id="clmFcN" class="nmI" data-clmfc="name" value="${esc(fc.name || "")}" maxlength="10"${ro ? " disabled" : ""}><label for="clmFcP">연락처</label><input id="clmFcP" class="phI" data-clmfc="phone" type="tel" value="${esc(fc.phone || "")}" placeholder="010-0000-0000" maxlength="16"${ro ? " disabled" : ""}></div>
+          <div class="pv" id="clmFcPv">${clmFcPv()}</div>
           <div class="rs"><span>기본값: 로그인한 FC</span>${ro ? "" : '<button type="button" class="cx-a" data-clmfc-reset>되돌리기</button>'}</div></div>
           <div class="cx-head"><b>보험사 기본청구서</b><span id="clmBaseCnt">${cos.length}곳${baseSel.size ? ` · ${baseSel.size}곳 선택` : ""}</span></div>
           ${cos.length ? `<div class="cx-grid">${bfGroups(cos).map(([g, l]) => `<div class="cx-gl">${g}</div>` + l.map((c) => `<label class="cx-row"><input type="checkbox" data-base-sel="${esc(c)}"${baseSel.has(c) ? " checked" : ""}><span class="nm">${esc(c)}</span>${use[c] ? `<span class="mt">${use[c]}회</span>` : ""}</label>`).join("")).join("")}</div>` : '<p class="hint">기본청구서 서식을 찾지 못했습니다(앱 설정 폴더 › 보험금청구서식).</p>'}`;
@@ -2975,7 +2975,7 @@
     const acc = String(current.clmAcc || "").trim();
     const bset = (t) => { current.clmBusy = t; const b = $("tabBody") && $("tabBody").querySelector("[data-clm-build]"); if (b) { b.textContent = t || "보험금청구서 다운로드"; b.disabled = !!t; } };
     bset("준비 중…");
-    const skipped = [], failed = []; let made = null, bytes = null;
+    const skipped = [], failed = [], cwUsed = []; let made = null, bytes = null;
     try {
       bset("PDF 도구 불러오는 중…");
       await rptLoad("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js");
@@ -2991,6 +2991,7 @@
         try {
           const src = await PDFLib.PDFDocument.load(await stGet0(f.id), { ignoreEncryption: true });
           if (p && p.w) { const pg = src.getPages()[0], h = p.w / (bf.ratio || 1168 / 401), png = await clmBoxPng(src, p.alpha); pg.drawImage(png, { x: p.x, y: pg.getHeight() - p.y - h, width: p.w, height: h }); }
+          try { if (await cwStamp(src, co, bf)) cwUsed.push(co); } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.warn("고객 손글씨 넣기", co, e); } // v621: 고객 손글씨(이름·서명·은행명·계좌번호)
           (await doc.copyPages(src, src.getPageIndices())).forEach((pg) => doc.addPage(pg));
         } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.warn(co, e); failed.push(co); }
       }
@@ -3029,55 +3030,93 @@
     clmGray = false; clmDpi = 300; current.clmBusy = "";
     if (current.cust !== cust) return;
     if (made) { current.recPend = [made].concat(current.recPend || []); current.clmAcc = ""; }
-    current.recNote = [made ? `다운로드함 (${(bytes.length / 1048576).toFixed(1)}MB) · 청구기록에 남김` : "", failed.length ? `청구서 ${failed.length}개는 붙이지 못함` : "", skipped.length ? `병원서류 ${skipped.length}개는 붙이지 못함(PDF·사진·TIF만 가능)` : ""].filter(Boolean).join(", ");
+    current.recNote = [made ? `다운로드함 (${(bytes.length / 1048576).toFixed(1)}MB) · 청구기록에 남김${cwUsed.length ? ` · 고객 손글씨 넣음(${cwUsed.join("·")})` : ""}` : "", failed.length ? `청구서 ${failed.length}개는 붙이지 못함` : "", skipped.length ? `병원서류 ${skipped.length}개는 붙이지 못함(PDF·사진·TIF만 가능)` : ""].filter(Boolean).join(", ");
     if (made) toast("보험금청구서를 한 파일로 만들어 내려받았습니다");
     if (clmOnTab(cust)) await renderClaim();
   }
-  // ===== v620(2026-11-26 사용자 지시, 시안 "이대로 코딩"): 청구 › 기본청구서 '고객 정보 쓰기' =====
-  //   고객 이름을 펜·손가락으로 적어 고객 폴더 › 보험금청구 › 손글씨 › 이름.png(배경 투명)에 저장 → 고른 기본청구서의 이름 칸(위치.json '이름칸')에 넣은 모양을 미리 보고 [저장]하면 개인청구서로 올림
-  //   터치·펜이 되는 기기(아이패드·폰·터치 노트북)에서만 켜짐. 마우스만 있는 PC는 꺼짐
-  const HW_DIR = "손글씨", HW_FILE = "이름.png";
+  // ===== v621(2026-11-26 사용자 지시, 시안 "이대로 코딩" + "저장 → 개인청구서는 하지 말고 우선 고객별로 저장만, 보험금청구서 다운로드·인쇄 때 합쳐서"): 고객 손글씨 =====
+  //   청구 탭에서 고객 카드 전화번호 왼쪽 [고객 손글씨] → 이름(서명 칸에도 씀)·은행명·계좌번호를 펜·손가락으로 통째로 써서 저장만 함
+  //   저장: 고객 폴더 › 보험금청구 › 손글씨 › 이름/이름(칸 전체).png · 글자/은행명.png · 숫자/계좌번호.png(배경 투명) + 손글씨.json(1팀 실무 양식·PC 스킬과 같은 형식)
+  //   [보험금청구서 다운로드] 때 고른 기본청구서의 칸(위치.json 이름칸·손글씨칸)에 넣어 한 PDF로. v620 '고객 정보 쓰기'(기본청구서 칸 버튼·개인청구서로 저장)는 이것으로 바뀜
+  const HW_DIR = "손글씨", HW_JSON = "손글씨.json";
+  const CW_ITEMS = [
+    { id: "name_full", label: "이름", kind: "이름(칸 전체)", file: "이름/이름(칸 전체).png", sub: "서명 칸에도 씀", alt: ["이름.png", "이름/성명(피보험자).png"] }, // alt = 예전에 저장된 글씨(v620 이름.png · PC에서 뽑은 것) — 읽기만
+    { id: "bank", label: "은행명", kind: "글자(칸 전체)", file: "글자/은행명.png", sub: "" },
+    { id: "account", label: "계좌번호", kind: "숫자(칸 전체)", file: "숫자/계좌번호.png", sub: "숫자·하이픈 통째로 한 줄", wide: true, alt: ["숫자/계좌번호_칸 전체.png"] }
+  ];
   const HW_OK = (() => { try { return navigator.maxTouchPoints > 0 || matchMedia("(any-pointer: coarse)").matches; } catch (e) { return false; } })();
-  const hwBtn = (ro) => `<button type="button" class="cx-hw" data-hw-open${ro || !HW_OK ? " disabled" : ""} title="${HW_OK ? "고객 이름을 펜으로 적어 청구서에 넣기" : "터치·펜이 되는 기기(아이패드 등)에서만 쓸 수 있습니다"}"><span class="dot"${current && current.hw ? "" : " hidden"}></span>고객 정보 쓰기</button>`;
   async function hwDirOf(make) { if (!current.clmTop && !(await clmDir(make))) return null; return current.clmTop ? clmFolder(current.clmTop.id, HW_DIR, make) : null; }
-  async function hwLoad() { // current.hw = { id, blob, url, mod } | null
-    if (current.hw !== undefined) return current.hw;
-    const cur = current; let v = null;
-    try {
-      const d = await hwDirOf(false), f = d ? (await gdQuery("'" + qv(d.id) + "' in parents and name='" + qv(HW_FILE) + "' and trashed=false"))[0] : null;
-      if (f) { const blob = new Blob([await stGet0(f.id)], { type: "image/png" }); v = { id: f.id, blob, url: URL.createObjectURL(blob), mod: String(f.modifiedTime || f.mod || f.lastModifiedDateTime || "").slice(0, 10) }; }
-    } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; console.warn("손글씨 읽기", e); }
-    if (cur === current) current.hw = v;
-    return v;
+  async function hwPathDir(root, path, make) { // '이름/이름(칸 전체).png' → { dir, name }
+    const parts = path.split("/"), name = parts.pop(); let d = root;
+    for (const p of parts) { d = await clmFolder(d.id, p, make); if (!d) return null; }
+    return { dir: d, name };
   }
-  async function hwCheck() { const b = $("tabBody") && $("tabBody").querySelector("[data-hw-open]"); if (!b || !current) return; try { const v = await hwLoad(); const d = b.querySelector(".dot"); if (d) d.hidden = !v; } catch (e) { /* 표시만 */ } }
+  const hwFind = async (dirId, name) => (await gdQuery("'" + qv(dirId) + "' in parents and name='" + qv(name) + "' and trashed=false"))[0] || null;
+  async function cwLoadAll() { // current.cw = { name_full: {id, blob, url, mod, old?}, … } (없으면 키 없음)
+    if (current.cw) return current.cw;
+    if (current.cwP) return current.cwP;
+    const cur = current;
+    cur.cwP = (async () => {
+      const out = {};
+      try {
+        const root = await hwDirOf(false);
+        if (root) await Promise.all(CW_ITEMS.map(async (it) => {
+          let f = null, old = false;
+          const pd = await hwPathDir(root, it.file, false);
+          if (pd) f = await hwFind(pd.dir.id, pd.name);
+          for (const a of (it.alt || [])) { if (f) break; const q = await hwPathDir(root, a, false); if (q) { f = await hwFind(q.dir.id, q.name); old = !!f; } }
+          if (f) { const blob = new Blob([await stGet0(f.id)], { type: "image/png" }); out[it.id] = { id: f.id, blob, url: URL.createObjectURL(blob), mod: String(f.modifiedTime || f.mod || f.lastModifiedDateTime || "").slice(0, 10), old }; }
+        }));
+      } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) { cur.cwP = null; throw e; } console.warn("고객 손글씨 읽기", e); }
+      cur.cw = out; cur.cwP = null; return out;
+    })();
+    return cur.cwP;
+  }
+  const cwCount = () => (current && current.cw ? CW_ITEMS.filter((it) => current.cw[it.id]).length : 0);
+  const cwBtnHtml = () => `<button type="button" class="cw-btn" data-cw-open title="${HW_OK ? "고객 손글씨(이름·은행명·계좌번호)" : "쓰기는 터치·펜 기기(아이패드 등)에서만 됩니다"}"><span class="dot"${cwCount() ? "" : " hidden"}></span>고객 손글씨<span class="cw-n">${current && current.cw ? ` ${cwCount()}/${CW_ITEMS.length}` : ""}</span></button>`;
+  function cwSync(tabId) { // 청구 탭일 때만 고객 카드 전화 줄 맨 왼쪽에 버튼(전화번호가 없어도 줄을 보여 줌)
+    const tel = $("custTel"); if (!tel || !current) return;
+    const on = tabId === "claim" && !isRO(current.fc);
+    tel.querySelectorAll(".cw-btn").forEach((b) => b.remove());
+    tel.classList.toggle("cw-on", on);
+    if (on) { tel.insertAdjacentHTML("afterbegin", cwBtnHtml()); tel.hidden = false; cwLoadAll().then(() => { const b = tel.querySelector(".cw-btn"); if (b) b.outerHTML = cwBtnHtml(); }).catch(() => {}); }
+    else tel.hidden = !tel.querySelector(".n, .acts");
+  }
   function hwClose() { const m = $("hwModal"); if (m) m.remove(); hwPad = null; }
   function hwShell(title, inner) {
     let m = $("hwModal"); if (!m) { m = document.createElement("div"); m.id = "hwModal"; m.className = "join-modal hw-modal"; document.body.appendChild(m); }
     m.innerHTML = `<div class="join-sheet hw-sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="join-h"><b>${esc(title)}</b><button type="button" class="join-x" data-hw-x aria-label="닫기">×</button></div>${inner}</div>`;
     return m;
   }
-  async function hwOpen() {
-    if (!HW_OK) return toast("터치·펜이 되는 기기(아이패드 등)에서만 쓸 수 있습니다");
+  async function cwOpen() {
     if (isRO(current.fc)) return;
-    hwShell("고객 정보 쓰기", '<p class="hint">불러오는 중…</p>');
-    try { const v = await hwLoad(); if (v) hwHave(); else hwDraw(null); } catch (e) { hwClose(); handleError(e); }
+    hwShell("고객 손글씨", '<p class="hint">불러오는 중…</p>');
+    try { await cwLoadAll(); cwList(); } catch (e) { hwClose(); handleError(e); }
+  }
+  function cwList() {
+    hwPad = null;
+    const cw = current.cw || {}, nm = baseName(current.cust && current.cust.name);
+    const rows = CW_ITEMS.map((it) => { const v = cw[it.id]; return `<div class="cw-item"><div class="th${v ? "" : " no"}">${v ? `<img src="${v.url}" alt="${esc(it.label)} 손글씨">` : "아직 없음"}</div><div class="k">${esc(it.label)}<small class="${v ? "ok" : ""}">${v ? `● 있음${v.old ? " · 예전에 받은 글씨" : v.mod ? " · " + esc(v.mod.slice(5)) : ""}${it.sub ? " · " + esc(it.sub) : ""}` : esc(it.sub || "")}</small></div>${v ? `<button type="button" data-cw-edit="${it.id}"${HW_OK ? "" : " disabled"}>수정</button>${v.old ? "" : `<button type="button" class="del" data-cw-del="${it.id}">삭제</button>`}` : `<button type="button" class="ac" data-cw-edit="${it.id}"${HW_OK ? "" : " disabled"}>쓰기</button>`}</div>`; }).join("");
+    const left = CW_ITEMS.filter((it) => !cw[it.id]).length;
+    hwShell(`고객 손글씨 · ${nm}`, `${rows}<p class="join-fc">저장: 고객 폴더 › 보험금청구 › 손글씨. [보험금청구서 다운로드] 때 고른 기본청구서의 이름·서명·은행명·계좌번호 칸에 넣습니다(이름 칸 위치가 정해진 곳: 한화손해보험·삼성화재·메리츠화재·신한라이프).${HW_OK ? "" : " 쓰기는 터치·펜이 되는 기기(아이패드 등)에서만 됩니다."}</p>
+      <div class="hw-acts"><button type="button" data-hw-x>닫기</button>${left && HW_OK ? `<button type="button" class="pri" data-cw-next>빈 것 이어서 쓰기 (${left})</button>` : ""}</div>`);
   }
   // --- 필기 칸 ---
   let hwPad = null;
-  function hwDraw(old) {
-    const nm = baseName(current.cust && current.cust.name);
-    const m = hwShell("고객 정보 쓰기", `<p class="join-fc">고객: ${esc(nm)} · 이름을 펜이나 손가락으로 적어 주세요</p>
-      <div class="hw-pad"><span class="hw-ph">이름</span><span class="hw-base"></span><canvas id="hwCv" aria-label="이름 필기 칸"></canvas></div>
+  function cwDraw(id, chain) {
+    const it = CW_ITEMS.find((x) => x.id === id); if (!it) return cwList();
+    const cw = current.cw || {}, old = cw[id], steps = CW_ITEMS.map((x) => `<span class="${x.id === id ? "on" : cw[x.id] ? "dn" : ""}">${esc(x.label)}${cw[x.id] && x.id !== id ? " ✓" : ""}</span>`).join("");
+    const m = hwShell(`${it.label} ${old ? "수정" : "쓰기"}`, `<div class="cw-steps">${steps}</div><p class="join-fc">고객이 직접 펜이나 손가락으로 ${esc(it.label)}${it.id === "account" ? "를" : "을"} ${it.wide ? "한 줄로 " : ""}크게 적어 주세요${it.id === "name_full" ? " (서명 칸에도 이 글씨를 씁니다)" : ""}</p>
+      <div class="hw-pad${it.wide ? " wide" : ""}"><span class="hw-ph">${esc(it.label)}</span><span class="hw-base"></span><canvas id="hwCv" aria-label="${esc(it.label)} 필기 칸"></canvas></div>
       <div class="hw-tools"><button type="button" data-hw-undo>↶ 한 획 지우기</button><button type="button" data-hw-clear>모두 지우기</button></div>
-      <div class="hw-acts"><button type="button" data-hw-cancel>취소</button><button type="button" class="pri" data-hw-save>저장</button></div>`);
+      <div class="hw-acts"><button type="button" data-hw-cancel>${chain ? "그만 쓰기" : "취소"}</button><button type="button" class="pri" data-cw-save="${id}"${chain ? " data-chain" : ""}>저장</button></div>`);
     const cv = m.querySelector("#hwCv"), r = cv.getBoundingClientRect(), dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
     const g = cv.getContext("2d");
     hwPad = { cv, g, dpr, strokes: [], cur: null, bg: null };
     const redraw = () => {
       g.clearRect(0, 0, cv.width, cv.height); g.lineCap = "round"; g.lineJoin = "round"; g.strokeStyle = "#111"; g.fillStyle = "#111";
-      if (hwPad.bg) { const im = hwPad.bg, sc = Math.min(cv.width * 0.92 / im.width, cv.height * 0.8 / im.height, 3); const w = im.width * sc, h = im.height * sc; g.drawImage(im, (cv.width - w) / 2, (cv.height - h) / 2, w, h); }
+      if (hwPad.bg) { const im = hwPad.bg, sc = Math.min(cv.width * 0.94 / im.width, cv.height * 0.8 / im.height, 3); const w = im.width * sc, h = im.height * sc; g.drawImage(im, (cv.width - w) / 2, (cv.height - h) / 2, w, h); }
       for (const st of hwPad.strokes) {
         if (st.length === 1) { g.beginPath(); g.arc(st[0].x, st[0].y, 2 * dpr, 0, 7); g.fill(); continue; }
         for (let i = 1; i < st.length; i++) { const a = st[i - 1], b = st[i]; g.lineWidth = Math.max(1.8, b.p * 6) * dpr; g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke(); }
@@ -3101,105 +3140,65 @@
     const o = document.createElement("canvas"); o.width = x1 - x0 + 1; o.height = y1 - y0 + 1; o.getContext("2d").drawImage(cv, x0, y0, o.width, o.height, 0, 0, o.width, o.height);
     return new Promise((r) => o.toBlob(r, "image/png"));
   }
-  async function hwSave(btn) {
-    const blob = await hwPng(); if (!blob) return toast("이름을 먼저 적어 주세요");
+  async function cwJsonSet(root, id, val) { // 손글씨.json의 그 항목만 바꿈(다른 항목·PC 스킬이 넣은 것은 그대로). val = null이면 뺌
+    const it = CW_ITEMS.find((x) => x.id === id);
+    let doc = null; try { doc = await stReadJsonIn(root, HW_JSON); } catch (e) { doc = null; }
+    doc = doc && typeof doc === "object" ? doc : {};
+    if (!doc.설명) doc.설명 = "고객이 직접 쓴 글씨. 그림은 모두 배경 없는 투명 PNG(검정 글씨). 신한FC 앱 [고객 손글씨]·1팀 PC 스킬이 같이 씀";
+    if (!doc.서명) doc.서명 = "서명 칸에는 이름(name_full) 그림을 씀";
+    const items = Array.isArray(doc.항목) ? doc.항목.filter((x) => !(x && (x.id === id || x.파일 === it.file))) : [];
+    if (val) items.push({ id, 대상: "고객", 종류: it.kind, 값: "", 파일: it.file, 쪽: 1, 출처: "앱 필기", 저장: new Date().toISOString(), by: me() });
+    doc.항목 = items;
+    await stWriteJsonIn(root, HW_JSON, doc);
+  }
+  async function cwSave(btn, id, chain) {
+    const blob = await hwPng(); if (!blob) return toast("먼저 적어 주세요");
+    const it = CW_ITEMS.find((x) => x.id === id);
     btn.disabled = true; btn.textContent = "저장 중…";
     try {
-      const d = await hwDirOf(true), it = await stPutIn(d, HW_FILE, blob, "image/png");
-      const old = current.hw; if (old && old.url) URL.revokeObjectURL(old.url);
-      current.hw = { id: (it && it.id) || (old && old.id) || "", blob, url: URL.createObjectURL(blob), mod: new Date().toISOString().slice(0, 10) };
-      toast("이름 필기를 저장했습니다"); hwCheck(); hwHave();
+      const root = await hwDirOf(true), pd = await hwPathDir(root, it.file, true), up = await stPutIn(pd.dir, pd.name, blob, "image/png");
+      await cwJsonSet(root, id, true);
+      const cw = current.cw || (current.cw = {}), old = cw[id]; if (old && old.url) URL.revokeObjectURL(old.url);
+      cw[id] = { id: (up && up.id) || "", blob, url: URL.createObjectURL(blob), mod: new Date().toISOString().slice(0, 10), old: false };
+      toast(`${it.label} 손글씨를 저장했습니다`); cwSync("claim");
+      const next = chain ? CW_ITEMS.find((x) => !cw[x.id]) : null;
+      if (next) cwDraw(next.id, true); else cwList();
     } catch (e) { btn.disabled = false; btn.textContent = "저장"; handleError(e); }
   }
-  // --- 저장된 필기 + 넣을 청구서 고르기 ---
-  let hwSel = null;
-  async function hwHave() {
-    const v = current.hw; if (!v) return hwDraw(null);
-    hwPad = null;
-    let bf = { files: new Map(), names: {} }; try { bf = await bfLoad(); } catch (e) { console.warn("기본청구서 목록", e); }
-    const names = bf.names || {}, base = current.clmBaseSel || new Set();
-    const can = [...bf.files.keys()].filter((c) => Array.isArray(names[c]) && names[c].length);
-    if (!hwSel) hwSel = new Set(can.filter((c) => base.has(c)));
-    [...hwSel].forEach((c) => { if (!can.includes(c)) hwSel.delete(c); });
-    const no = [...base].filter((c) => !can.includes(c));
-    const chips = can.map((c) => `<button type="button" class="hw-chip${hwSel.has(c) ? " on" : ""}" data-hw-co="${esc(c)}" aria-pressed="${hwSel.has(c)}">${esc(c)}</button>`).join("") + no.map((c) => `<span class="hw-chip na">${esc(c)} (이름 칸 위치 없음)</span>`).join("");
-    hwShell("고객 정보 쓰기", `<div class="hw-saved"><div class="th"><img src="${v.url}" alt="저장된 이름 필기"></div><div><div class="ok">● 이름 필기 있음</div><div class="join-fc">${esc(v.mod || "")} 저장</div></div></div>
-      <div class="hw-ask"><div class="q">기존 기본청구서에 넣을까요?</div><div class="hw-chips">${chips || '<span class="join-fc">이름 칸 위치가 정해진 기본청구서가 아직 없습니다.</span>'}</div><div class="join-fc">기본청구서 칸에서 고른 것이 먼저 골라져 있습니다</div></div>
-      <div class="hw-acts"><button type="button" class="del" data-hw-del>삭제</button><button type="button" data-hw-edit>수정</button><button type="button" class="pri" data-hw-put${hwSel.size ? "" : " disabled"}>넣기</button></div>`);
-  }
-  // --- 청구서에 넣기 ---
-  async function hwMake(co, bf) { // 기본청구서 + 담당 FC 안내 박스 + 이름 필기 → { bytes, pages }
-    const f = bf.files.get(co), p = bf.pos[co], slots = (bf.names || {})[co] || [];
-    const src = await PDFLib.PDFDocument.load(await stGet0(f.id), { ignoreEncryption: true });
-    const pages = src.getPages();
-    if (p && p.w) { const pg = pages[0], h = p.w / (bf.ratio || 1168 / 401), png = await clmBoxPng(src, p.alpha); pg.drawImage(png, { x: p.x, y: pg.getHeight() - p.y - h, width: p.w, height: h }); }
-    const img = await src.embedPng(new Uint8Array(await current.hw.blob.arrayBuffer()));
-    for (const [pn, x, y, w, h] of slots) {
+  // --- 보험금청구서 다운로드 때: 기본청구서 원본(src)에 고객 손글씨를 넣음 ---
+  async function cwStamp(src, co, bf) {
+    let cw = {}; try { cw = await cwLoadAll(); } catch (e) { return 0; }
+    const pages = src.getPages(), hw = (bf.hw || {})[co] || {}, put = [];
+    if (cw.name_full) ((bf.names || {})[co] || []).forEach((s) => put.push(["name_full", s]));
+    if (cw.bank) (hw.bank || []).forEach((s) => put.push(["bank", s]));
+    if (cw.account) (hw.account || []).forEach((s) => put.push(["account", s]));
+    const imgs = {};
+    for (const [id, [pn, x, y, w, h]] of put) {
       const pg = pages[pn - 1]; if (!pg) continue;
+      const img = imgs[id] || (imgs[id] = await src.embedPng(new Uint8Array(await cw[id].blob.arrayBuffer())));
       const sc = Math.min(w / img.width, h / img.height), iw = img.width * sc, ih = img.height * sc;
       pg.drawImage(img, { x: x + 2, y: pg.getHeight() - y - h + (h - ih) / 2, width: iw, height: ih });
     }
-    return { bytes: await src.save(), pages: [...new Set(slots.map((s) => s[0]))].sort((a, b) => a - b) };
-  }
-  let hwMade = null;
-  async function hwPut(btn) {
-    const fc = current.clmFc || {};
-    if (!fc.name || !fc.phone) { hwClose(); current.clmTab = "base"; await renderClaim(); return toast("안내 박스에 넣을 담당 FC 이름과 연락처를 먼저 넣어 주세요"); }
-    btn.disabled = true; btn.textContent = "만드는 중…";
-    try {
-      await rptLoad("https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js");
-      await rptLoad("https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js");
-      if (window.pdfjsLib && !pdfjsLib.GlobalWorkerOptions.workerSrc) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
-      const bf = await bfLoad(), cos = [...hwSel], out = [];
-      for (const co of cos) {
-        btn.textContent = `만드는 중 ${out.length + 1}/${cos.length}`;
-        const r = await hwMake(co, bf), pdf = await pdfjsLib.getDocument({ data: r.bytes.slice(0) }).promise, imgs = [];
-        for (const pn of r.pages) { const pg = await pdf.getPage(pn), vp = pg.getViewport({ scale: 1.6 }), c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height; await pg.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise; imgs.push({ pn, url: c.toDataURL("image/jpeg", 0.8), n: pdf.numPages }); }
-        out.push({ co, bytes: r.bytes, imgs });
-      }
-      hwMade = out; hwPreview();
-    } catch (e) { btn.disabled = false; btn.textContent = "넣기"; handleError(e); }
-  }
-  function hwPreview() {
-    const list = hwMade.map((o) => o.imgs.map((im) => `<figure class="hw-fig"><figcaption>${esc(o.co)} · ${im.pn}/${im.n}쪽</figcaption><img src="${im.url}" alt="${esc(o.co)} ${im.pn}쪽 미리보기"></figure>`).join("")).join("");
-    hwShell("넣은 모양 미리보기", `<div class="hw-prev">${list}</div><p class="join-fc">[저장]하면 개인청구서로 올립니다(${hwMade.length}개, 이름 ‘YYYYMMDD - 보험사.pdf’)</p>
-      <div class="hw-acts"><button type="button" data-hw-back>취소</button><button type="button" class="pri" data-hw-up>저장</button></div>`);
-  }
-  async function hwUpload(btn) {
-    const cust = current.cust; btn.disabled = true; btn.textContent = "올리는 중…";
-    try {
-      const dir = await clmDir(true), have = new Set((await docsList(dir)).map((f) => f.name)), upl = [];
-      for (const o of hwMade) {
-        const b0 = clmStdName(o.co, ""); let name = b0 + ".pdf", k = 2; while (have.has(name)) name = `${b0} (${k++}).pdf`;
-        const file = new File([o.bytes], name, { type: "application/pdf" }), it = await docsUpload(dir, name, file);
-        if (it && it.id) upl.push({ id: it.id, name: it.name || name, mime: "application/pdf", size: file.size, mod: new Date().toISOString(), webUrl: it.webViewLink || "", thumb: "" });
-        have.add(name);
-      }
-      hwClose(); hwMade = null;
-      if (current.cust === cust) { current.clmRetry = 0; current.clmPend = upl.slice().reverse().concat(current.clmPend || []); const os = current.clmOwnSel || (current.clmOwnSel = new Set()); upl.forEach((f) => os.add(f.id)); current.clmTab = "own"; if (clmOnTab(cust)) await renderClaim(`이름을 넣은 청구서 ${upl.length}개 올림`); }
-      toast("개인청구서로 올렸습니다");
-    } catch (e) { btn.disabled = false; btn.textContent = "저장"; handleError(e); }
+    return put.length;
   }
   document.addEventListener("click", async (ev) => {
-    const t = ev.target && ev.target.closest && ev.target.closest("[data-hw-open], #hwModal [data-hw-x], #hwModal [data-hw-cancel], #hwModal [data-hw-undo], #hwModal [data-hw-clear], #hwModal [data-hw-save], #hwModal [data-hw-co], #hwModal [data-hw-del], #hwModal [data-hw-edit], #hwModal [data-hw-put], #hwModal [data-hw-back], #hwModal [data-hw-up]");
+    const t = ev.target && ev.target.closest && ev.target.closest("#custTel [data-cw-open], #hwModal [data-hw-x], #hwModal [data-hw-cancel], #hwModal [data-hw-undo], #hwModal [data-hw-clear], #hwModal [data-cw-edit], #hwModal [data-cw-del], #hwModal [data-cw-save], #hwModal [data-cw-next]");
     if (!t) { if (ev.target && ev.target.id === "hwModal") hwClose(); return; }
-    if (t.hasAttribute("data-hw-open")) { hwSel = null; hwOpen(); return; }
+    if (t.hasAttribute("data-cw-open")) { cwOpen(); return; }
     if (t.hasAttribute("data-hw-x")) { hwClose(); return; }
-    if (t.hasAttribute("data-hw-cancel")) { if (current.hw) hwHave(); else hwClose(); return; }
+    if (t.hasAttribute("data-hw-cancel")) { cwList(); return; }
     if (t.hasAttribute("data-hw-undo")) { if (hwPad) { if (hwPad.strokes.length) hwPad.strokes.pop(); else hwPad.bg = null; hwPad.redraw(); } return; }
     if (t.hasAttribute("data-hw-clear")) { if (hwPad) { hwPad.strokes = []; hwPad.bg = null; hwPad.redraw(); const ph = $("hwModal").querySelector(".hw-ph"); if (ph) ph.hidden = false; } return; }
-    if (t.hasAttribute("data-hw-save")) { hwSave(t); return; }
-    if (t.hasAttribute("data-hw-co")) { const c = t.dataset.hwCo; if (hwSel.has(c)) hwSel.delete(c); else hwSel.add(c); t.classList.toggle("on", hwSel.has(c)); t.setAttribute("aria-pressed", String(hwSel.has(c))); const p = $("hwModal").querySelector("[data-hw-put]"); if (p) p.disabled = !hwSel.size; return; }
-    if (t.hasAttribute("data-hw-edit")) { hwDraw(current.hw); return; }
-    if (t.hasAttribute("data-hw-del")) {
-      if (!current.hw || !confirm("저장된 이름 필기를 삭제할까요?\n(구글 드라이브 휴지통으로 옮겨집니다)")) return;
+    if (t.hasAttribute("data-cw-edit")) { cwDraw(t.dataset.cwEdit, false); return; }
+    if (t.hasAttribute("data-cw-next")) { const n = CW_ITEMS.find((x) => !(current.cw || {})[x.id]); if (n) cwDraw(n.id, true); return; }
+    if (t.hasAttribute("data-cw-save")) { cwSave(t, t.dataset.cwSave, t.hasAttribute("data-chain")); return; }
+    if (t.hasAttribute("data-cw-del")) {
+      const id = t.dataset.cwDel, it = CW_ITEMS.find((x) => x.id === id), v = (current.cw || {})[id];
+      if (!v || !confirm(`저장된 ${it.label} 손글씨를 삭제할까요?\n(구글 드라이브 휴지통으로 옮겨집니다)`)) return;
       t.disabled = true;
-      try { if (current.hw.id) await stDel(current.hw.id); if (current.hw.url) URL.revokeObjectURL(current.hw.url); current.hw = null; hwCheck(); toast("이름 필기를 삭제했습니다"); hwDraw(null); } catch (e) { t.disabled = false; handleError(e); }
+      try { if (v.old) return; if (v.id) await stDel(v.id); { const root = await hwDirOf(false); if (root) await cwJsonSet(root, id, null); } if (v.url) URL.revokeObjectURL(v.url); delete current.cw[id]; toast(`${it.label} 손글씨를 삭제했습니다`); cwSync("claim"); cwList(); } catch (e) { t.disabled = false; handleError(e); }
       return;
     }
-    if (t.hasAttribute("data-hw-put")) { hwPut(t); return; }
-    if (t.hasAttribute("data-hw-back")) { hwMade = null; hwHave(); return; }
-    if (t.hasAttribute("data-hw-up")) { hwUpload(t); return; }
   });
   // v551(2026-11-22 사용자 지시): 개인청구서를 올리면 원본은 '보험금청구서 › 원본'에 두고, 보험금청구서 스타일로 바꾼 PDF를 이 고객 청구서로 저장
   //   스타일 = A4 세로, 이미지 개선(회색조·밝기 단계 맞춤·바깥 여백 잘라냄), 위쪽 왼쪽부터 놓기, 회색조 300dpi JPEG 품질 70%
@@ -3375,7 +3374,8 @@
     const tab = CFG.tabs.find((t) => t.id === id);
     const body = $("tabBody");
     $("customerView").classList.toggle("on-docs", id === "docs"); // v488: 자료 탭 = 아래 줄 왼쪽 끝 [업로드], [수정]은 숨김
-    $("customerView").classList.toggle("no-edit", id !== "basic"); // v489(2026-11-19 사용자 지시): [수정]은 고칠 수 있는 정보 탭에서만(계약·분석·상담·청구·자료에서는 숨김)
+    $("customerView").classList.toggle("no-edit", id !== "basic");
+    try { cwSync(id); } catch (e) { /* 버튼만 */ } // v621: 청구 탭에서만 고객 카드에 [고객 손글씨] // v489(2026-11-19 사용자 지시): [수정]은 고칠 수 있는 정보 탭에서만(계약·분석·상담·청구·자료에서는 숨김)
 
     const loadingHint = current && current.filesLoading && FILE_TABS.includes(id) ? '<p class="hint pad">파일 목록을 불러오는 중…</p>' : ""; // v593: 목록을 받으면 이 탭을 다시 그림
     if (id === "contact") { if (loadingHint) { body.innerHTML = loadingHint; return; } return renderContact(); }
@@ -6680,7 +6680,7 @@
     const s_jw = sec("조직도 > Joint Work (관리자, 2026-11-26, v619)", ["조직도 맨 밑의 <b>Joint Work</b> 카드에서 방(J/W, J/W 2 …)을 만듭니다. 아래 팀원 카드(나 포함)를 끌어다 방에 놓으면 들어가고, 방 안 이름 옆 ×로 뺍니다. 한 사람이 여러 방에 들어갈 수 있습니다.", "방에 한 명이라도 들어가면 오른쪽에 빈 방이 하나 더 생깁니다. 방이 비면 그 방은 없어지고 오른쪽 방들이 왼쪽으로 당겨집니다(방 이름은 순서대로 다시 붙음).", "<b>같은 방 사람끼리는 서로의 고객·계약을 보고 고칠 수 있습니다</b>(그 사람 FC 보기+수정, 폴더 공유). 아래 [저장]을 눌러 확인창을 거쳐야 적용됩니다. 방에서 빼면 그 방 때문에 생긴 권한만 거둡니다(조직도로 받은 권한은 그대로). 세일즈 페이지 접근은 조직도 기준 그대로입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 입학·졸업 년월(v601, 달력에서 고름), 최종학력은 고등학교·대학교·대학원 중 고르기(대학교·대학원을 고르면 옆에 학교명과 입학·졸업 년월 칸이 나옴, v601), 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 맨 위 제목 줄 왼쪽 끝에 <b>‹ 팀관리</b>(v609, 팀원정보·도입현황도 같음), 그 아래 줄은 <b>후보자 드롭다운</b>이고, 그 아래 동그란 <b>사진</b>을 누르거나 사진 파일을 그 위에 끌어다 놓으면(v606) 사진을 넣거나 바꿉니다(v605, 후보자 자료 폴더에 '프로필사진.jpg'로 저장, 자료 목록에는 안 보임). <b>[수정]·[담아두기]</b>(수정 중에는 <b>[취소]·[저장]</b>)는 오른쪽 아래 하단 메뉴 바로 위에 떠 있는 상자에 늘 보입니다(v603).", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(입학·졸업 년월) · 최종학력(대학교·대학원이면 학교명·입학·졸업 년월) · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
-    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["<b>고객 정보 쓰기(v620)</b>: 기본청구서 칸의 담당 FC 연락처 오른쪽 버튼. 아이패드·폰처럼 터치·펜이 되는 기기에서만 켜집니다(마우스만 있는 PC는 꺼짐). 누르면 고객 이름을 펜이나 손가락으로 적고 [저장] → 고객 폴더 › 보험금청구 › 손글씨 › 이름.png(배경 투명)에 저장됩니다. 저장된 필기가 있으면 버튼에 초록 점이 보이고, 누르면 [삭제]·[수정]·[넣기]가 나옵니다. [넣기]는 고른 기본청구서(이름 칸 위치가 정해진 곳: 한화손해보험·삼성화재·메리츠화재·신한라이프)의 이름·서명 칸에 필기를 넣은 모양을 먼저 보여 주고, [저장]하면 담당 FC 안내 박스까지 넣은 PDF를 개인청구서(YYYYMMDD - 보험사.pdf)로 올립니다. 이름 칸 위치는 앱 설정 폴더 › 보험금청구서식 › 위치.json의 ‘이름칸’에 있습니다.", "맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC의 이름·연락처, 고칠 수 있음. 연락처는 내 FC 폴더의 본인 정보에서 가져오고, 고쳐서 내려받으면 다음부터 그 번호가 나옵니다)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 8곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>빠른 열기</b>: 고객 폴더의 파일 목록(계약·분석·청구서·청구기록)은 미리 정리해 둔 목록에서 바로 보여 줍니다. 앱에서 올리거나 지우면 몇 초 뒤 목록이 저절로 고쳐지고, PC에서 넣은 파일은 30분 안에 따라잡습니다. 바로 보고 싶으면 탭 줄 오른쪽 끝 ↻를 누르세요.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
+    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["<b>고객 손글씨(v621)</b>: 청구 탭을 열면 고객 카드 전화번호 왼쪽에 [고객 손글씨] 버튼이 생깁니다(저장된 개수 2/3, 초록 점). 누르면 이름(서명 칸에도 씀)·은행명·계좌번호 세 가지를 고객이 펜이나 손가락으로 통째로 써서 [저장]합니다 — 있으면 [수정]·[삭제], 없으면 [쓰기], [빈 것 이어서 쓰기]는 없는 것만 차례로. 쓰기는 터치·펜이 되는 기기(아이패드·폰)에서만 됩니다. 저장은 고객 폴더 › 보험금청구 › 손글씨(배경 투명 PNG + 손글씨.json, 1팀 PC 스킬과 같은 형식)이고, 저장만 합니다. <b>[보험금청구서 다운로드]</b>를 누를 때 고른 기본청구서의 이름·서명·은행명·계좌번호 칸에 자동으로 넣어 한 PDF로 만듭니다(칸 위치가 정해진 곳: 한화손해보험·삼성화재·메리츠화재·신한라이프, 위치.json 이름칸·손글씨칸). v620의 ‘고객 정보 쓰기’ 버튼은 이것으로 바뀌었습니다.", "맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC의 이름·연락처, 고칠 수 있음. 연락처는 내 FC 폴더의 본인 정보에서 가져오고, 고쳐서 내려받으면 다음부터 그 번호가 나옵니다)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 8곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>빠른 열기</b>: 고객 폴더의 파일 목록(계약·분석·청구서·청구기록)은 미리 정리해 둔 목록에서 바로 보여 줍니다. 앱에서 올리거나 지우면 몇 초 뒤 목록이 저절로 고쳐지고, PC에서 넣은 파일은 30분 안에 따라잡습니다. 바로 보고 싶으면 탭 줄 오른쪽 끝 ↻를 누르세요.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, s_jw, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, s_rt, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);

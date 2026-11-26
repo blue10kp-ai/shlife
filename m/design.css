@@ -2243,3 +2243,26 @@ html.is-pc a.nowrap[href^="tel:"], html.is-pc a.od-tel[href^="tel:"] { color: in
 .hw-fig { margin: 0; }
 .hw-fig figcaption { font-size: 12px; color: var(--t3); margin-bottom: 4px; }
 .hw-fig img { width: 100%; display: block; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+/* v621: 고객 손글씨(청구 탭, 고객 카드 전화 줄 왼쪽) */
+.cust-tel.cw-on { justify-content: flex-start; gap: 10px; }
+.cust-tel.cw-on .acts { margin-left: auto; }
+.cw-btn { flex: none; height: 32px; padding: 0 10px; border: 1px solid var(--accent); border-radius: 8px; background: var(--surface); color: var(--accent); font: inherit; font-size: 12.5px; font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+.cw-btn .dot { width: 7px; height: 7px; border-radius: 50%; background: #3fb37f; }
+.cw-btn .dot[hidden] { display: none; }
+.cw-btn .cw-n { font-size: 12px; font-weight: 400; color: var(--t3); font-variant-numeric: tabular-nums; }
+.cw-item { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: var(--raised); }
+.cw-item .th { width: 120px; height: 44px; flex: none; border-radius: 6px; background: #fff; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 12px; }
+.cw-item .th img { max-width: 94%; max-height: 86%; }
+.cw-item .th.no { background: var(--surface); color: var(--t3); border-style: dashed; }
+.cw-item .k { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; }
+.cw-item .k small { display: block; font-weight: 400; color: var(--t3); font-size: 11.5px; }
+.cw-item .k small.ok { color: #3fb37f; }
+.cw-item button { flex: none; height: 32px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t1); font: inherit; font-size: 12.5px; }
+.cw-item button.ac { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.cw-item button.del { color: #e5534b; }
+.cw-item button:disabled { opacity: .4; }
+.cw-steps { display: flex; gap: 4px; }
+.cw-steps span { flex: 1; height: 26px; border-radius: 7px; border: 1px solid var(--line); font-size: 12px; display: flex; align-items: center; justify-content: center; color: var(--t2); }
+.cw-steps span.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.cw-steps span.dn { border-color: #3fb37f; color: #3fb37f; }
+.hw-pad.wide { height: 150px; }
