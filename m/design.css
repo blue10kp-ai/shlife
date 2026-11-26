@@ -2170,3 +2170,6 @@ html.embed .cd-fab { bottom: calc(104px + env(safe-area-inset-bottom)); } /* 말
 /* v612: PC에서는 전화·문자·가입설계동의 버튼 비활성(흐리게). 번호 글자 링크는 글자만 보이게 */
 html.is-pc .act-btn[href^="tel:"], html.is-pc .act-btn[href^="sms:"], html.is-pc .ev-act[href^="tel:"], html.is-pc .ev-act[href^="sms:"], html.is-pc .file-actions a[href^="tel:"], html.is-pc .file-actions a[href^="sms:"], html.is-pc .sbtn[data-contact], html.is-pc #fcOpts .join-sms-btn, html.is-pc .join-go { opacity: .35; cursor: not-allowed; filter: grayscale(1); }
 html.is-pc a.nowrap[href^="tel:"], html.is-pc a.od-tel[href^="tel:"] { color: inherit; text-decoration: none; cursor: text; }
+
+/* v613: 가입문자 연락처 결과 안내 */
+.join-modal .join-err { color: var(--danger, #c0392b); }

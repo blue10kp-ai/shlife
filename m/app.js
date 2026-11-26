@@ -11792,11 +11792,17 @@
       if (ev.target.closest(".join-go")) { setTimeout(() => m.remove(), 300); return; } // 문자 앱으로 넘어가면 창은 닫음
       if (ev.target.closest("[data-join-pick]")) {
         if (!canPick) return toast("이 폰(브라우저)은 연락처 가져오기를 지원하지 않습니다. 번호를 직접 넣어 주세요.");
+        // v613(2026-11-26 사용자 "완료 누르면 그냥 창이 닫혀"): 결과를 창 안에 바로 보여 줌(알림이 창 뒤에 가려질 수 있어), 번호 모양이 달라도 받음, 창이 사라졌으면 다시 띄움
+        const note = (t) => { const b = $("joinBody"); if (b) b.insertAdjacentHTML("afterbegin", `<p class="join-hint join-err">${esc(t)}</p>`); };
         try {
           const r = await navigator.contacts.select(["tel", "name"], { multiple: false });
-          const tels = ((r && r[0] && r[0].tel) || []).map(joinDigits), t = tels.find((x) => /^01\d{8,9}$/.test(x)) || tels[0];
-          if (t) { inp.value = joinFmt(t); draw(); } else if (r && r.length) toast("고른 연락처에 휴대폰 번호가 없습니다.");
-        } catch (e) { toast("연락처를 가져오지 못했습니다."); }
+          if (!document.body.contains(m)) document.body.appendChild(m);
+          const c = (r && r[0]) || null, raw = c ? [].concat(c.tel || []) : [];
+          const tels = raw.map((x) => joinDigits(x && typeof x === "object" ? x.value || x.number || "" : x)).filter(Boolean), t = tels.find((x) => /^01\d{8,9}$/.test(x)) || tels[0];
+          if (t) { inp.value = joinFmt(t); draw(); if (!/^01\d{8,9}$/.test(t)) note("고른 번호가 휴대폰 번호(010…)가 아닙니다. 번호를 확인해 주세요."); }
+          else if (!c) note("연락처를 받지 못했습니다(고른 연락처 0건). 연락처를 눌러 체크한 뒤 완료를 누르거나, 번호를 직접 넣어 주세요.");
+          else note(`고른 연락처${c.name && c.name[0] ? "(" + c.name[0] + ")" : ""}에서 전화번호를 받지 못했습니다(번호 ${raw.length}개). 번호를 직접 넣어 주세요.`);
+        } catch (e) { if (!document.body.contains(m)) document.body.appendChild(m); note("연락처를 가져오지 못했습니다: " + String((e && (e.name || e.message)) || e)); }
       }
     });
     draw();
