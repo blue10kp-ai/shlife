@@ -2173,3 +2173,8 @@ html.is-pc a.nowrap[href^="tel:"], html.is-pc a.od-tel[href^="tel:"] { color: in
 
 /* v613: 가입문자 연락처 결과 안내 */
 .join-modal .join-err { color: var(--danger, #c0392b); }
+
+/* v617: 가입문자 [붙여넣기][연락처(꺼짐)] */
+.join-modal .join-row { gap: 6px; }
+.join-modal .join-pick:disabled { opacity: .35; }
+.join-modal .join-pick { flex: 0 0 auto; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; }
