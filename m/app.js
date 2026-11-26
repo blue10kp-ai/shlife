@@ -843,6 +843,7 @@
   // 세일즈 화면을 열 때(1분에 한 번) 권한 파일을 다시 읽어, 관리자가 방금 바꾼 '추가 FC'도 앱을 다시 열지 않고 반영
   async function refreshSalesExtra() { if (Date.now() - salesExtraAt < 60000) return; salesExtraAt = Date.now(); try { await readPerms(); } catch (e) { /* 이전 값 유지 */ } }
   let salesPermsAll = null; // v325: 관리자 세일즈 화면의 사용자 선택(각 사용자의 FC + '세일즈 페이지 접근 허용')
+  const jwFcsOf = (P, em, fcs) => { const out = []; (Array.isArray(P && P.jw) ? P.jw : []).forEach((r) => { const m = ((r && r.m) || []).map((x) => String(x).toLowerCase()); if (!m.includes(em)) return; m.forEach((x) => { const f = String(((P.names || {})[x]) || "").trim(); if (x !== em && f && (!fcs || fcs.includes(f)) && !out.includes(f)) out.push(f); }); }); return out; }; // v623(2026-11-26 사용자 지시): 같은 J/W 방 사람의 FC
   let salesExtra = []; // 세일즈(이달이관·따행) 화면의 FC 선택창에 추가로 보이는 FC (관리자 화면에서 계정마다 지정)
   // ---------- FC 이름 ↔ 사번 (v359) ----------
   // 기준표: Claude/_양식/사용자권한.json (users[{no,name,...}]) — 관리자만 읽을 수 있음(일반 사용자는 권한 파일의 fcNos 보조칸을 씀)
@@ -883,6 +884,7 @@
     await resolveAppDir();
     const p = await stReadJsonIn(appDir, PERM_FILE);
     const out = { users: (p && p.users) || {}, fcFolders: (p && p.fcFolders) || {}, names: (p && p.names) || {}, prefixes: (p && p.prefixes && typeof p.prefixes === "object") ? p.prefixes : {}, sensitive: Array.isArray(p && p.sensitive) ? p.sensitive : [], salesFcs: (p && p.salesFcs && typeof p.salesFcs === "object") ? p.salesFcs : {}, starts: (p && p.starts && typeof p.starts === "object") ? p.starts : {}, org: (p && p.org && typeof p.org === "object") ? p.org : {}, orgApplied: (p && p.orgApplied && typeof p.orgApplied === "object") ? p.orgApplied : {}, orgSalesApplied: (p && p.orgSalesApplied && typeof p.orgSalesApplied === "object") ? p.orgSalesApplied : {}, orgVer: (p && p.orgVer) || 1, titles: (p && p.titles && typeof p.titles === "object") ? p.titles : {}, archived: (p && p.archived && typeof p.archived === "object") ? p.archived : {}, fcNos: (p && p.fcNos && typeof p.fcNos === "object") ? p.fcNos : {} }; // fcNos(v359): { FC이름: 사번 } 보조칸(이름 키는 그대로, 일반 사용자가 기준표를 못 읽을 때 사번을 알 수 있게) // archived(v343): { 이메일: {...} } 보관한(삭제한) 사용자 — 데이터는 지우지 않음 // titles(v339): { 이메일: "ESL"|"SSL"|"GSL"|"FC" } 직책 // orgVer 2(v335): 보기·수정 = 그 사용자가 자기 FC를 위 사용자들에게 주는 권한 // orgSalesApplied(v330): { 이메일: [FC] } 조직도가 세일즈 페이지 접근 허용에 더한 FC // orgApplied(v327): { 이메일: [{fc, prev}] } 조직도가 더한 권한(조직도에서 빼면 이것만 되돌림, 직접 준 권한은 그대로) // org(v326): { 이메일: { parent, view, edit } } 조직도 // salesFcs: { 이메일: [세일즈 화면에서 추가로 볼 수 있는 FC 이름] } / sensitive: 민감정보 접근을 허용한 이메일 목록 (다시 저장해도 지워지지 않게 읽어 둠)
+    if (p && Array.isArray(p.jw)) out.jw = p.jw; // v623: Joint Work 방(v619)도 읽어 둠 — 다른 저장에서 빠지지 않게, 세일즈 FC 선택에도 씀
     if (p && p.login && typeof p.login === "object") out.login = p.login; // v513: 로그인 승인/거부 토글(없으면 옛 파일 = 예전 방식)
     permNamesCache = { ...out.names };
     permPrefixCache = { ...out.prefixes };
@@ -1709,18 +1711,78 @@
   }, CFG.extraInfo || {});
   const nospace = (s) => String(s || "").replace(/\s+/g, "");
 
-  async function readExtra() {
-    await resolveBase();
-    let items = [];
-    try { items = await stList(base.id); } catch (e) { if (!/40[34]/.test(String(e.message))) throw e; } // FC 폴더만 공유받은 사용자는 루트 목록이 없음
-    const file = items.find((i) => i.file && /\.xlsx$/i.test(i.name) && nospace(i.name).includes(nospace(EXTRA.fileKeyword)));
-    if (!file) return null;
-    const wb = await stGetBook(file.id); // 서식 유지 (다시 저장할 때 #,##0·날짜 서식이 사라지지 않게)
+  // v622(2026-11-26 사용자 지시 "FC 폴더에 따로"): 고객 폴더 맨 위 고객추가정보가 안 보이는 계정(FC 폴더만 공유받음)은
+  //   그 FC 폴더 안의 '고객추가정보.xlsx'(같은 양식)에 상담기록·메모를 저장. 읽을 때는 맨 위 파일 + 볼 수 있는 FC 폴더 파일을 합쳐 봄(관리자는 둘 다)
+  const XFC_NAME = "고객추가정보.xlsx", XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const isExtraFile = (i) => i.file && /\.xlsx$/i.test(i.name) && nospace(i.name).includes(nospace(EXTRA.fileKeyword));
+  function extraOf(file, wb, more) {
     const sheetName = wb.SheetNames.includes(EXTRA.sheet) ? EXTRA.sheet : wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: false, blankrows: true });
     const head = (rows[0] || []).map((c) => String(c).trim());
-    return { file, wb, ws, rows, head };
+    return { file, wb, ws, rows, head, ...(more || {}) };
+  }
+  async function readExtraRoot() {
+    await resolveBase();
+    let items = [];
+    try { items = await stList(base.id); } catch (e) { if (!/40[34]/.test(String(e.message))) throw e; } // FC 폴더만 공유받은 사용자는 루트 목록이 없음
+    const file = items.find(isExtraFile);
+    if (!file) return null;
+    return extraOf(file, await stGetBook(file.id)); // 서식 유지 (다시 저장할 때 #,##0·날짜 서식이 사라지지 않게)
+  }
+  async function readExtraFc(fc, create) { // FC 폴더의 고객추가정보(없고 create면 빈 양식으로 — 첫 저장 때 파일이 생김)
+    if (!GD || !fc) return null;
+    try { await scanFiles(); } catch (e) { /* 아래에서 없음 처리 */ }
+    const id = fcDirIds[fc]; if (!id) return null;
+    const file = (await stList(id)).find(isExtraFile);
+    if (file) return extraOf(file, await stGetBook(file.id), { fc, dir: { id } });
+    if (!create) return null;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([[EXTRA.fcCol, EXTRA.nameCol, ...EXTRA.primary, EXTRA.carrierCol, ...EXTRA.afterAddress, STAMP_COL].filter(Boolean)]), EXTRA.sheet);
+    return extraOf(null, wb, { fc, dir: { id } });
+  }
+  async function readExtraTarget(fc) { // 저장할 파일: 맨 위 파일이 보이면 그것(예전 그대로), 안 보이면 그 FC 폴더 파일
+    const root = await readExtraRoot();
+    if (root) return root;
+    const x = await readExtraFc(fc, true);
+    if (!x) throw new Error("NO_EXTRA_FILE");
+    return x;
+  }
+  function extraMerge(list) { // 읽기 전용으로 합친 보기(기본 시트 = 머리글 합집합, 상담기록 = 칸 이름 맞춰 셀 그대로)
+    if (list.length === 1) return list[0];
+    const head = [...new Set(list.flatMap((x) => x.head).filter(Boolean))];
+    const rows = [head];
+    list.forEach((x) => x.rows.slice(1).forEach((r) => rows.push(head.map((h) => { const i = x.head.indexOf(h); return i < 0 ? "" : r[i]; }))));
+    const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, EXTRA.sheet);
+    const C = EXTRA.consult, cs = list.map((x) => x.wb.Sheets[C.sheet]).filter((w) => w && w["!ref"]);
+    if (cs.length) {
+      const hd = [[].concat(C.dateCol)[0], C.nameCol, C.fcCol, C.textCol, C.voiceCol], out = {};
+      hd.forEach((h, c) => { out[XLSX.utils.encode_cell({ r: 0, c })] = { t: "s", v: h }; });
+      let r = 1;
+      cs.forEach((w) => {
+        const rg = XLSX.utils.decode_range(w["!ref"]), hcol = {};
+        for (let c = rg.s.c; c <= rg.e.c; c++) { const h = w[XLSX.utils.encode_cell({ r: rg.s.r, c })]; if (h) hcol[String(h.v).trim()] = c; }
+        const src = hd.map((h, j) => (j === 0 ? [].concat(C.dateCol).map((d) => hcol[d]).find((v) => v != null) : hcol[h]));
+        for (let y = rg.s.r + 1; y <= rg.e.r; y++) {
+          let any = false; const cells = src.map((c) => { const cell = c == null ? null : w[XLSX.utils.encode_cell({ r: y, c })]; if (cell) any = true; return cell; });
+          if (!any) continue;
+          cells.forEach((cell, c) => { if (cell) out[XLSX.utils.encode_cell({ r, c })] = cell; });
+          r++;
+        }
+      });
+      out["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(0, r - 1), c: hd.length - 1 } });
+      XLSX.utils.book_append_sheet(wb, out, C.sheet);
+    }
+    return { file: list[0].file, wb, ws, rows, head, merged: true };
+  }
+  async function readExtra() { // 읽기용(합친 보기). 저장은 readExtraTarget
+    const root = await readExtraRoot();
+    let fcs = [];
+    if (GD) { try { await scanFiles(); } catch (e) { /* 무시 */ } fcs = Object.keys(fcDirIds); }
+    const subs = (await Promise.all(fcs.map((fc) => readExtraFc(fc, false).catch((e) => { console.warn("FC 고객추가정보", fc, e); return null; })))).filter(Boolean);
+    const list = [root, ...subs].filter(Boolean);
+    return list.length ? extraMerge(list) : null;
   }
 
   const STAMP_COL = "입력일시"; // 줄이 처음 들어간 시각 (엑셀 날짜·시간, yyyy-mm-dd hh:mm). 새 줄에만 넣고 고칠 때는 그대로
@@ -1858,6 +1920,8 @@
   }
 
   async function uploadExtra(x) {
+    if (x.merged) throw new Error("합친 보기는 저장할 수 없습니다"); // v622: 안전장치
+    if (!x.file) { x.file = await stPutIn(x.dir, XFC_NAME, XLSX.write(x.wb, { type: "array", bookType: "xlsx", compression: true }), XLSX_MIME); extraCache = null; return; } // v622: FC 폴더에 처음 만듦
     await stPutBook(x.file.id, x.wb);
     delete bookCache[x.file.id];
     extraCache = null; // v593: 저장 뒤에는 새로 읽기
@@ -1871,8 +1935,7 @@
       if (Object.keys(changed).length) await writeEntryCells(own, changed);
       return;
     }
-    const x = await readExtra(); // 저장 직전 최신 파일을 다시 읽어 이 고객 줄의 바뀐 칸만 수정
-    if (!x) throw new Error("NO_EXTRA_FILE");
+    const x = await readExtraTarget(fc); // 저장 직전 최신 파일을 다시 읽어 이 고객 줄의 바뀐 칸만 수정(v622: 맨 위 파일이 안 보이면 FC 폴더 파일)
     let r = extraRowIndex(x, fc, name);
     const isNew = r < 0;
     if (isNew) r = Math.max(x.rows.length, 1); // 없으면 맨 아래에 새 줄
@@ -1902,9 +1965,16 @@
   //   adds: [{ text, when: Date, voice: "파일명" }]
   async function saveConsults(fc, name, adds, dels) {
     if (dels && dels.length && syncLockedFc(fc)) throw new Error("데이터 업데이트 중이라 상담기록 수정·삭제는 끝난 뒤에 해 주세요."); // v550
+    const x = await readExtraTarget(fc); // 저장 직전 최신 파일을 다시 읽음(v622: 맨 위 파일이 안 보이면 FC 폴더 파일)
+    const list = await consultApply(x, fc, name, adds, dels);
+    if (x.dir) return list;
+    const y = await readExtraFc(fc, false).catch(() => null); // v622: 관리자 — 그 FC 폴더 파일에 있는 기록도 같이(지우기는 거기서도)
+    if (!y) return list;
+    const yl = dels && dels.length ? await consultApply(y, fc, name, [], dels, true) : readConsults(y.wb, fc, name);
+    return list.concat(yl).sort((a, b) => b.key - a.key);
+  }
+  async function consultApply(x, fc, name, adds, dels, onlyIfChanged) {
     const C = EXTRA.consult;
-    const x = await readExtra(); // 저장 직전 최신 파일을 다시 읽음
-    if (!x) throw new Error("NO_EXTRA_FILE");
     let ws = x.wb.Sheets[C.sheet];
     if (!ws) {
       ws = XLSX.utils.aoa_to_sheet([[[].concat(C.dateCol)[0], C.nameCol, C.fcCol, C.textCol, C.voiceCol]]);
@@ -1934,13 +2004,14 @@
     const cellOf = (row, c) => (c < 0 ? null : row[c - rg.s.c]);
 
     // ① 삭제: 같은 고객·FC·날짜·내용인 줄
+    let delN = 0;
     dels.forEach((d) => {
       const i = rows.findIndex((row) => {
         const nm = cellOf(row, ni), tx = cellOf(row, ti), f = cellOf(row, fi);
         return nm && tx && norm(nm.v) === norm(name) && String(tx.v) === d.text &&
           sameFc(f ? f.v : "", fc) && consultDate(cellOf(row, di)).key === d.key;
       });
-      if (i >= 0) rows.splice(i, 1);
+      if (i >= 0) { rows.splice(i, 1); delN++; }
     });
 
     // ② 추가
@@ -1963,6 +2034,7 @@
     rows.forEach((row, i) => row.forEach((cell, j) => { if (cell) ws[enc(rg.s.r + 1 + i, rg.s.c + j)] = cell; }));
     rg.e.r = rg.s.r + rows.length;
     ws["!ref"] = XLSX.utils.encode_range(rg);
+    if (onlyIfChanged && !delN && !adds.length) return readConsults(x.wb, fc, name); // v622: 지울 것이 없던 쪽은 저장 안 함
     await uploadExtra(x);
     return readConsults(x.wb, fc, name);
   }
@@ -6665,7 +6737,7 @@
     const s_srch = sec("전체검색 · 고객검색", ["<b>위쪽 전체검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호뿐 아니라 고객 메모, 상담기록, 오늘 기준 1년 전~1개월 뒤 일정(제목·장소)에서도 찾습니다. 결과는 아래에서 올라오는 창에 고객(어디서 찾았는지 표시)과 일정으로 나뉘어 나오고, 누르면 고객 정보(상담기록에서 찾았으면 상담 탭) 또는 그날 일정으로 이동합니다.", "<b>고객 화면의 고객검색</b>: 고객 이름·연락처·주소·미팅장소·증권번호로 고객만 찾는 기존 검색입니다. 한 명만 나오면 바로 고객 정보가 열립니다.", "검색칸이 비어 있을 때의 글자(전체검색·고객검색)는 오른쪽에 보입니다."]);
     const s_cov = sec("보장 요약 (고객 정보 > 분석 탭)", ["분석 탭 맨 위에 사망 · 3대진단(암·뇌·심) · 수술 · 입원 · 간병을 간단히 보여 줍니다. 스마트보장분석이 있으면 ‘전체 보험사에 가입된 보장 요약입니다.’, 신한라이프 상세보장내용만 있으면 ‘신한라이프에 가입된 보장 요약입니다.’라고 위에 적고, 맨 아래에 어느 문서의 몇 월 며칠 기준인지 나옵니다.", "‘미가입’은 가입한 보장이 없다는 뜻이고, ‘확인 안 됨’은 원본 문서에서 그 항목을 읽지 못했다는 뜻입니다. 이 값은 고객 등록·업데이트 때 미리 만들어 고객 시트의 ‘보장요약’ 칸에 저장해 둔 것을 읽기만 하므로 분석 탭을 열 때 계산하지 않습니다.", "앱을 켜 둔 사이에 새로 만든 고객 폴더(오늘 등록하거나 보장분석한 고객)는 그 고객을 열 때 폴더 목록을 다시 읽어 찾아옵니다(v556)."]);
     const s_cmp = sec("고객 구분 · 유입경로 말 (2026-11-17)", ["화면의 말이 <b>직접모집</b>(예전 ‘계약·본인’), <b>이관고객</b>(예전 ‘이관’), <b>계약진행</b>(예전 ‘진행’), <b>가망</b>으로 바뀌었습니다. 고객 정보의 <b>유입경로</b>는 <b>신규유입 · 이관유입 · DB유입</b> 세 가지이고 처음 한 번 정해지면 바뀌지 않아 <b>읽기만</b> 합니다(예전 ‘계약·지인·소개’ 값은 신규유입으로 보입니다). 소개는 유입경로가 아니라 <b>소개자</b> 칸으로 따로 둡니다.", "데이터가 새 칸 이름(주민번호·고객분류·이관상태·따행상태·계약진행 표 등)으로 바뀌는 중에는 앱이 <b>새 칸이 있으면 새 칸, 없으면 옛 칸</b>을 읽고, 저장은 옛 칸과 새 칸 <b>둘 다</b>에 합니다(이관보관·이관상태, 따행보관·따행상태, 진행제외·영업단계와 계약진행 표, DB제외·DB상태, 후번호와 주민번호). 따행 <b>방문완료</b>는 방문완료일만 보고, 따행 <b>대상</b>은 따행상태(목표, 빈칸이면 활동기한이 안 끝난 줄)로 셉니다. 상령일(생년월일+6개월)과 납입완료 예정(최초계약일+납입기간)은 칸이 없어도 계산해서 보여 줍니다."]);
-    const s_prog = sec("보관 (이동 · 원복)", ["<b>[지옥으로]</b>를 누르면 옮긴 뒤 지옥문 그림이 1초 동안 화면 전체에 나옵니다.", "<b>지옥으로 보낸 계약·계약자</b>(이관·따행·DB)는 고객 <b>성향이 자동으로 Shit</b>이 됩니다. 되돌리기를 누르면 예전 성향으로 돌아가고, 다른 단계로 옮겨도 성향은 그대로 두니 필요하면 고객 정보에서 바꾸세요.", "<b>2026-11-18부터 이달목표의 이관·따행</b>은 위 칩이 <b>신규 · 완료 · 지옥</b>입니다(예전 ‘이관/따행 · 보관’). 신규 줄은 <b>[완료]</b>, 완료 줄은 <b>[신규로] [지옥으로]</b>, 지옥 줄은 <b>[신규로] [완료로]</b>로 옮깁니다. 예전에 보관한 고객은 완료에, 삭제한 고객은 지옥에 보입니다. 파일에는 지금처럼 목표 · 보관 · 삭제로 저장됩니다(이력에 남음). DB 탭도 같은 말로 <b>신규 · 계약 · 보관 · 지옥</b>입니다(예전 ‘삭제’ = 지옥, 보관 줄의 [삭제로] = [지옥으로]).", "세일즈 > 이달목표 목록 줄의 오른쪽 버튼 글자는 상태에 따라 달라집니다. 신규 목록 줄은 <b>보관으로</b>, 보관 목록 줄은 <b>신규로</b>(원래 목록으로)와 <b>지옥으로</b>(DB), 지옥 목록 줄은 <b>신규로</b>와 <b>보관으로</b>입니다. 아래 설명의 ‘이동·원복’은 각각 ‘보관으로·신규로’를 뜻합니다.", "고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 세일즈 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다. DB DB 목록 위 칩은 <b>신규 / 계약 / 보관</b> 순서이고(신규 검정 · 계약 초록 · 보관 파랑), <b>보관</b>을 누르면 빨간 <b>지옥</b> 칩이 더해집니다. 계약 고객이 된 DB 고객은 고객 시트의 ‘DB상태’가 ‘계약’이 되고 계약 칩에서 봅니다. <b>지옥</b> 목록은 가장 최근에 지옥으로 보낸 고객이 맨 위에 나오며 줄의 <b>복구</b>를 누르면 보관으로 돌아갑니다. 보관 목록에는 원복 오른쪽에 <b>지옥으로</b> 버튼도 있습니다: 확인 뒤 누르면 자료는 지우지 않고 고객 시트의 ‘DB상태’ 칸(신규·보관·삭제 중 하나, 빈칸은 신규)에 ‘삭제’(=지옥)만 표시해, 보관 목록에서도 안 보이게 합니다(6초 안에 [되돌리기] 가능).", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 고객 화면 [이관] 목록에서는 <b>이달 N / 보관 M</b> 칩(이달 이관 고객 수)과 줄의 이동·원복으로 그 고객의 <b>이달 이관 계약만</b> 한꺼번에 보관하거나 원복합니다(이관일자가 이번 달인 계약 = 이달목표 > 이관에 나오는 계약, 지난 달 이관·담당이 다른 FC 계약은 그대로). 이달 이관 계약이 없는 이관 고객에는 버튼이 없습니다. 고객 정보 화면 탭 줄 오른쪽에도 보관할 수 있는 목록마다 <b>보관으로 이동</b>/<b>원복</b> 버튼이 나옵니다(여러 개면 ‘진행 보관’·‘DB 보관’·‘이관 보관’처럼 앞에 목록 이름). 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
+    const s_prog = sec("보관 (이동 · 원복)", ["<b>[지옥으로]</b>를 누르면 옮긴 뒤 지옥문 그림이 1초 동안 화면 전체에 나옵니다. 이달목표의 DB·이관·따행은 신규 줄에서도 [보관으로](이관·따행은 [완료]) 오른쪽의 [지옥으로]로 바로 보낼 수 있습니다(v622, 되돌리면 신규로).", "<b>지옥으로 보낸 계약·계약자</b>(이관·따행·DB)는 고객 <b>성향이 자동으로 Shit</b>이 됩니다. 되돌리기를 누르면 예전 성향으로 돌아가고, 다른 단계로 옮겨도 성향은 그대로 두니 필요하면 고객 정보에서 바꾸세요.", "<b>2026-11-18부터 이달목표의 이관·따행</b>은 위 칩이 <b>신규 · 완료 · 지옥</b>입니다(예전 ‘이관/따행 · 보관’). 신규 줄은 <b>[완료]</b>, 완료 줄은 <b>[신규로] [지옥으로]</b>, 지옥 줄은 <b>[신규로] [완료로]</b>로 옮깁니다. 예전에 보관한 고객은 완료에, 삭제한 고객은 지옥에 보입니다. 파일에는 지금처럼 목표 · 보관 · 삭제로 저장됩니다(이력에 남음). DB 탭도 같은 말로 <b>신규 · 계약 · 보관 · 지옥</b>입니다(예전 ‘삭제’ = 지옥, 보관 줄의 [삭제로] = [지옥으로]).", "세일즈 > 이달목표 목록 줄의 오른쪽 버튼 글자는 상태에 따라 달라집니다. 신규 목록 줄은 <b>보관으로</b>, 보관 목록 줄은 <b>신규로</b>(원래 목록으로)와 <b>지옥으로</b>(DB), 지옥 목록 줄은 <b>신규로</b>와 <b>보관으로</b>입니다. 아래 설명의 ‘이동·원복’은 각각 ‘보관으로·신규로’를 뜻합니다.", "고객을 지우지 않고 목록에서 <b>보관</b>으로 옮기는 기능입니다. 고객 화면의 [진행]·[DB] 목록, 세일즈 > 이달목표의 <b>이관 · 따행 · DB</b> 목록 줄 오른쪽 작은 <b>이동</b>을 누르면 ‘OO 고객을 보관으로 이동할까요? 고객 정보는 그대로예요.’라고 묻고, 확인하면 그 목록에서 바로 빠져 보관으로 갑니다(저장은 뒤에서 하며 왼쪽 아래에 작게 ‘저장 중…’, 저장이 안 되면 원래대로 돌아오고 알림). 6초 안에 나오는 [되돌리기]로 취소할 수 있습니다.", "목록 위 ‘N명’ 줄 오른쪽 작은 칩 <b>진행 N / 보관 M</b>(DB는 <b>DB N / 보관 M</b>, 이관은 <b>이관 N / 보관 M</b>, 따행은 <b>따행 N / 보관 M</b>)으로 보관된 고객만 볼 수 있고, 보관 목록 줄의 <b>원복</b>을 누르면 확인 없이 원래 목록으로 돌아갑니다. 줄에는 ‘보관 11-15’처럼 날짜가 작게 보입니다. DB DB 목록 위 칩은 <b>신규 / 계약 / 보관</b> 순서이고(신규 검정 · 계약 초록 · 보관 파랑), <b>보관</b>을 누르면 빨간 <b>지옥</b> 칩이 더해집니다. 계약 고객이 된 DB 고객은 고객 시트의 ‘DB상태’가 ‘계약’이 되고 계약 칩에서 봅니다. <b>지옥</b> 목록은 가장 최근에 지옥으로 보낸 고객이 맨 위에 나오며 줄의 <b>복구</b>를 누르면 보관으로 돌아갑니다. 보관 목록에는 원복 오른쪽에 <b>지옥으로</b> 버튼도 있습니다: 확인 뒤 누르면 자료는 지우지 않고 고객 시트의 ‘DB상태’ 칸(신규·보관·삭제 중 하나, 빈칸은 신규)에 ‘삭제’(=지옥)만 표시해, 보관 목록에서도 안 보이게 합니다(6초 안에 [되돌리기] 가능).", "기준: 진행 = 고객 단위(고객 시트 ‘진행제외’ 칸), DB = 고객 단위(‘DB제외’ 칸, 계약 고객이 된 DB 고객은 저절로 보관에 ‘계약’으로 보임), 이관 = 계약 단위(계약 시트 ‘이관보관’ 칸, 같은 고객의 다른 계약은 그대로), 따행 = 그 달 대상 단위(따행 시트 ‘따행보관’ 칸, 다음 달 대상에는 다시 나옴). 이동·원복할 때마다 이력에 ‘이동(보관)’·‘원복’ 한 줄이 남습니다. 진행 고객은 고객 정보 머리 카드 아래 <b>보관으로 이동</b>/<b>원복</b> 버튼으로도 할 수 있습니다. 고객 화면에서 필터를 여러 개 함께 켜도(예: DB + 가망) 보관할 수 있는 고객(진행 필터의 진행 고객, DB 필터의 DB 고객)에만 이동·원복 버튼이 보이고, 가망 같은 다른 고객에는 나오지 않습니다. 고객 화면 [이관] 목록에서는 <b>이달 N / 보관 M</b> 칩(이달 이관 고객 수)과 줄의 이동·원복으로 그 고객의 <b>이달 이관 계약만</b> 한꺼번에 보관하거나 원복합니다(이관일자가 이번 달인 계약 = 이달목표 > 이관에 나오는 계약, 지난 달 이관·담당이 다른 FC 계약은 그대로). 이달 이관 계약이 없는 이관 고객에는 버튼이 없습니다. 고객 정보 화면 탭 줄 오른쪽에도 보관할 수 있는 목록마다 <b>보관으로 이동</b>/<b>원복</b> 버튼이 나옵니다(여러 개면 ‘진행 보관’·‘DB 보관’·‘이관 보관’처럼 앞에 목록 이름). 그 FC를 수정할 수 있는 계정만 쓸 수 있습니다."]);
     const s_rh = sec("오른손 모드", ["'화면' 카드 오른쪽 칸입니다. 하단 메뉴, 탭, 선택 버튼을 오른쪽으로 모아 엄지로 누르기 쉽게 합니다. 이 폰에만 적용되고, 관리자 조직도에서 볼 수 있게 기록됩니다."]);
     const s_bk = sec("데이터 업데이트 중 잠금 (v550)", ["PC가 팀 데이터를 모으는 동안(그 FC 폴더에 업데이트 표시가 있는 동안) 화면 맨 위에 노란 띠 <b>데이터 업데이트 중</b>이 뜹니다.", "그동안은 <b>보기와 새 기록만</b> 됩니다. 전화·문자 시도는 따로 모아 두었다가 업데이트가 끝나면 자동으로 붙이고, 상담기록 추가는 바로 저장됩니다.", "고객 정보 수정·단계 변경·완료·상담기록 수정/삭제는 띠가 사라진 뒤 다시 해 주세요(1분마다 확인).", "업데이트 표시가 30분 넘게 새로 고쳐지지 않으면 끝난 것으로 보고 다시 열립니다."]) + sec("데이터 자동 백업·복구 (v509)", ["<b>자동 백업</b>: 앱이 고객 데이터 파일을 저장하기 직전에, 바로 앞 내용을 같은 폴더의 <b>_앱백업</b> 폴더에 사본으로 남깁니다. 계정마다 최근 10개만 두고 오래된 것은 휴지통으로 보냅니다. 사본은 원본과 같은 폴더 안에 있어 원본과 같은 사람만 볼 수 있습니다.", "<b>자동 복구</b>: 고객 데이터 파일이 깨져 있으면(모양이 망가짐) 앱이 Drive 버전 기록에서 가장 최근의 정상본을 찾아 자동으로 되돌리고 화면에 알립니다. 깨진 내용은 지우지 않고 _앱백업 폴더에 ‘깨진본’으로 남깁니다. 데이터 반영 중이거나 다른 곳에서 복구 중이면 손대지 않습니다.", "되돌린 뒤에는 이 기기에서 최근 14일 동안 보낸 <b>전화·문자 기록</b>을 다시 반영합니다(이미 있는 기록은 건너뜀). 다른 기기에서 한 기록이나 칩·정보 수정은 다시 반영되지 않으니, 알림이 뜨면 최근에 고친 내용을 한 번 확인해 주세요.", "줄 수만 크게 줄어든 경우는 되돌리지 않고 알리기만 합니다. 자동 복구를 못 했다는 알림이 뜨면 관리자에게 알려 주세요."]);
     const s_save = sec("저장", ["저장할 내용이 하나라도 있으면 아래 [저장]이 켜집니다. 누르면 바뀐 모든 카드(시작 화면·문자 문구·캘린더·사용자별 일정 구분과 시작 화면·FC 권한 등)를 한꺼번에 저장합니다. 각 카드 안의 [저장]을 눌러도 됩니다."]);
@@ -6677,12 +6749,13 @@
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_num = sec("주민번호·전화번호 '-' 자동 (v576)", ["주민번호와 전화번호는 <b>숫자만</b> 저장합니다. 화면에 보일 때는 '-'를 알아서 넣습니다(800823-1234567, 010-1234-5678, 02-123-4567). 수정 칸에서도 숫자만 치면 자리에 맞춰 '-'가 들어갑니다. 고객 정보·팀원정보·후보자정보·세일즈 목록·보고서에 모두 같습니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
-    const s_jw = sec("조직도 > Joint Work (관리자, 2026-11-26, v619)", ["조직도 맨 밑의 <b>Joint Work</b> 카드에서 방(J/W, J/W 2 …)을 만듭니다. 아래 팀원 카드(나 포함)를 끌어다 방에 놓으면 들어가고, 방 안 이름 옆 ×로 뺍니다. 한 사람이 여러 방에 들어갈 수 있습니다.", "방에 한 명이라도 들어가면 오른쪽에 빈 방이 하나 더 생깁니다. 방이 비면 그 방은 없어지고 오른쪽 방들이 왼쪽으로 당겨집니다(방 이름은 순서대로 다시 붙음).", "<b>같은 방 사람끼리는 서로의 고객·계약을 보고 고칠 수 있습니다</b>(그 사람 FC 보기+수정, 폴더 공유). 아래 [저장]을 눌러 확인창을 거쳐야 적용됩니다. 방에서 빼면 그 방 때문에 생긴 권한만 거둡니다(조직도로 받은 권한은 그대로). 세일즈 페이지 접근은 조직도 기준 그대로입니다."]);
+    const s_jw = sec("조직도 > Joint Work (관리자, 2026-11-26, v619)", ["<b>세일즈 › 이달목표(v623)</b>: 같은 J/W 방 사람의 FC가 월 줄 오른쪽 <b>FC 선택</b> 드롭박스에 함께 나옵니다(관리자의 사용자 선택과 같은 자리). 고르면 그 FC의 따행·이관·DB를 보고, 그 고객의 상담기록·메모는 로그인한 사람이 아니라 <b>그 고객의 FC 파일</b>에 저장됩니다.", "조직도 맨 밑의 <b>Joint Work</b> 카드에서 방(J/W, J/W 2 …)을 만듭니다. 아래 팀원 카드(나 포함)를 끌어다 방에 놓으면 들어가고, 방 안 이름 옆 ×로 뺍니다. 한 사람이 여러 방에 들어갈 수 있습니다.", "방에 한 명이라도 들어가면 오른쪽에 빈 방이 하나 더 생깁니다. 방이 비면 그 방은 없어지고 오른쪽 방들이 왼쪽으로 당겨집니다(방 이름은 순서대로 다시 붙음).", "<b>같은 방 사람끼리는 서로의 고객·계약을 보고 고칠 수 있습니다</b>(그 사람 FC 보기+수정, 폴더 공유). 아래 [저장]을 눌러 확인창을 거쳐야 적용됩니다. 방에서 빼면 그 방 때문에 생긴 권한만 거둡니다(조직도로 받은 권한은 그대로). 세일즈 페이지 접근은 조직도 기준 그대로입니다."]);
+    const s_xfc = sec("상담기록 저장 위치 (2026-11-26, v622)", ["고객 폴더 맨 위의 고객추가정보 파일이 보이지 않는 계정(자기 FC 폴더만 공유받은 FC)은 상담기록·세일즈 메모·고객 메모를 <b>그 FC 폴더 안의 '고객추가정보.xlsx'</b>에 저장합니다(처음 저장할 때 같은 양식으로 생김). 다른 FC의 기록은 보이지 않습니다.", "관리자는 맨 위 파일과 각 FC 폴더 파일을 합쳐서 봅니다. 관리자가 새로 쓰는 기록은 예전처럼 맨 위 파일에 들어갑니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 입학·졸업 년월(v601, 달력에서 고름), 최종학력은 고등학교·대학교·대학원 중 고르기(대학교·대학원을 고르면 옆에 학교명과 입학·졸업 년월 칸이 나옴, v601), 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 맨 위 제목 줄 왼쪽 끝에 <b>‹ 팀관리</b>(v609, 팀원정보·도입현황도 같음), 그 아래 줄은 <b>후보자 드롭다운</b>이고, 그 아래 동그란 <b>사진</b>을 누르거나 사진 파일을 그 위에 끌어다 놓으면(v606) 사진을 넣거나 바꿉니다(v605, 후보자 자료 폴더에 '프로필사진.jpg'로 저장, 자료 목록에는 안 보임). <b>[수정]·[담아두기]</b>(수정 중에는 <b>[취소]·[저장]</b>)는 오른쪽 아래 하단 메뉴 바로 위에 떠 있는 상자에 늘 보입니다(v603).", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(입학·졸업 년월) · 최종학력(대학교·대학원이면 학교명·입학·졸업 년월) · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["<b>고객 손글씨(v621)</b>: 청구 탭을 열면 고객 카드 전화번호 왼쪽에 [고객 손글씨] 버튼이 생깁니다(저장된 개수 2/3, 초록 점). 누르면 이름(서명 칸에도 씀)·은행명·계좌번호 세 가지를 고객이 펜이나 손가락으로 통째로 써서 [저장]합니다 — 있으면 [수정]·[삭제], 없으면 [쓰기], [빈 것 이어서 쓰기]는 없는 것만 차례로. 쓰기는 터치·펜이 되는 기기(아이패드·폰)에서만 됩니다. 저장은 고객 폴더 › 보험금청구 › 손글씨(배경 투명 PNG + 손글씨.json, 1팀 PC 스킬과 같은 형식)이고, 저장만 합니다. <b>[보험금청구서 다운로드]</b>를 누를 때 고른 기본청구서의 이름·서명·은행명·계좌번호 칸에 자동으로 넣어 한 PDF로 만듭니다(칸 위치가 정해진 곳: 한화손해보험·삼성화재·메리츠화재·신한라이프, 위치.json 이름칸·손글씨칸). v620의 ‘고객 정보 쓰기’ 버튼은 이것으로 바뀌었습니다.", "맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC의 이름·연락처, 고칠 수 있음. 연락처는 내 FC 폴더의 본인 정보에서 가져오고, 고쳐서 내려받으면 다음부터 그 번호가 나옵니다)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 8곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>빠른 열기</b>: 고객 폴더의 파일 목록(계약·분석·청구서·청구기록)은 미리 정리해 둔 목록에서 바로 보여 줍니다. 앱에서 올리거나 지우면 몇 초 뒤 목록이 저절로 고쳐지고, PC에서 넣은 파일은 30분 안에 따라잡습니다. 바로 보고 싶으면 탭 줄 오른쪽 끝 ↻를 누르세요.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, s_jw, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, s_rt, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, s_jw, grp("검색"), s_srch, grp("고객 정보"), s_num, s_xfc, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, s_rt, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }
@@ -9498,7 +9571,7 @@
     try {
       for (const it of cqRead()) {
         try { await saveConsults(it.fc, it.name, [{ text: it.text, when: new Date(it.at) }], []); cqWrite(cqRead().filter((x) => x.uid !== it.uid)); }
-        catch (e) { console.warn("상담기록(시도) 저장 실패, 다음에 다시", e); if (/NO_EXTRA_FILE/.test(String(e && e.message))) cqWrite(cqRead().filter((x) => x.uid !== it.uid)); break; }
+        catch (e) { console.warn("상담기록(시도) 저장 실패, 다음에 다시", e); if (/NO_EXTRA_FILE/.test(String(e && e.message))) cqWrite(cqRead().filter((x) => x.uid !== it.uid)); break; } // v622: FC 폴더 파일도 없을 때만(FC 폴더를 못 찾음)
       }
     } finally { cqBusy = false; }
   }
@@ -10144,8 +10217,8 @@
       const chips = stageChips ? stageChips : isD ? DCHIPS.map(([f, lab, cls], i) => `<button type="button" class="dc ${cls} ${i === lastD ? "on" : r.dda[f] ? "off past" : "off"}${lock ? " lock" : ""}" data-chip="${f}" data-key="${esc(r.key)}" aria-pressed="${r.dda[f] ? "true" : "false"}">${lab}</button>`).join("") : "";
       // [이동]/[원복]: 담당이 다른 FC 계약(참고)·계약ID 없는 계약·보기 전용은 없음. 계약 고객이 된 DB 고객은 '계약'(자동 보관)
       const arDay = r.arch && r.archDay ? `<span class="r-day">${r.db ? (r.del ? "지옥" : "보관") : r.del ? "지옥" : "완료"} ${esc(dshow(r.archDay).slice(5, 10))}</span>` : "";
-      const arBtn = r.db && r.del ? (r.ref || !r.key || isRO(r.fc) ? "" : `<i class="ar-sep" aria-hidden="true"></i><button type="button" class="ar-btn back" data-ardelnew="${esc(r.key)}" aria-label="${esc(r.holder)} 신규로 이동">신규로</button><button type="button" class="ar-btn" data-ardelx="${esc(r.key)}" aria-label="${esc(r.holder)} 보관으로 이동">보관으로</button>`) : r.db && r.arch && r.dbAuto ? `<i class="ar-sep" aria-hidden="true"></i><span class="ar-auto">계약</span>` : (r.ref || !r.key || isRO(r.fc) || r.arch === undefined) ? "" : `<i class="ar-sep" aria-hidden="true"></i>${r.db ? `<button type="button" class="ar-btn${r.arch ? " back" : ""}" data-arx="${esc(r.key)}" aria-label="${esc(r.holder)} ${r.arch ? "신규로 이동" : "보관으로 이동"}">${r.arch ? "신규로" : "보관으로"}</button>${r.arch ? `<button type="button" class="ar-btn del" data-ardel="${esc(r.key)}" aria-label="${esc(r.holder)} 지옥으로 이동">지옥으로</button>` : ""}`
-        : !r.arch ? `<button type="button" class="ar-btn" data-arx="${esc(r.key)}" data-to="done" aria-label="${esc(r.holder)} 완료로 이동">완료</button>` // v416: 이관·따행 = 신규 · 완료 · 지옥
+      const arBtn = r.db && r.del ? (r.ref || !r.key || isRO(r.fc) ? "" : `<i class="ar-sep" aria-hidden="true"></i><button type="button" class="ar-btn back" data-ardelnew="${esc(r.key)}" aria-label="${esc(r.holder)} 신규로 이동">신규로</button><button type="button" class="ar-btn" data-ardelx="${esc(r.key)}" aria-label="${esc(r.holder)} 보관으로 이동">보관으로</button>`) : r.db && r.arch && r.dbAuto ? `<i class="ar-sep" aria-hidden="true"></i><span class="ar-auto">계약</span>` : (r.ref || !r.key || isRO(r.fc) || r.arch === undefined) ? "" : `<i class="ar-sep" aria-hidden="true"></i>${r.db ? `<button type="button" class="ar-btn${r.arch ? " back" : ""}" data-arx="${esc(r.key)}" aria-label="${esc(r.holder)} ${r.arch ? "신규로 이동" : "보관으로 이동"}">${r.arch ? "신규로" : "보관으로"}</button><button type="button" class="ar-btn del" data-ardel="${esc(r.key)}"${r.arch ? "" : ' data-fromnew="1"'} aria-label="${esc(r.holder)} 지옥으로 이동">지옥으로</button>`
+        : !r.arch ? `<button type="button" class="ar-btn" data-arx="${esc(r.key)}" data-to="done" aria-label="${esc(r.holder)} 완료로 이동">완료</button>${r.canHell ? `<button type="button" class="ar-btn del" data-arx="${esc(r.key)}" data-to="hell" aria-label="${esc(r.holder)} 지옥으로 이동">지옥으로</button>` : ""}` // v622(2026-11-26 사용자 지시): 신규 줄에도 [지옥으로] // v416: 이관·따행 = 신규 · 완료 · 지옥
         : `<button type="button" class="ar-btn back" data-arx="${esc(r.key)}" data-to="new" aria-label="${esc(r.holder)} 신규로 이동">신규로</button>${r.del ? `<button type="button" class="ar-btn" data-arx="${esc(r.key)}" data-to="done" aria-label="${esc(r.holder)} 완료로 이동">완료로</button>` : r.canHell ? `<button type="button" class="ar-btn del" data-arx="${esc(r.key)}" data-to="hell" aria-label="${esc(r.holder)} 지옥으로 이동">지옥으로</button>` : ""}`}`;
       const arHtml = arDay ? `<span class="ar-act">${arDay}</span>` : "";
       // 왼쪽 굵은 선 = 지금 단계 색 (이관·DB = 영업단계 칩, 따행 = 마지막 달성 칩). 단계가 없으면 선 없음
@@ -10403,14 +10476,14 @@
     d.appendChild(im); document.body.appendChild(d);
     setTimeout(() => d.remove(), 1000);
   }
-  function dbDelete(name, entries, after) { // v363: 보관 목록에서도 숨김(자료는 지우지 않고 'DB삭제' 칸에 '삭제'만 표시)
+  function dbDelete(name, entries, after, fromNew) { // v622: fromNew = 신규 줄에서 바로 지옥으로(되돌리면 신규로) // v363: 보관 목록에서도 숨김(자료는 지우지 않고 'DB삭제' 칸에 '삭제'만 표시)
     if (!confirm(`${name} 고객을 지옥으로 보낼까요?
-보관 목록에서도 안 보이게 됩니다.
+${fromNew ? "목록에서 옮겨집니다." : "보관 목록에서도 안 보이게 됩니다."}
 (자료는 지워지지 않고 지옥 표시만 남고, 고객 성향이 Shit으로 바뀌어요. 지옥 칩에서 다시 볼 수 있어요.)`)) return;
     const ents = dbEnts(entries); if (!ents) return;
     exclApply("dbdel", ents, true, after); hellFx();
     const unShit = hellShit(ownEntries(entries.filter((e) => e.sheet === CUST_SHEET && e.src))); // v514: 성향은 담당FC 줄에(DB상태만 유입FC 줄)
-    undoToast(`${name} 고객을 지옥으로 보냈습니다`, () => { exclApply("dbdel", ents, false, after); if (unShit) unShit(); toast("지옥 이동을 취소했습니다."); });
+    undoToast(`${name} 고객을 지옥으로 보냈습니다`, () => { if (fromNew) exclApply("db", ents, false, after); else exclApply("dbdel", ents, false, after); if (unShit) unShit(); toast("지옥 이동을 취소했습니다."); });
   }
   const PROG_ASK = (name) => ARCH_ASK(name);
   // 진행 목록·고객 정보에서 쓰는 공통 동작: 확인 → (화면 바로 바뀜, 저장은 뒤에서) → 6.5초 되돌리기
@@ -10748,12 +10821,12 @@
       const fcs = [...new Set([...data.lists.map((e) => e.fc), ...data.contracts.map((c) => c.srcFc), ...knownFcs].filter(Boolean))].sort((a, b) => { const o = CFG.fcOrder || [], ia = o.indexOf(a), ib = o.indexOf(b); return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib) || a.localeCompare(b, "ko"); }); // 직급 먼저 → 사번순(config.fcOrder)
       let saved = ""; try { saved = localStorage.getItem(salesFcKey()) || ""; } catch (e) { /* 무시 */ }
       // 선택창에 나오는 FC: 모든 계정(관리자 포함) = 내 FC + 관리자 화면에서 '세일즈 페이지 접근 허용'에 체크한 FC (고객 폴더 접근 권한이 있는 FC만)
-      let selFcs = [...new Set([myFc, ...salesExtra])].filter((f) => f && fcs.includes(f)); // 일반 사용자: 본인 FC + 관리자 화면 '세일즈 페이지 접근 허용'에 체크한 FC
+      let selFcs = [...new Set([myFc, ...salesExtra, ...jwFcsOf(salesPermsAll, me(), fcs)])].filter((f) => f && fcs.includes(f)); // v623: J/W로 묶인 FC도 이달목표 FC 선택에 // 일반 사용자: 본인 FC + 관리자 화면 '세일즈 페이지 접근 허용'에 체크한 FC
       let userHtml = "";
       if (isAdmin() && salesPermsAll) { // v325(2026-11-15 사용자 지시): 관리자는 모든 사용자를 고르고, 고른 사용자의 '세일즈 페이지 접근 허용' FC만 봄
         const P = salesPermsAll, meE = me(), ord = CFG.fcOrder || [];
         const ownOf = (em) => (em === meE ? myFc : String((P.names || {})[em] || "").trim());
-        const fcsOf = (em) => [...new Set([ownOf(em), ...(Array.isArray((P.salesFcs || {})[em]) ? P.salesFcs[em] : [])])].filter((f) => f && fcs.includes(f));
+        const fcsOf = (em) => [...new Set([ownOf(em), ...(Array.isArray((P.salesFcs || {})[em]) ? P.salesFcs[em] : []), ...jwFcsOf(P, em, fcs)])].filter((f) => f && fcs.includes(f)); // v623: J/W FC 포함
         const users = [...new Set([meE, ...Object.keys(P.users || {}), ...Object.keys(P.names || {}), ...Object.keys(P.salesFcs || {})])].filter(Boolean)
           .map((em) => ({ em, name: ownOf(em) || em.split("@")[0], fcs: fcsOf(em) })).filter((u) => u.fcs.length)
           .reduce((a, u, i, all) => { a.push(u); if (i === all.length - 1) fcs.filter((f) => !all.some((x) => x.fcs.includes(f))).forEach((f) => a.push({ em: "fc:" + f, name: f, fcs: [f] })); return a; }, []) // v512: 계정(이메일)이 없는 팀원 FC도 관리자가 고를 수 있게
@@ -11913,7 +11986,7 @@
       if (!row || SALES.tab !== "valueup") return;
       const el = ard.closest(".srow"); let first = true;
       const after = () => { if (first && el) el.style.display = "none"; first = false; renderSales(true); };
-      dbDelete(row.holder, ((SALES.data && SALES.data.custById.get(row.custId)) || [row.ent]).filter(Boolean), after);
+      dbDelete(row.holder, ((SALES.data && SALES.data.custById.get(row.custId)) || [row.ent]).filter(Boolean), after, ard.hasAttribute("data-fromnew"));
       return;
     }
     const arx = ev.target.closest("[data-arx]");
