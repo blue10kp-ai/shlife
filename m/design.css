@@ -2333,3 +2333,7 @@ html.mode-jw .mode-band { height: calc(env(safe-area-inset-top, 0px) + 16px); pa
 .mode-users { display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0; }
 .mode-users label { flex: 1 1 140px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--t2); }
 .mode-users select { height: 36px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--t1); font: inherit; font-size: 14px; padding: 0 8px; }
+/* v632: J/W 방 상·하 */
+.jw-m .jw-lv { flex: none; min-width: 26px; height: 22px; margin-right: 6px; padding: 0 5px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: #fff; font: inherit; font-size: 11.5px; font-weight: 700; }
+.jw-m.lo .jw-lv { background: var(--surface); color: var(--t2); border-color: var(--line); }
+.jw-m .jw-lv + span { flex: 1; }
