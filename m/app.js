@@ -5594,7 +5594,12 @@
 
   // ---------- v326 조직도: 관리자(ESL) 밑으로 하부 조직, 사용자마다 보기·수정(그 사람 아래 조직의 고객) ----------
   const orgOpen = new Set(); // v369: 펼친 조직도 카드(이메일). 처음엔 모두 접힘(이름만)
-  let orgDraft = null, orgSaved = "", orgStartCache = null; // orgStartCache(v333): { 이메일: {page, ai, rh} } 시작 화면·AI·오른손
+  let orgDraft = null, orgSaved = "", orgStartCache = null;
+  // v619(2026-11-26 사용자 지시, 시안 확인 "이대로 코딩"): 조직도 밑 Joint Work 방. 같은 방 사람끼리 서로의 FC(고객·계약)를 보기+수정
+  //   권한 파일 jw = [{ m: [이메일…] }] (빈 방은 저장 안 함, 방 이름은 순서대로 J/W, J/W 2 …). 적용은 조직도 [저장]과 같이(확인창 → 권한·폴더 공유)
+  let jwDraft = [], jwSaved = "[]";
+  const jwName = (i) => (i ? `J/W ${i + 1}` : "J/W");
+  const jwNorm = (rooms, ok) => (Array.isArray(rooms) ? rooms : []).map((r) => ({ m: [...new Set(((r && r.m) || []).map((e) => String(e).toLowerCase()).filter(ok))] })).filter((r) => r.m.length); // orgStartCache(v333): { 이메일: {page, ai, rh} } 시작 화면·AI·오른손
   function orgLoadStarts() {
     const P = adminState.perms || {}, ids = adminState.fcIds, out = {};
     return Promise.all(orgUsers().map(async (em) => {
@@ -5633,6 +5638,7 @@
     ["users", "names", "titles", "salesFcs", "starts", "orgApplied", "orgSalesApplied", "archived", "login"].forEach((k) => { const m = perms[k]; if (m && Object.prototype.hasOwnProperty.call(m, a)) { m[b] = m[a]; delete m[a]; } });
     if (Array.isArray(perms.sensitive)) perms.sensitive = perms.sensitive.map((x) => (x === a ? b : x));
     if (perms.org) rekeyOrg(perms.org, a, b);
+    if (Array.isArray(perms.jw)) perms.jw.forEach((r) => { if (r && Array.isArray(r.m)) r.m = r.m.map((x) => (x === a ? b : x)); }); // v619
   }
   const orgRoot = () => String((CFG.admins || [])[0] || "").toLowerCase();
   const orgUsers = () => { const adm = (CFG.admins || []).map((a) => a.toLowerCase()); return Object.keys((adminState.perms || {}).users || {}).map((e) => e.toLowerCase()).filter((e) => e && !adm.includes(e)); };
@@ -5648,7 +5654,7 @@
   const ORG_TITLES = ["ESL", "SSL", "GSL", "FC"];
   let orgTitles = {}, orgTitlesSaved = "";
   const titleOf = (perms, em) => { const t = ((perms || {}).titles || {})[em]; return ORG_TITLES.includes(t) ? t : (CFG.admins || []).map((a) => a.toLowerCase()).includes(em) ? "ESL" : "FC"; };
-  const orgDirty = () => JSON.stringify(orgDraft) !== orgSaved || JSON.stringify(orgTitles) !== orgTitlesSaved;
+  const orgDirty = () => JSON.stringify(orgDraft) !== orgSaved || JSON.stringify(orgTitles) !== orgTitlesSaved || JSON.stringify(jwDraft) !== jwSaved;
   // v335(2026-11-15 사용자 지시): 사용자 X의 보기 = X의 FC를 X 위의 사용자들(관리자 제외)이 봄, 수정 = 수정 권한까지 위임
   function orgGets(d, em, fcOf) {
     const m = new Map();
@@ -5675,8 +5681,30 @@
     };
     const plan = orgPlan(), off = plan.changes.length + Object.keys(plan.sales).length; // 지금 권한이 조직도와 다른 계정 수
     $("adminBody").innerHTML = `<div class="card org-wrap"><div class="org-top"><span class="org-top-sp l"><button type="button" class="ev-edit org-back-btn" data-org-back>${orgFromTeam ? "‹ 팀관리" : "‹ 관리자"}</button></span><h3 class="sec-title">조직도</h3><span class="org-top-sp r"><button type="button" class="ev-edit ev-done" data-org-save hidden ${orgDirty() || off ? "" : "disabled"}>저장</button></span></div>
-      <ul class="org-tree">${node(root)}</ul>${orgUsers().length ? "" : '<p class="hint">관리자 화면에서 사용자를 먼저 추가하세요.</p>'}</div>`;
+      <ul class="org-tree">${node(root)}</ul>${orgUsers().length ? "" : '<p class="hint">관리자 화면에서 사용자를 먼저 추가하세요.</p>'}</div>${jwHtml()}`;
+    const rr = $("jwRooms"); if (rr) rr.scrollLeft = jwScroll;
   }
+  let jwScroll = 0;
+  const jwPeople = () => [orgRoot(), ...orgUsers()].filter(Boolean);
+  const GRIP = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>`;
+  function jwHtml() {
+    const root = orgRoot(), nm = (em) => orgName(em) + (em === root ? " (나)" : "");
+    const room = (r, i) => `<div class="jw-room" data-jw-room="${i}"><div class="jw-rn">${jwName(i)} <span class="c">${r.m.length}명</span></div>${r.m.map((em) => `<div class="jw-m"><span>${esc(nm(em))}</span><button type="button" data-jw-out="${i}" data-jw-em="${esc(em)}" aria-label="${esc(orgName(em))} ${jwName(i)}에서 빼기">×</button></div>`).join("")}<div class="jw-drop">여기에 놓으면 들어감</div></div>`;
+    const empty = `<div class="jw-room empty" data-jw-room="${jwDraft.length}"><div class="jw-rn">${jwName(jwDraft.length)} <span class="c">빈 방</span></div><div class="jw-drop">팀원 카드를<br>끌어다 놓으세요</div></div>`;
+    const inRooms = (em) => jwDraft.map((r, i) => (r.m.includes(em) ? jwName(i) : "")).filter(Boolean).join(", ");
+    const cards = jwPeople().map((em) => `<span class="jw-card${em === root ? " me" : ""}" data-jw-card="${esc(em)}" role="button" aria-label="${esc(orgName(em))} 끌어서 방에 넣기">${GRIP}${esc(nm(em))}${inRooms(em) ? `<small>${esc(inRooms(em))}</small>` : ""}</span>`).join("");
+    return `<div class="card jw-wrap"><div class="jw-h"><h3>Joint Work</h3><small>같은 방 사람끼리 서로의 고객·계약을 보고 고칩니다</small></div>
+      <div class="jw-rooms" id="jwRooms">${jwDraft.map(room).join("")}${empty}</div>
+      <div class="jw-pool-h">팀원 — 카드를 끌어 방에 놓으세요 (한 사람이 여러 방에 들어갈 수 있음)</div>
+      <div class="jw-pool">${cards}</div>
+      <p class="hint jw-note">방을 바꾼 뒤 아래 [저장]을 누르면 확인창에서 바뀌는 권한·폴더 공유를 보여 주고 적용합니다.</p></div>`;
+  }
+  function jwPut(em, i) { // 방 i에 넣기(i = 빈 방이면 새 방)
+    if (i >= jwDraft.length) jwDraft.push({ m: [] });
+    const r = jwDraft[i]; if (!r || r.m.includes(em)) return false;
+    r.m.push(em); return true;
+  }
+  function jwOut(em, i) { const r = jwDraft[i]; if (!r) return; r.m = r.m.filter((x) => x !== em); jwDraft = jwDraft.filter((x) => x.m.length); } // 빈 방은 없어지고 오른쪽 방이 왼쪽으로
   let orgFromTeam = false; // v446: 조직도는 팀관리에서 열고, 뒤로 가면 팀관리로
   async function openOrgFromTeam() {
     orgFromTeam = true;
@@ -5710,6 +5738,7 @@
     const d0 = orgNorm((adminState.perms || {}).org), d = (adminState.perms || {}).orgVer >= 2 ? d0 : orgFromV1(d0), sens = ((adminState.perms || {}).sensitive || []).map((e) => String(e).toLowerCase());
     Object.keys(d).forEach((em) => { d[em].sens = sens.includes(em); }); // v329: 민감정보 접근 = 권한 파일 sensitive (계정 카드 체크와 같은 값)
     orgSaved = JSON.stringify(d); orgDraft = JSON.parse(orgSaved);
+    { const ppl = new Set([orgRoot(), ...Object.keys(d)]); jwDraft = jwNorm((adminState.perms || {}).jw, (e) => ppl.has(e)); jwSaved = JSON.stringify(jwDraft); jwScroll = 0; } // v619
     orgTitles = {}; [orgRoot(), ...Object.keys(d)].forEach((em) => { orgTitles[em] = titleOf(adminState.perms, em); }); orgTitlesSaved = JSON.stringify(orgTitles);
     renderOrg(); window.scrollTo(0, 0);
     orgApplyIntro();
@@ -5726,25 +5755,27 @@
   //   조직도가 더한 권한만 orgApplied에 적어 두고, 조직도에서 빼면 그것만 되돌림(직접 체크한 권한은 그대로). Drive 공유는 savePerms가 함께 바꿈(확인창)
   function orgPlan() {
     const P = adminState.perms || {}, d = orgDraft, fcs = adminState.fcs || [], prev = P.orgApplied || {};
-    const fcOf = (em) => { const n = (P.names || {})[em]; return n && fcs.includes(n) ? n : ""; };
+    const fcOf = (em) => { const n = (P.names || {})[em]; return n && fcs.includes(n) ? n : ""; }; // 관리자(나)도 이름이 FC 폴더와 같으면 J/W 방에서 그 FC를 줌
     const changes = [], lines = [], applied = {}, sales = {}, salesApplied = {}, salesLines = [], prevS = P.orgSalesApplied || {};
     const lbl = (g) => grantFc(g) + (/:r$/.test(g) ? "(보기)" : "(수정)");
     orgUsers().forEach((em) => {
       const cur = ((P.users || {})[em] || []).slice(), own = fcOf(em);
       // v332(2026-11-15 사용자 지시 '정리'): 조직도가 유일한 기준. 고객 = 본인 FC(보기+수정) + 조직도 권한, 계정 카드에서 예전에 직접 준 권한은 뺌
       const gets = orgGets(d, em, fcOf).filter((g) => g.fc !== own), want = gets.map((g) => g.fc); // v335: 아래 사용자가 보기·수정을 켜서 나에게 준 FC
+      const jwFcs = []; jwDraft.forEach((r) => { if (!r.m.includes(em)) return; r.m.forEach((x) => { const f = fcOf(x); if (x !== em && f && f !== own && !jwFcs.includes(f)) jwFcs.push(f); }); }); // v619: 같은 J/W 방 사람의 FC
+      jwFcs.forEach((f) => { const g = gets.find((y) => y.fc === f); if (g) g.edit = true; else gets.push({ fc: f, edit: true, jw: true }); });
       let list = [...(own ? [own] : []), ...gets.map((g) => (g.edit ? g.fc : g.fc + ":r"))];
       if (!list.length) list = cur.slice(); // 본인 FC도 조직도 권한도 없으면 계정이 지워지지 않게 그대로 둠
       if (want.length) applied[em] = want.map((fc) => ({ fc, prev: null }));
       // 세일즈 페이지 접근 허용 = 조직도 아래 조직 FC (보기·수정 어느 쪽이든)
-      const sCur = ((P.salesFcs || {})[em] || []).slice(), sList = want.slice();
+      const sCur = ((P.salesFcs || {})[em] || []).slice(), sList = want.slice(); // 세일즈 접근은 조직도 기준 그대로(J/W 방은 고객·계약만)
       if (want.length) salesApplied[em] = want.slice();
       const sKey = (l) => [...l].sort().join("|");
       if (sKey(sList) !== sKey(sCur)) { sales[em] = sList; salesLines.push("· " + orgName(em) + " 영업: " + [...sList.filter((f) => !sCur.includes(f)).map((f) => "+" + f), ...sCur.filter((f) => !sList.includes(f)).map((f) => "−" + f)].join(" ")); }
       const key = (l) => [...l].sort().join("|");
       if (key(list) !== key(cur)) {
         const add = list.filter((g) => !cur.includes(g)), del = cur.filter((g) => !list.includes(g) && !add.some((x) => grantFc(x) === grantFc(g)));
-        lines.push("· " + orgName(em) + ": " + [...add.map((g) => "+" + lbl(g)), ...del.map((g) => "−" + lbl(g))].join(" "));
+        lines.push("· " + orgName(em) + ": " + [...add.map((g) => "+" + lbl(g) + (jwFcs.includes(grantFc(g)) ? "[J/W]" : "")), ...del.map((g) => "−" + lbl(g))].join(" "));
         changes.push([em, list, undefined]);
       }
     });
@@ -5765,15 +5796,16 @@
     const sAdd = Object.keys(draft).filter((em) => draft[em].sens && !was.has(em)), sDel = Object.keys(draft).filter((em) => !draft[em].sens && was.has(em));
     const sLine = sAdd.length || sDel.length ? ["· 민감정보 접근(주민번호·계좌): " + [...sAdd.map((em) => "+" + orgName(em)), ...sDel.map((em) => "−" + orgName(em))].join(" ")] : [];
     const titles = { ...orgTitles };
-    const done = () => { orgSaved = JSON.stringify(draft); orgTitlesSaved = JSON.stringify(titles); adminState.perms = { ...adminState.perms, titles }; toast("조직도를 저장했어요"); renderOrg(); };
+    const jw = JSON.parse(JSON.stringify(jwDraft)), jwChanged = JSON.stringify(jw) !== jwSaved; // v619
+    const done = () => { orgSaved = JSON.stringify(draft); orgTitlesSaved = JSON.stringify(titles); jwSaved = JSON.stringify(jw); adminState.perms = { ...adminState.perms, titles, jw }; toast("조직도를 저장했어요"); renderOrg(); };
     if (!changes.length) { // 고객 접근 권한은 그대로: 조직도(+민감정보)만 기록
-      if ((sLine.length || salesLines.length) && !confirm(["조직도를 저장합니다.", ...(salesLines.length ? ["세일즈 페이지 접근 허용을 바꿉니다."] : []), ...salesLines, ...sLine].join("\n"))) return;
+      if ((sLine.length || salesLines.length || jwChanged) && !confirm(["조직도를 저장합니다.", ...(jwChanged ? ["Joint Work 방을 저장합니다(바뀌는 고객 접근 권한 없음)."] : []), ...(salesLines.length ? ["세일즈 페이지 접근 허용을 바꿉니다."] : []), ...salesLines, ...sLine].join("\n"))) return;
       btn.disabled = true; btn.textContent = "저장 중…";
-      try { const perms = await readPerms(); orgSensApply(perms, draft); salesApply(perms); perms.orgApplied = applied; perms.titles = titles; await writePerms(perms); adminState.perms = { ...adminState.perms, org: perms.org, orgApplied: applied, sensitive: perms.sensitive, salesFcs: perms.salesFcs, orgSalesApplied: perms.orgSalesApplied }; done(); }
+      try { const perms = await readPerms(); orgSensApply(perms, draft); salesApply(perms); perms.orgApplied = applied; perms.titles = titles; perms.jw = jw; await writePerms(perms); adminState.perms = { ...adminState.perms, org: perms.org, orgApplied: applied, sensitive: perms.sensitive, salesFcs: perms.salesFcs, orgSalesApplied: perms.orgSalesApplied }; done(); }
       catch (e) { handleError(e); renderOrg(); }
       return;
     }
-    await savePerms(changes, { btn, pre: ["조직도대로 고객 페이지 접근 권한을 바꿉니다.", ...lines, ...(salesLines.length ? ["세일즈 페이지 접근 허용도 바꿉니다."] : []), ...salesLines, ...sLine], mutate: (perms) => { orgSensApply(perms, draft); salesApply(perms); perms.orgApplied = applied; perms.titles = titles; }, after: done });
+    await savePerms(changes, { btn, pre: ["조직도대로 고객 페이지 접근 권한을 바꿉니다.", ...lines, ...(salesLines.length ? ["세일즈 페이지 접근 허용도 바꿉니다."] : []), ...salesLines, ...sLine], mutate: (perms) => { orgSensApply(perms, draft); salesApply(perms); perms.orgApplied = applied; perms.titles = titles; perms.jw = jw; }, after: done });
   }
   document.addEventListener("change", (ev) => {
     const ts = ev.target && ev.target.closest && ev.target.closest("[data-org-t]");
@@ -5784,6 +5816,40 @@
     if (cb.hasAttribute("data-org-s")) o.sens = cb.checked;
     else if (cb.hasAttribute("data-org-v")) { o.view = cb.checked; if (!o.view) o.edit = false; } else { o.edit = cb.checked; if (o.edit) o.view = true; } // 수정은 보기를 포함
     renderOrg();
+  });
+  // v619: Joint Work — 팀원 카드를 끌어 방에 놓기, 방에서 × 빼기
+  document.addEventListener("click", (ev) => {
+    const b = ev.target && ev.target.closest && ev.target.closest("[data-jw-out]");
+    if (!b || !orgDraft) return;
+    const rr = $("jwRooms"); jwScroll = rr ? rr.scrollLeft : 0;
+    jwOut(b.dataset.jwEm, +b.dataset.jwOut); renderOrg();
+  });
+  document.addEventListener("pointerdown", (ev) => {
+    const c = ev.target && ev.target.closest && ev.target.closest("[data-jw-card]");
+    if (!c || !orgDraft) return;
+    ev.preventDefault();
+    const em = c.dataset.jwCard, r = c.getBoundingClientRect(), dx = ev.clientX - r.left, dy = ev.clientY - r.top;
+    const ghost = c.cloneNode(true); ghost.classList.add("jw-ghost"); ghost.style.width = r.width + "px"; document.body.appendChild(ghost);
+    c.classList.add("dragging");
+    const rooms = $("jwRooms");
+    let tgt = null, el0 = null;
+    const clear = () => document.querySelectorAll(".jw-room.over").forEach((x) => x.classList.remove("over"));
+    const move = (e) => {
+      ghost.style.transform = `translate(${e.clientX - dx}px, ${e.clientY - dy}px)`;
+      const el = document.elementFromPoint(e.clientX, e.clientY), n = el && el.closest && el.closest(".jw-room");
+      const t = n ? +n.dataset.jwRoom : null, ok = t != null && !(jwDraft[t] && jwDraft[t].m.includes(em));
+      if ((ok ? t : null) !== tgt) { clear(); tgt = ok ? t : null; el0 = n; if (ok) n.classList.add("over"); }
+      if (rooms) { const rb = rooms.getBoundingClientRect(); if (e.clientY > rb.top && e.clientY < rb.bottom) { if (e.clientX > rb.right - 36) rooms.scrollLeft += 12; else if (e.clientX < rb.left + 36) rooms.scrollLeft -= 12; } } // 방이 많으면 가장자리로 끌어 옆 방으로
+      const H = window.innerHeight; if (e.clientY < 80) window.scrollBy(0, -14); else if (e.clientY > H - 110) window.scrollBy(0, 14);
+    };
+    const up = () => {
+      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up);
+      ghost.remove(); c.classList.remove("dragging"); clear();
+      jwScroll = rooms ? rooms.scrollLeft : 0;
+      if (tgt != null && jwPut(em, tgt)) { renderOrg(); if (tgt === jwDraft.length - 1) { const rr = $("jwRooms"); if (rr) rr.scrollLeft = Math.max(0, rr.scrollWidth); } }
+    };
+    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); document.addEventListener("pointercancel", up);
+    move(ev);
   });
   // 끌어서 옮기기 (손가락·마우스 모두: pointer 이벤트)
   document.addEventListener("pointerdown", (ev) => {
@@ -6443,11 +6509,12 @@
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_num = sec("주민번호·전화번호 '-' 자동 (v576)", ["주민번호와 전화번호는 <b>숫자만</b> 저장합니다. 화면에 보일 때는 '-'를 알아서 넣습니다(800823-1234567, 010-1234-5678, 02-123-4567). 수정 칸에서도 숫자만 치면 자리에 맞춰 '-'가 들어갑니다. 고객 정보·팀원정보·후보자정보·세일즈 목록·보고서에 모두 같습니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
+    const s_jw = sec("조직도 > Joint Work (관리자, 2026-11-26, v619)", ["조직도 맨 밑의 <b>Joint Work</b> 카드에서 방(J/W, J/W 2 …)을 만듭니다. 아래 팀원 카드(나 포함)를 끌어다 방에 놓으면 들어가고, 방 안 이름 옆 ×로 뺍니다. 한 사람이 여러 방에 들어갈 수 있습니다.", "방에 한 명이라도 들어가면 오른쪽에 빈 방이 하나 더 생깁니다. 방이 비면 그 방은 없어지고 오른쪽 방들이 왼쪽으로 당겨집니다(방 이름은 순서대로 다시 붙음).", "<b>같은 방 사람끼리는 서로의 고객·계약을 보고 고칠 수 있습니다</b>(그 사람 FC 보기+수정, 폴더 공유). 아래 [저장]을 눌러 확인창을 거쳐야 적용됩니다. 방에서 빼면 그 방 때문에 생긴 권한만 거둡니다(조직도로 받은 권한은 그대로). 세일즈 페이지 접근은 조직도 기준 그대로입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 입학·졸업 년월(v601, 달력에서 고름), 최종학력은 고등학교·대학교·대학원 중 고르기(대학교·대학원을 고르면 옆에 학교명과 입학·졸업 년월 칸이 나옴, v601), 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 맨 위 제목 줄 왼쪽 끝에 <b>‹ 팀관리</b>(v609, 팀원정보·도입현황도 같음), 그 아래 줄은 <b>후보자 드롭다운</b>이고, 그 아래 동그란 <b>사진</b>을 누르거나 사진 파일을 그 위에 끌어다 놓으면(v606) 사진을 넣거나 바꿉니다(v605, 후보자 자료 폴더에 '프로필사진.jpg'로 저장, 자료 목록에는 안 보임). <b>[수정]·[담아두기]</b>(수정 중에는 <b>[취소]·[저장]</b>)는 오른쪽 아래 하단 메뉴 바로 위에 떠 있는 상자에 늘 보입니다(v603).", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(입학·졸업 년월) · 최종학력(대학교·대학원이면 학교명·입학·졸업 년월) · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC의 이름·연락처, 고칠 수 있음. 연락처는 내 FC 폴더의 본인 정보에서 가져오고, 고쳐서 내려받으면 다음부터 그 번호가 나옵니다)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 8곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>빠른 열기</b>: 고객 폴더의 파일 목록(계약·분석·청구서·청구기록)은 미리 정리해 둔 목록에서 바로 보여 줍니다. 앱에서 올리거나 지우면 몇 초 뒤 목록이 저절로 고쳐지고, PC에서 넣은 파일은 30분 안에 따라잡습니다. 바로 보고 싶으면 탭 줄 오른쪽 끝 ↻를 누르세요.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
-    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, s_rt, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
+    const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, s_jw, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, s_rt, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
     return iconBox + parts.join("");
   }

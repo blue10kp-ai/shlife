@@ -2183,3 +2183,30 @@ html.is-pc a.nowrap[href^="tel:"], html.is-pc a.od-tel[href^="tel:"] { color: in
 #fcOpts { justify-content: flex-end; }
 #fcOpts .join-sms-btn { margin-left: auto; }
 #fcOpts #fcoSel, .rh #fcOpts #fcoSel { margin-left: 0; }
+
+/* v619: 조직도 > Joint Work 방 */
+.jw-wrap { margin-top: 10px; }
+.jw-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin: 0 0 6px; }
+.jw-h h3 { margin: 0; font-size: 16px; }
+.jw-h small { font-size: 12px; color: var(--t3); }
+.jw-rooms { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 8px; scrollbar-width: none; }
+.jw-rooms::-webkit-scrollbar { display: none; }
+.jw-room { flex: 0 0 150px; min-height: 120px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 8px; display: flex; flex-direction: column; gap: 6px; box-sizing: border-box; }
+.jw-room.empty { border-style: dashed; background: transparent; }
+.jw-room.over { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+.jw-rn { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 600; }
+.jw-rn .c { font-size: 11px; color: var(--t3); font-weight: 400; }
+.jw-m { display: flex; align-items: center; justify-content: space-between; min-height: 28px; border-radius: 8px; background: var(--raised, var(--bg)); padding: 0 2px 0 8px; font-size: 13px; }
+.jw-m span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jw-m button { flex: none; width: 26px; height: 26px; border: 0; background: transparent; color: var(--t3); font-size: 15px; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.jw-drop { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 12px; color: var(--t3); line-height: 1.4; min-height: 28px; }
+.jw-room:not(.over):not(.empty) .jw-drop { visibility: hidden; }
+.jw-pool-h { font-size: 12px; color: var(--t3); margin: 4px 0 6px; }
+.jw-pool { display: flex; flex-wrap: wrap; gap: 6px; }
+.jw-card { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 10px 0 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 13px; color: var(--t1); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; box-sizing: border-box; white-space: nowrap; }
+.jw-card svg { color: var(--t3); flex: none; }
+.jw-card small { font-size: 11px; color: var(--t3); margin-left: 2px; }
+.jw-card.me { border-color: var(--t2); }
+.jw-card.dragging { opacity: .4; }
+.jw-ghost { position: fixed; left: 0; top: 0; z-index: 1000; pointer-events: none; box-shadow: 0 6px 16px rgba(0,0,0,.25); border-color: var(--accent); }
+.jw-note { margin: 10px 0 0; font-size: 12px; }
