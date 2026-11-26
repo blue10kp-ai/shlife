@@ -2102,3 +2102,21 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 #tabs .tab-rf { flex: 0 0 auto; min-width: 32px; padding: 0 6px; margin-left: auto; opacity: .6; font-size: 15px; }
 #tabs .tab-rf.spin { animation: tabrf 1s linear infinite; }
 @keyframes tabrf { to { transform: rotate(360deg); } }
+
+/* v600(2026-11-26 사용자 지시): 고객 화면 [가입문자] + FC 드롭박스(팀 / 각 FC), 가입설계동의 문자 발송 창 */
+#fcOpts { display: flex; align-items: center; gap: 6px; }
+#fcOpts .fco-sel { width: auto; min-width: 96px; height: 34px; margin-left: 0; font-size: 13px; }
+#fcOpts .join-sms-btn { height: 34px; padding: 0 12px; border: 1px solid var(--accent); border-radius: var(--r-ctl); background: var(--surface); color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; }
+.join-modal { position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,.45); display: flex; align-items: flex-end; justify-content: center; }
+.join-sheet { width: 100%; max-width: 520px; max-height: 88vh; overflow: auto; box-sizing: border-box; background: var(--surface); color: var(--t1); border-radius: 16px 16px 0 0; padding: 14px 14px calc(18px + env(safe-area-inset-bottom)); }
+.join-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.join-h b { font-size: 16px; }
+.join-x { border: 0; background: none; color: var(--t2); font-size: 22px; line-height: 1; padding: 2px 6px; }
+.join-fc { font-size: 12px; color: var(--t3); margin: 0 0 8px; }
+.join-row { display: flex; gap: 6px; }
+.join-in { flex: 1; min-width: 0; height: 40px; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--r-ctl); padding: 0 10px; background: var(--bg); color: var(--t1); font: inherit; font-size: 15px; }
+.join-pick { height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); color: var(--t1); font: inherit; font-size: 13px; }
+.join-hint { font-size: 12px; color: var(--t3); margin: 10px 0 0; }
+.join-msg { margin-top: 10px; background: var(--raised); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-all; }
+.join-go { display: flex; align-items: center; justify-content: center; margin-top: 12px; height: 42px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; text-decoration: none; }
+#fcOpts[hidden] { display: none; }
