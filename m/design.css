@@ -2337,3 +2337,16 @@ html.mode-jw .mode-band { height: calc(env(safe-area-inset-top, 0px) + 16px); pa
 .jw-m .jw-lv { flex: none; min-width: 26px; height: 22px; margin-right: 6px; padding: 0 5px; border: 1px solid var(--accent); border-radius: 6px; background: var(--accent); color: #fff; font: inherit; font-size: 11.5px; font-weight: 700; }
 .jw-m.lo .jw-lv { background: var(--surface); color: var(--t2); border-color: var(--line); }
 .jw-m .jw-lv + span { flex: 1; }
+/* v633: J/W 방 = 한 줄씩, 방 안 상·중·하 3단 */
+.jw-rooms { flex-direction: column; overflow-x: visible; }
+.jw-room { flex: none; width: 100%; min-height: 0; }
+.jw-tier { display: flex; align-items: stretch; gap: 8px; border: 1px dashed var(--line); border-radius: 10px; padding: 6px; min-height: 40px; }
+.jw-tier.over { border-style: solid; border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.jw-tn { flex: none; width: 24px; display: flex; align-items: center; justify-content: center; font-size: 12.5px; color: var(--t2); border-right: 1px solid var(--line); margin-right: 2px; }
+.jw-tm { flex: 1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.jw-te { font-size: 12px; color: var(--t3); }
+.jw-tm .jw-m { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; padding: 0 2px 0 4px; gap: 2px; }
+.jw-tm .jw-m svg { color: var(--t3); flex: none; }
+.jw-tm .jw-m span { flex: none; }
+.jw-tm .jw-m.dragging { opacity: .4; }
+.jw-room.empty { min-height: 60px; }

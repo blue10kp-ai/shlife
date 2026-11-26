@@ -850,7 +850,7 @@
   // 세일즈 화면을 열 때(1분에 한 번) 권한 파일을 다시 읽어, 관리자가 방금 바꾼 '추가 FC'도 앱을 다시 열지 않고 반영
   async function refreshSalesExtra() { if (Date.now() - salesExtraAt < 60000) return; salesExtraAt = Date.now(); try { await readPerms(); } catch (e) { /* 이전 값 유지 */ } }
   let salesPermsAll = null; // v325: 관리자 세일즈 화면의 사용자 선택(각 사용자의 FC + '세일즈 페이지 접근 허용')
-  const jwFcsOf = (P, em, fcs) => { const out = []; (Array.isArray(P && P.jw) ? P.jw : []).forEach((r) => { const m = ((r && r.m) || []).map((x) => String(x).toLowerCase()); if (!m.includes(em)) return; const lo = new Set(((r && r.lo) || []).map((x) => String(x).toLowerCase())); m.forEach((x) => { const f = String(((P.names || {})[x]) || "").trim(); if (x !== em && f && (!fcs || fcs.includes(f)) && !out.includes(f) && (!lo.has(em) || lo.has(x))) out.push(f); }); }); return out; }; // v623(2026-11-26 사용자 지시): 같은 J/W 방 사람의 FC
+  const jwFcsOf = (P, em, fcs) => { const out = []; (Array.isArray(P && P.jw) ? P.jw : []).forEach((r) => { const m = ((r && r.m) || []).map((x) => String(x).toLowerCase()); if (!m.includes(em)) return; m.forEach((x) => { const f = String(((P.names || {})[x]) || "").trim(); if (x !== em && f && (!fcs || fcs.includes(f)) && !out.includes(f) && jwLvOf(r, x) >= jwLvOf(r, em)) out.push(f); }); }); return out; }; // v623(2026-11-26 사용자 지시): 같은 J/W 방 사람의 FC
   let salesExtra = []; // 세일즈(이달이관·따행) 화면의 FC 선택창에 추가로 보이는 FC (관리자 화면에서 계정마다 지정)
   // ---------- FC 이름 ↔ 사번 (v359) ----------
   // 기준표: Claude/_양식/사용자권한.json (users[{no,name,...}]) — 관리자만 읽을 수 있음(일반 사용자는 권한 파일의 fcNos 보조칸을 씀)
@@ -5959,8 +5959,9 @@
   //   권한 파일 jw = [{ m: [이메일…] }] (빈 방은 저장 안 함, 방 이름은 순서대로 J/W, J/W 2 …). 적용은 조직도 [저장]과 같이(확인창 → 권한·폴더 공유)
   let jwDraft = [], jwSaved = "[]";
   const jwName = (i) => (i ? `J/W ${i + 1}` : "J/W");
-  const jwNorm = (rooms, ok) => (Array.isArray(rooms) ? rooms : []).map((r) => { const m = [...new Set(((r && r.m) || []).map((e) => String(e).toLowerCase()).filter(ok))], lo = [...new Set(((r && r.lo) || []).map((e) => String(e).toLowerCase()))].filter((e) => m.includes(e)); return lo.length ? { m, lo } : { m }; }).filter((r) => r.m.length); // v632: lo = 하(아래) 사용자, 나머지는 상
-  const jwSees = (r, em, x) => { const lo = new Set((r && r.lo) || []); return !lo.has(em) || lo.has(x); }; // v632: 상은 방 안 모두, 하는 같은 하끼리만(상은 못 봄) // orgStartCache(v333): { 이메일: {page, ai, rh} } 시작 화면·AI·오른손
+  const jwLvOf = (r, em) => { const v = r && r.lv && r.lv[em]; if (v === 1 || v === 2) return v; return r && Array.isArray(r.lo) && r.lo.map((x) => String(x).toLowerCase()).includes(em) ? 2 : 0; }; // v633: 0 상 · 1 중 · 2 하 (v632의 lo = 하)
+  const jwNorm = (rooms, ok) => (Array.isArray(rooms) ? rooms : []).map((r) => { const m = [...new Set(((r && r.m) || []).map((e) => String(e).toLowerCase()).filter(ok))], lv = {}; m.forEach((e) => { const v = jwLvOf(r, e); if (v) lv[e] = v; }); return Object.keys(lv).length ? { m, lv } : { m }; }).filter((r) => r.m.length);
+  const jwSees = (r, em, x) => jwLvOf(r, x) >= jwLvOf(r, em); // v633: 위 단계는 아래·같은 단계를 보고, 아래 단계는 위를 못 봄 // orgStartCache(v333): { 이메일: {page, ai, rh} } 시작 화면·AI·오른손
   function orgLoadStarts() {
     const P = adminState.perms || {}, ids = adminState.fcIds, out = {};
     return Promise.all(orgUsers().map(async (em) => {
@@ -6050,22 +6051,29 @@
   const GRIP = `<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>`;
   function jwHtml() {
     const root = orgRoot(), nm = (em) => orgName(em) + (em === root ? " (나)" : "");
-    const room = (r, i) => `<div class="jw-room" data-jw-room="${i}"><div class="jw-rn">${jwName(i)} <span class="c">${r.m.length}명</span></div>${r.m.map((em) => `<div class="jw-m${(r.lo || []).includes(em) ? " lo" : ""}"><button type="button" class="jw-lv" data-jw-lv="${i}" data-jw-em="${esc(em)}" aria-label="${esc(orgName(em))} ${(r.lo || []).includes(em) ? "하" : "상"} (눌러서 바꾸기)">${(r.lo || []).includes(em) ? "하" : "상"}</button><span>${esc(nm(em))}</span><button type="button" data-jw-out="${i}" data-jw-em="${esc(em)}" aria-label="${esc(orgName(em))} ${jwName(i)}에서 빼기">×</button></div>`).join("")}<div class="jw-drop">여기에 놓으면 들어감</div></div>`;
-    const empty = `<div class="jw-room empty" data-jw-room="${jwDraft.length}"><div class="jw-rn">${jwName(jwDraft.length)} <span class="c">빈 방</span></div><div class="jw-drop">팀원 카드를<br>끌어다 놓으세요</div></div>`;
+    const TIERS = ["상", "중", "하"]; // v633(2026-11-26 사용자 지시): 방은 한 줄, 방 안은 상·중·하 3단, 끌어서 바로 옮김
+    const mem = (r, i, em) => `<div class="jw-m" data-jw-mem="${esc(em)}" data-jw-from="${i}" role="button" aria-label="${esc(orgName(em))} 끌어서 다른 단·방으로">${GRIP}<span>${esc(nm(em))}</span><button type="button" data-jw-out="${i}" data-jw-em="${esc(em)}" aria-label="${esc(orgName(em))} ${jwName(i)}에서 빼기">×</button></div>`;
+    const room = (r, i) => `<div class="jw-room" data-jw-room="${i}"><div class="jw-rn">${jwName(i)} <span class="c">${r.m.length}명</span></div>${TIERS.map((tn, k) => { const ms = r.m.filter((em) => jwLvOf(r, em) === k); return `<div class="jw-tier" data-jw-room="${i}" data-jw-tier="${k}"><b class="jw-tn">${tn}</b><div class="jw-tm">${ms.map((em) => mem(r, i, em)).join("") || '<span class="jw-te">여기로 끌어 놓기</span>'}</div></div>`; }).join("")}</div>`;
+    const empty = `<div class="jw-room empty" data-jw-room="${jwDraft.length}" data-jw-tier="0"><div class="jw-rn">${jwName(jwDraft.length)} <span class="c">새 방</span></div><div class="jw-drop">팀원 카드를 끌어다 놓으면 새 방(상)</div></div>`;
     const inRooms = (em) => jwDraft.map((r, i) => (r.m.includes(em) ? jwName(i) : "")).filter(Boolean).join(", ");
     const cards = jwPeople().map((em) => `<span class="jw-card${em === root ? " me" : ""}" data-jw-card="${esc(em)}" role="button" aria-label="${esc(orgName(em))} 끌어서 방에 넣기">${GRIP}${esc(nm(em))}${inRooms(em) ? `<small>${esc(inRooms(em))}</small>` : ""}</span>`).join("");
-    return `<div class="card jw-wrap"><div class="jw-h"><h3>Joint Work</h3><small>같은 방 사람끼리 서로의 고객·계약을 보고 고칩니다. 이름 앞 <b>상/하</b>를 눌러 바꿈 — 상은 방 안 모두를, 하는 같은 하끼리만 봄(상은 못 봄)</small></div>
+    return `<div class="card jw-wrap"><div class="jw-h"><h3>Joint Work</h3><small>같은 방 사람끼리 고객·계약을 보고 고칩니다. 방 안 <b>상·중·하</b> — 위 단계는 아래·같은 단계를 보고 고치고, 아래 단계는 위를 못 봄. 이름을 끌어 단·방을 바로 옮김</small></div>
       <div class="jw-rooms" id="jwRooms">${jwDraft.map(room).join("")}${empty}</div>
       <div class="jw-pool-h">팀원 — 카드를 끌어 방에 놓으세요 (한 사람이 여러 방에 들어갈 수 있음)</div>
       <div class="jw-pool">${cards}</div>
       <p class="hint jw-note">방을 바꾼 뒤 아래 [저장]을 누르면 확인창에서 바뀌는 권한·폴더 공유를 보여 주고 적용합니다.</p></div>`;
   }
-  function jwPut(em, i) { // 방 i에 넣기(i = 빈 방이면 새 방)
+  function jwPut(em, i, k) { // 방 i의 k단(0 상·1 중·2 하)에 넣기(i = 빈 방이면 새 방). 이미 그 방이면 단만 바꿈
     if (i >= jwDraft.length) jwDraft.push({ m: [] });
-    const r = jwDraft[i]; if (!r || r.m.includes(em)) return false;
-    r.m.push(em); return true;
+    const r = jwDraft[i]; if (!r) return false;
+    const had = r.m.includes(em), was = had ? jwLvOf(r, em) : -1; k = k === 1 || k === 2 ? k : 0;
+    if (had && was === k) return false;
+    if (!had) r.m.push(em);
+    const lv = { ...(r.lv || {}) }; delete lv[em]; if (k) lv[em] = k; if (Array.isArray(r.lo)) { r.lo.filter((x) => x !== em).forEach((x) => { if (!lv[x]) lv[x] = 2; }); delete r.lo; }
+    if (Object.keys(lv).length) r.lv = lv; else delete r.lv;
+    return true;
   }
-  function jwOut(em, i) { const r = jwDraft[i]; if (!r) return; r.m = r.m.filter((x) => x !== em); if (r.lo) { r.lo = r.lo.filter((x) => x !== em); if (!r.lo.length) delete r.lo; } jwDraft = jwDraft.filter((x) => x.m.length); } // 빈 방은 없어지고 오른쪽 방이 왼쪽으로
+  function jwOut(em, i) { const r = jwDraft[i]; if (!r) return; r.m = r.m.filter((x) => x !== em); if (r.lo) { r.lo = r.lo.filter((x) => x !== em); if (!r.lo.length) delete r.lo; } if (r.lv) { delete r.lv[em]; if (!Object.keys(r.lv).length) delete r.lv; } jwDraft = jwDraft.filter((x) => x.m.length); } // 빈 방은 없어지고 오른쪽 방이 왼쪽으로
   let orgFromTeam = false; // v446: 조직도는 팀관리에서 열고, 뒤로 가면 팀관리로
   async function openOrgFromTeam() {
     orgFromTeam = true;
@@ -6184,28 +6192,29 @@
   });
   // v619: Joint Work — 팀원 카드를 끌어 방에 놓기, 방에서 × 빼기
   document.addEventListener("click", (ev) => {
-    const lv = ev.target && ev.target.closest && ev.target.closest("[data-jw-lv]"); // v632: 상 ↔ 하
-    if (lv && orgDraft) { const r = jwDraft[+lv.dataset.jwLv], em = lv.dataset.jwEm; if (!r) return; const lo = new Set(r.lo || []); if (lo.has(em)) lo.delete(em); else lo.add(em); if (lo.size) r.lo = [...lo]; else delete r.lo; const rr = $("jwRooms"); jwScroll = rr ? rr.scrollLeft : 0; renderOrg(); return; }
     const b = ev.target && ev.target.closest && ev.target.closest("[data-jw-out]");
     if (!b || !orgDraft) return;
     const rr = $("jwRooms"); jwScroll = rr ? rr.scrollLeft : 0;
     jwOut(b.dataset.jwEm, +b.dataset.jwOut); renderOrg();
   });
   document.addEventListener("pointerdown", (ev) => {
-    const c = ev.target && ev.target.closest && ev.target.closest("[data-jw-card]");
+    if (ev.target && ev.target.closest && ev.target.closest("[data-jw-out]")) return; // × 누르기는 끌기 아님
+    const c = ev.target && ev.target.closest && ev.target.closest("[data-jw-card], [data-jw-mem]");
     if (!c || !orgDraft) return;
     ev.preventDefault();
-    const em = c.dataset.jwCard, r = c.getBoundingClientRect(), dx = ev.clientX - r.left, dy = ev.clientY - r.top;
+    const from = c.dataset.jwFrom != null ? +c.dataset.jwFrom : null; // v633: 방 안 이름이면 원래 방
+    const em = c.dataset.jwCard || c.dataset.jwMem, r = c.getBoundingClientRect(), dx = ev.clientX - r.left, dy = ev.clientY - r.top;
     const ghost = c.cloneNode(true); ghost.classList.add("jw-ghost"); ghost.style.width = r.width + "px"; document.body.appendChild(ghost);
     c.classList.add("dragging");
     const rooms = $("jwRooms");
-    let tgt = null, el0 = null;
-    const clear = () => document.querySelectorAll(".jw-room.over").forEach((x) => x.classList.remove("over"));
+    let tgt = null, el0 = null, tier = 0;
+    const clear = () => document.querySelectorAll(".jw-room.over, .jw-tier.over").forEach((x) => x.classList.remove("over"));
     const move = (e) => {
       ghost.style.transform = `translate(${e.clientX - dx}px, ${e.clientY - dy}px)`;
-      const el = document.elementFromPoint(e.clientX, e.clientY), n = el && el.closest && el.closest(".jw-room");
-      const t = n ? +n.dataset.jwRoom : null, ok = t != null && !(jwDraft[t] && jwDraft[t].m.includes(em));
-      if ((ok ? t : null) !== tgt) { clear(); tgt = ok ? t : null; el0 = n; if (ok) n.classList.add("over"); }
+      const el = document.elementFromPoint(e.clientX, e.clientY), n = el && el.closest && (el.closest(".jw-tier") || el.closest(".jw-room.empty"));
+      const t = n ? +n.dataset.jwRoom : null, k = n ? +(n.dataset.jwTier || 0) : 0;
+      const ok = t != null && (from === t ? jwLvOf(jwDraft[t], em) !== k : !(jwDraft[t] && jwDraft[t].m.includes(em)));
+      if ((ok ? t + ":" + k : null) !== (tgt == null ? null : tgt + ":" + tier)) { clear(); tgt = ok ? t : null; tier = k; el0 = n; if (ok) n.classList.add("over"); }
       if (rooms) { const rb = rooms.getBoundingClientRect(); if (e.clientY > rb.top && e.clientY < rb.bottom) { if (e.clientX > rb.right - 36) rooms.scrollLeft += 12; else if (e.clientX < rb.left + 36) rooms.scrollLeft -= 12; } } // 방이 많으면 가장자리로 끌어 옆 방으로
       const H = window.innerHeight; if (e.clientY < 80) window.scrollBy(0, -14); else if (e.clientY > H - 110) window.scrollBy(0, 14);
     };
@@ -6213,7 +6222,8 @@
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up);
       ghost.remove(); c.classList.remove("dragging"); clear();
       jwScroll = rooms ? rooms.scrollLeft : 0;
-      if (tgt != null && jwPut(em, tgt)) { renderOrg(); if (tgt === jwDraft.length - 1) { const rr = $("jwRooms"); if (rr) rr.scrollLeft = Math.max(0, rr.scrollWidth); } }
+      if (tgt != null && from != null && from !== tgt) { const gone = jwDraft[from] && jwDraft[from].m.length === 1; jwOut(em, from); if (gone && tgt > from) tgt -= 1; } // 다른 방으로 옮김(원래 방이 비어 없어지면 번호가 당겨짐)
+      if (tgt != null && jwPut(em, tgt, tier)) { renderOrg(); if (tgt === jwDraft.length - 1) { const rr = $("jwRooms"); if (rr) rr.scrollLeft = Math.max(0, rr.scrollWidth); } }
     };
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); document.addEventListener("pointercancel", up);
     move(ev);
@@ -6877,7 +6887,7 @@
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_num = sec("주민번호·전화번호 '-' 자동 (v576)", ["주민번호와 전화번호는 <b>숫자만</b> 저장합니다. 화면에 보일 때는 '-'를 알아서 넣습니다(800823-1234567, 010-1234-5678, 02-123-4567). 수정 칸에서도 숫자만 치면 자리에 맞춰 '-'가 들어갑니다. 고객 정보·팀원정보·후보자정보·세일즈 목록·보고서에 모두 같습니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
-    const s_jw = sec("조직도 > Joint Work (관리자, 2026-11-26, v619)", ["<b>신입 메뉴(v629)</b>: 신입 모드 화면에는 위쪽에 <b>영업 1 · 영업 2 · … · 영업 5</b> 탭이 있고(v630), <b>영업 1</b>을 누르면 아래 페이지에 [고객 설계동의 문자 보내기] 버튼이 나오고, 고객 화면의 가입설계동의 버튼과 같은 문자 창이 열립니다(PC에서는 꺼짐). 영업 2~5는 준비 중입니다.", "<b>FC 모드 = 그 FC로 로그인한 것처럼(v632)</b>: FC 일반·J/W 모드에서는 기준 사용자의 직책·볼 수 있는 FC·고객추가정보 파일(맨 위 파일 대신 FC 폴더 파일) 기준으로 화면을 보여 주어, 관리자에게만 보이는 선택창·체크가 나오지 않습니다.", "<b>J/W 상·하(v632)</b>: 조직도 › Joint Work 방에서 사람 이름 앞 <b>상/하</b>를 눌러 바꿉니다. 상은 같은 방의 모든 사람(상·하)의 고객·계약을 보고 고치고, 하는 같은 하끼리만 보고 고치며 상의 고객은 볼 수 없습니다. 바꾼 뒤 아래 [저장]하면 권한·폴더 공유에 반영됩니다(처음엔 모두 상).", "<b>FC 모드 = 일반 · J/W (v631)</b>: 모드 버튼에서 FC 모드를 누르면 <b>일반</b>·<b>J/W</b>를 다시 고릅니다. 일반은 박상선, J/W는 최수진을 기준으로(그 사람이 볼 수 있는 FC·이름으로) 보입니다. 기준 사용자는 설정 › <b>모드 기준 사용자</b>에서 바꿉니다. 화면만 그 사람 기준이고 저장·기록은 내 계정으로 됩니다.", "<b>모드 버튼(v628, 관리자만)</b>: 오른쪽 아래(예전 AI 버튼 자리)에 동그란 모드 버튼이 늘 떠 있고, 끌어서 옮기면 그 자리를 기억합니다. 누르면 위로 늘어나며 위부터 <b>신입 모드 · FC 모드 · 관리자 모드</b>. FC 모드는 팀관리·관리자 설정·사용자 선택을 숨긴 일반 FC 화면(데이터 권한은 그대로), 신입 모드는 신입 화면(보일 메뉴는 아직 정하는 중이라 안내만)이고, 위쪽 얇은 띠로 지금 모드가 보입니다. 고른 모드는 이 기기에 기억되고, 관리자 모드를 고르면 원래대로 돌아옵니다.", "<b>신입모드(v627)</b>: 조직도에서 이름을 눌러 펼치면 민감정보 오른쪽에 <b>신입모드</b> 체크가 있습니다. 체크하고 아래 [저장]하면 권한 파일에 그 사용자가 신입모드로 기록되고, 사용자 정보 팝업에도 켜짐/꺼짐이 보입니다. 신입모드일 때 보일 화면은 다음에 정합니다(지금은 기록만).", "<b>세일즈 › 이달목표(v623)</b>: 같은 J/W 방 사람의 FC가 월 줄 오른쪽 <b>FC 선택</b> 드롭박스에 함께 나옵니다(관리자의 사용자 선택과 같은 자리). 고르면 그 FC의 따행·이관·DB를 보고, 그 고객의 상담기록·메모는 로그인한 사람이 아니라 <b>그 고객의 FC 파일</b>에 저장됩니다.", "조직도 맨 밑의 <b>Joint Work</b> 카드에서 방(J/W, J/W 2 …)을 만듭니다. 아래 팀원 카드(나 포함)를 끌어다 방에 놓으면 들어가고, 방 안 이름 옆 ×로 뺍니다. 한 사람이 여러 방에 들어갈 수 있습니다.", "방에 한 명이라도 들어가면 오른쪽에 빈 방이 하나 더 생깁니다. 방이 비면 그 방은 없어지고 오른쪽 방들이 왼쪽으로 당겨집니다(방 이름은 순서대로 다시 붙음).", "<b>같은 방 사람끼리는 서로의 고객·계약을 보고 고칠 수 있습니다</b>(그 사람 FC 보기+수정, 폴더 공유). 아래 [저장]을 눌러 확인창을 거쳐야 적용됩니다. 방에서 빼면 그 방 때문에 생긴 권한만 거둡니다(조직도로 받은 권한은 그대로). 세일즈 페이지 접근은 조직도 기준 그대로입니다."]);
+    const s_jw = sec("조직도 > Joint Work (관리자, 2026-11-26, v619)", ["<b>신입 메뉴(v629)</b>: 신입 모드 화면에는 위쪽에 <b>영업 1 · 영업 2 · … · 영업 5</b> 탭이 있고(v630), <b>영업 1</b>을 누르면 아래 페이지에 [고객 설계동의 문자 보내기] 버튼이 나오고, 고객 화면의 가입설계동의 버튼과 같은 문자 창이 열립니다(PC에서는 꺼짐). 영업 2~5는 준비 중입니다.", "<b>FC 모드 = 그 FC로 로그인한 것처럼(v632)</b>: FC 일반·J/W 모드에서는 기준 사용자의 직책·볼 수 있는 FC·고객추가정보 파일(맨 위 파일 대신 FC 폴더 파일) 기준으로 화면을 보여 주어, 관리자에게만 보이는 선택창·체크가 나오지 않습니다.", "<b>J/W 상·중·하(v633)</b>: 조직도 › Joint Work의 방은 한 줄씩(세로로) 보이고, 방 안은 <b>상 · 중 · 하</b> 3단입니다. 아래 팀원 카드나 방 안 이름을 끌어 원하는 방·단에 놓으면 바로 옮겨지고(다른 방으로도), ×로 뺍니다. 위 단계는 아래·같은 단계 사람의 고객·계약을 보고 고치고, 아래 단계는 위 단계를 볼 수 없습니다. 같은 단계끼리는 서로 보고 고칩니다. 바꾼 뒤 아래 [저장]하면 권한·폴더 공유에 반영됩니다(처음엔 모두 상).", "<b>FC 모드 = 일반 · J/W (v631)</b>: 모드 버튼에서 FC 모드를 누르면 <b>일반</b>·<b>J/W</b>를 다시 고릅니다. 일반은 박상선, J/W는 최수진을 기준으로(그 사람이 볼 수 있는 FC·이름으로) 보입니다. 기준 사용자는 설정 › <b>모드 기준 사용자</b>에서 바꿉니다. 화면만 그 사람 기준이고 저장·기록은 내 계정으로 됩니다.", "<b>모드 버튼(v628, 관리자만)</b>: 오른쪽 아래(예전 AI 버튼 자리)에 동그란 모드 버튼이 늘 떠 있고, 끌어서 옮기면 그 자리를 기억합니다. 누르면 위로 늘어나며 위부터 <b>신입 모드 · FC 모드 · 관리자 모드</b>. FC 모드는 팀관리·관리자 설정·사용자 선택을 숨긴 일반 FC 화면(데이터 권한은 그대로), 신입 모드는 신입 화면(보일 메뉴는 아직 정하는 중이라 안내만)이고, 위쪽 얇은 띠로 지금 모드가 보입니다. 고른 모드는 이 기기에 기억되고, 관리자 모드를 고르면 원래대로 돌아옵니다.", "<b>신입모드(v627)</b>: 조직도에서 이름을 눌러 펼치면 민감정보 오른쪽에 <b>신입모드</b> 체크가 있습니다. 체크하고 아래 [저장]하면 권한 파일에 그 사용자가 신입모드로 기록되고, 사용자 정보 팝업에도 켜짐/꺼짐이 보입니다. 신입모드일 때 보일 화면은 다음에 정합니다(지금은 기록만).", "<b>세일즈 › 이달목표(v623)</b>: 같은 J/W 방 사람의 FC가 월 줄 오른쪽 <b>FC 선택</b> 드롭박스에 함께 나옵니다(관리자의 사용자 선택과 같은 자리). 고르면 그 FC의 따행·이관·DB를 보고, 그 고객의 상담기록·메모는 로그인한 사람이 아니라 <b>그 고객의 FC 파일</b>에 저장됩니다.", "조직도 맨 밑의 <b>Joint Work</b> 카드에서 방(J/W, J/W 2 …)을 만듭니다. 아래 팀원 카드(나 포함)를 끌어다 방에 놓으면 들어가고, 방 안 이름 옆 ×로 뺍니다. 한 사람이 여러 방에 들어갈 수 있습니다.", "방에 한 명이라도 들어가면 오른쪽에 빈 방이 하나 더 생깁니다. 방이 비면 그 방은 없어지고 오른쪽 방들이 왼쪽으로 당겨집니다(방 이름은 순서대로 다시 붙음).", "<b>같은 방 사람끼리는 서로의 고객·계약을 보고 고칠 수 있습니다</b>(그 사람 FC 보기+수정, 폴더 공유). 아래 [저장]을 눌러 확인창을 거쳐야 적용됩니다. 방에서 빼면 그 방 때문에 생긴 권한만 거둡니다(조직도로 받은 권한은 그대로). 세일즈 페이지 접근은 조직도 기준 그대로입니다."]);
     const s_xfc = sec("상담기록 저장 위치 (2026-11-26, v622)", ["고객 폴더 맨 위의 고객추가정보 파일이 보이지 않는 계정(자기 FC 폴더만 공유받은 FC)은 상담기록·세일즈 메모·고객 메모를 <b>그 FC 폴더 안의 '고객추가정보.xlsx'</b>에 저장합니다(처음 저장할 때 같은 양식으로 생김). 다른 FC의 기록은 보이지 않습니다.", "관리자는 맨 위 파일과 각 FC 폴더 파일을 합쳐서 봅니다. 관리자가 새로 쓰는 기록은 예전처럼 맨 위 파일에 들어갑니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 입학·졸업 년월(v601, 달력에서 고름), 최종학력은 고등학교·대학교·대학원 중 고르기(대학교·대학원을 고르면 옆에 학교명과 입학·졸업 년월 칸이 나옴, v601), 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 맨 위 제목 줄 왼쪽 끝에 <b>‹ 팀관리</b>(v609, 팀원정보·도입현황도 같음), 그 아래 줄은 <b>후보자 드롭다운</b>이고, 그 아래 동그란 <b>사진</b>을 누르거나 사진 파일을 그 위에 끌어다 놓으면(v606) 사진을 넣거나 바꿉니다(v605, 후보자 자료 폴더에 '프로필사진.jpg'로 저장, 자료 목록에는 안 보임). <b>[수정]·[담아두기]</b>(수정 중에는 <b>[취소]·[저장]</b>)는 오른쪽 아래 하단 메뉴 바로 위에 떠 있는 상자에 늘 보입니다(v603).", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(입학·졸업 년월) · 최종학력(대학교·대학원이면 학교명·입학·졸업 년월) · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
