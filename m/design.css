@@ -2266,3 +2266,22 @@ html.is-pc a.nowrap[href^="tel:"], html.is-pc a.od-tel[href^="tel:"] { color: in
 .cw-steps span.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .cw-steps span.dn { border-color: #3fb37f; color: #3fb37f; }
 .hw-pad.wide { height: 150px; }
+/* v624: 고객 손글씨 창 = 화면 가운데, 뒤 화면은 터치·스크롤 막음 */
+.join-modal.hw-modal { z-index: 3000; align-items: center; padding: 16px; background: rgba(0,0,0,.6); touch-action: none; overscroll-behavior: contain; }
+.hw-modal .hw-sheet { height: auto; max-height: calc(100dvh - 32px); border-radius: 16px; padding: 14px 14px 16px; overflow: auto; touch-action: auto; box-shadow: 0 12px 40px rgba(0,0,0,.35); }
+.hw-modal .hw-acts { margin-top: 6px; }
+html.hw-lock, html.hw-lock body { overflow: hidden; }
+/* v625: 설정 › 내 손글씨(FC용) */
+.fw-body { display: flex; flex-direction: column; gap: 4px; }
+.fw-gl { font-size: 12.5px; font-weight: 600; color: var(--t2); margin: 6px 0 2px; }
+.fw-gl small { font-weight: 400; color: var(--t3); }
+.fw-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.fw-cell { position: relative; aspect-ratio: 1.1; border: 1px solid var(--line); border-radius: 7px; background: #fff; padding: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.fw-cell.wide { grid-column: span 2; aspect-ratio: auto; min-height: 52px; }
+.fw-cell i { position: absolute; left: 4px; top: 2px; font-size: 10px; line-height: 1.2; font-style: normal; color: #8a919d; }
+.fw-cell img { max-width: 84%; max-height: 74%; }
+.fw-cell.no { background: var(--surface); border-style: dashed; }
+.fw-cell.no b { font-size: 11px; font-weight: 400; color: var(--t3); }
+.hw-pad.sq { height: 190px; }
+.hw-tools .sp { flex: 1; }
+.hw-tools button.del { color: #e5534b; }

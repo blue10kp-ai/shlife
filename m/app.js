@@ -3154,9 +3154,9 @@
     if (on) { tel.insertAdjacentHTML("afterbegin", cwBtnHtml()); tel.hidden = false; cwLoadAll().then(() => { const b = tel.querySelector(".cw-btn"); if (b) b.outerHTML = cwBtnHtml(); }).catch(() => {}); }
     else tel.hidden = !tel.querySelector(".n, .acts");
   }
-  function hwClose() { const m = $("hwModal"); if (m) m.remove(); hwPad = null; }
+  function hwClose() { const m = $("hwModal"); if (m) m.remove(); hwPad = null; document.documentElement.classList.remove("hw-lock"); }
   function hwShell(title, inner) {
-    let m = $("hwModal"); if (!m) { m = document.createElement("div"); m.id = "hwModal"; m.className = "join-modal hw-modal"; document.body.appendChild(m); }
+    let m = $("hwModal"); if (!m) { m = document.createElement("div"); m.id = "hwModal"; m.className = "join-modal hw-modal"; document.body.appendChild(m); document.documentElement.classList.add("hw-lock"); m.addEventListener("touchmove", (ev) => { if (!ev.target.closest(".hw-sheet")) ev.preventDefault(); }, { passive: false }); } // v624: 창이 떠 있는 동안 뒤 화면은 터치·스크롤 안 됨
     m.innerHTML = `<div class="join-sheet hw-sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="join-h"><b>${esc(title)}</b><button type="button" class="join-x" data-hw-x aria-label="닫기">×</button></div>${inner}</div>`;
     return m;
   }
@@ -3182,6 +3182,9 @@
       <div class="hw-pad${it.wide ? " wide" : ""}"><span class="hw-ph">${esc(it.label)}</span><span class="hw-base"></span><canvas id="hwCv" aria-label="${esc(it.label)} 필기 칸"></canvas></div>
       <div class="hw-tools"><button type="button" data-hw-undo>↶ 한 획 지우기</button><button type="button" data-hw-clear>모두 지우기</button></div>
       <div class="hw-acts"><button type="button" data-hw-cancel>${chain ? "그만 쓰기" : "취소"}</button><button type="button" class="pri" data-cw-save="${id}"${chain ? " data-chain" : ""}>저장</button></div>`);
+    hwPadInit(m, old);
+  }
+  function hwPadInit(m, old) { // v625: 고객 손글씨·내 손글씨가 같이 씀
     const cv = m.querySelector("#hwCv"), r = cv.getBoundingClientRect(), dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
     cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
     const g = cv.getContext("2d");
@@ -3255,7 +3258,7 @@
   }
   document.addEventListener("click", async (ev) => {
     const t = ev.target && ev.target.closest && ev.target.closest("#custTel [data-cw-open], #hwModal [data-hw-x], #hwModal [data-hw-cancel], #hwModal [data-hw-undo], #hwModal [data-hw-clear], #hwModal [data-cw-edit], #hwModal [data-cw-del], #hwModal [data-cw-save], #hwModal [data-cw-next]");
-    if (!t) { if (ev.target && ev.target.id === "hwModal") hwClose(); return; }
+    if (!t) return; // v624: 바깥(어두운 곳)을 눌러도 닫히지 않음 — [닫기]·×로만
     if (t.hasAttribute("data-cw-open")) { cwOpen(); return; }
     if (t.hasAttribute("data-hw-x")) { hwClose(); return; }
     if (t.hasAttribute("data-hw-cancel")) { cwList(); return; }
@@ -3270,6 +3273,110 @@
       t.disabled = true;
       try { if (v.old) return; if (v.id) await stDel(v.id); { const root = await hwDirOf(false); if (root) await cwJsonSet(root, id, null); } if (v.url) URL.revokeObjectURL(v.url); delete current.cw[id]; toast(`${it.label} 손글씨를 삭제했습니다`); cwSync("claim"); cwList(); } catch (e) { t.disabled = false; handleError(e); }
       return;
+    }
+  });
+  // ===== v625(2026-11-26 사용자 지시 "사용자 FC용 손글씨 넣는걸 하자. 설정에서 고객한테 받는것처럼"): 내 손글씨(FC용) =====
+  //   설정 › '내 손글씨 (청구서용)' 카드 → 숫자 0~9·하이픈(각 3번)·FC 이름·FC 서명·본인·년·월·일·V(3)·○(2) 44칸을 펜·손가락으로 써서 저장
+  //   저장: 내 FC 폴더 › _앱설정 › 손글씨 › (1팀 실무 양식과 같은 파일 이름) + 손글씨.json. 청구서에 넣는 자리는 나중에(지금은 저장만)
+  const FW_ITEMS = (() => {
+    const a = [];
+    for (const d of ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "하이픈"]) for (let i = 1; i <= 3; i++) a.push({ id: `digit_${d}_${i}`, label: d === "하이픈" ? "–" : d, name: `${d === "하이픈" ? "하이픈" : "숫자 " + d} (${i})`, kind: "숫자(한 칸)", val: d === "하이픈" ? "-" : d, file: `숫자/전체/${d}_${i}.png`, g: "숫자" });
+    a.push({ id: "fc_name", label: "이름", name: "FC 이름", kind: "이름(칸 전체)", val: "", file: "이름/FC이름.png", g: "이름·서명", wide: true });
+    a.push({ id: "fc_sign", label: "서명", name: "FC 서명", kind: "서명", val: "", file: "사인/FC서명.png", g: "이름·서명", wide: true });
+    a.push({ id: "word_self", label: "본인", name: "본인", kind: "글자(칸 전체)", val: "본인", file: "글자/본인.png", g: "글자·표시", wide: true });
+    [["year", "년"], ["month", "월"], ["day", "일"]].forEach(([k, v]) => a.push({ id: `word_${k}`, label: v, name: v, kind: "글자(한 글자)", val: v, file: `글자/${v}.png`, g: "글자·표시" }));
+    for (let i = 1; i <= 3; i++) a.push({ id: `check_v_${i}`, label: "V", name: `V 체크 (${i})`, kind: "체크", val: "V", file: `체크/V_${i}.png`, g: "글자·표시" });
+    for (let i = 1; i <= 2; i++) a.push({ id: `check_o_${i}`, label: "○", name: `○ 동그라미 (${i})`, kind: "체크", val: "○", file: `체크/동그라미_${i}.png`, g: "글자·표시" });
+    return a;
+  })();
+  let fwState = null; // { root, items: { id: {id(drive), blob, url} } } — 앱을 연 동안 기억
+  let fwP = null;
+  async function fwRoot(make) {
+    const perms = salesPermsAll || await readPerms(), d0 = startDirOf(perms, me(), perms.fcFolders); if (!d0) return null;
+    const app = await startSubDir(d0, make); if (!app) return null;
+    return clmFolder(app.id, HW_DIR, make);
+  }
+  function fwLoad(force) {
+    if (fwState && !force) return Promise.resolve(fwState);
+    if (fwP && !force) return fwP;
+    fwP = (async () => {
+      const root = await fwRoot(false), items = {};
+      if (root) {
+        const dirs = [...new Set(FW_ITEMS.map((it) => it.file.split("/").slice(0, -1).join("/")))], files = new Map();
+        await Promise.all(dirs.map(async (p) => { const pd = await hwPathDir(root, p + "/x", false); if (!pd) return; (await gdQuery("'" + qv(pd.dir.id) + "' in parents and trashed=false")).forEach((f) => files.set(p + "/" + f.name, f)); }));
+        const have = FW_ITEMS.filter((it) => files.has(it.file));
+        await pMap(have, 6, async (it) => { const f = files.get(it.file); try { const blob = new Blob([await stGet0(f.id)], { type: "image/png" }); items[it.id] = { id: f.id, blob, url: URL.createObjectURL(blob) }; } catch (e) { if (String(e.message).includes("GOOGLE_AUTH")) throw e; } });
+      }
+      fwState = { root, items }; fwP = null; return fwState;
+    })().catch((e) => { fwP = null; throw e; });
+    return fwP;
+  }
+  const fwCount = () => (fwState ? Object.keys(fwState.items).length : null);
+  const fwCardHtml = () => `<div class="card" id="fwCard"><h3 class="sec-title">내 손글씨 (청구서용)</h3><p class="hint">보험금청구서에 넣을 숫자·하이픈·이름·서명·본인·년월일·V·○를 펜이나 손가락으로 한 번 써 두면 다시 쓸 수 있습니다. <span id="fwCnt">${fwCount() == null ? "" : `${fwCount()}/${FW_ITEMS.length}칸 저장됨`}</span></p><div class="file-actions"><button type="button" class="primary" data-fw-open>열기</button></div></div>${(setTimeout(() => { fwLoad().then(fwCntSync).catch(() => {}); }, 0), "")}`;
+  function fwCntSync() { const el = $("fwCnt"); if (el && fwState) el.textContent = `${fwCount()}/${FW_ITEMS.length}칸 저장됨`; }
+  async function fwOpen() {
+    hwShell("내 손글씨", '<p class="hint">불러오는 중…</p>');
+    try { await fwLoad(); fwGrid(); fwCntSync(); } catch (e) { hwClose(); handleError(e); }
+  }
+  function fwGrid() {
+    hwPad = null;
+    const st = fwState || { items: {} }, n = Object.keys(st.items).length, groups = ["숫자", "이름·서명", "글자·표시"];
+    const cell = (it) => { const v = st.items[it.id]; return `<button type="button" class="fw-cell${v ? "" : " no"}${it.wide ? " wide" : ""}" data-fw-edit="${it.id}" aria-label="${esc(it.name)} ${v ? "고치기" : "쓰기"}"><i>${esc(it.label)}</i>${v ? `<img src="${v.url}" alt="">` : "<b>비어</b>"}</button>`; };
+    const body = groups.map((g) => `<div class="fw-gl">${g}${g === "숫자" ? " <small>(각 3번 — 넣을 때 번갈아 써서 자연스럽게)</small>" : ""}</div><div class="fw-grid">${FW_ITEMS.filter((it) => it.g === g).map(cell).join("")}</div>`).join("");
+    const left = FW_ITEMS.length - n;
+    hwShell("내 손글씨", `<p class="join-fc">${n}/${FW_ITEMS.length}칸 저장됨 · 칸을 누르면 그 칸만 쓰거나 고칩니다. 저장: 내 FC 폴더 › _앱설정 › 손글씨${HW_OK ? "" : " · 쓰기는 터치·펜이 되는 기기(아이패드 등)에서만 됩니다"}</p><div class="fw-body">${body}</div>
+      <div class="hw-acts"><button type="button" data-hw-x>닫기</button>${left && HW_OK ? `<button type="button" class="pri" data-fw-next>빈 칸 이어서 쓰기 (${left})</button>` : ""}</div>`);
+  }
+  function fwDraw(id, chain) {
+    const i = FW_ITEMS.findIndex((x) => x.id === id), it = FW_ITEMS[i]; if (!it) return fwGrid();
+    if (!HW_OK) return toast("쓰기는 터치·펜이 되는 기기(아이패드 등)에서만 됩니다");
+    const old = (fwState && fwState.items[id]) || null;
+    const m = hwShell(`내 손글씨 · ${it.name}`, `<p class="join-fc">${i + 1}/${FW_ITEMS.length} · ${it.wide ? "한 줄로 " : "칸 가운데에 "}크게 적어 주세요(넣을 때 칸에 맞춰 줄임)</p>
+      <div class="hw-pad${it.wide ? " wide" : " sq"}"><span class="hw-ph">${esc(it.label)}</span><span class="hw-base"></span><canvas id="hwCv" aria-label="${esc(it.name)} 필기 칸"></canvas></div>
+      <div class="hw-tools"><button type="button" data-hw-undo>↶ 한 획 지우기</button><button type="button" data-hw-clear>모두 지우기</button>${old ? `<button type="button" class="del" data-fw-del="${id}">삭제</button>` : ""}<span class="sp"></span><button type="button" data-fw-go="${FW_ITEMS[(i - 1 + FW_ITEMS.length) % FW_ITEMS.length].id}">‹ 이전</button><button type="button" data-fw-go="${FW_ITEMS[(i + 1) % FW_ITEMS.length].id}">다음 ›</button></div>
+      <div class="hw-acts"><button type="button" data-fw-grid>목록</button><button type="button" class="pri" data-fw-save="${id}"${chain ? " data-chain" : ""}>저장</button></div>`);
+    hwPadInit(m, old, it.label);
+  }
+  async function fwJsonSet(root, id, on) {
+    const it = FW_ITEMS.find((x) => x.id === id);
+    let doc = null; try { doc = await stReadJsonIn(root, HW_JSON); } catch (e) { doc = null; }
+    doc = doc && typeof doc === "object" ? doc : {};
+    if (!doc.설명) doc.설명 = "FC가 직접 쓴 청구서용 글씨(숫자·하이픈·이름·서명·본인·년월일·V·○). 그림은 배경 없는 투명 PNG(검정 글씨). 신한FC 앱 설정 › 내 손글씨·1팀 PC 스킬이 같이 씀";
+    const items = Array.isArray(doc.항목) ? doc.항목.filter((x) => !(x && (x.id === id || x.파일 === it.file))) : [];
+    if (on) items.push({ id, 대상: "FC", 종류: it.kind, 값: it.val, 파일: it.file, 쪽: 1, 출처: "앱 필기", 저장: new Date().toISOString(), by: me() });
+    doc.항목 = items;
+    await stWriteJsonIn(root, HW_JSON, doc);
+  }
+  async function fwSave(btn, id, chain) {
+    const blob = await hwPng(); if (!blob) return toast("먼저 적어 주세요");
+    const it = FW_ITEMS.find((x) => x.id === id);
+    btn.disabled = true; btn.textContent = "저장 중…";
+    try {
+      const root = await fwRoot(true), pd = await hwPathDir(root, it.file, true), up = await stPutIn(pd.dir, pd.name, blob, "image/png");
+      await fwJsonSet(root, id, true);
+      if (!fwState) fwState = { root, items: {} };
+      const old = fwState.items[id]; if (old && old.url) URL.revokeObjectURL(old.url);
+      fwState.items[id] = { id: (up && up.id) || "", blob, url: URL.createObjectURL(blob) };
+      fwCntSync(); toast(`${it.name} 저장`);
+      const i = FW_ITEMS.findIndex((x) => x.id === id);
+      const next = chain ? FW_ITEMS.slice(i + 1).concat(FW_ITEMS.slice(0, i)).find((x) => !fwState.items[x.id]) : FW_ITEMS[i + 1];
+      if (next) fwDraw(next.id, chain); else fwGrid();
+    } catch (e) { btn.disabled = false; btn.textContent = "저장"; handleError(e); }
+  }
+  document.addEventListener("click", async (ev) => {
+    const t = ev.target && ev.target.closest && ev.target.closest("[data-fw-open], #hwModal [data-fw-edit], #hwModal [data-fw-next], #hwModal [data-fw-go], #hwModal [data-fw-grid], #hwModal [data-fw-save], #hwModal [data-fw-del]");
+    if (!t) return;
+    if (t.hasAttribute("data-fw-open")) { fwOpen(); return; }
+    if (t.hasAttribute("data-fw-edit")) { if (HW_OK) fwDraw(t.dataset.fwEdit, false); else toast("쓰기는 터치·펜이 되는 기기(아이패드 등)에서만 됩니다"); return; }
+    if (t.hasAttribute("data-fw-next")) { const n = FW_ITEMS.find((x) => !(fwState && fwState.items[x.id])); if (n) fwDraw(n.id, true); return; }
+    if (t.hasAttribute("data-fw-go")) { fwDraw(t.dataset.fwGo, false); return; }
+    if (t.hasAttribute("data-fw-grid")) { fwGrid(); return; }
+    if (t.hasAttribute("data-fw-save")) { fwSave(t, t.dataset.fwSave, t.hasAttribute("data-chain")); return; }
+    if (t.hasAttribute("data-fw-del")) {
+      const id = t.dataset.fwDel, it = FW_ITEMS.find((x) => x.id === id), v = fwState && fwState.items[id];
+      if (!v || !confirm(`‘${it.name}’ 손글씨를 삭제할까요?\n(구글 드라이브 휴지통으로 옮겨집니다)`)) return;
+      t.disabled = true;
+      try { if (v.id) await stDel(v.id); const root = await fwRoot(false); if (root) await fwJsonSet(root, id, false); if (v.url) URL.revokeObjectURL(v.url); delete fwState.items[id]; fwCntSync(); toast("삭제했습니다"); fwDraw(id, false); } catch (e) { t.disabled = false; handleError(e); }
     }
   });
   // v551(2026-11-22 사용자 지시): 개인청구서를 올리면 원본은 '보험금청구서 › 원본'에 두고, 보험금청구서 스타일로 바꾼 PDF를 이 고객 청구서로 저장
@@ -5781,7 +5888,7 @@
     body.innerHTML = featCardHtml() + `<div class="card" id="myCalCard"><details class="fold">
         <summary class="sec-title">구글 캘린더</summary>
         <div id="myCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
-        <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml() + installCardHtml();
+        <div class="file-actions"><button type="button" class="primary" id="myCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml() + fwCardHtml() + installCardHtml(); // v625: 내 손글씨
     bindStartCard();
     bindSmsCard();
     let cals;
@@ -6321,7 +6428,7 @@
     // 순서: 사용 FC 현황 → 사용자 추가 → 설정  (Drive 공유는 '변경 저장' 때 자동 처리, 표에는 표시 안 함)
     const personal = featCardHtml() + `<div class="card" id="adminCalCard"><details class="fold" id="gFold"><summary class="sec-title">구글 캘린더</summary>
         <div id="gCalBox"><p class="hint">캘린더 목록을 불러오는 중…</p></div>
-        <div class="file-actions"><button type="button" class="primary" id="gCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml() + installCardHtml();
+        <div class="file-actions"><button type="button" class="primary" id="gCalSave" disabled>저장</button></div></details></div>` + startCardHtml() + smsCardHtml() + rhCardHtml() + fwCardHtml() + installCardHtml(); // v625: 내 손글씨
     $("adminBody").innerHTML = personal + `<h2 class="admin-sec">관리자</h2>
       <div class="card ntf-entry"><div><h3 class="sec-title">전체 알림</h3><p class="hint">FC 로그인 직후 보여 줄 알림(날짜·요일·시스템)을 정합니다.</p></div><button type="button" class="secondary" data-ntf-open>열기 ›</button></div>
       <div class="card">
@@ -6753,7 +6860,7 @@
     const s_xfc = sec("상담기록 저장 위치 (2026-11-26, v622)", ["고객 폴더 맨 위의 고객추가정보 파일이 보이지 않는 계정(자기 FC 폴더만 공유받은 FC)은 상담기록·세일즈 메모·고객 메모를 <b>그 FC 폴더 안의 '고객추가정보.xlsx'</b>에 저장합니다(처음 저장할 때 같은 양식으로 생김). 다른 FC의 기록은 보이지 않습니다.", "관리자는 맨 위 파일과 각 FC 폴더 파일을 합쳐서 봅니다. 관리자가 새로 쓰는 기록은 예전처럼 맨 위 파일에 들어갑니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 입학·졸업 년월(v601, 달력에서 고름), 최종학력은 고등학교·대학교·대학원 중 고르기(대학교·대학원을 고르면 옆에 학교명과 입학·졸업 년월 칸이 나옴, v601), 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 맨 위 제목 줄 왼쪽 끝에 <b>‹ 팀관리</b>(v609, 팀원정보·도입현황도 같음), 그 아래 줄은 <b>후보자 드롭다운</b>이고, 그 아래 동그란 <b>사진</b>을 누르거나 사진 파일을 그 위에 끌어다 놓으면(v606) 사진을 넣거나 바꿉니다(v605, 후보자 자료 폴더에 '프로필사진.jpg'로 저장, 자료 목록에는 안 보임). <b>[수정]·[담아두기]</b>(수정 중에는 <b>[취소]·[저장]</b>)는 오른쪽 아래 하단 메뉴 바로 위에 떠 있는 상자에 늘 보입니다(v603).", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(입학·졸업 년월) · 최종학력(대학교·대학원이면 학교명·입학·졸업 년월) · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
-    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["<b>고객 손글씨(v621)</b>: 청구 탭을 열면 고객 카드 전화번호 왼쪽에 [고객 손글씨] 버튼이 생깁니다(저장된 개수 2/3, 초록 점). 누르면 이름(서명 칸에도 씀)·은행명·계좌번호 세 가지를 고객이 펜이나 손가락으로 통째로 써서 [저장]합니다 — 있으면 [수정]·[삭제], 없으면 [쓰기], [빈 것 이어서 쓰기]는 없는 것만 차례로. 쓰기는 터치·펜이 되는 기기(아이패드·폰)에서만 됩니다. 저장은 고객 폴더 › 보험금청구 › 손글씨(배경 투명 PNG + 손글씨.json, 1팀 PC 스킬과 같은 형식)이고, 저장만 합니다. <b>[보험금청구서 다운로드]</b>를 누를 때 고른 기본청구서의 이름·서명·은행명·계좌번호 칸에 자동으로 넣어 한 PDF로 만듭니다(칸 위치가 정해진 곳: 한화손해보험·삼성화재·메리츠화재·신한라이프, 위치.json 이름칸·손글씨칸). v620의 ‘고객 정보 쓰기’ 버튼은 이것으로 바뀌었습니다.", "맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC의 이름·연락처, 고칠 수 있음. 연락처는 내 FC 폴더의 본인 정보에서 가져오고, 고쳐서 내려받으면 다음부터 그 번호가 나옵니다)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 8곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>빠른 열기</b>: 고객 폴더의 파일 목록(계약·분석·청구서·청구기록)은 미리 정리해 둔 목록에서 바로 보여 줍니다. 앱에서 올리거나 지우면 몇 초 뒤 목록이 저절로 고쳐지고, PC에서 넣은 파일은 30분 안에 따라잡습니다. 바로 보고 싶으면 탭 줄 오른쪽 끝 ↻를 누르세요.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
+    const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["<b>내 손글씨(v625)</b>: 설정 › <b>내 손글씨 (청구서용)</b> 카드의 [열기]. 숫자 0~9·하이픈(각 3번)·FC 이름·FC 서명·본인·년·월·일·V(3번)·○(2번), 모두 44칸을 펜이나 손가락으로 써 둡니다. 칸을 누르면 그 칸만 쓰거나 고치고(삭제도 여기서), [‹ 이전]·[다음 ›]으로 옮겨 가며, [빈 칸 이어서 쓰기]는 빈 칸만 차례로 엽니다. 저장은 내 FC 폴더 › _앱설정 › 손글씨(1팀 실무 양식과 같은 파일 이름 + 손글씨.json). 지금은 저장만 하고, 청구서에 넣는 자리는 다음에 정합니다.", "<b>고객 손글씨(v621)</b>: 청구 탭을 열면 고객 카드 전화번호 왼쪽에 [고객 손글씨] 버튼이 생깁니다(저장된 개수 2/3, 초록 점). 누르면 이름(서명 칸에도 씀)·은행명·계좌번호 세 가지를 고객이 펜이나 손가락으로 통째로 써서 [저장]합니다 — 있으면 [수정]·[삭제], 없으면 [쓰기], [빈 것 이어서 쓰기]는 없는 것만 차례로. 쓰기는 터치·펜이 되는 기기(아이패드·폰)에서만 됩니다. 저장은 고객 폴더 › 보험금청구 › 손글씨(배경 투명 PNG + 손글씨.json, 1팀 PC 스킬과 같은 형식)이고, 저장만 합니다. <b>[보험금청구서 다운로드]</b>를 누를 때 고른 기본청구서의 이름·서명·은행명·계좌번호 칸에 자동으로 넣어 한 PDF로 만듭니다(칸 위치가 정해진 곳: 한화손해보험·삼성화재·메리츠화재·신한라이프, 위치.json 이름칸·손글씨칸). v620의 ‘고객 정보 쓰기’ 버튼은 이것으로 바뀌었습니다.", "맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC의 이름·연락처, 고칠 수 있음. 연락처는 내 FC 폴더의 본인 정보에서 가져오고, 고쳐서 내려받으면 다음부터 그 번호가 나옵니다)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 8곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>빠른 열기</b>: 고객 폴더의 파일 목록(계약·분석·청구서·청구기록)은 미리 정리해 둔 목록에서 바로 보여 줍니다. 앱에서 올리거나 지우면 몇 초 뒤 목록이 저절로 고쳐지고, PC에서 넣은 파일은 30분 안에 따라잡습니다. 바로 보고 싶으면 탭 줄 오른쪽 끝 ↻를 누르세요.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, s_jw, grp("검색"), s_srch, grp("고객 정보"), s_num, s_xfc, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, s_rt, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];
     if (isAdmin()) parts.push(grp("관리자 (설정 화면 아래쪽)"), s_perm, s_add, s_sup, s_set);
