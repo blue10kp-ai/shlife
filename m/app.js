@@ -11795,12 +11795,16 @@
         // v613(2026-11-26 사용자 "완료 누르면 그냥 창이 닫혀"): 결과를 창 안에 바로 보여 줌(알림이 창 뒤에 가려질 수 있어), 번호 모양이 달라도 받음, 창이 사라졌으면 다시 띄움
         const note = (t) => { const b = $("joinBody"); if (b) b.insertAdjacentHTML("afterbegin", `<p class="join-hint join-err">${esc(t)}</p>`); };
         try {
-          const r = await navigator.contacts.select(["tel", "name"], { multiple: false });
+          // v614(사용자 "고른 연락처 0건" 화면): 단일 선택 방식에서 폰이 0건을 돌려줌 → 여러 개 고르기 방식으로 열고, 폰이 지원하는 항목만 요청
+          let props = ["tel", "name"];
+          try { const sp = navigator.contacts.getProperties ? await navigator.contacts.getProperties() : null; if (sp && sp.length) props = props.filter((x) => sp.includes(x)); } catch (e) { /* 그대로 */ }
+          if (!props.includes("tel")) { note("이 폰은 연락처의 전화번호 가져오기를 지원하지 않습니다(지원: " + props.join(",") + "). 번호를 직접 넣어 주세요."); return; }
+          const r0 = await navigator.contacts.select(props, { multiple: true }), r = (r0 || []).filter((x) => x && [].concat(x.tel || []).length).concat((r0 || []).filter((x) => !(x && [].concat(x.tel || []).length)));
           if (!document.body.contains(m)) document.body.appendChild(m);
           const c = (r && r[0]) || null, raw = c ? [].concat(c.tel || []) : [];
           const tels = raw.map((x) => joinDigits(x && typeof x === "object" ? x.value || x.number || "" : x)).filter(Boolean), t = tels.find((x) => /^01\d{8,9}$/.test(x)) || tels[0];
           if (t) { inp.value = joinFmt(t); draw(); if (!/^01\d{8,9}$/.test(t)) note("고른 번호가 휴대폰 번호(010…)가 아닙니다. 번호를 확인해 주세요."); }
-          else if (!c) note("연락처를 받지 못했습니다(고른 연락처 0건). 연락처를 눌러 체크한 뒤 완료를 누르거나, 번호를 직접 넣어 주세요.");
+          else if (!c) note(`연락처를 받지 못했습니다(고른 연락처 0건, 요청 항목: ${props.join(",")}). 연락처 줄을 눌러 체크(✓)한 뒤 완료를 누르거나, 번호를 직접 넣어 주세요.`);
           else note(`고른 연락처${c.name && c.name[0] ? "(" + c.name[0] + ")" : ""}에서 전화번호를 받지 못했습니다(번호 ${raw.length}개). 번호를 직접 넣어 주세요.`);
         } catch (e) { if (!document.body.contains(m)) document.body.appendChild(m); note("연락처를 가져오지 못했습니다: " + String((e && (e.name || e.message)) || e)); }
       }
