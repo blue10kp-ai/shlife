@@ -2120,3 +2120,13 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 .join-msg { margin-top: 10px; background: var(--raised); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.55; white-space: pre-wrap; word-break: break-all; }
 .join-go { display: flex; align-items: center; justify-content: center; margin-top: 12px; height: 42px; border-radius: 10px; background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; text-decoration: none; }
 #fcOpts[hidden] { display: none; }
+/* v601(2026-11-26 사용자 지시): 후보자 수정 — 고등학교 입학·졸업 년월, 최종학력이 대학교·대학원이면 학교명·입학·졸업 년월 */
+.cd-uni { display: contents; }
+.cd-uni[hidden] { display: none; }
+.tm-info.editing dd.tm-multi:has(.cd-uni) { flex-wrap: wrap; }
+.tm-info.editing dd.tm-multi .cd-uniname { flex: 1 1 120px; }
+.tm-info.editing dd.tm-multi .cd-month { flex: 1 1 84px; }
+/* v602(2026-11-26 사용자 지시 "도입자 드롭박스가 다크모드에서 흰색에 글씨가 흰색"): 앱 설정으로 고른 다크·라이트를 폰 기본 선택창(펼친 목록)에도 맞춤 + 목록 글자·바탕색을 직접 지정 */
+:root[data-theme="dark"] { color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
+select option, select optgroup { background-color: var(--surface); color: var(--t1); }
