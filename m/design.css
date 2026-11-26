@@ -2178,3 +2178,8 @@ html.is-pc a.nowrap[href^="tel:"], html.is-pc a.od-tel[href^="tel:"] { color: in
 .join-modal .join-row { gap: 6px; }
 .join-modal .join-pick:disabled { opacity: .35; }
 .join-modal .join-pick { flex: 0 0 auto; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; }
+
+/* v618: 가입설계동의 버튼을 FC 드롭박스 바로 왼쪽(오른쪽 끝 묶음)으로 */
+#fcOpts { justify-content: flex-end; }
+#fcOpts .join-sms-btn { margin-left: auto; }
+#fcOpts #fcoSel, .rh #fcOpts #fcoSel { margin-left: 0; }
