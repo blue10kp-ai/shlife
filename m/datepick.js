@@ -186,13 +186,13 @@
     const c = cur;
     if (c.pair && c.k === "date") {
       const key = (q) => (q ? q.y * 10000 + q.m * 100 + q.d : 0), ps = parse(c.pair.s);
-      if (c.step === "s" || !ps || key(p) < key(ps)) { setVal(c.pair.s, store(c.pair.s, p)); const pe = parse(c.pair.e); if (pe && key(pe) < key(p)) setVal(c.pair.e, ""); if (c.pair.e && c.pair.e._dpFace && c.pair.e._dpFace.offsetParent !== null) { c.step = "e"; render(); return; } close(); return; }
-      setVal(c.pair.e, store(c.pair.e, p)); close(); return;
+      if (c.step === "s") { setVal(c.pair.s, store(c.pair.s, p)); const pe = parse(c.pair.e); if (pe && key(pe) < key(p)) setVal(c.pair.e, ""); if (c.pair.e && c.pair.e._dpFace && c.pair.e._dpFace.offsetParent !== null) { c.step = "e"; render(); return; } close(); return; }
+      setVal(c.pair.e, store(c.pair.e, p)); if (ps && key(ps) > key(p)) setVal(c.pair.s, ""); close(); return; // 2026-11-26 사용자 지시: 끝 칸을 누르면 끝 칸에 들어감(예전엔 시작이 비면 시작에 들어감)
     }
     if (c.pair && c.k === "month") { // 연월 기간: 시작 → 끝
       const key = (q) => (q ? q.y * 100 + q.m : 0), ps = parse(c.pair.s);
-      if (c.step === "s" || !ps || key(p) < key(ps)) { setVal(c.pair.s, store(c.pair.s, p)); const pe = parse(c.pair.e); if (pe && key(pe) < key(p)) setVal(c.pair.e, ""); c.step = "e"; c.el = c.pair.e; render(); return; }
-      setVal(c.pair.e, store(c.pair.e, p)); close(); return;
+      if (c.step === "s") { setVal(c.pair.s, store(c.pair.s, p)); const pe = parse(c.pair.e); if (pe && key(pe) < key(p)) setVal(c.pair.e, ""); c.step = "e"; c.el = c.pair.e; render(); return; }
+      setVal(c.pair.e, store(c.pair.e, p)); if (ps && key(ps) > key(p)) setVal(c.pair.s, ""); close(); return; // 2026-11-26 사용자 지시: 뒤(졸업·끝) 칸을 누르면 그 칸에 들어감
     }
     setVal(c.el, store(c.el, p)); close();
   }

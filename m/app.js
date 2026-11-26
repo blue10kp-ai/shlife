@@ -3883,13 +3883,52 @@
     await Promise.all(files.map(async (f) => { const x = await cdShrink(f); return stPutIn(dir, `${day} - ${how} - ${x.name.replace(/[\\/:*?"<>|]/g, "_")}`, x.blob, x.type); }));
     return dir.id;
   }
+  // ===== v605(2026-11-26 사용자 지시 "후보자정보에 사진 넣을 수 있게 보여지기도 하고"): 후보자 사진 =====
+  //   후보자 자료 폴더(Claude/팀/후보자자료/<후보자ID - 이름>)에 '프로필사진.jpg'(긴 변 800px) 한 장. 다시 넣으면 덮어씀. 자료 목록에는 안 보임. 이 기기 메모리에만 잠깐 기억
+  const CD_PHOTO = "프로필사진.jpg";
+  const cdPhotoUrl = new Map(); // 후보자 id → 사진 주소("" = 없음)
+  function cdPhotoShow(pid) {
+    const el = $("cdPhoto"); if (!el || el.dataset.pid !== String(pid)) return;
+    const u = cdPhotoUrl.get(String(pid)) || "";
+    el.style.backgroundImage = u ? `url("${u}")` : "";
+    el.classList.toggle("has", !!u);
+    const h = el.parentElement && el.parentElement.querySelector(".cd-photo-h"); if (h) h.textContent = u ? "사진을 눌러 바꾸기" : "사진을 눌러 넣기";
+  }
+  async function cdLoadPhoto(p) {
+    const pid = String(p.id);
+    if (cdPhotoUrl.has(pid)) return cdPhotoShow(pid);
+    try {
+      const dir = await cdDocsDir(p, false); let url = "";
+      if (dir) { const f = (await gdQuery("'" + qv(dir.id) + "' in parents and name='" + qv(CD_PHOTO) + "' and trashed=false"))[0]; if (f) url = URL.createObjectURL(new Blob([await stGet0(f.id)], { type: "image/jpeg" })); }
+      cdPhotoUrl.set(pid, url); cdPhotoShow(pid);
+    } catch (e) { console.warn("후보자 사진", e); }
+  }
+  async function cdPhotoUpload(file) {
+    if (!file || !/^image\//.test(file.type || "") && !/\.(jpe?g|png|webp|heic|bmp)$/i.test(file.name || "")) return toast("사진 파일을 골라 주세요.");
+    const p = cdPeople().concat(cdKept()).find((x) => String(x.id) === cdSel); if (!p) return;
+    const el = $("cdPhoto"); if (el) el.classList.add("busy");
+    try {
+      const small = await shrinkImage(file, 800, 0.85);
+      const dir = await cdDocsDir(p, true);
+      await stPutIn(dir, CD_PHOTO, small, "image/jpeg");
+      if (p.자료폴더 !== dir.id) { // 처음 올린 후보자면 후보자 기록에 폴더 ID를 남김(자료 올리기와 같음)
+        const fresh = await stReadJsonIn(tmDir, CD_FILE), q = fresh && Array.isArray(fresh.사람) ? fresh.사람.find((x) => String(x.id) === String(p.id)) : null;
+        if (q) { q.자료폴더 = dir.id; await stWriteJsonIn(tmDir, CD_FILE, fresh); cdDoc = fresh; }
+      }
+      const old = cdPhotoUrl.get(String(p.id)); if (old) URL.revokeObjectURL(old);
+      cdPhotoUrl.set(String(p.id), URL.createObjectURL(small)); cdPhotoShow(p.id);
+      toast("사진을 저장했습니다");
+    } catch (e) { handleError(e); } finally { const e2 = $("cdPhoto"); if (e2) e2.classList.remove("busy"); }
+  }
+  document.addEventListener("click", (ev) => { const b = ev.target.closest && ev.target.closest("[data-cd-photo]"); if (!b) return; const i = b.parentElement.querySelector("[data-cd-photofile]"); if (i) i.click(); });
+  document.addEventListener("change", (ev) => { const i = ev.target.closest && ev.target.closest("[data-cd-photofile]"); if (!i) return; const f = i.files && i.files[0]; i.value = ""; if (f) cdPhotoUpload(f); });
   // 자료 박스(보기 화면 맨 아래)
   let cdDocsList = [];
   async function cdLoadDocs(p) {
     const box = $("cdDocsList"), n = $("cdDocsN"); if (!box) return;
     try {
       const dir = await cdDocsDir(p, false);
-      cdDocsList = dir ? (await stList(dir.id)).filter((f) => f.file).sort((a, b) => String(b.name).localeCompare(String(a.name), "ko", { numeric: true })) : [];
+      cdDocsList = dir ? (await stList(dir.id)).filter((f) => f.file && f.name !== CD_PHOTO).sort((a, b) => String(b.name).localeCompare(String(a.name), "ko", { numeric: true })) : [];
       if (String(p.id) !== cdSel || !$("cdDocsList")) return;
       n.textContent = cdDocsList.length + "개";
       const size = (b) => (b >= 1048576 ? (b / 1048576).toFixed(1) + "MB" : Math.max(1, Math.round(b / 1024)) + "KB");
@@ -4116,13 +4155,16 @@
     const qa = ([k, q]) => `<div class="cd-q">${esc(q)}</div>${cdEdit ? `<textarea class="cd-a" data-cdf="${k}" rows="1" aria-label="${esc(q)}">${esc(val(k))}</textarea>` : `<div class="cd-a">${val(k) ? esc(val(k)) : '<span class="tm-none">-</span>'}</div>`}`;
     const opts = (kp ? `<option value="${esc(String(kp.id))}" selected>(담아둠) ${esc(kp.이름 || "")}</option>` : "") + ppl.map((x) => `<option value="${esc(String(x.id))}" ${String(x.id) === String(p.id) ? "selected" : ""}>${esc(x.이름 || "(이름 없음)")}</option>`).join("");
     const acts = cdEdit ? `<button type="button" class="ev-edit" data-cd-cancel>취소</button><button type="button" class="ev-edit ev-done" data-cd-save>저장</button>` : `<button type="button" class="ev-edit" data-cd-edit>수정</button>${kp ? `<button type="button" class="ev-edit" data-cd-keepout="${esc(String(p.id))}">꺼내기</button>` : `<button type="button" class="ev-edit" data-cd-keep="${esc(String(p.id))}">담아두기</button>`}`; // v563: [추가]는 제목 줄로, [수정] 오른쪽 [담아두기]/[꺼내기]
-    box.innerHTML = `<div class="card tm-wrap">${cdHead(`<select data-cd-sel aria-label="후보자 고르기" ${cdEdit ? "disabled" : ""}>${opts}</select>`, acts)}
+    // v603(2026-11-26 사용자 지시): [수정]·[담아두기]/[꺼내기], 수정 중 [취소]·[저장]은 위 줄 대신 오른쪽 아래(하단 메뉴 바로 위) 떠 있는 상자에 늘 보이게
+    box.innerHTML = `<div class="cd-fab" role="toolbar" aria-label="후보자 ${cdEdit ? "수정" : "정보"} 버튼">${acts}</div><div class="card tm-wrap">${cdHead(`<select data-cd-sel aria-label="후보자 고르기" ${cdEdit ? "disabled" : ""}>${opts}</select>`, '<span class="tm-sp" aria-hidden="true"></span>')}
+      <div class="cd-photo-row"><button type="button" id="cdPhoto" class="cd-photo" data-pid="${esc(String(p.id))}" data-cd-photo aria-label="후보자 사진 넣기·바꾸기"><span>${esc(String(p.이름 || "?").slice(0, 1))}</span></button><input type="file" accept="image/*" hidden data-cd-photofile><span class="cd-photo-h">사진을 눌러 넣기·바꾸기</span></div>
       ${cdEdit ? `<div class="cd-fill"><div class="cd-fill-h"><b>자료로 채우기</b><span class="hint"> · 메모나 이미지를 넣고 [분석]</span></div>${cdSrcHtml("edit")}<div class="cd-seg" role="radiogroup" aria-label="채우는 방법"><button type="button" role="radio" data-cdmode="empty" class="${cdFillMode === "empty" ? "on" : ""}" aria-checked="${cdFillMode === "empty"}">빈 칸만 채우기<small>있는 정보는 그대로</small></button><button type="button" role="radio" data-cdmode="replace" class="${cdFillMode === "replace" ? "on" : ""}" aria-checked="${cdFillMode === "replace"}">기존 정보도 바꾸기<small>읽은 값으로 덮어씀</small></button></div><button type="button" class="cd-fill-go" data-cdfill>분석해서 채우기</button></div><div class="cd-sum" id="cdSum" hidden></div>` : ""}
       <dl class="tm-info cd-info${cdEdit ? " editing" : ""}">${CD_ROWS.map(rowHtml).join("")}</dl>
       <hr class="tm-hr"><h4 class="cd-h">짧은 질문</h4><div class="cd-qa${cdEdit ? " editing" : ""}">${CD_QS.map(qa).join("")}</div>
       <hr class="tm-hr"><h4 class="cd-h">상세 자기소개서</h4><div class="cd-qa${cdEdit ? " editing" : ""}">${CD_ESSAYS.map(qa).join("")}</div>
       ${cdEdit ? "" : `<hr class="tm-hr"><div class="cd-conv"><span class="hint">${cvMiss.length ? "필수 항목을 먼저 넣어 주세요: " + cvMiss.join(" · ") : "사번 " + esc(val("사번")) + " · 입사일 " + esc(val("입사일")) + " · 팀원정보에 등록합니다"}</span><button type="button" class="ev-edit ev-done" data-cd-conv${cvMiss.length ? " disabled" : ""}>팀원 전환</button></div>`}</div>${cdEdit ? "" : `<div class="card cd-docs" data-cd-docdrop><div class="cd-docs-h"><h3 class="sec-title">자료</h3><span class="hint" id="cdDocsN"></span><button type="button" class="cd-up" data-cd-up>올리기</button><input type="file" multiple hidden data-cd-upfile></div><div id="cdDocsList"><p class="hint">불러오는 중…</p></div><p class="hint cd-uphint">파일을 이 상자에 끌어다 놓아도 올라갑니다.</p></div>`}`;
     if (!cdEdit) cdLoadDocs(p); // v562: 맨 아래 '자료' 박스
+    cdLoadPhoto(p); // v605: 후보자 사진
   }
   // v484(2026-11-19 사용자 지시): [팀원 전환] — 사번이 있어야 하고, 확인 화면(입사일·직급·도입자) 뒤 팀원 파일에 등록. 단계는 후보자 → 팀원 둘뿐(교육생 단계 없음).
   //   후보자 기록(자기소개 등)은 모두 팀원 파일로 옮기고, 후보자 파일에는 지우지 않고 '전환일시'만 적어 목록에서 빠지게 함
@@ -6379,7 +6421,7 @@
     const s_num = sec("주민번호·전화번호 '-' 자동 (v576)", ["주민번호와 전화번호는 <b>숫자만</b> 저장합니다. 화면에 보일 때는 '-'를 알아서 넣습니다(800823-1234567, 010-1234-5678, 02-123-4567). 수정 칸에서도 숫자만 치면 자리에 맞춰 '-'가 들어갑니다. 고객 정보·팀원정보·후보자정보·세일즈 목록·보고서에 모두 같습니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
-    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 입학·졸업 년월(v601, 달력에서 고름), 최종학력은 고등학교·대학교·대학원 중 고르기(대학교·대학원을 고르면 옆에 학교명과 입학·졸업 년월 칸이 나옴, v601), 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운 · [수정]</b>입니다.", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(입학·졸업 년월) · 최종학력(대학교·대학원이면 학교명·입학·졸업 년월) · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
+    const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 입학·졸업 년월(v601, 달력에서 고름), 최종학력은 고등학교·대학교·대학원 중 고르기(대학교·대학원을 고르면 옆에 학교명과 입학·졸업 년월 칸이 나옴, v601), 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 위 한 줄은 <b>‹ 팀관리 · 후보자 드롭다운</b>이고, 그 아래 동그란 <b>사진</b>을 누르면 사진을 넣거나 바꿉니다(v605, 후보자 자료 폴더에 '프로필사진.jpg'로 저장, 자료 목록에는 안 보임). <b>[수정]·[담아두기]</b>(수정 중에는 <b>[취소]·[저장]</b>)는 오른쪽 아래 하단 메뉴 바로 위에 떠 있는 상자에 늘 보입니다(v603).", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(입학·졸업 년월) · 최종학력(대학교·대학원이면 학교명·입학·졸업 년월) · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
     const s_clm = sec("청구 탭 (고객 정보, v551 2026-11-22 바뀜)", ["맨 위 메뉴 4개: <b>개인청구서 업로드 · 기본청구서 선택 · 병원서류 업로드 · 청구기록</b>. 누르면 아래 칸이 그 내용으로 바뀝니다(처음은 개인청구서).", "<b>개인청구서</b>: 이 고객에게 올린 청구서가 보이고, 앞의 체크박스로 고릅니다. [업로드] 또는 끌어다 놓기로 올리면 원본은 보험금청구서 › 원본 폴더에 두고, <b>보험금청구서 스타일</b>(A4 세로, 회색조·밝기 맞춤, 바깥 여백을 잘라 위쪽 왼쪽부터, 300dpi JPEG 품질 70%)로 바꾼 PDF를 이 고객 청구서로 저장합니다. 신분증 사본(파일 이름이나 카드 모양으로 판단)은 자르기·돌리기·키우기·위치 옮기기를 하지 않고 원래 모양 그대로 둡니다(병원서류도 같음). ×는 삭제(드라이브 휴지통).", "<b>기본청구서</b>: 위쪽 담당 FC 칸(기본 = 로그인한 FC의 이름·연락처, 고칠 수 있음. 연락처는 내 FC 폴더의 본인 정보에서 가져오고, 고쳐서 내려받으면 다음부터 그 번호가 나옵니다)이 청구서 1쪽 안내 박스에 들어갑니다(예전 공용 샘플 ‘김신한’ 자리). 보험사는 <b>자주 쓴 서식(많이 쓴 순, 횟수 표시) → 추천 8곳 → 나머지 이름순</b>으로, 묶음 사이에 가로줄이 있습니다.", "<b>빠른 열기</b>: 고객 폴더의 파일 목록(계약·분석·청구서·청구기록)은 미리 정리해 둔 목록에서 바로 보여 줍니다. 앱에서 올리거나 지우면 몇 초 뒤 목록이 저절로 고쳐지고, PC에서 넣은 파일은 30분 안에 따라잡습니다. 바로 보고 싶으면 탭 줄 오른쪽 끝 ↻를 누르세요.", "<b>병원서류</b>: [업로드] 또는 끌어다 놓기. 올린 파일마다 이름과 ×, 아래에 [추가 업로드].", "<b>청구기록</b>: 다운로드할 때마다 날짜 · 사고 내용 · 청구한 회사가 한 줄로 남습니다. 줄을 누르면 그때 만든 PDF, ×는 기록 삭제(PDF는 휴지통).", "맨 아래 <b>[보험금청구서 다운로드]</b>: 개인청구서나 기본청구서를 하나라도 고르면 켜집니다. 고른 청구서(개인 → 기본) 뒤에, 병원서류가 있으면 A4 회색조 300dpi(JPEG 품질 70%)로 바꿔 끝에 붙여 한 PDF로 내려받고, 고객 폴더 › 보험금청구 › 보험금청구 기록에도 저장합니다. 옆 칸에 사고 내용을 짧게 적으면 청구기록에 남습니다."]);
     const s_docs = sec("자료 탭 (고객 정보, 2026-11-19)", ["고객 정보의 탭 맨 오른쪽(<b>청구 오른쪽</b>)에 <b>자료</b> 탭이 있습니다. 그 고객 폴더 아래 <b>‘자료’ 폴더</b>에 든 파일을 <b>썸네일</b>(작은 그림)로 보여 줍니다. 사진은 누르면 화면에서 크게, PDF는 새 창, 그 밖의 파일은 구글 드라이브에서 열립니다.", "화면 아래 줄의 <b>[수정]은 정보 탭에서만</b> 나옵니다(계약 · 분석 · 상담 · 청구 · 자료 탭에서는 [닫기]만). 자료 탭에서는 그 줄 <b>왼쪽 끝에 [업로드]</b>가 나오고, [선택]으로 자료를 고르는 중에는 [업로드]가 눌리지 않습니다. <b>[업로드]</b>를 누르면 사진·파일을 여러 개 고를 수 있고, 올리면 바로 목록 맨 앞에 보입니다. 또 고객 폴더에 ‘자료’ 폴더가 없으면 그때 만듭니다. 파일 이름 앞에 오늘 날짜(YYYYMMDD)를 붙이고, 같은 이름이 있으면 덮어쓰지 않고 (2), (3)을 붙입니다. 한 파일 50MB까지 올릴 수 있습니다.", "<b>여러 개 삭제</b>: <b>[선택]</b>을 누르면 썸네일을 눌러 여러 개 고를 수 있고(고른 것은 파란 테두리와 체크), <b>[삭제]</b>로 한꺼번에 지웁니다. <b>[취소]</b>로 선택을 끝냅니다.", "썸네일 오른쪽 위 <b>×</b>를 누르면 확인 뒤 그 하나만 삭제합니다(구글 드라이브 <b>휴지통</b>으로 옮겨져 30일 안에는 되살릴 수 있습니다). 보기만 권한인 FC의 고객은 올리기·삭제 버튼이 나오지 않습니다."]);
     const parts = [grp("AI (아래 메뉴 맨 왼쪽)"), s_ai, s_wake, s_dsh, s_theme, s_team, s_tm, s_ib, s_cd, s_orgin, grp("검색"), s_srch, grp("고객 정보"), s_num, s_copy, s_clm, s_docs, s_cov, s_cmp, s_in, s_prog, grp("일정"), s_addev, s_nm, s_task, s_cal, grp("세일즈"), s_sub, s_rt, ...(s_od ? [s_od] : []), s_pg, s_mat, s_smemo, s_stage, s_inflow, s_nf, s_sms, grp("설정"), s_start, s_rh, s_save, s_bk, s_db, s_ct, s_ntf, s_login, s_go, s_map, s_inst];

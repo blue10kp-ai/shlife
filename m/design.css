@@ -2130,3 +2130,15 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 :root[data-theme="dark"] { color-scheme: dark; }
 :root[data-theme="light"] { color-scheme: light; }
 select option, select optgroup { background-color: var(--surface); color: var(--t1); }
+/* v603(2026-11-26 사용자 지시): 후보자정보 [수정]·[담아두기] / 수정 중 [취소]·[저장] = 오른쪽 아래, 하단 메뉴 바로 위 떠 있는 상자 */
+.cd-fab { position: fixed; right: 12px; bottom: calc(var(--navh, 60px) + 12px + env(safe-area-inset-bottom)); z-index: 20; display: flex; gap: 6px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 4px 16px rgba(0, 0, 0, .22); }
+.cd-fab .ev-edit { margin: 0; }
+html.embed .cd-fab { bottom: calc(104px + env(safe-area-inset-bottom)); } /* 말만해요 안: 오른쪽 아래 말만해요 버튼(88×88) 위 */
+#teamView:has(.cd-fab) { padding-bottom: 64px; } /* 맨 아래 내용이 떠 있는 상자에 가리지 않게 */
+/* v605(2026-11-26 사용자 지시): 후보자정보 사진 (누르면 넣기·바꾸기) */
+.cd-photo-row { display: flex; align-items: center; gap: 10px; margin: 4px 0 8px; }
+.cd-photo { width: 72px; height: 72px; flex: 0 0 72px; border-radius: 50%; border: 1px dashed var(--line); background: var(--raised) center / cover no-repeat; color: var(--t3); font: inherit; font-size: 26px; font-weight: 600; display: flex; align-items: center; justify-content: center; padding: 0; cursor: pointer; }
+.cd-photo.has { border-style: solid; }
+.cd-photo.has span { display: none; }
+.cd-photo.busy { opacity: .5; }
+.cd-photo-h { font-size: 12px; color: var(--t3); }
