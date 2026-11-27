@@ -2400,3 +2400,6 @@ html.mode-newbie #navAdmin { display: none !important; }
 html.mode-newbie .sched-modes { display: none; }
 /* v647(2026-11-27 사용자 지시): 신입 고객 화면 [가입설계동의]는 검색줄 맨 왼쪽 */
 html.mode-newbie #pageSearch .nb-join { order: -1; }
+
+/* v648 가입설계동의 문구 편집 */
+.join-tpl { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; line-height: 1.5; padding: 8px 10px; border: 1px solid var(--line, #ccc); border-radius: 8px; background: var(--card, transparent); color: inherit; resize: vertical; min-height: 140px; }
