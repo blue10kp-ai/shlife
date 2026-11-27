@@ -2385,3 +2385,18 @@ html.mode-newbie #pageSearch .search { gap: 6px; }
 html.mode-newbie #pageSearch .search button.primary { padding: 0 12px; }
 html.mode-newbie #searchView { padding-bottom: 170px; }
 html.is-pc #pageSearch .nb-join { opacity: .35; cursor: not-allowed; filter: grayscale(1); }
+/* v645(2026-11-27 사용자 지시): 모드 버튼 안(고른 모드 칸·점)도 초록, 테두리 2px 때문에 글자가 오른쪽으로 밀리던 것 가운데로 */
+.mode-fab { box-sizing: border-box; }
+.mode-fab button { width: 100%; box-sizing: border-box; text-align: center; }
+.mode-fab .mf-cur .dot { background: #2e9e6b !important; box-shadow: 0 0 6px rgba(46, 158, 107, .8); }
+.mode-fab .mf-opt.on { background: #2e9e6b; color: #fff; }
+.mode-fab .mf-opt { border-bottom-color: rgba(46, 158, 107, .35); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mode-fab .mf-cur .dot { background: #4dffa6 !important; box-shadow: 0 0 6px rgba(77, 255, 166, .9); } :root:not([data-theme="light"]) .mode-fab .mf-opt.on { background: #4dffa6; color: #0b1a12; } }
+:root[data-theme="dark"] .mode-fab .mf-cur .dot { background: #4dffa6 !important; box-shadow: 0 0 6px rgba(77, 255, 166, .9); }
+:root[data-theme="dark"] .mode-fab .mf-opt.on { background: #4dffa6; color: #0b1a12; }
+/* v645(2026-11-27 사용자 지시): 신입 모드에서는 아래 메뉴의 설정을 숨김 */
+html.mode-newbie #navAdmin { display: none !important; }
+/* v646: 신입 일정 = 오늘부터 7일 목록만(Today·Week·Month 버튼 숨김) */
+html.mode-newbie .sched-modes { display: none; }
+/* v647(2026-11-27 사용자 지시): 신입 고객 화면 [가입설계동의]는 검색줄 맨 왼쪽 */
+html.mode-newbie #pageSearch .nb-join { order: -1; }
