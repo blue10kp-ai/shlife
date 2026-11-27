@@ -2350,3 +2350,6 @@ html.mode-jw .mode-band { height: calc(env(safe-area-inset-top, 0px) + 16px); pa
 .jw-tm .jw-m span { flex: none; }
 .jw-tm .jw-m.dragging { opacity: .4; }
 .jw-room.empty { min-height: 60px; }
+/* v638: 후보자 최종학력 대학교·대학원 = 학교명 옆 학과 */
+.tm-info.cd-info.editing dd.tm-multi:has(.cd-uni) .cd-uniname { flex: 1 1 90px; }
+.tm-info.cd-info.editing dd.tm-multi:has(.cd-uni) .cd-major { flex: 1 1 70px; min-width: 0; }
