@@ -81,7 +81,7 @@
   const MODE_KEY = "shlife.viewMode";
   const VIEW_MODE = (() => { try { const v = localStorage.getItem(MODE_KEY); return v === "fc" || v === "jw" || v === "newbie" ? v : "admin"; } catch (e) { return "admin"; } })();
   // v631: FC 모드(일반·J/W)는 관리자 설정에서 정한 사용자를 기준으로 봄(그 사람이 볼 수 있는 FC·이름). 저장·기록은 그대로 내 계정
-  const VIEW_AS = (() => { if (VIEW_MODE !== "fc" && VIEW_MODE !== "jw") return ""; try { return String(localStorage.getItem("shlife.viewAs") || "").toLowerCase(); } catch (e) { return ""; } })();
+  const VIEW_AS = (() => { if (VIEW_MODE !== "fc" && VIEW_MODE !== "jw" && VIEW_MODE !== "newbie") return ""; /* v642: 신입 모드도 FC 일반 기준 사용자로 봄 */ try { return String(localStorage.getItem("shlife.viewAs") || "").toLowerCase(); } catch (e) { return ""; } })();
   const isAdmin = () => isAdminReal() && VIEW_MODE === "admin";
 
   async function gx(method, path, body, contentType) {
@@ -4774,6 +4774,7 @@
       const ppl = introPeople().filter((p) => inF(p.fc)), rk = new Map();
       ppl.forEach((p) => { const k = p.introId ? "id:" + p.introId : p.introName ? "nm:" + p.introName : ""; if (k) rk.set(k, (rk.get(k) || 0) + 1); });
       const top = [...rk].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => ({ n, reg: k.startsWith("id:"), id: k.slice(3), name: k.startsWith("id:") ? introNameOf(k.slice(3)) || k.slice(3) : k.slice(3) }));
+      if (VIEW_MODE === "newbie") { box.innerHTML = (perfHtml + curHtml) || `<p class="hint pad">이달 실적·청약상태를 읽지 못했습니다(청약 목록 권한 필요).</p>`; return; } // v642: 신입 대시보드
       box.innerHTML = (esl ? `<div class="dsh-head"><span></span><select id="dshFc" aria-label="보는 범위(팀·FC)">${[TEAM, ...fcs].map((f) => `<option value="${esc(f)}"${f === fc ? " selected" : ""}>${f === TEAM ? "팀" : esc(f)}</option>`).join("")}</select></div>` : "") + `
         ${perfHtml}${curHtml}${lastHtml}${fcTblHtml}${avgHtml}
         <div class="dsh-cards">${feeHtml}<div class="dsh-card"><span>계약진행</span><b><span class="ok">${pgDone}건</span> / ${pgRecent}건</b><small>최근 3개월 중 이달 계약</small></div></div>
@@ -6894,7 +6895,7 @@
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["<b>오늘 키값(v634)</b>: 팀원정보의 <b>오늘 키값</b>에 키나 가입설계동의 링크 전체(today.shinhanlife.co.kr/om/…)를 넣으면 키만 뽑아 저장합니다. 그 FC로 [가입설계동의 문자]를 보내면 문구의 링크가 <b>today.shinhanlife.co.kr/om/키/omcomsm039m.mdv</b>로 바뀝니다(키가 없으면 예전 링크).", "팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_num = sec("주민번호·전화번호 '-' 자동 (v576)", ["주민번호와 전화번호는 <b>숫자만</b> 저장합니다. 화면에 보일 때는 '-'를 알아서 넣습니다(800823-1234567, 010-1234-5678, 02-123-4567). 수정 칸에서도 숫자만 치면 자리에 맞춰 '-'가 들어갑니다. 고객 정보·팀원정보·후보자정보·세일즈 목록·보고서에 모두 같습니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
-    const s_jw = sec("조직도 > Joint Work (관리자, 2026-11-26, v619)", ["<b>신입 메뉴(v629)</b>: 신입 모드 화면에는 위쪽에 <b>영업 1 · 영업 2 · … · 영업 5</b> 탭이 있고(v630), <b>영업 1</b>을 누르면 아래 페이지에 [고객 설계동의 문자 보내기] 버튼이 나오고, 고객 화면의 가입설계동의 버튼과 같은 문자 창이 열립니다(PC에서는 꺼짐). 영업 2~5는 준비 중입니다.", "<b>FC 모드 = 그 FC로 로그인한 것처럼(v632)</b>: FC 일반·J/W 모드에서는 기준 사용자의 직책·볼 수 있는 FC·고객추가정보 파일(맨 위 파일 대신 FC 폴더 파일) 기준으로 화면을 보여 주어, 관리자에게만 보이는 선택창·체크가 나오지 않습니다.", "<b>J/W 상·중·하(v633)</b>: 조직도 › Joint Work의 방은 한 줄씩(세로로) 보이고, 방 안은 <b>상 · 중 · 하</b> 3단입니다. 아래 팀원 카드나 방 안 이름을 끌어 원하는 방·단에 놓으면 바로 옮겨지고(다른 방으로도), ×로 뺍니다. 위 단계는 아래·같은 단계 사람의 고객·계약을 보고 고치고, 아래 단계는 위 단계를 볼 수 없습니다. 같은 단계끼리는 서로 보고 고칩니다. 바꾼 뒤 아래 [저장]하면 권한·폴더 공유에 반영됩니다(처음엔 모두 상).", "<b>신입 모드 메뉴(v640)</b>: 신입 모드 아래 메뉴는 <b>대시보드 · 일정 · 고객 · 세일즈</b> 4개입니다. 세일즈를 누르면 <b>고객 설계동의 문자 보내기</b> 버튼이 바로 나오고(v641: 영업1~5 탭 없앰), 나머지는 아직 준비 중입니다.", "<b>세일즈 FC 선택(v637)</b>: 관리자 모드에서는 세일즈(이달목표·계약진행·자료 등) 위 선택창이 하나뿐이고 모든 FC가 나옵니다(J/W 묶음과 상관없이). FC 모드에서는 그 FC가 보는 그대로 나옵니다.", "<b>모드 기준 사용자(v636)</b>: 관리자 페이지의 <b>관리자</b> 칸 맨 위로 옮겼습니다. 모드 버튼과 이 설정은 관리자에게만 보입니다.", "<b>FC 모드 = 일반 · J/W (v631)</b>: 모드 버튼에서 FC 모드를 누르면 <b>일반</b>·<b>J/W</b>를 다시 고릅니다. 일반은 박상선, J/W는 최수진을 기준으로(그 사람이 볼 수 있는 FC·이름으로) 보입니다. 기준 사용자는 설정 › <b>모드 기준 사용자</b>에서 바꿉니다. 화면만 그 사람 기준이고 저장·기록은 내 계정으로 됩니다.", "<b>모드 버튼(v628, 관리자만)</b>: 오른쪽 아래(예전 AI 버튼 자리)에 동그란 모드 버튼이 늘 떠 있고, 끌어서 옮기면 그 자리를 기억합니다. 누르면 위로 늘어나며 위부터 <b>신입 모드 · FC 모드 · 관리자 모드</b>. FC 모드는 팀관리·관리자 설정·사용자 선택을 숨긴 일반 FC 화면(데이터 권한은 그대로), 신입 모드는 신입 화면(보일 메뉴는 아직 정하는 중이라 안내만)이고, 위쪽 얇은 띠로 지금 모드가 보입니다. 고른 모드는 이 기기에 기억되고, 관리자 모드를 고르면 원래대로 돌아옵니다.", "<b>신입모드(v627)</b>: 조직도에서 이름을 눌러 펼치면 민감정보 오른쪽에 <b>신입모드</b> 체크가 있습니다. 체크하고 아래 [저장]하면 권한 파일에 그 사용자가 신입모드로 기록되고, 사용자 정보 팝업에도 켜짐/꺼짐이 보입니다. 신입모드일 때 보일 화면은 다음에 정합니다(지금은 기록만).", "<b>세일즈 › 이달목표(v623)</b>: 같은 J/W 방 사람의 FC가 월 줄 오른쪽 <b>FC 선택</b> 드롭박스에 함께 나옵니다(관리자의 사용자 선택과 같은 자리). 고르면 그 FC의 따행·이관·DB를 보고, 그 고객의 상담기록·메모는 로그인한 사람이 아니라 <b>그 고객의 FC 파일</b>에 저장됩니다.", "조직도 맨 밑의 <b>Joint Work</b> 카드에서 방(J/W, J/W 2 …)을 만듭니다. 아래 팀원 카드(나 포함)를 끌어다 방에 놓으면 들어가고, 방 안 이름 옆 ×로 뺍니다. 한 사람이 여러 방에 들어갈 수 있습니다.", "방에 한 명이라도 들어가면 오른쪽에 빈 방이 하나 더 생깁니다. 방이 비면 그 방은 없어지고 오른쪽 방들이 왼쪽으로 당겨집니다(방 이름은 순서대로 다시 붙음).", "<b>같은 방 사람끼리는 서로의 고객·계약을 보고 고칠 수 있습니다</b>(그 사람 FC 보기+수정, 폴더 공유). 아래 [저장]을 눌러 확인창을 거쳐야 적용됩니다. 방에서 빼면 그 방 때문에 생긴 권한만 거둡니다(조직도로 받은 권한은 그대로). 세일즈 페이지 접근은 조직도 기준 그대로입니다."]);
+    const s_jw = sec("조직도 > Joint Work (관리자, 2026-11-26, v619)", ["<b>신입 메뉴(v629)</b>: 신입 모드 화면에는 위쪽에 <b>영업 1 · 영업 2 · … · 영업 5</b> 탭이 있고(v630), <b>영업 1</b>을 누르면 아래 페이지에 [고객 설계동의 문자 보내기] 버튼이 나오고, 고객 화면의 가입설계동의 버튼과 같은 문자 창이 열립니다(PC에서는 꺼짐). 영업 2~5는 준비 중입니다.", "<b>FC 모드 = 그 FC로 로그인한 것처럼(v632)</b>: FC 일반·J/W 모드에서는 기준 사용자의 직책·볼 수 있는 FC·고객추가정보 파일(맨 위 파일 대신 FC 폴더 파일) 기준으로 화면을 보여 주어, 관리자에게만 보이는 선택창·체크가 나오지 않습니다.", "<b>J/W 상·중·하(v633)</b>: 조직도 › Joint Work의 방은 한 줄씩(세로로) 보이고, 방 안은 <b>상 · 중 · 하</b> 3단입니다. 아래 팀원 카드나 방 안 이름을 끌어 원하는 방·단에 놓으면 바로 옮겨지고(다른 방으로도), ×로 뺍니다. 위 단계는 아래·같은 단계 사람의 고객·계약을 보고 고치고, 아래 단계는 위 단계를 볼 수 없습니다. 같은 단계끼리는 서로 보고 고칩니다. 바꾼 뒤 아래 [저장]하면 권한·폴더 공유에 반영됩니다(처음엔 모두 상).", "<b>신입 고객 화면(v644)</b>: 신입 모드의 고객 화면은 아래 검색창만 늘 보이고, [검색] 오른쪽에 [가입설계동의] 버튼이 있습니다.", "<b>신입 모드(v642)</b>: 신입 모드는 FC 일반 모드 기준 사용자로 실제 화면을 줄여 보여 줍니다. 대시보드 = 이달 실적·이달 청약상태만, 일정 = 일반과 같음(추가·수정·삭제), 고객 = 직접모집·이관 등 범위 버튼 없이 이름 검색 + 가입설계동의, 세일즈 = 계약진행만.", "<b>알림 확인(v642)</b>: 날짜·요일 알림은 한 번 [확인]하면 그 사람에게 다시 뜨지 않습니다(이 기기·내 Drive·FC 폴더에 기록). 시스템 알림은 새로 생길 때만 뜹니다.", "<b>신입 모드 메뉴(v640)</b>: 신입 모드 아래 메뉴는 <b>대시보드 · 일정 · 고객 · 세일즈</b> 4개입니다. 세일즈를 누르면 <b>고객 설계동의 문자 보내기</b> 버튼이 바로 나오고(v641: 영업1~5 탭 없앰), 나머지는 아직 준비 중입니다.", "<b>세일즈 FC 선택(v637)</b>: 관리자 모드에서는 세일즈(이달목표·계약진행·자료 등) 위 선택창이 하나뿐이고 모든 FC가 나옵니다(J/W 묶음과 상관없이). FC 모드에서는 그 FC가 보는 그대로 나옵니다.", "<b>모드 기준 사용자 3개(v643)</b>: 관리자 칸의 모드 기준 사용자에서 <b>신입 · 일반 · J/W</b> 모드마다 누구 기준으로 볼지 따로 고릅니다(처음엔 신입·일반 = 박상선, J/W = 최수진).", "<b>모드 기준 사용자(v636)</b>: 관리자 페이지의 <b>관리자</b> 칸 맨 위로 옮겼습니다. 모드 버튼과 이 설정은 관리자에게만 보입니다.", "<b>FC 모드 = 일반 · J/W (v631)</b>: 모드 버튼에서 FC 모드를 누르면 <b>일반</b>·<b>J/W</b>를 다시 고릅니다. 일반은 박상선, J/W는 최수진을 기준으로(그 사람이 볼 수 있는 FC·이름으로) 보입니다. 기준 사용자는 설정 › <b>모드 기준 사용자</b>에서 바꿉니다. 화면만 그 사람 기준이고 저장·기록은 내 계정으로 됩니다.", "<b>모드 버튼(v628, 관리자만)</b>: 오른쪽 아래(예전 AI 버튼 자리)에 동그란 모드 버튼이 늘 떠 있고, 끌어서 옮기면 그 자리를 기억합니다. 누르면 위로 늘어나며 위부터 <b>신입 모드 · FC 모드 · 관리자 모드</b>. FC 모드는 팀관리·관리자 설정·사용자 선택을 숨긴 일반 FC 화면(데이터 권한은 그대로), 신입 모드는 신입 화면(보일 메뉴는 아직 정하는 중이라 안내만)이고, 위쪽 얇은 띠로 지금 모드가 보입니다. 고른 모드는 이 기기에 기억되고, 관리자 모드를 고르면 원래대로 돌아옵니다.", "<b>신입모드(v627)</b>: 조직도에서 이름을 눌러 펼치면 민감정보 오른쪽에 <b>신입모드</b> 체크가 있습니다. 체크하고 아래 [저장]하면 권한 파일에 그 사용자가 신입모드로 기록되고, 사용자 정보 팝업에도 켜짐/꺼짐이 보입니다. 신입모드일 때 보일 화면은 다음에 정합니다(지금은 기록만).", "<b>세일즈 › 이달목표(v623)</b>: 같은 J/W 방 사람의 FC가 월 줄 오른쪽 <b>FC 선택</b> 드롭박스에 함께 나옵니다(관리자의 사용자 선택과 같은 자리). 고르면 그 FC의 따행·이관·DB를 보고, 그 고객의 상담기록·메모는 로그인한 사람이 아니라 <b>그 고객의 FC 파일</b>에 저장됩니다.", "조직도 맨 밑의 <b>Joint Work</b> 카드에서 방(J/W, J/W 2 …)을 만듭니다. 아래 팀원 카드(나 포함)를 끌어다 방에 놓으면 들어가고, 방 안 이름 옆 ×로 뺍니다. 한 사람이 여러 방에 들어갈 수 있습니다.", "방에 한 명이라도 들어가면 오른쪽에 빈 방이 하나 더 생깁니다. 방이 비면 그 방은 없어지고 오른쪽 방들이 왼쪽으로 당겨집니다(방 이름은 순서대로 다시 붙음).", "<b>같은 방 사람끼리는 서로의 고객·계약을 보고 고칠 수 있습니다</b>(그 사람 FC 보기+수정, 폴더 공유). 아래 [저장]을 눌러 확인창을 거쳐야 적용됩니다. 방에서 빼면 그 방 때문에 생긴 권한만 거둡니다(조직도로 받은 권한은 그대로). 세일즈 페이지 접근은 조직도 기준 그대로입니다."]);
     const s_xfc = sec("상담기록 저장 위치 (2026-11-26, v622)", ["고객 폴더 맨 위의 고객추가정보 파일이 보이지 않는 계정(자기 FC 폴더만 공유받은 FC)은 상담기록·세일즈 메모·고객 메모를 <b>그 FC 폴더 안의 '고객추가정보.xlsx'</b>에 저장합니다(처음 저장할 때 같은 양식으로 생김). 다른 FC의 기록은 보이지 않습니다.", "관리자는 맨 위 파일과 각 FC 폴더 파일을 합쳐서 봅니다. 관리자가 새로 쓰는 기록은 예전처럼 맨 위 파일에 들어갑니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>학과(v638)</b>: 최종학력에서 대학교·대학원을 고르면 학교명 옆에 <b>학과</b> 칸이 나옵니다.", "<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 입학·졸업 년월(v601, 달력에서 고름), 최종학력은 고등학교·대학교·대학원 중 고르기(대학교·대학원을 고르면 옆에 학교명과 입학·졸업 년월 칸이 나옴, v601), 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 맨 위 제목 줄 왼쪽 끝에 <b>‹ 팀관리</b>(v609, 팀원정보·도입현황도 같음), 그 아래 줄은 <b>후보자 드롭다운</b>이고, 그 아래 동그란 <b>사진</b>을 누르거나 사진 파일을 그 위에 끌어다 놓으면(v606) 사진을 넣거나 바꿉니다(v605, 후보자 자료 폴더에 '프로필사진.jpg'로 저장, 자료 목록에는 안 보임). <b>[수정]·[담아두기]</b>(수정 중에는 <b>[취소]·[저장]</b>)는 오른쪽 아래 하단 메뉴 바로 위에 떠 있는 상자에 늘 보입니다(v603).", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(입학·졸업 년월) · 최종학력(대학교·대학원이면 학교명·입학·졸업 년월) · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
@@ -8869,21 +8870,23 @@
     document.documentElement.classList.remove("ai-open");
   }
   // v631: 설정 › 모드 기준 사용자(관리자만) — FC 일반·J/W 모드에서 누구 기준으로 볼지
-  const modeCardHtml = () => !isAdminReal() ? "" : `<div class="card" id="modeCard"><h3 class="sec-title">모드 기준 사용자</h3><p class="hint">오른쪽 아래 모드 버튼의 FC 모드에서 누구 기준으로 볼지 정합니다(그 사람이 볼 수 있는 FC·이름으로 보임, 저장은 내 계정).</p>
-      <div class="mode-users"><label><span>FC 일반</span><select id="modeUserFc" aria-label="FC 일반 모드 기준 사용자"><option value="">불러오는 중…</option></select></label><label><span>FC J/W</span><select id="modeUserJw" aria-label="FC J/W 모드 기준 사용자"><option value="">불러오는 중…</option></select></label></div>
+  // v643(2026-11-27 사용자 지시 "신입 - 일반 - J/W"): 모드 기준 사용자 = 신입·FC 일반·FC J/W 세 모드 각각 고름
+  const MODE_PICK = [["newbie", "신입"], ["fc", "일반"], ["jw", "J/W"]];
+  const modeCardHtml = () => !isAdminReal() ? "" : `<div class="card" id="modeCard"><h3 class="sec-title">모드 기준 사용자</h3><p class="hint">오른쪽 아래 모드 버튼의 신입·FC 모드에서 누구 기준으로 볼지 정합니다(그 사람이 볼 수 있는 FC·이름으로 보임, 저장은 내 계정).</p>
+      <div class="mode-users">${MODE_PICK.map(([k, l]) => `<label><span>${l}</span><select data-mode-user="${k}" aria-label="${l} 모드 기준 사용자"><option value="">불러오는 중…</option></select></label>`).join("")}</div>
       <div class="file-actions"><button type="button" class="primary" id="modeUserSave" disabled>저장</button></div></div>${(setTimeout(modeCardFill, 0), "")}`;
   async function modeCardFill() {
-    const a = $("modeUserFc"), b = $("modeUserJw"); if (!a || !b) return;
+    const sels = [...document.querySelectorAll("#modeCard [data-mode-user]")]; if (!sels.length) return;
     try {
       const P = salesPermsAll || await readPerms(), names = P.names || {}, ems = Object.keys(names).filter((em) => em !== me() && String(names[em] || "").trim()).sort((x, y) => String(names[x]).localeCompare(String(names[y]), "ko"));
-      const cur = { fc: await modeUserEm("fc"), jw: await modeUserEm("jw") };
+      const cur = {}; for (const [k] of MODE_PICK) cur[k] = await modeUserEm(k);
       const opts = (sel) => '<option value="">(고르기)</option>' + ems.map((em) => `<option value="${esc(em)}"${em === sel ? " selected" : ""}>${esc(names[em])}</option>`).join("");
-      a.innerHTML = opts(cur.fc); b.innerHTML = opts(cur.jw);
-      const btn = $("modeUserSave"), dirty = () => { btn.disabled = a.value === cur.fc && b.value === cur.jw; };
-      a.onchange = dirty; b.onchange = dirty;
+      sels.forEach((el) => { el.innerHTML = opts(cur[el.dataset.modeUser]); });
+      const btn = $("modeUserSave"), dirty = () => { btn.disabled = sels.every((el) => el.value === cur[el.dataset.modeUser]); };
+      sels.forEach((el) => { el.onchange = dirty; });
       btn.onclick = async () => {
         btn.disabled = true; btn.textContent = "저장 중…";
-        try { const st = { ...((await loadSettings(true)) || {}) }; st.modeUsers = { fc: a.value || "", jw: b.value || "" }; await saveSettings(st); cur.fc = a.value; cur.jw = b.value; toast("모드 기준 사용자를 저장했습니다"); }
+        try { const st = { ...((await loadSettings(true)) || {}) }, mu = { ...(st.modeUsers || {}) }; sels.forEach((el) => { mu[el.dataset.modeUser] = el.value || ""; cur[el.dataset.modeUser] = el.value; }); st.modeUsers = mu; await saveSettings(st); toast("모드 기준 사용자를 저장했습니다"); }
         catch (e) { handleError(e); }
         btn.textContent = "저장"; dirty();
       };
@@ -8893,7 +8896,7 @@
   //   관리자에게만 오른쪽 아래(예전 AI 버튼 자리)에 동그란 버튼이 늘 떠 있음(끌어서 옮기면 자리 기억). 누르면 위로 늘어나며 위부터 신입·FC·관리자 모드
   //   FC 모드 = 관리자 메뉴를 숨긴 일반 FC 화면(데이터 권한은 그대로), 신입 모드 = 신입 화면(보일 메뉴는 아직 안 정함 → 안내). 고른 모드는 이 기기에 기억
   const MODE_LBL = { newbie: "신입", fc: "FC", jw: "J/W", admin: "관리자" }, MODE_COL = { newbie: "#3fb37f", fc: "#e0a63a", jw: "#c77dd8", admin: "var(--accent)" };
-  const MODE_USER_DEF = { fc: "박상선", jw: "최수진" }; // v631: 관리자 설정에서 바꾸기 전 기본 기준 사용자(이름)
+  const MODE_USER_DEF = { newbie: "박상선", fc: "박상선", jw: "최수진" }; // v631: 관리자 설정에서 바꾸기 전 기본 기준 사용자(이름)
   async function modeUserEm(m) { // 그 모드의 기준 사용자 이메일(관리자 설정 → 없으면 기본 이름)
     let st = {}; try { st = (await loadSettings()) || {}; } catch (e) { st = appSettings || {}; }
     const set = (st.modeUsers || {})[m]; if (set) return String(set).toLowerCase();
@@ -8959,7 +8962,7 @@
       const m = t.dataset.mode; if (!m) return;
       if (m === "fcpick") { draw("fc"); return; } // v631: FC 모드 → 일반 / J/W 다시 묻기
       if (m === VIEW_MODE) { draw(false); return; }
-      if (m === "fc" || m === "jw") {
+      if (m === "fc" || m === "jw" || m === "newbie") { // v642: 신입 = FC 일반 기준 사용자
         t.disabled = true;
         modeUserEm(m).then((em) => {
           if (!em) { t.disabled = false; return toast(`${m === "jw" ? "J/W" : "일반"} 모드의 기준 사용자를 찾지 못했습니다. 설정 › 모드 기준 사용자에서 정해 주세요.`); }
@@ -8973,11 +8976,11 @@
     });
     document.addEventListener("click", (ev) => { if (box.classList.contains("open") && !box.contains(ev.target)) draw(false); });
     if (VIEW_MODE !== "admin") { // 위쪽 얇은 띠로 지금 모드 표시
-      const band = document.createElement("div"); band.className = "mode-band " + VIEW_MODE; band.textContent = VIEW_MODE === "newbie" ? "신입 모드로 보는 중" : `FC ${VIEW_MODE === "jw" ? "J/W" : "일반"} 모드 · ${String(((salesPermsAll || {}).names || permNamesCache || {})[VIEW_AS] || VIEW_AS.split("@")[0] || "?")} 기준으로 보는 중`;
+      const band = document.createElement("div"); band.className = "mode-band " + VIEW_MODE; band.textContent = VIEW_MODE === "newbie" ? `신입 모드 · ${String(((salesPermsAll || {}).names || permNamesCache || {})[VIEW_AS] || "")} 기준으로 보는 중` : `FC ${VIEW_MODE === "jw" ? "J/W" : "일반"} 모드 · ${String(((salesPermsAll || {}).names || permNamesCache || {})[VIEW_AS] || VIEW_AS.split("@")[0] || "?")} 기준으로 보는 중`;
       document.body.appendChild(band); document.documentElement.classList.add("mode-" + (VIEW_MODE === "jw" ? "fc" : VIEW_MODE), "mode-" + VIEW_MODE);
-      if (VIEW_MODE !== "newbie") readPerms().then((P) => { const n = (P.names || {})[VIEW_AS]; if (n) band.textContent = `FC ${VIEW_MODE === "jw" ? "J/W" : "일반"} 모드 · ${n} 기준으로 보는 중`; }).catch(() => {});
+      readPerms().then((P) => { const n = (P.names || {})[VIEW_AS]; if (n) band.textContent = VIEW_MODE === "newbie" ? `신입 모드 · ${n} 기준으로 보는 중` : `FC ${VIEW_MODE === "jw" ? "J/W" : "일반"} 모드 · ${n} 기준으로 보는 중`; }).catch(() => {});
     }
-    if (VIEW_MODE === "newbie") { // 신입 화면: 보일 메뉴를 정하기 전까지 안내만
+    if (false && VIEW_MODE === "newbie") { // v642: 예전 신입 덮개 화면(안 씀) — 이제 실제 화면을 줄여서 보여 줌(CSS html.mode-newbie)
       const nb = document.createElement("div"); nb.id = "nbView"; nb.className = "nb-view";
       nb.innerHTML = nbHtml(); // v629: 신입 메뉴
       document.body.appendChild(nb);
@@ -11054,6 +11057,7 @@ ${fromNew ? "목록에서 옮겨집니다." : "보관 목록에서도 안 보이
     try { await renderSalesInner(keep); } finally { if (box0) box0.style.minHeight = ""; }
   }
   async function renderSalesInner(keep) {
+    if (VIEW_MODE === "newbie") SALES.sub = "prog"; // v642: 신입 세일즈 = 계약진행만
     const req = ++salesReq;
     let anchor = keep && keep !== true ? keep : keep ? salesAnchor() : null;
     if (!anchor && SALES.resume) anchor = SALES.resume;
@@ -12337,7 +12341,7 @@ ${fromNew ? "목록에서 옮겨집니다." : "보관 목록에서도 안 보이
   const joinDigits = (v) => String(v || "").replace(/^\+82/, "0").replace(/\D/g, "");
   const joinFmt = (d) => (d.length === 11 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}` : d);
   async function openJoinSms() {
-    const selEl = $("fcoSel"), v = selEl ? selEl.value : FC_ALL;
+    const selEl = $("fcoSel"), v = selEl && VIEW_MODE !== "newbie" ? selEl.value : FC_ALL; /* v644: 신입은 늘 기준 사용자 FC */
     const fc = v && v !== FC_ALL ? v : (await myFcName()) || "";
     let tkey = ""; try { tkey = String((((await loadSettings()) || {}).todayKeys || {})[fc] || ""); } catch (e) { /* 없으면 예전 링크 */ }
     const jurl = tkey ? todayJoinUrl(tkey) : JOIN_URL; // v634: 그 FC의 오늘 키값 링크
@@ -12394,7 +12398,7 @@ ${fromNew ? "목록에서 옮겨집니다." : "보관 목록에서도 안 보이
     draw();
     setTimeout(() => inp.focus(), 50);
   }
-  document.addEventListener("click", (ev) => { if (ev.target.closest && ev.target.closest("#fcOpts [data-joinsms]")) openJoinSms(); });
+  document.addEventListener("click", (ev) => { if (ev.target.closest && ev.target.closest("#fcOpts [data-joinsms], #pageSearch [data-joinsms]")) { ev.preventDefault(); openJoinSms(); } }); // v644: 신입 고객 화면은 아래 검색창 오른쪽 버튼
   document.addEventListener("change", (ev) => { // 고객 FC 선택창(팀 / 각 FC)
     if (!ev.target || ev.target.id !== "fcoSel") return;
     try { localStorage.setItem(listFcKey(), ev.target.value); } catch (e) { /* 저장 못 해도 이번엔 적용 */ }
@@ -12651,7 +12655,7 @@ ${fromNew ? "목록에서 옮겨집니다." : "보관 목록에서도 안 보이
   }
   const ntfTargets = (it) => (it.target && it.target.length ? it.target : ["*"]);
   const ntfForMe = (it, fc) => { const t = ntfTargets(it); return t.includes("*") || (!!fc && t.includes(fc)); };
-  const ntfAckKey = (it, day) => (it.kind === "date" ? it.id : it.id + "@" + day); // 날짜 알림은 한 번 확인하면 끝, 요일·시스템은 그날만
+  const ntfAckKey = (it, day) => (it.kind === "system" ? it.id + "@" + day : it.id); // v642(2026-11-27 사용자 지시): 날짜·요일 알림 모두 한 번 확인하면 다시 안 뜸, 시스템 알림만 그날 기준 // 날짜 알림은 한 번 확인하면 끝, 요일·시스템은 그날만
   const ntfLsKey = () => "shlife.ntfAck." + (me() || "me");
   function ntfLocal() { try { return JSON.parse(localStorage.getItem(ntfLsKey()) || "{}") || {}; } catch (e) { return {}; } }
   function ntfLocalPut(o) { const ks = Object.keys(o); if (ks.length > 300) ks.sort((a, b) => String(o[a]).localeCompare(String(o[b]))).slice(0, ks.length - 300).forEach((k) => delete o[k]); try { localStorage.setItem(ntfLsKey(), JSON.stringify(o)); } catch (e) { /* 기기에 못 남겨도 진행 */ } }
@@ -12704,7 +12708,8 @@ ${fromNew ? "목록에서 옮겨집니다." : "보관 목록에서도 안 보이
       const doc = await ntfLoad(), fc = await myFcName(), dow = new Date().getDay();
       const dir = fc ? await ntfFcDir(fc) : null;
       let rem = null; if (dir) { try { rem = await stReadJsonIn(dir, NTF_ACK); } catch (e) { rem = null; } }
-      const done = Object.assign({}, ntfLocal(), (rem || {})[me()] || {});
+      let mine = null; try { const md = await resolveMyDir(false); if (md && md.id) mine = await stReadJsonIn(md, NTF_ACK); } catch (e) { mine = null; } // v642: 내 Drive 확인 기록(폰·PC 어디서 확인해도)
+      const done = Object.assign({}, ntfLocal(), (rem || {})[me()] || {}, (mine || {})[me()] || {});
       const list = doc.items.filter((it) => it.kind !== "system" && ntfToday(it, day, dow) && ntfForMe(it, fc) && !done[ntfAckKey(it, day)]);
       const all = [...(await ntfSystem(doc, fc)), ...list];
       if (!all.length) return;
@@ -12719,6 +12724,7 @@ ${fromNew ? "목록에서 옮겨집니다." : "보관 목록에서도 안 보이
     if (sys.length) { let seen = {}; try { seen = JSON.parse(localStorage.getItem(NTF_SEEN()) || "{}") || {}; } catch (e) { seen = {}; } sys.forEach((it) => { seen[it.sys] = it._now; }); try { localStorage.setItem(NTF_SEEN(), JSON.stringify(seen)); } catch (e) { /* 무시 */ } }
     const go = (all.find((x) => x.kind === "system" && x.go) || all.find((x) => x.go) || {}).go; // 이동: 시스템 알림 → 목록 위쪽
     if (go) ntfGo(go);
+    try { const md = await resolveMyDir(true); if (md && md.id) { const cur = (await stReadJsonIn(md, NTF_ACK)) || {}; const m = cur[me()] || {}; all.forEach((it) => { m[ntfAckKey(it, day)] = stamp; }); cur[me()] = m; await stWriteJsonIn(md, NTF_ACK, cur); } } catch (e) { console.warn("알림 확인 기록을 내 Drive에 남기지 못함", e); } // v642
     if (dir) { // 확인 기록(관리자 화면 '확인 N명'용). 보기 전용 FC 등 못 쓰면 이 기기 기록만
       try { const cur = (await stReadJsonIn(dir, NTF_ACK)) || {}; const m = cur[me()] || {}; all.forEach((it) => { m[ntfAckKey(it, day)] = stamp; }); cur[me()] = m; await stWriteJsonIn(dir, NTF_ACK, cur); } catch (e) { console.warn("알림 확인 기록을 Drive에 남기지 못함", e); }
     }

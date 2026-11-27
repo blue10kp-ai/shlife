@@ -2359,3 +2359,29 @@ html.mode-jw .mode-band { height: calc(env(safe-area-inset-top, 0px) + 16px); pa
 /* v640: 신입 모드 아래 메뉴(대시보드·일정·고객·세일즈) — 신입 화면 위에 일반 메뉴와 같은 모양 */
 .nb-nav { z-index: 2350; }
 html.mode-newbie .nb-view { bottom: calc(60px + max(0px, calc(env(safe-area-inset-bottom) - 10px))); }
+/* v642: 신입 모드 = 실제 화면을 줄여서(고객 범위 버튼·고객 FC 선택 숨김, 세일즈는 계약진행만) */
+html.mode-newbie { --sopts-h: 0px; }
+html.mode-newbie #searchOpts, html.mode-newbie #fcoSel { display: none !important; }
+html.mode-newbie #salesSub [data-ssub]:not([data-ssub="prog"]) { display: none; }
+/* v642: 모드 버튼 = 초록 네온(어두운 화면에서도 잘 보이게, 예전 AI 버튼처럼) */
+.mode-fab { border: 2px solid #2e9e6b; box-shadow: 0 0 10px rgba(46, 158, 107, .55), 0 6px 18px rgba(0,0,0,.3); }
+.mode-fab .mf-cur { color: #2e9e6b; }
+.mode-fab .mf-cur small { color: #2e9e6b; opacity: .8; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mode-fab { border-color: #4dffa6; box-shadow: 0 0 12px rgba(77, 255, 166, .6), 0 0 2px rgba(77, 255, 166, .9) inset; } :root:not([data-theme="light"]) .mode-fab .mf-cur, :root:not([data-theme="light"]) .mode-fab .mf-cur small { color: #4dffa6; } }
+:root[data-theme="dark"] .mode-fab { border-color: #4dffa6; box-shadow: 0 0 12px rgba(77, 255, 166, .6), 0 0 2px rgba(77, 255, 166, .9) inset; }
+:root[data-theme="dark"] .mode-fab .mf-cur, :root[data-theme="dark"] .mode-fab .mf-cur small { color: #4dffa6; }
+/* v643(2026-11-27 사용자 지시): 내 손글씨 한 글자 칸 = 가로로 길지 않게 글자 크기에 맞춘 정사각 칸(가운데) */
+.hw-pad.sq { width: min(180px, 100%); height: 180px; margin: 0 auto; align-self: center; }
+/* v643: 모드 기준 사용자 3칸(신입·일반·J/W) 한 줄 */
+.mode-users label { flex: 1 1 90px; min-width: 0; }
+/* v644(2026-11-27 사용자 지시): 일정·동선 지도(Leaflet)가 아래 메뉴 위로 올라오던 것 — 지도 안의 z-index를 지도 상자 안에 가둠 */
+.rt-map { position: relative; z-index: 0; isolation: isolate; }
+/* v644(2026-11-27 사용자 지시): 신입 고객 화면 = 아래 검색창만(늘 보임) + [검색] 오른쪽 [가입설계동의] */
+.nb-join { display: none; }
+html.mode-newbie #pageSearch, html.mode-newbie #pageSearch[hidden] { display: block; }
+html.mode-newbie #fcOpts, html.mode-newbie #scopeHint { display: none !important; }
+html.mode-newbie #pageSearch .nb-join { display: inline-flex; align-items: center; justify-content: center; flex: none; height: 40px; padding: 0 10px; border: 1px solid var(--accent); border-radius: var(--r-ctl); background: var(--surface); color: var(--accent); font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; }
+html.mode-newbie #pageSearch .search { gap: 6px; }
+html.mode-newbie #pageSearch .search button.primary { padding: 0 12px; }
+html.mode-newbie #searchView { padding-bottom: 170px; }
+html.is-pc #pageSearch .nb-join { opacity: .35; cursor: not-allowed; filter: grayscale(1); }

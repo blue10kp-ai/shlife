@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png?v=4">
   <link rel="stylesheet" href="style.css?v=150">
   <link rel="stylesheet" href="tokens.css?v=117">
-  <link rel="stylesheet" href="design.css?v=476">
+  <link rel="stylesheet" href="design.css?v=481">
   <script>
   /* v425(2026-11-18 사용자 지시): 다크 모드가 기본 — 첫 화면을 그리기 전에 미리 적용(폰이 라이트여도 밝게 번쩍이지 않게). 설정 > 화면 > 다크 모드에서 바꾸면 그 값(shlife.theme)을 따름. 같은 규칙을 app.js의 themeApply가 이어받음 */
   (function () {
@@ -80,7 +80,7 @@
         <div class="search">
           <input id="q2" type="search" placeholder="고객검색" autocomplete="off" enterkeyhint="search" aria-label="고객검색">
           <button type="button" class="mic-btn page-mic" id="pageMic" aria-label="음성으로 검색"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-          <button class="primary" type="submit">검색</button>
+          <button class="primary" type="submit">검색</button><button type="button" class="join-sms-btn nb-join" data-joinsms>가입설계동의</button>
         </div>
       </form>
       <div id="searchOpts" class="sopts" role="group" aria-label="고객 범위"><button type="button" data-opt="all" class="on">전체</button><button type="button" data-opt="contract">직접모집</button><button type="button" data-opt="transfer">이관고객</button><button type="button" data-opt="db">DB</button><button type="button" data-opt="plan">가망</button><button type="button" id="gradeOpt" aria-label="성향 Good"><span class="gl gl-Good on">G</span><span class="gl gl-Bad">B</span><span class="gl gl-Shit">S</span></button><button type="button" id="introBtn" class="intro-open">소개찾기</button></div>
@@ -183,6 +183,6 @@
   <script src="config.js?v=118"></script>
   <script src="datepick.js?v=2"></script>
   <script src="calcust.js?v=2"></script>
-  <script src="app.js?v=641"></script>
+  <script src="app.js?v=644"></script>
 </body>
 </html>
