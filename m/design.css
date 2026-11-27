@@ -2356,3 +2356,6 @@ html.mode-jw .mode-band { height: calc(env(safe-area-inset-top, 0px) + 16px); pa
 /* v639: 좁은 화면에서 고객 범위 줄(#searchOpts)이 두 줄이 되면 화면 안 검색창·목록이 가려지던 것 — 줄의 실제 높이(--sopts-h, app.js가 잼)만큼 띄움 */
 #pageSearch { bottom: calc(67px + var(--sopts-h, 48px) + max(6px, calc(env(safe-area-inset-bottom) - 10px))); }
 #searchView { padding-bottom: calc(var(--sopts-h, 48px) + 16px); }
+/* v640: 신입 모드 아래 메뉴(대시보드·일정·고객·세일즈) — 신입 화면 위에 일반 메뉴와 같은 모양 */
+.nb-nav { z-index: 2350; }
+html.mode-newbie .nb-view { bottom: calc(60px + max(0px, calc(env(safe-area-inset-bottom) - 10px))); }
