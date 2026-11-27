@@ -2353,3 +2353,6 @@ html.mode-jw .mode-band { height: calc(env(safe-area-inset-top, 0px) + 16px); pa
 /* v638: 후보자 최종학력 대학교·대학원 = 학교명 옆 학과 */
 .tm-info.cd-info.editing dd.tm-multi:has(.cd-uni) .cd-uniname { flex: 1 1 90px; }
 .tm-info.cd-info.editing dd.tm-multi:has(.cd-uni) .cd-major { flex: 1 1 70px; min-width: 0; }
+/* v639: 좁은 화면에서 고객 범위 줄(#searchOpts)이 두 줄이 되면 화면 안 검색창·목록이 가려지던 것 — 줄의 실제 높이(--sopts-h, app.js가 잼)만큼 띄움 */
+#pageSearch { bottom: calc(67px + var(--sopts-h, 48px) + max(6px, calc(env(safe-area-inset-bottom) - 10px))); }
+#searchView { padding-bottom: calc(var(--sopts-h, 48px) + 16px); }

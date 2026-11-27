@@ -8917,6 +8917,8 @@
     if (t.dataset.nbAct === "joinsms") { openJoinSms(); return; }
     if (t.dataset.nbTab) { nbTab = t.dataset.nbTab; const v = $("nbView"); if (v) v.innerHTML = nbHtml(); }
   });
+  // v639(2026-11-27 사용자 사진: 좁은 화면에서 아래 겹침): 고객 범위 줄 높이를 재서 CSS 변수로 — 화면 안 검색창·목록 여백이 그만큼 띄워짐
+  (() => { const o = document.getElementById("searchOpts"); if (!o) return; const set = () => { const h = o.offsetHeight; if (h) document.documentElement.style.setProperty("--sopts-h", h + "px"); }; try { new ResizeObserver(set).observe(o); } catch (e) { addEventListener("resize", set); } set(); })();
   function modeSetup() {
     if (EMBED || !isAdminReal() || $("modeFab")) return;
     const box = document.createElement("div"); box.id = "modeFab"; box.className = "mode-fab";
