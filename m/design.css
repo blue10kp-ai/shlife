@@ -2403,3 +2403,8 @@ html.mode-newbie #pageSearch .nb-join { order: -1; }
 
 /* v648 가입설계동의 문구 편집 */
 .join-tpl { width: 100%; box-sizing: border-box; font: inherit; font-size: 14px; line-height: 1.5; padding: 8px 10px; border: 1px solid var(--line, #ccc); border-radius: 8px; background: var(--card, transparent); color: inherit; resize: vertical; min-height: 140px; }
+
+/* v653(2026-11-28 사용자 지시): 청구 탭에서 [고객 손글씨] 버튼이 붙어도 전화번호·버튼 위치는 다른 탭과 같게(오른쪽 정렬, 간격 12px). 손글씨 버튼만 왼쪽 끝 */
+.cust-tel.cw-on { justify-content: flex-end; gap: 12px; }
+.cust-tel.cw-on .cw-btn { margin-right: auto; }
+.cust-tel.cw-on .acts { margin-left: 0; }
