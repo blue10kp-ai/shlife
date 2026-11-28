@@ -939,7 +939,7 @@
       perms.fcNos = next;
     } catch (e) { /* 무시 */ }
   }
-  async function writePerms(perms) {
+  async function writePerms(perms) { try { adminPre = null; } catch (e) { /* v654 */ }
     await resolveAppDir();
     if (isAdmin()) await fillFcNos(perms);
     await stWriteJsonIn(appDir, PERM_FILE, perms);
@@ -5742,7 +5742,22 @@
   const extraUsers = new Set();
   const permOpen = new Set(); // 관리자 화면에서 펼쳐 둔 사용자 카드 (평소엔 접힘, 다시 그려도 유지)
 
-  async function loadAdminState() {
+  // v654(2026-11-28 사용자 "이대로 고치기", 관리자 페이지 속도): 화면은 폴더 목록·권한 파일만 받으면 바로 그리고, Drive 공유 조회는 뒤에서 받아 경고·공유 표시만 나중에 채움.
+  //   공유가 필요한 저장·승인·보관은 sharesReady()로 그 조회를 기다린 뒤 진행. 관리자는 앱을 열 때 미리 받아 둠(5분 안이면 그것을 씀)
+  let adminPre = null, adminPreAt = 0;
+  const sharesReady = async () => { if (adminState && adminState.sharesP) { try { await adminState.sharesP; } catch (e) { /* 공유 없이 */ } } };
+  function adminPrefetch() { if (!isAdminReal() || (adminPre && Date.now() - adminPreAt < 300000)) return adminPre; adminPreAt = Date.now(); adminPre = loadAdminState(false).catch((e) => { adminPre = null; throw e; }); adminPre.catch(() => {}); return adminPre; }
+  async function loadAdminState(wait) {
+    if (wait === false) {
+      await resolveBase();
+      const itemsP = stList(base.id), permsP = readPerms();
+      const items = await itemsP, fcFolders = items.filter((i) => i.folder && !i.name.startsWith("_"));
+      const fcs = fcFolders.map((f) => f.name).sort((a, b) => a.localeCompare(b, "ko")), fcIds = Object.fromEntries(fcFolders.map((f) => [f.name, f.id]));
+      const st = { fcs, perms: await permsP, shares: null, fcIds };
+      st.sharesP = GD && base.owner ? loadShares(fcIds).then((sh) => { st.shares = sh; if (adminState === st) adminSharesArrived(); return sh; }).catch((e) => { console.error(e); return null; }) : null;
+      adminState = st; copyInfoAll();
+      return;
+    }
     await resolveBase();
     // v95: 권한 파일 읽기와 공유 조회(loadShares)를 동시에 시작 (서로 필요 없는 일이라 직렬로 기다릴 이유가 없음). 결과는 이전과 같음
     const itemsP = stList(base.id);
@@ -5768,7 +5783,9 @@
       .map((p) => ({ id: p.id, email: p.emailAddress.toLowerCase(), role: p.role }));
   }
   // 고객 폴더의 상위 폴더들(예: Claude 폴더)과 거기에 직접 준 공유 — 상위에 공유돼 있으면 하위 폴더 권한을 바꿀 수 없다
+  let ancChain = null; // v654: [{id, name}] 한 번 찾은 위쪽 폴더 줄
   async function loadAncestors() {
+    if (ancChain) { const out = ancChain.map((a) => ({ id: a.id, name: a.name, perms: [] })); await Promise.all(out.map((it) => gdPermList(it.id, true).catch(() => []).then((p) => { it.perms = p; }))); return out; }
     const out = [], permPs = [];
     const getF = (id) => gdFetch(GDAPI + "/files/" + encodeURIComponent(id) + "?fields=id,name,parents&supportsAllDrives=true").catch(() => null);
     let cur = await getF(base.id); // v95: 이전에는 같은 폴더를 두 번 조회했음
@@ -5784,6 +5801,7 @@
       cur = pf;
     }
     await Promise.all(permPs);
+    ancChain = out.map((a) => ({ id: a.id, name: a.name }));
     return out;
   }
   async function loadShares(fcIds) {
@@ -5824,6 +5842,7 @@
     });
   }
   async function shareFolders(em) {
+    await sharesReady();
     if (!confirm(`${em} 계정에 Google Drive 폴더를 공유할까요?\n· 고객 폴더: 편집 (메모·미팅장소·사진 저장)\n· 설정 폴더: 보기\n공유 알림 메일이 그 계정으로 갑니다.`)) return;
     try {
       const tt = await grantFolders(em, adminState.perms.users[em]);
@@ -5847,6 +5866,7 @@
     throw last;
   }
   async function grantFolders(em, list) {
+    await sharesReady();
     const st = adminState.shares;
     list = (list || []).filter((g) => g !== "*");
     if (!list.length) throw new Error("FC를 하나 이상 체크하세요. (전체(*)는 지원하지 않습니다)");
@@ -5925,12 +5945,14 @@
   }
   // v513: 로그인 승인/거부 토글. 승인 = 그 계정의 FC 폴더(본인 FC + 체크한 FC)와 설정 폴더 공유, 거부 = 로그인 막기(+ 원하면 공유 해제)
   async function shareAppDirReader(em) {
+    await sharesReady();
     const st = adminState.shares;
     if (!appDir || !appDir.id || (st && st.app.some((p) => p.email === em))) return;
     await gdFetch(GDAPI + "/files/" + encodeURIComponent(appDir.id) + "/permissions?supportsAllDrives=true&sendNotificationEmail=false", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "user", role: "reader", emailAddress: em }) });
     if (st) st.app = await gdPermList(appDir.id, true);
   }
   async function toggleLogin(em, btn) {
+    await sharesReady();
     const p0 = adminState.perms || {}, on = loginOn(p0, em), nm = (p0.names || {})[em] || em.split("@")[0];
     if (!on && isPend(em)) return toast(`${nm} 님의 구글 계정 이메일이 아직 없습니다. 조직도에서 그 사람을 눌러 이메일을 먼저 넣어 주세요.`);
     const ids = adminState.fcIds || {}, own = (adminState.fcs || []).includes((p0.names || {})[em]) ? p0.names[em] : "";
@@ -5961,6 +5983,7 @@
     } catch (e) { btn.disabled = false; btn.textContent = on ? "승인" : "거부"; handleError(e); }
   }
   async function unshareFolders(em) {
+    await sharesReady();
     const st = adminState && adminState.shares;
     if (!st) return;
     const del = (fileId, p) => gdFetch(GDAPI + "/files/" + encodeURIComponent(fileId) + "/permissions/" + encodeURIComponent(p.id) + "?supportsAllDrives=true", { method: "DELETE" });
@@ -6026,7 +6049,8 @@
     show("adminView");
     $("adminBody").innerHTML = '<p class="hint pad">권한 정보를 불러오는 중…</p>';
     try {
-      await Promise.all([loadAdminState(), loadSettings(true)]);
+      await Promise.all([adminPre && Date.now() - adminPreAt < 300000 ? adminPre : loadAdminState(false), loadSettings(true)]); // v654
+      adminPre = null; // 미리 받은 것은 한 번만 씀
       renderAdmin();
     } catch (e) {
       $("adminBody").innerHTML = "";
@@ -6518,6 +6542,14 @@
   document.addEventListener("change", profDirty);
   window.addEventListener("popstate", () => { if (profEm) closeOrgProfile(); }); // 폰의 뒤로가기 → 팝업 닫기
 
+  function permWarnHtml() { // v654: 상위 폴더 공유 경고(공유 조회가 끝나면 채움)
+    const sh = adminState && adminState.shares, perms = (adminState && adminState.perms) || {}, adm = (CFG.admins || []).map((a) => a.toLowerCase());
+    if (!sh) return adminState && adminState.sharesP ? '<p class="hint">Drive 공유 확인 중…</p>' : "";
+    const hits = ((sh && sh.anc) || []).flatMap((a) => a.perms.filter((p) => p.role !== "owner" && !adm.includes(p.email)).map((p) => esc((perms.names || {})[p.email] || p.email) + " ← '" + esc(a.name) + "' 폴더(" + p.role + ")"));
+    return hits.length ? `<div class="perm-warn"><b>⚠ 상위 폴더 공유 감지</b><br>${hits.join("<br>")}<br><span class="hint">이 계정은 FC 체크와 상관없이 상위 폴더 전체를 Drive에서 열 수 있습니다. 해당 계정 카드의 [저장]을 누르면 상위 공유를 해제하고 FC 폴더만 공유합니다.</span></div>` : "";
+  }
+  let adminRecheck = null;
+  function adminSharesArrived() { const b = $("permWarnBox"); if (b) b.innerHTML = permWarnHtml(); if (adminRecheck && $("savePerms")) adminRecheck(); }
   function renderAdmin() {
     const { fcs, perms } = adminState;
     // v372(2026-11-16 사용자 지시): 사용자 순서 = 1순위 직급(ESL > SSL > GSL > FC), 2순위 사번(작은 것이 위, 사번 모르면 뒤), 그다음 이름
@@ -6547,7 +6579,8 @@
       <div class="card">
         <h3 class="sec-title org-h">FC 사용 설정</h3>
         <p class="hint org-note-top">고객·세일즈 페이지 접근과 민감정보 권한은 팀관리 메뉴의 [조직도]에서 정합니다.</p>
-        ${(() => {
+        <div id="permWarnBox">${permWarnHtml()}</div>
+        ${(() => { return "";
           const sh = adminState.shares, adm = (CFG.admins || []).map((a) => a.toLowerCase());
           const hits = ((sh && sh.anc) || []).flatMap((a) => a.perms.filter((p) => p.role !== "owner" && !adm.includes(p.email)).map((p) => esc((perms.names || {})[p.email] || p.email) + " ← '" + esc(a.name) + "' 폴더(" + p.role + ")"));
           return hits.length ? `<div class="perm-warn"><b>⚠ 상위 폴더 공유 감지</b><br>${hits.join("<br>")}<br><span class="hint">이 계정은 FC 체크와 상관없이 상위 폴더 전체를 Drive에서 열 수 있습니다. 해당 계정 카드의 [저장]을 누르면 상위 공유를 해제하고 FC 폴더만 공유합니다.</span></div>` : "";
@@ -6640,6 +6673,7 @@
       $("resetPerms").disabled = !n;
       $("savePerms").textContent = n ? `변경 저장 (${n})` : "변경 저장";
     };
+    adminRecheck = refresh; // v654: 공유 조회가 늦게 끝나면 '변경 저장' 대상 다시 계산
     rows.forEach((row) => {
       const all = row.querySelector("input[data-all]");
       const boxes = [...row.querySelectorAll("input[data-fc]")];
@@ -6765,6 +6799,7 @@
 
   // v343(2026-11-15 사용자 지시): [삭제] = 보관. 사용을 막고(권한·공유 해제) 데이터는 지우지 않고 perms.archived에 옮겨 둠 → [원복] 가능. 사용자 정보 파일은 그대로
   async function deleteUser(em) {
+    await sharesReady();
     const shared = GD && shareState(em) && shareState(em) !== "none", nm0 = ((adminState.perms || {}).names || {})[em] || em;
     if (!confirm(`${nm0} (${em}) 계정을 보관할까요?\n보관하면 이 계정은 앱을 쓸 수 없지만, 사용자 정보와 권한 기록은 지우지 않고 남겨 두어 아래 '보관된 사용자'에서 [원복]할 수 있습니다.` +
       (shared ? "\nGoogle Drive 폴더 공유는 해제합니다." : ""))) return;
@@ -6802,6 +6837,7 @@
   document.addEventListener("click", (ev) => { const b = ev.target && ev.target.closest && ev.target.closest("[data-unarch]"); if (b && adminState) unarchiveUser(b.dataset.unarch); });
   async function savePerms(changes, opt) {
     opt = opt || {};
+    await sharesReady();
     if (!changes.length) return;
     if (changes.some(([, l]) => l.includes("*"))) return toast("전체(*)는 더 이상 지원하지 않습니다. FC를 하나씩 체크해 주세요.");
     // Google Drive: FC를 체크한 계정은 폴더 공유, 체크를 모두 뺀 계정은 공유 해제 (변경 저장 한 번으로)
@@ -6969,7 +7005,7 @@
     const s_tm = sec("팀관리 > 팀원정보 (관리자, 2026-11-19)", ["<b>오늘 키값(v634)</b>: 팀원정보의 <b>오늘 키값</b>에 키나 가입설계동의 링크 전체(today.shinhanlife.co.kr/om/…)를 넣으면 키만 뽑아 저장합니다. 그 FC로 [가입설계동의 문자]를 보내면 문구의 링크가 <b>today.shinhanlife.co.kr/om/키/omcomsm039m.mdv</b>로 바뀝니다(키가 없으면 예전 링크).", "팀관리의 <b>[팀원정보]</b>를 누르면 팀원 한 사람의 정보가 나옵니다. 위 <b>드롭다운</b>에서 팀원을 고르며, 순서는 <b>직급순 → 사번순</b>이고 처음에는 <b>로그인한 본인</b>이 골라져 있습니다.", "보이는 항목: <b>주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 도입자 · 소개자 · 입사일 · 메모</b>, 구분선 아래에 <b>Sol FC(비번) · 신한이지(아이디 · 비번) · 지식인(비번) · 보험연수원(아이디 · 비번)</b>. 이름·사번·직급은 위 드롭다운에 나옵니다.", "주민번호와 비번은 가리지 않고 그대로 보여 주고(관리자만 보는 화면), 주민번호 옆에는 <b>[복사]</b> 버튼이 있습니다(구분선 아래 계정 항목에는 버튼 없이 글자만).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 <b>주민번호 · 통신사 · 연락처 · 이메일 · 주소 · 입사일 · 메모와 구분선 아래 계정 항목</b>을 고칠 수 있고(<b>도입자</b>는 팀원 중에서 골라 사번으로 연결하고 화면에는 이름이 나옵니다. 우리 팀원이 아닌 사람(다른 팀에서 도입한 경우 포함)은 바로 아래 <b>소개자</b> 칸에 적습니다. 통신사는 SKT · KT · LG U+ · 각 알뜰폰 중에서 고름) <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 팀원 파일에 바로 저장됩니다. 팀원 정보는 관리자에게만 보이고 기기에 남기지 않습니다.", "<b>‹ 팀관리</b>로 돌아갑니다."]);
     const s_num = sec("주민번호·전화번호 '-' 자동 (v576)", ["주민번호와 전화번호는 <b>숫자만</b> 저장합니다. 화면에 보일 때는 '-'를 알아서 넣습니다(800823-1234567, 010-1234-5678, 02-123-4567). 수정 칸에서도 숫자만 치면 자리에 맞춰 '-'가 들어갑니다. 고객 정보·팀원정보·후보자정보·세일즈 목록·보고서에 모두 같습니다."]);
     const s_copy = sec("계좌 복사 (고객 정보 > 정보 탭, 2026-11-19)", ["고객 정보에 <b>계좌</b>가 있으면 오른쪽에 <b>[복사]</b> 버튼이 나옵니다. 누르면 계좌 내용이 그대로 클립보드에 복사되어 문자·카톡·은행 앱에 붙여 넣을 수 있습니다. 계좌는 민감정보 권한이 있는 계정에만 보입니다."]);
-    const s_jw = sec("조직도 > Joint Work (관리자, 2026-11-26, v619)", ["<b>신입 메뉴(v629)</b>: 신입 모드 화면에는 위쪽에 <b>영업 1 · 영업 2 · … · 영업 5</b> 탭이 있고(v630), <b>영업 1</b>을 누르면 아래 페이지에 [고객 설계동의 문자 보내기] 버튼이 나오고, 고객 화면의 가입설계동의 버튼과 같은 문자 창이 열립니다(PC에서는 꺼짐). 영업 2~5는 준비 중입니다.", "<b>FC 모드 = 그 FC로 로그인한 것처럼(v632)</b>: FC 일반·J/W 모드에서는 기준 사용자의 직책·볼 수 있는 FC·고객추가정보 파일(맨 위 파일 대신 FC 폴더 파일) 기준으로 화면을 보여 주어, 관리자에게만 보이는 선택창·체크가 나오지 않습니다.", "<b>J/W 상·중·하(v633)</b>: 조직도 › Joint Work의 방은 한 줄씩(세로로) 보이고, 방 안은 <b>상 · 중 · 하</b> 3단입니다. 아래 팀원 카드나 방 안 이름을 끌어 원하는 방·단에 놓으면 바로 옮겨지고(다른 방으로도), ×로 뺍니다. 위 단계는 아래·같은 단계 사람의 고객·계약을 보고 고치고, 아래 단계는 위 단계를 볼 수 없습니다. 같은 단계끼리는 서로 보고 고칩니다. 바꾼 뒤 아래 [저장]하면 권한·폴더 공유에 반영됩니다(처음엔 모두 상).", "<b>신입 일정(v646)</b>: 신입 모드의 일정은 오늘부터 7일을 날짜별 목록으로 보여 줍니다(Today·Week·Month 버튼 없음). ‹ ›로 7일씩 넘기고, 날짜를 누르면 그날 화면(수정·삭제), 가운데 날짜 줄을 누르면 다시 오늘부터 7일 목록입니다. [추가]로 일정을 넣습니다.", "<b>신입 모드 설정 숨김(v645)</b>: 신입 모드에서는 아래 메뉴에 설정이 없습니다(대시보드·일정·고객·세일즈만). 모드 버튼의 고른 칸·점은 초록입니다.", "<b>신입 고객 화면(v644)</b>: 신입 모드의 고객 화면은 아래 검색창만 늘 보이고, 검색줄 맨 왼쪽에 [가입설계동의] 버튼이 있습니다(v647).", "<b>신입 모드(v642)</b>: 신입 모드는 FC 일반 모드 기준 사용자로 실제 화면을 줄여 보여 줍니다. 대시보드 = 이달 실적·이달 청약상태만, 일정 = 일반과 같음(추가·수정·삭제), 고객 = 직접모집·이관 등 범위 버튼 없이 이름 검색 + 가입설계동의, 세일즈 = 계약진행만.", "<b>알림 확인(v642)</b>: 날짜·요일 알림은 한 번 [확인]하면 그 사람에게 다시 뜨지 않습니다(이 기기·내 Drive·FC 폴더에 기록). 시스템 알림은 새로 생길 때만 뜹니다.", "<b>신입 모드 메뉴(v640)</b>: 신입 모드 아래 메뉴는 <b>대시보드 · 일정 · 고객 · 세일즈</b> 4개입니다. 세일즈를 누르면 <b>고객 설계동의 문자 보내기</b> 버튼이 바로 나오고(v641: 영업1~5 탭 없앰), 나머지는 아직 준비 중입니다.", "<b>세일즈 FC 선택(v637)</b>: 관리자 모드에서는 세일즈(이달목표·계약진행·자료 등) 위 선택창이 하나뿐이고 모든 FC가 나옵니다(J/W 묶음과 상관없이). FC 모드에서는 그 FC가 보는 그대로 나옵니다.", "<b>청구 탭 전화 줄(v653)</b>: 고객 정보의 청구 탭에서 [고객 손글씨] 버튼이 왼쪽에 붙어도 전화번호와 [전화][문자] 위치는 다른 탭과 같습니다.", "<b>DB 줄 모양(v653)</b>: DB 목록도 이관·따행처럼 둘째 줄 왼쪽에 날짜(배분일), 오른쪽에 전화번호와 [전화][문자]가 있습니다. 셋째 줄은 유입회사·지역입니다.", "<b>DB 배분일 기준(v652)</b>: DB 목록(이달목표·고객 화면)은 FC 배분일 최신순으로 줄을 세우고(같은 날은 유입일시 최신 → 이름순), 줄에도 유입일 대신 배분일을 보여 줍니다. DB 보고서(표·엑셀·PDF)도 유입일 칸 대신 배분일 칸입니다.", "<b>DB 문자(v651)</b>: DB(밸류업DB) 탭의 [문자]는 따로 정한 DB 문자 문구로 나갑니다(따행은 따행 문구, 이관은 이관 문구). 설정 › 문자 문구(내 것)와 관리자 › 문자 문구(팀 기본)에서 고칩니다.", "<b>지역 표시(v650)</b>: 주소·지역은 화면과 보고서(표·엑셀·PDF)에서 예전 시도 이름으로 짧게 보입니다. 예: 전남광주통합특별시 광산구 → 광주 광산구, 순천시 등 → 전남 순천시, 전라북도·전북특별자치도 → 전북. 저장된 값은 바뀌지 않습니다.", "<b>데이터 반영 중 저장(v649)</b>: PC가 데이터를 실제로 쓰는 몇 초 동안만 잠깁니다. 그때 저장하면 앱이 잠깐 기다렸다가 저장하고, 그사이 PC가 바꾼 내용과 내가 고친 것을 합쳐 저장합니다(같은 칸을 서로 다르게 고쳤거나 줄을 지운 경우만 새로고침 안내).", "<b>가입설계동의 문구(v648)</b>: 관리자 페이지의 [가입설계동의 문자 문구]에서 고객에게 보내는 문자를 고칩니다. {링크}는 그 FC의 가입설계동의 링크, {FC}는 FC 이름으로 바뀝니다. [기본값으로 설정]은 지금 문구를 기본 문구로 정하고, [기본 문구로]는 그 기본 문구로 되돌립니다.", "<b>모드 기준 사용자 3개(v643)</b>: 관리자 칸의 모드 기준 사용자에서 <b>신입 · 일반 · J/W</b> 모드마다 누구 기준으로 볼지 따로 고릅니다(처음엔 신입·일반 = 박상선, J/W = 최수진).", "<b>모드 기준 사용자(v636)</b>: 관리자 페이지의 <b>관리자</b> 칸 맨 위로 옮겼습니다. 모드 버튼과 이 설정은 관리자에게만 보입니다.", "<b>FC 모드 = 일반 · J/W (v631)</b>: 모드 버튼에서 FC 모드를 누르면 <b>일반</b>·<b>J/W</b>를 다시 고릅니다. 일반은 박상선, J/W는 최수진을 기준으로(그 사람이 볼 수 있는 FC·이름으로) 보입니다. 기준 사용자는 설정 › <b>모드 기준 사용자</b>에서 바꿉니다. 화면만 그 사람 기준이고 저장·기록은 내 계정으로 됩니다.", "<b>모드 버튼(v628, 관리자만)</b>: 오른쪽 아래(예전 AI 버튼 자리)에 동그란 모드 버튼이 늘 떠 있고, 끌어서 옮기면 그 자리를 기억합니다. 누르면 위로 늘어나며 위부터 <b>신입 모드 · FC 모드 · 관리자 모드</b>. FC 모드는 팀관리·관리자 설정·사용자 선택을 숨긴 일반 FC 화면(데이터 권한은 그대로), 신입 모드는 신입 화면(보일 메뉴는 아직 정하는 중이라 안내만)이고, 위쪽 얇은 띠로 지금 모드가 보입니다. 고른 모드는 이 기기에 기억되고, 관리자 모드를 고르면 원래대로 돌아옵니다.", "<b>신입모드(v627)</b>: 조직도에서 이름을 눌러 펼치면 민감정보 오른쪽에 <b>신입모드</b> 체크가 있습니다. 체크하고 아래 [저장]하면 권한 파일에 그 사용자가 신입모드로 기록되고, 사용자 정보 팝업에도 켜짐/꺼짐이 보입니다. 신입모드일 때 보일 화면은 다음에 정합니다(지금은 기록만).", "<b>세일즈 › 이달목표(v623)</b>: 같은 J/W 방 사람의 FC가 월 줄 오른쪽 <b>FC 선택</b> 드롭박스에 함께 나옵니다(관리자의 사용자 선택과 같은 자리). 고르면 그 FC의 따행·이관·DB를 보고, 그 고객의 상담기록·메모는 로그인한 사람이 아니라 <b>그 고객의 FC 파일</b>에 저장됩니다.", "조직도 맨 밑의 <b>Joint Work</b> 카드에서 방(J/W, J/W 2 …)을 만듭니다. 아래 팀원 카드(나 포함)를 끌어다 방에 놓으면 들어가고, 방 안 이름 옆 ×로 뺍니다. 한 사람이 여러 방에 들어갈 수 있습니다.", "방에 한 명이라도 들어가면 오른쪽에 빈 방이 하나 더 생깁니다. 방이 비면 그 방은 없어지고 오른쪽 방들이 왼쪽으로 당겨집니다(방 이름은 순서대로 다시 붙음).", "<b>같은 방 사람끼리는 서로의 고객·계약을 보고 고칠 수 있습니다</b>(그 사람 FC 보기+수정, 폴더 공유). 아래 [저장]을 눌러 확인창을 거쳐야 적용됩니다. 방에서 빼면 그 방 때문에 생긴 권한만 거둡니다(조직도로 받은 권한은 그대로). 세일즈 페이지 접근은 조직도 기준 그대로입니다."]);
+    const s_jw = sec("조직도 > Joint Work (관리자, 2026-11-26, v619)", ["<b>신입 메뉴(v629)</b>: 신입 모드 화면에는 위쪽에 <b>영업 1 · 영업 2 · … · 영업 5</b> 탭이 있고(v630), <b>영업 1</b>을 누르면 아래 페이지에 [고객 설계동의 문자 보내기] 버튼이 나오고, 고객 화면의 가입설계동의 버튼과 같은 문자 창이 열립니다(PC에서는 꺼짐). 영업 2~5는 준비 중입니다.", "<b>FC 모드 = 그 FC로 로그인한 것처럼(v632)</b>: FC 일반·J/W 모드에서는 기준 사용자의 직책·볼 수 있는 FC·고객추가정보 파일(맨 위 파일 대신 FC 폴더 파일) 기준으로 화면을 보여 주어, 관리자에게만 보이는 선택창·체크가 나오지 않습니다.", "<b>J/W 상·중·하(v633)</b>: 조직도 › Joint Work의 방은 한 줄씩(세로로) 보이고, 방 안은 <b>상 · 중 · 하</b> 3단입니다. 아래 팀원 카드나 방 안 이름을 끌어 원하는 방·단에 놓으면 바로 옮겨지고(다른 방으로도), ×로 뺍니다. 위 단계는 아래·같은 단계 사람의 고객·계약을 보고 고치고, 아래 단계는 위 단계를 볼 수 없습니다. 같은 단계끼리는 서로 보고 고칩니다. 바꾼 뒤 아래 [저장]하면 권한·폴더 공유에 반영됩니다(처음엔 모두 상).", "<b>신입 일정(v646)</b>: 신입 모드의 일정은 오늘부터 7일을 날짜별 목록으로 보여 줍니다(Today·Week·Month 버튼 없음). ‹ ›로 7일씩 넘기고, 날짜를 누르면 그날 화면(수정·삭제), 가운데 날짜 줄을 누르면 다시 오늘부터 7일 목록입니다. [추가]로 일정을 넣습니다.", "<b>신입 모드 설정 숨김(v645)</b>: 신입 모드에서는 아래 메뉴에 설정이 없습니다(대시보드·일정·고객·세일즈만). 모드 버튼의 고른 칸·점은 초록입니다.", "<b>신입 고객 화면(v644)</b>: 신입 모드의 고객 화면은 아래 검색창만 늘 보이고, 검색줄 맨 왼쪽에 [가입설계동의] 버튼이 있습니다(v647).", "<b>신입 모드(v642)</b>: 신입 모드는 FC 일반 모드 기준 사용자로 실제 화면을 줄여 보여 줍니다. 대시보드 = 이달 실적·이달 청약상태만, 일정 = 일반과 같음(추가·수정·삭제), 고객 = 직접모집·이관 등 범위 버튼 없이 이름 검색 + 가입설계동의, 세일즈 = 계약진행만.", "<b>알림 확인(v642)</b>: 날짜·요일 알림은 한 번 [확인]하면 그 사람에게 다시 뜨지 않습니다(이 기기·내 Drive·FC 폴더에 기록). 시스템 알림은 새로 생길 때만 뜹니다.", "<b>신입 모드 메뉴(v640)</b>: 신입 모드 아래 메뉴는 <b>대시보드 · 일정 · 고객 · 세일즈</b> 4개입니다. 세일즈를 누르면 <b>고객 설계동의 문자 보내기</b> 버튼이 바로 나오고(v641: 영업1~5 탭 없앰), 나머지는 아직 준비 중입니다.", "<b>세일즈 FC 선택(v637)</b>: 관리자 모드에서는 세일즈(이달목표·계약진행·자료 등) 위 선택창이 하나뿐이고 모든 FC가 나옵니다(J/W 묶음과 상관없이). FC 모드에서는 그 FC가 보는 그대로 나옵니다.", "<b>관리자 페이지 속도(v654)</b>: 관리자 페이지는 폴더 목록·권한만 받으면 바로 열리고, Drive 공유 확인(상위 폴더 공유 경고 등)은 뒤에서 채웁니다. 관리자는 앱을 열 때 미리 받아 둡니다. 공유가 필요한 저장·승인은 확인이 끝난 뒤 진행됩니다.", "<b>청구 탭 전화 줄(v653)</b>: 고객 정보의 청구 탭에서 [고객 손글씨] 버튼이 왼쪽에 붙어도 전화번호와 [전화][문자] 위치는 다른 탭과 같습니다.", "<b>DB 줄 모양(v653)</b>: DB 목록도 이관·따행처럼 둘째 줄 왼쪽에 날짜(배분일), 오른쪽에 전화번호와 [전화][문자]가 있습니다. 셋째 줄은 유입회사·지역입니다.", "<b>DB 배분일 기준(v652)</b>: DB 목록(이달목표·고객 화면)은 FC 배분일 최신순으로 줄을 세우고(같은 날은 유입일시 최신 → 이름순), 줄에도 유입일 대신 배분일을 보여 줍니다. DB 보고서(표·엑셀·PDF)도 유입일 칸 대신 배분일 칸입니다.", "<b>DB 문자(v651)</b>: DB(밸류업DB) 탭의 [문자]는 따로 정한 DB 문자 문구로 나갑니다(따행은 따행 문구, 이관은 이관 문구). 설정 › 문자 문구(내 것)와 관리자 › 문자 문구(팀 기본)에서 고칩니다.", "<b>지역 표시(v650)</b>: 주소·지역은 화면과 보고서(표·엑셀·PDF)에서 예전 시도 이름으로 짧게 보입니다. 예: 전남광주통합특별시 광산구 → 광주 광산구, 순천시 등 → 전남 순천시, 전라북도·전북특별자치도 → 전북. 저장된 값은 바뀌지 않습니다.", "<b>데이터 반영 중 저장(v649)</b>: PC가 데이터를 실제로 쓰는 몇 초 동안만 잠깁니다. 그때 저장하면 앱이 잠깐 기다렸다가 저장하고, 그사이 PC가 바꾼 내용과 내가 고친 것을 합쳐 저장합니다(같은 칸을 서로 다르게 고쳤거나 줄을 지운 경우만 새로고침 안내).", "<b>가입설계동의 문구(v648)</b>: 관리자 페이지의 [가입설계동의 문자 문구]에서 고객에게 보내는 문자를 고칩니다. {링크}는 그 FC의 가입설계동의 링크, {FC}는 FC 이름으로 바뀝니다. [기본값으로 설정]은 지금 문구를 기본 문구로 정하고, [기본 문구로]는 그 기본 문구로 되돌립니다.", "<b>모드 기준 사용자 3개(v643)</b>: 관리자 칸의 모드 기준 사용자에서 <b>신입 · 일반 · J/W</b> 모드마다 누구 기준으로 볼지 따로 고릅니다(처음엔 신입·일반 = 박상선, J/W = 최수진).", "<b>모드 기준 사용자(v636)</b>: 관리자 페이지의 <b>관리자</b> 칸 맨 위로 옮겼습니다. 모드 버튼과 이 설정은 관리자에게만 보입니다.", "<b>FC 모드 = 일반 · J/W (v631)</b>: 모드 버튼에서 FC 모드를 누르면 <b>일반</b>·<b>J/W</b>를 다시 고릅니다. 일반은 박상선, J/W는 최수진을 기준으로(그 사람이 볼 수 있는 FC·이름으로) 보입니다. 기준 사용자는 설정 › <b>모드 기준 사용자</b>에서 바꿉니다. 화면만 그 사람 기준이고 저장·기록은 내 계정으로 됩니다.", "<b>모드 버튼(v628, 관리자만)</b>: 오른쪽 아래(예전 AI 버튼 자리)에 동그란 모드 버튼이 늘 떠 있고, 끌어서 옮기면 그 자리를 기억합니다. 누르면 위로 늘어나며 위부터 <b>신입 모드 · FC 모드 · 관리자 모드</b>. FC 모드는 팀관리·관리자 설정·사용자 선택을 숨긴 일반 FC 화면(데이터 권한은 그대로), 신입 모드는 신입 화면(보일 메뉴는 아직 정하는 중이라 안내만)이고, 위쪽 얇은 띠로 지금 모드가 보입니다. 고른 모드는 이 기기에 기억되고, 관리자 모드를 고르면 원래대로 돌아옵니다.", "<b>신입모드(v627)</b>: 조직도에서 이름을 눌러 펼치면 민감정보 오른쪽에 <b>신입모드</b> 체크가 있습니다. 체크하고 아래 [저장]하면 권한 파일에 그 사용자가 신입모드로 기록되고, 사용자 정보 팝업에도 켜짐/꺼짐이 보입니다. 신입모드일 때 보일 화면은 다음에 정합니다(지금은 기록만).", "<b>세일즈 › 이달목표(v623)</b>: 같은 J/W 방 사람의 FC가 월 줄 오른쪽 <b>FC 선택</b> 드롭박스에 함께 나옵니다(관리자의 사용자 선택과 같은 자리). 고르면 그 FC의 따행·이관·DB를 보고, 그 고객의 상담기록·메모는 로그인한 사람이 아니라 <b>그 고객의 FC 파일</b>에 저장됩니다.", "조직도 맨 밑의 <b>Joint Work</b> 카드에서 방(J/W, J/W 2 …)을 만듭니다. 아래 팀원 카드(나 포함)를 끌어다 방에 놓으면 들어가고, 방 안 이름 옆 ×로 뺍니다. 한 사람이 여러 방에 들어갈 수 있습니다.", "방에 한 명이라도 들어가면 오른쪽에 빈 방이 하나 더 생깁니다. 방이 비면 그 방은 없어지고 오른쪽 방들이 왼쪽으로 당겨집니다(방 이름은 순서대로 다시 붙음).", "<b>같은 방 사람끼리는 서로의 고객·계약을 보고 고칠 수 있습니다</b>(그 사람 FC 보기+수정, 폴더 공유). 아래 [저장]을 눌러 확인창을 거쳐야 적용됩니다. 방에서 빼면 그 방 때문에 생긴 권한만 거둡니다(조직도로 받은 권한은 그대로). 세일즈 페이지 접근은 조직도 기준 그대로입니다."]);
     const s_xfc = sec("상담기록 저장 위치 (2026-11-26, v622)", ["고객 폴더 맨 위의 고객추가정보 파일이 보이지 않는 계정(자기 FC 폴더만 공유받은 FC)은 상담기록·세일즈 메모·고객 메모를 <b>그 FC 폴더 안의 '고객추가정보.xlsx'</b>에 저장합니다(처음 저장할 때 같은 양식으로 생김). 다른 FC의 기록은 보이지 않습니다.", "관리자는 맨 위 파일과 각 FC 폴더 파일을 합쳐서 봅니다. 관리자가 새로 쓰는 기록은 예전처럼 맨 위 파일에 들어갑니다."]);
     const s_orgin = sec("조직도 = 도입자 기준 (관리자, 2026-11-19)", ["<b>조직도</b>를 열면 팀원정보의 <b>도입자</b>를 따라 자리를 맞춥니다. 도입자가 팀원(이 앱 사용자)이면 그 사람 밑에, <b>도입자가 팀원에 없으면 관리자 바로 밑</b>에 둡니다.", "자리가 바뀐 사람이 있으면 알림이 뜨고, <b>아래 [저장]을 눌러 확인창을 거쳐야</b> 실제로 적용됩니다(조직도에 따라 고객·세일즈 페이지 접근 권한이 달라지기 때문). 저장하지 않고 나가면 그대로입니다."]);
     const s_cd = sec("팀관리 > 후보자정보 (관리자, 2026-11-19)", ["<b>학과(v638)</b>: 최종학력에서 대학교·대학원을 고르면 학교명 옆에 <b>학과</b> 칸이 나옵니다.", "<b>담아두기(v563)</b>: [수정] 오른쪽 [담아두기]를 누르면 그 후보자는 위 고르기 목록에서 빠집니다(바로 [되돌리기] 가능). 제목 줄의 [담아둔 N]을 누르면 담아둔 후보자 목록이 나오고, 이름·연락처로 찾고, 이름을 눌러 정보를 보고, [꺼내기]로 다시 목록에 넣습니다.", "<b>후보자 추가(v562, v563에서 [추가]는 제목 줄 오른쪽)</b>: [추가] → 먼저 메모와 이미지(이력서·자기소개서·명함 사진, 끌어다 놓거나 눌러서 고르기)를 넣고 [분석해서 채우기]를 누르면, 구글 Gemini가 읽어 후보자 정보 칸을 미리 채웁니다(색 칸). 확인하고 빈 칸을 채운 뒤 [완료]. [건너뛰고 직접 입력]도 됩니다.", "<b>수정의 자료로 채우기(v562)</b>: [수정]을 누르면 맨 위에 메모·이미지 칸이 나옵니다. [빈 칸만 채우기]는 있는 정보를 그대로 두고, [기존 정보도 바꾸기]는 읽은 값으로 덮어씁니다(바뀐 칸 아래에 이전 값). [저장]을 눌러야 저장됩니다.", "<b>자료 박스(v562, v566에서 올리기 더함)</b>: 상자 오른쪽 위 [올리기]를 누르거나 파일을 상자에 끌어다 놓으면 바로 올라갑니다(사진은 줄여서, PDF 등은 원본 그대로). 후보자정보 맨 아래에 올린 파일 목록이 나옵니다. 이름을 누르면 열리고, [삭제]하면 드라이브 휴지통으로 갑니다(30일 안에 되살림). 저장 위치: Claude/팀/후보자자료/후보자ID - 이름.", "<b>칸 고르기(v560)</b>: 수정할 때 고등학교는 학교명과 입학·졸업 년월(v601, 달력에서 고름), 최종학력은 고등학교·대학교·대학원 중 고르기(대학교·대학원을 고르면 옆에 학교명과 입학·졸업 년월 칸이 나옴, v601), 병역은 면제·육군·공군·해군 중 고르고 시작·끝 년월, 결혼여부는 체크와 결혼기념일(월·일)로 넣습니다. 예전에 글로 적은 값은 알아볼 수 있는 만큼 새 칸으로 옮겨 보여 주고, 저장하면 원래 글은 따로 남겨 둡니다.", "팀관리의 <b>[후보자정보]</b>(팀원정보 오른쪽)를 누르면 후보자 한 사람의 정보가 나옵니다. 맨 위 제목 줄 왼쪽 끝에 <b>‹ 팀관리</b>(v609, 팀원정보·도입현황도 같음), 그 아래 줄은 <b>후보자 드롭다운</b>이고, 그 아래 동그란 <b>사진</b>을 누르거나 사진 파일을 그 위에 끌어다 놓으면(v606) 사진을 넣거나 바꿉니다(v605, 후보자 자료 폴더에 '프로필사진.jpg'로 저장, 자료 목록에는 안 보임). <b>[수정]·[담아두기]</b>(수정 중에는 <b>[취소]·[저장]</b>)는 오른쪽 아래 하단 메뉴 바로 위에 떠 있는 상자에 늘 보입니다(v603).", "보이는 항목: <b>이름 · 사번 · 입사일 · 도입자(팀원 중에서 고름) · 소개자(도입자에게 소개한 사람, 팀원이 아닌 사람) · 영문이름 · 주민번호 · 연락처(앞에 통신사) · 이메일 · 주소([지도]) · 고등학교(입학·졸업 년월) · 최종학력(대학교·대학원이면 학교명·입학·졸업 년월) · 병역(입대 년월) · 결혼여부(기념일) · 자녀여부 · 종교 · 취미 · 특기</b>, 그 아래 <b>짧은 질문 6개</b>와 <b>상세 자기소개서 3개</b>(질문 아래에 답).", "<b>[수정]</b>을 누르면 보는 화면 그대로 그 자리에서 모든 항목을 고치고 <b>[저장]</b>하면 관리자 드라이브의 <b>Claude > 팀</b> 폴더 후보자 파일에 저장됩니다. 관리자에게만 보이고 기기에 남기지 않습니다. ", "<b>팀원 전환</b>: 정보가 다 들어가 있어도 자동으로 팀원이 되지는 않습니다. <b>필수 항목(이름 · 사번 · 입사일)</b>을 넣어 저장하면 맨 아래 <b>[팀원 전환]</b>이 눌리고(빠진 항목은 버튼 옆에 알려 줌), 그 버튼을 눌러야 등록이 시작됩니다. 누르면 확인 화면에서 <b>입사일(적어 둔 날짜) · 직급(기본 FC) · 도입자</b>를 확인하고 <b>[전환]</b>합니다. 사번이 숫자 8자리가 아니거나 팀원정보에 같은 사번이 있으면 전환하지 않습니다. 전환하면 후보자 기록(자기소개 포함)을 모두 팀원 파일로 옮겨 <b>팀원정보</b>에 나오고, 후보자 목록에는 <b>전환하지 않은 후보자만</b> 보입니다(후보자 기록은 지우지 않고 남겨 둠). 단계는 후보자 → 팀원 두 가지입니다(교육생 단계 없음). 앱 계정 등록·조직도·고객 폴더는 지금처럼 따로 합니다."]);
@@ -13136,6 +13172,7 @@ ${fromNew ? "목록에서 옮겨집니다." : "보관 목록에서도 안 보이
   function startApp0() {
     appStarted = true;
     syncStart(); // v550: 데이터 수집 중 잠금 확인(1분마다)
+    setTimeout(() => { try { if (isAdminReal()) adminPrefetch(); } catch (e) { /* 다음 열 때 */ } }, 4000); // v654: 관리자 페이지 미리 받기(첫 화면을 늦추지 않게 4초 뒤)
     const goReq = GO0; GO0 = null;
     if (goReq) { // 말만해요에서 넘어옴: 첫 화면은 고객, 이어서 검색
       schedMode = "day"; schedDate = dayStart(new Date());
