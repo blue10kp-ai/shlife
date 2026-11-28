@@ -1928,7 +1928,7 @@ label.cd-ai { border-radius: 6px; padding: 0 4px; }
 .rpt-pdf.rpt-dbp th { background: #eef1f5; font-weight: 600; padding: 5px 4px; border: 1px solid #c8cdd5; text-align: center; vertical-align: middle; }
 .rpt-pdf.rpt-dbp td { padding: 4px; border: 1px solid #c8cdd5; height: 40px; text-align: center; vertical-align: middle; line-height: 1.35; word-break: keep-all; overflow: hidden; }
 .rpt-pdf.rpt-dbp .c-메모 { width: 150px; } .rpt-pdf.rpt-dbp .c-No { width: 28px; } .rpt-pdf.rpt-dbp .c-이름 { width: 62px; } .rpt-pdf.rpt-dbp .c-성별나이 { width: 54px; }
-.rpt-pdf.rpt-dbp .c-연락처 { width: 96px; } .rpt-pdf.rpt-dbp .c-유입회사 { width: 62px; } .rpt-pdf.rpt-dbp .c-유입일 { width: 72px; } .rpt-pdf.rpt-dbp .c-지역 { width: 54px; }
+.rpt-pdf.rpt-dbp .c-연락처 { width: 96px; } .rpt-pdf.rpt-dbp .c-유입회사 { width: 62px; } .rpt-pdf.rpt-dbp .c-배분일 { width: 72px; } .rpt-pdf.rpt-dbp .c-지역 { width: 54px; }
 .rpt-pdf.rpt-dbp .c-유입DB명 { width: 120px; } .rpt-pdf.rpt-dbp .c-성향, .rpt-pdf.rpt-dbp .c-통화, .rpt-pdf.rpt-dbp .c-미팅 { width: 38px; } .rpt-pdf.rpt-dbp .c-FC { width: 48px; }
 .rpt-pdf.rpt-dbp .dbx { display: inline-block; width: 12px; height: 12px; border: 1px solid #6b7382; }
 .rpt-pdf.rpt-dbp .rpt-pf { position: absolute; left: 32px; right: 32px; bottom: 18px; font-size: 10px; color: #6b7382; }
